@@ -1,0 +1,175 @@
+name: Release Assurance
+'on':
+  workflow_dispatch:
+    inputs:
+      maintainer_review:
+        description: Source/artifact-bound review JSON; {} produces a blocked rehearsal
+        required: false
+        default: '{}'
+permissions:
+  contents: read
+jobs:
+  verification:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      security-events: write
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    needs: verification
+    steps:
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      with:
+        python-version: '3.13'
+    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+      with:
+        node-version: '24'
+    - run: python -m venv .venv
+    - run: .venv/Scripts/python -m pip install --require-hashes -r requirements.lock.txt
+    - run: python -m venv .audit-env
+    - run: .audit-env/Scripts/python -m pip install --require-hashes -r requirements-assurance.lock.txt
+    - run: 'npm ci
+
+        if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+        npm run build
+
+        exit $LASTEXITCODE'
+      working-directory: frontend
+    - run: .audit-env/Scripts/python scripts/generate_sbom.py --python .venv/Scripts/python.exe
+    - run: .audit-env/Scripts/python scripts/validate_sbom.py release/astra-1.0.0-rc.1.cdx.json
+    - run: .venv/Scripts/python scripts/build_release.py --skip-build --sbom release/astra-1.0.0-rc.1.cdx.json
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: release-input
+        path: release/
+        if-no-files-found: error
+    env:
+      PYTHONUTF8: '1'
+  clean-install:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    needs: build
+    steps:
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      with:
+        python-version: '3.13'
+    - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+      with:
+        name: release-input
+        path: release
+    - run: python scripts/clean_install.py release/astra-1.0.0-rc.1.zip --output release/clean-install.json
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: clean-install-evidence
+        path: release/clean-install.json
+        if-no-files-found: error
+    env:
+      PYTHONUTF8: '1'
+  provenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs:
+    - build
+    - clean-install
+    steps:
+    - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+      with:
+        name: release-input
+        path: release
+    - id: provenance
+      uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+      with:
+        subject-path: release/astra-1.0.0-rc.1.zip
+        create-storage-record: false
+    - id: sbom
+      uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+      with:
+        subject-path: release/astra-1.0.0-rc.1.zip
+        sbom-path: release/astra-1.0.0-rc.1.cdx.json
+        create-storage-record: false
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: attestation-bundles
+        path: '${{ steps.provenance.outputs.bundle-path }}
+
+          ${{ steps.sbom.outputs.bundle-path }}'
+        if-no-files-found: error
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+  verify-attestation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: provenance
+    steps:
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+      with:
+        name: release-input
+        path: release
+    - run: 'gh attestation verify release/astra-1.0.0-rc.1.zip --repo "$REPO" --signer-workflow "$REPO/.github/workflows/release.yml"
+        --source-digest "$SOURCE" --format json > release/provenance-verification.json
+
+        gh attestation verify release/astra-1.0.0-rc.1.zip --repo "$REPO" --signer-workflow "$REPO/.github/workflows/release.yml"
+        --source-digest "$SOURCE" --predicate-type https://cyclonedx.org/bom --format json > release/sbom-verification.json
+
+        python scripts/verify_sbom_attestation.py release/astra-1.0.0-rc.1.cdx.json release/sbom-verification.json'
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        SOURCE: ${{ github.sha }}
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: verification-evidence
+        path: release/*verification.json
+        if-no-files-found: error
+  release-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs:
+    - verification
+    - build
+    - clean-install
+    - provenance
+    - verify-attestation
+    steps:
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+      with:
+        name: release-input
+        path: release
+      if: needs.build.result == 'success'
+    - run: "python - <<'PY'\nimport os,json,zipfile\nfrom pathlib import Path\nPath('release').mkdir(exist_ok=True)\n\
+        Path('release/review.json').write_text(json.dumps(json.loads(os.environ['REVIEW'])))\np=Path('release/astra-1.0.0-rc.1.zip')\n\
+        if p.exists():\n    with zipfile.ZipFile(p) as z: Path('release/manifest.json').write_bytes(z.read('astra/release-manifest.json'))\n\
+        PY"
+      env:
+        REVIEW: ${{ inputs.maintainer_review }}
+    - run: python scripts/release_security_gate.py --manifest release/manifest.json --review release/review.json
+      env:
+        ASTRA_JOB_RESULTS: ${{ toJSON(needs) }}
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: release-assurance-report
+        path: release/release-security-gate.*
+        if-no-files-found: error
+      if: always()
+    name: Release Security Gate
+    if: always()

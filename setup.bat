@@ -3,8 +3,8 @@ setlocal
 cd /d "%~dp0"
 if not "%OS%"=="Windows_NT" goto fail
 if not exist .venv\Scripts\python.exe (
-  py -3.14 -m venv .venv
-  if errorlevel 1 py -3.13 -m venv .venv
+  py -3.13 -m venv .venv
+  if errorlevel 1 py -3.14 -m venv .venv
 )
 if not exist .venv\Scripts\python.exe goto fail
 .venv\Scripts\python.exe -c "import sys; assert sys.version_info[:2] in ((3,13),(3,14)), 'Use Python 3.14 or 3.13; preserve an old environment before recreating it'"

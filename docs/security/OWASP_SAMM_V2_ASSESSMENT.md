@@ -1,0 +1,25 @@
+# OWASP SAMM v2 maturity assessment
+
+Assessment date: 2026-09-12. Scope: solo-maintainer ASTRA lifecycle. Authority: https://owaspsamm.org/model/ and https://owaspsamm.org/assessment/ . Adaptation under OWASP CC BY-SA 4.0.
+
+All five business functions and fifteen practices reviewed. Current maturity is a **conservative demonstrated lower bound**, not a calculated SAMM Benchmark score. SAMM levels 1/2/3 require activity/quality-criteria evidence; selected examples, new policy files and a single test run do not establish a complete practice level. Neither stream for each practice has a completed quality-criteria questionnaire, so no whole-practice level 1 is credited yet. This does not mean there are no security activities: those are recorded below. No organizational average or externally assessed score is claimed.
+
+| Function | Practice | Current demonstrated level | Evidence | Justification / weakness | Target | Concrete next action |
+|---|---|---|---|---|---|---|
+| Governance | Strategy & Metrics | 0 (full level 1 not demonstrated) | SECURE_SDLC.md; RISK_REGISTER.md | Release criteria and ownership now explicit; no trend data | 1 | Record baseline metrics and quarterly review |
+| Governance | Policy & Compliance | 0 (full level 1 not demonstrated) | SECURE_SDLC.md; STANDARDS_BASELINE.md | Policy/mappings exist, not fully executed | 1 | Record owner adoption and close mandatory requirement gaps |
+| Governance | Education & Guidance | 0 (full level 1 not demonstrated) | SECURITY_TESTING.md | Guidance exists; role-based training/proficiency evidence absent | 1 | Create training objectives and record one completed secure-coding exercise |
+| Design | Threat Assessment | 0 (full level 1 not demonstrated) | THREAT_MODEL.md; ARCHITECTURE_INVENTORY.md | Assets, boundaries and STRIDE cases exist; repeated threat process not demonstrated | 1 | Review next boundary-changing diff against abuse cases |
+| Design | Security Requirements | 0 (full level 1 not demonstrated) | OWASP_ASVS_5.0.0_MAPPING.csv | All requirements assessed; applicable L1 failures remain | 1 | Close and verify each applicable L1 gap |
+| Design | Secure Architecture | 0 (full level 1 not demonstrated) | ../SECURITY_ARCHITECTURE.md; THREAT_MODEL.md | Central controls present; architecture full validation incomplete | 1 | Review local identity, HTTP and parser residuals |
+| Implementation | Secure Build | 0 (full level 1 not demonstrated) | ../../scripts/build_release.py; ../../requirements.lock.txt | Scripted local build, lock and validated SBOM; hosted build and controls not demonstrated | 1 | Execute hosted build and preserve verified provenance |
+| Implementation | Secure Deployment | 0 (full level 1 not demonstrated) | WINDOWS_INSTALLATION.md; ../../setup.bat | Safe defaults and installation harness; clean-host acceptance pending | 1 | Run setup on ephemeral Windows runner and preserve evidence |
+| Implementation | Defect Management | 0 (full level 1 not demonstrated) | RISK_REGISTER.md; VULNERABILITY_MANAGEMENT.md | Finding IDs and response targets defined; repeated closure/metrics absent | 1 | Close privacy finding and record one full fix/retest lifecycle |
+| Verification | Architecture Assessment | 0 (full level 1 not demonstrated) | ARCHITECTURE_INVENTORY.md | Maintainer architecture review; no independent review or full questionnaire evidence | 1 | Seek focused external architecture review when practical |
+| Verification | Requirements-Driven Testing | 0 (full level 1 not demonstrated) | OWASP_ASVS_5.0.0_MAPPING.csv; ../../tests/security | Some test links; many controls not completely verified | 1 | Add tests for high-risk missing L1 controls and update individual results |
+| Verification | Security Testing | 0 (full level 1 not demonstrated) | SECURITY_TESTING.md; ../../tests/security | Automated abuse regressions; remote SAST and full test coverage absent | 1 | Run CodeQL; triage findings and record security test review |
+| Operations | Incident Management | 0 (full level 1 not demonstrated) | INCIDENT_RESPONSE.md; ../INCIDENT_RESPONSE_EXERCISE.md | Runbook and local exercise; private reporting/monitoring not operationally demonstrated | 1 | Enable private reporting and conduct one timed tabletop |
+| Operations | Environment Management | 0 (full level 1 not demonstrated) | ../../scripts/protect_local_data.ps1; WINDOWS_INSTALLATION.md | DACL and dependency locks; endpoint patch/FDE evidence absent | 1 | Record supported environment baseline and update review |
+| Operations | Operational Management | 0 (full level 1 not demonstrated) | ../../backend/reliability.py; DATA_PROTECTION.md | Backup and scoped deletion exist; periodic restoration/retirement evidence incomplete | 1 | Restore synthetic backup and document retirement handling |
+
+Before increasing a level, complete both activity streams against official SAMM quality criteria, link durable objective evidence and record assessor/date. A maintainer self-assessment must remain labeled as such. Newly authored policies are implementation intent until operated and reviewed. Roadmap prioritization follows risk rather than score.

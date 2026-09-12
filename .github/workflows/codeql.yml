@@ -1,15 +1,6 @@
 name: CodeQL
-
-on:
-  push:
-    branches: [main, master]
-  pull_request:
-  schedule:
-    - cron: '27 3 * * 1'  # weekly, Monday 03:27 UTC
-
 permissions:
   contents: read
-
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
@@ -20,13 +11,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [python, javascript-typescript, actions]
+        language:
+        - python
+        - javascript-typescript
+        - actions
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4
-        with:
-          languages: ${{ matrix.language }}
-          queries: security-extended
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      with:
+        persist-credentials: false
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63
+      with:
+        languages: ${{ matrix.language }}
+        queries: security-extended
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63
+'on':
+  workflow_call: {}
+  schedule:
+  - cron: 27 3 * * 1

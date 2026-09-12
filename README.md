@@ -21,8 +21,8 @@ set `ASTRA_DEMO_ONLY=1` before starting: every `/api` route is then disabled.
 
 ## Windows installation
 
-Supported configuration: Windows x64, **Python 3.14**, **Node 24 LTS for source builds**.
-Python 3.13 is the tested compatibility line. No administrator rights are required.
+Reference configuration: Windows x64, **Python 3.13.2**, **Node 24 LTS for source builds**.
+Python 3.14 is a CI verification target; continuous verification is pending. No administrator rights are required.
 Install Python from [python.org](https://www.python.org/downloads/windows/) and Node
 from [nodejs.org](https://nodejs.org/en/download). Keep the project outside cloud-synced folders.
 
@@ -60,10 +60,15 @@ Optional scheduled discovery runs as your normal Windows user and does not wake 
 - Persistent OpenAI request limits, bounded input/output and no automatic retries.
 - Hash-checked Python wheels, npm lock, CycloneDX inventory and pinned CI actions.
 
-The 2026-09-12 verification collected **209 tests: 209 passed, 0 failed, 0 skipped**
-on Python 3.14.7. Python 3.13 compatibility and point-in-time audit details are in
-[release verification](docs/RELEASE_CANDIDATE_REPORT.md). GitHub checks are configured;
-they have not run on a remote repository in this review.
+ASTRA's Secure SDLC is mapped to NIST SSDF 1.1, with an application-specific
+OWASP ASVS 5.0.0 assessment and a conservative OWASP SAMM v2 review.
+Release SBOMs use validated CycloneDX 1.7; the SLSA v1.2-aligned hosted provenance
+workflow is prepared but has not executed. **Public release is blocked** until
+requirement gaps and remote assurance checks are closed.
+
+[Secure SDLC](docs/security/SECURE_SDLC.md) | [ASVS](docs/security/OWASP_ASVS_5.0.0_MAPPING.md) |
+[SSDF](docs/security/NIST_SSDF_1.1_MAPPING.md) | [SAMM](docs/security/OWASP_SAMM_V2_ASSESSMENT.md) |
+[Release assurance](docs/release/RELEASE_SECURITY_ASSURANCE_REPORT.md)
 
 [Architecture](docs/SECURITY_ARCHITECTURE.md) · [Threat model](docs/THREAT_MODEL.md) ·
 [Security evidence](docs/SECURITY_POSTURE.md) · [Risks](security/RISK_REGISTER.md) ·
@@ -81,7 +86,7 @@ npm run build
 npm audit --audit-level=low
 cd ..
 .venv\Scripts\python.exe scripts/publication_gate.py
-.venv\Scripts\python.exe scripts/build_release.py
+.venv\Scripts\python.exe scripts/build_release.py --sbom release/astra-1.0.0-rc.1.cdx.json
 ```
 
 [Reproducible builds](docs/REPRODUCIBLE_BUILD.md) documents dependency audits and
@@ -98,3 +103,5 @@ cannot approve facts or submit applications. PDF extraction is text-only and sup
 limited headings; review omissions. Docker/Linux installation is unverified.
 
 MIT licensed. Preserve [third-party notices](THIRD_PARTY_NOTICES.md).
+
+Generate the SBOM in the separate hash-installed assurance environment first; see [SBOM process](docs/security/SBOM.md).

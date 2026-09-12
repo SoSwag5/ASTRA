@@ -1,3 +1,5 @@
+> Historical product/UI note, not current release approval. Public release is BLOCKED; see docs/release/RELEASE_SECURITY_ASSURANCE_REPORT.md.
+
 # Monday release readiness
 
 ## What was found
@@ -41,9 +43,9 @@ The app is running locally at http://localhost:8787. The public-safe demo is htt
 ## Recommended screenshots
 
 1. `/demo` hero plus shortlist and evidence panel.
-2. Private Discovery page showing source health and scan results.
-3. A job detail drawer showing score, matching evidence and review flags.
-4. Applications showing status, notes and follow-up date.
+2. Fictional-only Discovery fixture; never screenshot private workspace content.
+3. Fictional job detail drawer only.
+4. Synthetic application fixture only; never actual records.
 
 ## 20–30 second demo
 

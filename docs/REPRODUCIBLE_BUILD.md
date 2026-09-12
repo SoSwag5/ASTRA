@@ -1,6 +1,6 @@
 # Reproducible Windows builds
 
-Primary: Python 3.14 + Node 24 LTS, Windows x64. Compatibility: Python 3.13.
+Reference: Python 3.13.2 + Node 24 LTS for source builds, Windows x64. Python 3.14 is a CI verification target; remote evidence pending.
 `setup.bat` uses an isolated venv, hash-checking and binary wheels, `npm ci`, frontend
 build, empty database initialization and doctor. It does not require administrator rights.
 A release has a prebuilt frontend and skips Node. Optional browser tests download Chromium.

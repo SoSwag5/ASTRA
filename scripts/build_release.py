@@ -10,11 +10,12 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
-from scripts.publication_gate import git, PRIVATE
+from scripts.publication_gate import git, PRIVATE, scan
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--skip-build',action='store_true',help='CI: frontend and tests already passed')
+    parser.add_argument('--sbom',type=Path,required=True,help='Validated CycloneDX 1.7 BOM from assurance environment')
     args=parser.parse_args()
     if git('status','--porcelain').strip():raise RuntimeError('Commit reviewed source changes before packaging')
     subprocess.run([sys.executable,str(ROOT/'scripts/publication_gate.py')],cwd=ROOT,check=True)
@@ -31,8 +32,19 @@ def main():
     for path in sorted((ROOT/'frontend/dist').rglob('*')):
         if path.is_file():files[path.relative_to(ROOT).as_posix()]=path.read_bytes()
     if 'frontend/dist/index.html' not in files:raise RuntimeError('Frontend missing')
+    bom=json.loads(args.sbom.read_text(encoding='utf-8'))
+    if bom.get('specVersion')!='1.7':raise RuntimeError('CycloneDX 1.7 required')
+    # Full schema validation executes in the separate assurance environment.
+    validation=json.loads(args.sbom.with_suffix('.validation.json').read_text())
+    if validation.get('status')!='PASS' or validation.get('sha256')!=hashlib.sha256(args.sbom.read_bytes()).hexdigest():
+        raise RuntimeError('Missing or stale SBOM validation')
+    files['security/sbom.cdx.json']=args.sbom.read_bytes()
+    findings=[]
+    for name,data in files.items():scan(data,'artifact:'+name,findings)
+    if findings:raise RuntimeError('Artifact content failed publication gate')
     manifest={'version':'1.0.0-rc.1','source_commit':git('rev-parse','HEAD').decode().strip(),
-              'python':'3.14 (3.13 compatible)','node_build':'24 LTS','node_runtime_required':False,
+              'python_reference':'3.13.2','python_verification_target':['3.13','3.14'],'node_build':'24 LTS','node_runtime_required':False,
+              'sbom_sha256':validation['sha256'],'sbom_specification':'1.7',
               'sha256':{name:hashlib.sha256(data).hexdigest() for name,data in sorted(files.items())}}
     files['release-manifest.json']=(json.dumps(manifest,indent=2)+'\n').encode()
     out=ROOT/'release';out.mkdir(exist_ok=True)

@@ -10,7 +10,7 @@ is not a hosted or multi-tenant service.
 
 | Version | Supported |
 |---|---|
-| `master` / `main` release candidate | ✅ |
+| `1.0.0-rc.1` / current development branch | ✅ |
 | older tags | ❌ |
 
 ## Reporting a vulnerability
@@ -51,3 +51,5 @@ See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md),
 [security/](security/) for the full model, tested controls, and mappings.
 
 GitHub private reporting and scanning require owner activation; no remote repository is configured yet.
+
+See [Vulnerability Management](docs/security/VULNERABILITY_MANAGEMENT.md) and [Incident Response](docs/security/INCIDENT_RESPONSE.md). Provide version, platform, synthetic reproducer, impact and boundary. Private reporting remains pending activation.

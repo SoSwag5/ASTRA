@@ -1,6 +1,6 @@
 # Security Case Study
 
-Current verification: [release candidate report](RELEASE_CANDIDATE_REPORT.md).
+Current verification: [release security assurance report](release/RELEASE_SECURITY_ASSURANCE_REPORT.md).
 Static review plus isolated adversarial tests cover HTTP boundaries, document resource
 limits, SSRF redirects, formula injection, native-store fail-closed behavior, privacy
 controls and AI request accounting. Exact counts and dates belong in that report.

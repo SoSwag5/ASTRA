@@ -11,6 +11,7 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
 PATTERNS={
+    'employment_record_table':rb'(?im)^\|\s*ID\s*\|\s*Company\s*\|\s*Role\s*\|\s*Status\s*\|\s*Result\s*\|',
     'private_key':rb'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----',
     'api_token':rb'(?:sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{24,}|gh[pousr]_[A-Za-z0-9]{30,}|AKIA[0-9A-Z]{16})',
     'private_machine_path':rb'[A-Za-z]:[\\/]Users[\\/][^\s\x22\x27]+',
@@ -32,7 +33,7 @@ def scan(data,location,findings):
 def main():
     findings=[];count=0
     try:
-        for raw in git('ls-files','-z').split(b'\0'):
+        for raw in git('ls-files','--cached','--others','--exclude-standard','-z').split(b'\0'):
             if not raw:continue
             path=raw.decode();file=ROOT/path
             if file.is_file():scan(file.read_bytes(),'tree:'+path,findings);count+=1
@@ -43,7 +44,7 @@ def main():
             scan(git('cat-file','blob',oid),'history:'+path,findings);count+=1
         metadata=git('log','--all','--format=%B%n%ae%n%ce')
         scan(metadata,'history:commit-metadata',findings)
-        result={'status':'BLOCKED' if findings else 'PASS','objects_checked':count,'findings':findings,'scope':'tracked worktree + all reachable refs + commit messages/author emails','limitation':'Pattern scan is not proof of absence of all PII; review fictional fixtures and assets manually.'}
+        result={'status':'BLOCKED' if findings else 'PASS','objects_checked':count,'findings':findings,'scope':'tracked and non-ignored untracked worktree + all reachable refs + commit messages/author emails','limitation':'Pattern scan is not proof of absence of all PII; human review of packaged documents and images is mandatory.'}
         print(json.dumps(result,indent=2));return 1 if findings else 0
     except Exception as error:
         print(json.dumps({'status':'CHECK_COULD_NOT_RUN','error':type(error).__name__}));return 2

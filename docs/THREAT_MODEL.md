@@ -1,4 +1,4 @@
-> Current verification and corrections: [release report](RELEASE_CANDIDATE_REPORT.md).
+> Current verification and corrections: [release security assurance report](release/RELEASE_SECURITY_ASSURANCE_REPORT.md).
 
 # ASTRA — Threat Model
 
