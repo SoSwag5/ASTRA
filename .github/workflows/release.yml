@@ -47,7 +47,7 @@ jobs:
     - run: .audit-env/Scripts/python scripts/generate_sbom.py --python .venv/Scripts/python.exe
     - run: .audit-env/Scripts/python scripts/validate_sbom.py release/astra-1.0.0-rc.1.cdx.json
     - run: .venv/Scripts/python scripts/build_release.py --skip-build --sbom release/astra-1.0.0-rc.1.cdx.json
-    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
         name: release-input
         path: release/
@@ -71,7 +71,7 @@ jobs:
         name: release-input
         path: release
     - run: python scripts/clean_install.py release/astra-1.0.0-rc.1.zip --output release/clean-install.json
-    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
         name: clean-install-evidence
         path: release/clean-install.json
@@ -106,7 +106,7 @@ jobs:
         predicate-type: https://cyclonedx.org/bom
         predicate-path: release/astra-1.0.0-rc.1.cdx.json
         create-storage-record: false
-    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
         name: attestation-bundles
         path: '${{ steps.provenance.outputs.bundle-path }}
@@ -141,7 +141,7 @@ jobs:
         GH_TOKEN: ${{ github.token }}
         REPO: ${{ github.repository }}
         SOURCE: ${{ github.sha }}
-    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
         name: verification-evidence
         path: release/*verification.json
@@ -174,7 +174,7 @@ jobs:
     - run: python scripts/release_security_gate.py --manifest release/manifest.json --review release/review.json
       env:
         ASTRA_JOB_RESULTS: ${{ toJSON(needs) }}
-    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
         name: release-assurance-report
         path: release/release-security-gate.*

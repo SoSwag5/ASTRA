@@ -43,7 +43,7 @@ jobs:
       working-directory: frontend
     - run: python -m pytest -q --junitxml=release/tests.xml
     - run: python scripts/publication_gate.py
-    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
         name: tests-${{ matrix.python }}
         path: release/tests.xml
@@ -71,7 +71,7 @@ jobs:
     - run: python -m pip install --require-hashes -r requirements-assurance.lock.txt
     - run: New-Item -ItemType Directory -Force release | Out-Null
     - run: python -m pip_audit --disable-pip --require-hashes --strict -r requirements.lock.txt --format=json --output=release/python-sca.json
-    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
         name: python-sca
         path: release/python-sca.json
