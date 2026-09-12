@@ -1,23 +1,18 @@
-# ASTRA — Risk Register
+# Risk register — 2026-09-12
 
-*Last reviewed: 2026-09-12. Severity is qualitative (single-user local app); CVSS
-is used only where a genuine technical vulnerability warrants it — none currently
-do, so none are asserted.*
+| ID | Final state | Control / remaining limitation |
+|---|---|---|
+| R-01 | ACCEPTED residual | DNS checked before request and redirects; fixed providers reduce, but do not remove, reconnect TOCTOU risk. |
+| R-02 | ACCEPTED residual | No app encryption at rest. Windows account and disk encryption define confidentiality. Disk encryption was not independently verified. |
+| R-03 | ACCEPTED residual | Same-user processes can reach loopback API; optional bearer token, no multi-user authorization. |
+| R-04 | MITIGATED | All 47 pinned packages have wheel SHA-256 hashes, enforced by setup and CI. Hashes do not establish benign authorship. |
+| R-05 | MITIGATED | Persistent UTC-day remote request cap (default 20, configurable 0–100), 40k input characters, 1k output tokens, one active lease, cooldown, timeouts and no retries. Failed remote attempts count. Same-user file tampering/reset is out of scope. |
+| R-06 | MITIGATED pending final publication gate | Private reports preserved in ignored storage, fictional fixtures, unpublished history rewritten after full bundles, commit email sanitized while author name preserved. Re-run tree/history scanner before every release. |
+| R-07 | ACCEPTED residual | Scoped deletion, secure_delete and WAL reclamation do not guarantee forensic erasure or remove external backups. |
+| R-08 | LIMITATION | PDF resource limits are not an OS exploit sandbox. Heuristic active-content scan can miss encoded constructs. No claim of malware-free input. |
+| R-09 | VERIFICATION GAP | Same-host fresh install is not a clean Windows VM. GitHub workflows and account security features still need first remote activation/run. |
 
-| ID | Asset | Threat | Likelihood | Impact | Severity | Existing controls | Residual risk | Decision | Review trigger |
-|---|---|---|---|---|---|---|---|---|---|
-| R-01 | Internal network / metadata | SSRF via DNS-rebinding TOCTOU (validate then reconnect) | Low | Medium | **Low** | `validate_url` per-request + per-redirect; fixed provider hosts; arbitrary import disabled | Small rebinding window on a host that resolves public-then-private | ACCEPT + backlog DNS-pinning | if user-supplied fetch targets are ever added |
-| R-02 | Local files / DB | At-rest confidentiality if OS account compromised | Low | High | **Medium** | OS account trust boundary; in-app guidance to enable BitLocker | App does not encrypt at rest | ACCEPT (delegated to OS FDE, documented) | if distributed to less-technical users |
-| R-03 | Loopback API | Another local process as same user calls the API | Low | Low–Med | **Low** | loopback + Origin + Sec-Fetch-Site; optional `APP_TOKEN` | Same-user local process can reach API (and already can read `data/`) | ACCEPT (token available, not mandatory — UX) | if threat model gains untrusted local processes |
-| R-04 | Supply chain | Dependency tampering between pin and install | Low | Medium | **Low** | pinned versions; SBOM; audits; CI dependency review | Lockfile lacks integrity hashes | MITIGATE — add hash-pinned lock | next dependency refresh |
-| R-05 | AI provider | Excess spend / data exposure via OpenAI | Low | Medium | **Low** | opt-in; per-request consent; only job+skills sent; rules mode default | No hard per-day token budget | MITIGATE — add budget cap | if AI usage becomes routine |
-| R-06 | Public repo | Personal job-search history / name / paths published | **Medium** | Medium | **Medium (P1)** | secret scan clean; `.gitignore` excludes data | UAE campaign reports + one absolute path + name in test fixtures remain tracked | **OWNER DECISION** — gitignore/sanitize before public release | before making the repo public |
-| R-07 | Deleted data | User expects forensic erasure | Low | Low | **Low** | scoped delete + secure_delete + VACUUM; explicit limitation copy | Backups/snapshots/SSD remnants persist | ACCEPT (clearly documented) | — |
-
-## Priority actions
-
-- **R-06 (P1, before public release):** decide on the campaign/audit reports and
-  absolute paths — recommended: `git rm --cached` + `.gitignore` the personal
-  reports, keep them locally.
-- **R-04 / R-05 (P2 hardening):** hash-pinned lockfile; AI per-day budget.
-- **R-01 (P3 defense-in-depth):** DNS-pinning for outbound fetches.
+CI code scanning and dependency review are configured, not claimed as successfully run.
+Legacy security logs in private backups may contain old free-text fields; current writes
+retain only fixed taxonomy. A static demo page is not access control: demo-only server
+mode denies all API routes; never publish the private backend.

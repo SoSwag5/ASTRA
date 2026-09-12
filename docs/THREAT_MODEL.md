@@ -1,3 +1,5 @@
+> Current verification and corrections: [release report](RELEASE_CANDIDATE_REPORT.md).
+
 # ASTRA — Threat Model
 
 *Last reviewed: 2026-09-12. Scope: the local-first ASTRA job-search workspace
@@ -20,7 +22,7 @@ explicitly out of scope. Findings and verification evidence live in
 | Job-search preferences / career focus | Medium | SQLite `settings` |
 | Excel tracker + backups | High (mirror of the above) | `data/tracker.xlsx`, `data/backups/` |
 | Generated CVs / cover letters | High | `data/documents/` |
-| OpenAI API credential | High (secret) | Windows Credential Manager (DPAPI), **not** on disk |
+| OpenAI API credential | High (secret) | Windows Credential Manager (DPAPI), native encrypted OS storage |
 | Local database | High | `data/hunter.db` (+ `-wal`, `-shm`) |
 
 ## 2. Actors / threat sources
@@ -60,7 +62,7 @@ flowchart LR
     UI -->|"LOCAL: Origin/Host/CSRF-checked"| API
     API --> DB
     API --> XLSX
-    API -->|read only, never on disk| CRED
+    API -->|read only, no plaintext app file| CRED
     API --> PARSE
     API -.->|"NETWORK: fixed hosts, SSRF-validated, read-only"| JOBS
     API -.->|"NETWORK: opt-in, per-request approval, job+skills only"| AI

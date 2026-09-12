@@ -17,7 +17,7 @@ class RuleBasedProvider(LLMProvider):
 class OpenAIProvider(LLMProvider):
     def __init__(self,consent=False): self.consent=consent
     def advise(self,job,facts):
-        if self.consent is not True: raise ValueError('Cloud advice requires approval for this request: the job description and listed skills will be sent to OpenAI. No CV file or contact details are sent.')
+        if self.consent is not True: raise ValueError('Cloud advice requires approval for this request: the job description and listed skills will be sent to OpenAI. No CV file or separate contact fields are sent; review job and skill text for sensitive content.')
         from .privacy import read_credential
         key=read_credential('openai')
         from .ai_usage import reserve, record_tokens, MAX_OUTPUT

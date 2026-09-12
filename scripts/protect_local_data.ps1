@@ -1,66 +1,18 @@
-$ErrorActionPreference = 'Stop'
-
-$projectRoot = Split-Path $PSScriptRoot -Parent
-$dataRoot = [System.IO.Path]::GetFullPath((Join-Path $projectRoot 'data'))
-
-if (-not $dataRoot.StartsWith(
-    $projectRoot + [System.IO.Path]::DirectorySeparatorChar,
-    [System.StringComparison]::OrdinalIgnoreCase
-)) {
-    throw 'Unsafe data directory.'
-}
-
-# Ensure the data directory exists.
+$ErrorActionPreference='Stop'
+$projectRoot=Split-Path $PSScriptRoot -Parent
+$dataRoot=[IO.Path]::GetFullPath((Join-Path $projectRoot 'data'))
+if (-not $dataRoot.StartsWith($projectRoot+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)) {throw 'Unsafe data directory'}
 New-Item -ItemType Directory -Force -Path $dataRoot | Out-Null
-
-# Get the EXISTING ACL instead of constructing a fresh security descriptor.
-# This avoids unnecessarily touching ownership/auditing information.
-$acl = Get-Acl -LiteralPath $dataRoot
-
-# Disable inherited permissions and discard inherited access rules.
-$acl.SetAccessRuleProtection($true, $false)
-
-# Remove any existing explicit access rules.
-foreach ($rule in @($acl.Access)) {
-    $acl.RemoveAccessRuleSpecific($rule)
+$currentSid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$allowed=@($currentSid,'S-1-5-18','S-1-5-32-544')
+# icacls changes the DACL only, avoiding SACL/owner privilege requirements in PS 5.1.
+& icacls.exe $dataRoot /inheritance:r /grant:r "*${currentSid}:(OI)(CI)F" '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
+if ($LASTEXITCODE -ne 0) {throw 'Could not protect data permissions'}
+foreach ($rule in (Get-Acl -LiteralPath $dataRoot).Access) {
+    $sid=$rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value
+    if ($sid -notin $allowed) {
+        & icacls.exe $dataRoot /remove "*$sid" | Out-Null
+        if ($LASTEXITCODE -ne 0) {throw 'Could not remove an unwanted data access rule'}
+    }
 }
-
-$currentIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
-
-$inheritance = (
-    [System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
-    [System.Security.AccessControl.InheritanceFlags]::ObjectInherit
-)
-
-$propagation = [System.Security.AccessControl.PropagationFlags]::None
-$allow = [System.Security.AccessControl.AccessControlType]::Allow
-$fullControl = [System.Security.AccessControl.FileSystemRights]::FullControl
-
-# Allow:
-# - Current Windows user
-# - SYSTEM
-# - BUILTIN\Administrators
-foreach ($sidText in @(
-    $currentIdentity.Value,
-    'S-1-5-18',
-    'S-1-5-32-544'
-)) {
-    $sid = [System.Security.Principal.SecurityIdentifier]::new($sidText)
-
-    $rule = [System.Security.AccessControl.FileSystemAccessRule]::new(
-        $sid,
-        $fullControl,
-        $inheritance,
-        $propagation,
-        $allow
-    )
-
-    $acl.AddAccessRule($rule)
-}
-
-# Apply the access permissions.
-$directory = [System.IO.DirectoryInfo]::new($dataRoot)
-[System.IO.FileSystemAclExtensions]::SetAccessControl($directory, $acl)
-
-Write-Output 'Local data directory permissions protected.'
-Write-Output 'Allowed: current Windows account, SYSTEM, and Administrators.'
+Write-Output 'Local data permissions protected for current account, SYSTEM and Administrators.'

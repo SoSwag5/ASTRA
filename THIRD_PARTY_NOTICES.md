@@ -2661,14 +2661,14 @@ freely, subject to the following restrictions:
 ```
 
 
-## pip 26.2
+## pip 26.2.1
 
-Source: https://pypi.org/project/pip/26.2/
+Source: https://pypi.org/project/pip/26.2.1/
 
 Licence metadata: MIT
 
 
-### pip-26.2.dist-info/licenses/LICENSE.txt
+### pip-26.2.1.dist-info/licenses/LICENSE.txt
 
 ```text
 Copyright (c) 2008-present The pip developers (see AUTHORS.txt file)
@@ -2695,7 +2695,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 
-### pip-26.2.dist-info/licenses/src/pip/_vendor/cachecontrol/LICENSE.txt
+### pip-26.2.1.dist-info/licenses/src/pip/_vendor/cachecontrol/LICENSE.txt
 
 ```text
 Copyright 2012-2021  Eric Larson
@@ -2715,7 +2715,7 @@ limitations under the License.
 ```
 
 
-### pip-26.2.dist-info/licenses/src/pip/_vendor/certifi/LICENSE
+### pip-26.2.1.dist-info/licenses/src/pip/_vendor/certifi/LICENSE
 
 ```text
 This package contains a modified version of ca-bundle.crt:
@@ -2742,7 +2742,7 @@ one at http://mozilla.org/MPL/2.0/.
 ```
 
 
-### pip-26.2.dist-info/licenses/src/pip/_vendor/distlib/LICENSE.txt
+### pip-26.2.1.dist-info/licenses/src/pip/_vendor/distlib/LICENSE.txt
 
 ```text
 A. HISTORY OF THE SOFTWARE
@@ -3033,7 +3033,7 @@ OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
 
-### pip-26.2.dist-info/licenses/src/pip/_vendor/distro/LICENSE
+### pip-26.2.1.dist-info/licenses/src/pip/_vendor/distro/LICENSE
 
 ```text
 Apache License
@@ -3242,7 +3242,7 @@ Apache License
 ```
 
 
-### pip-26.2.dist-info/licenses/src/pip/_vendor/idna/LICENSE.md
+### pip-26.2.1.dist-info/licenses/src/pip/_vendor/idna/LICENSE.md
 
 ```text
 BSD 3-Clause License
@@ -3280,7 +3280,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 
-### pip-26.2.dist-info/licenses/src/pip/_vendor/msgpack/COPYING
+### pip-26.2.1.dist-info/licenses/src/pip/_vendor/msgpack/COPYING
 
 ```text
 Copyright (C) 2008-2011 INADA Naoki <songofacandy@gmail.com>
@@ -3301,7 +3301,7 @@ Copyright (C) 2008-2011 INADA Naoki <songofacandy@gmail.com>
 ```
 
 
-### pip-26.2.dist-info/licenses/src/pip/_vendor/packaging/LICENSE
+### pip-26.2.1.dist-info/licenses/src/pip/_vendor/packaging/LICENSE
 
 ```text
 This software is made available under the terms of *either* of the licenses
@@ -3311,7 +3311,7 @@ under the terms of *both* these licenses.
 ```
 
 
-### pip-26.2.dist-info/licenses/src/pip/_vendor/pkg_resources/LICENSE
+### pip-26.2.1.dist-info/licenses/src/pip/_vendor/pkg_resources/LICENSE
 
 ```text
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -3335,7 +3335,7 @@ IN THE SOFTWARE.
 ```
 
 
-### pip-26.2.dist-info/licenses/src/pip/_vendor/platformdirs/LICENSE
+### pip-26.2.1.dist-info/licenses/src/pip/_vendor/platformdirs/LICENSE
 
 ```text
 MIT License
@@ -3363,7 +3363,7 @@ SOFTWARE.
 ```
 
 
-### pip-26.2.dist-info/licenses/src/pip/_vendor/pygments/LICENSE
+### pip-26.2.1.dist-info/licenses/src/pip/_vendor/pygments/LICENSE
 
 ```text
 Copyright (c) 2006-2022 by the respective authors (see AUTHORS file).
@@ -3395,7 +3395,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 
-### pip-26.2.dist-info/licenses/src/pip/_vendor/pyproject_hooks/LICENSE
+### pip-26.2.1.dist-info/licenses/src/pip/_vendor/pyproject_hooks/LICENSE
 
 ```text
 The MIT License (MIT)
@@ -3423,7 +3423,7 @@ THE SOFTWARE.
 ```
 
 
-### pip-26.2.dist-info/licenses/src/pip/_vendor/requests/LICENSE
+### pip-26.2.1.dist-info/licenses/src/pip/_vendor/requests/LICENSE
 
 ```text
 
@@ -3605,7 +3605,7 @@ THE SOFTWARE.
 ```
 
 
-### pip-26.2.dist-info/licenses/src/pip/_vendor/resolvelib/LICENSE
+### pip-26.2.1.dist-info/licenses/src/pip/_vendor/resolvelib/LICENSE
 
 ```text
 Copyright (c) 2018, Tzu-ping Chung <uranusjr@gmail.com>
@@ -3625,7 +3625,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
 
-### pip-26.2.dist-info/licenses/src/pip/_vendor/rich/LICENSE
+### pip-26.2.1.dist-info/licenses/src/pip/_vendor/rich/LICENSE
 
 ```text
 Copyright (c) 2020 Will McGugan
@@ -3651,7 +3651,7 @@ SOFTWARE.
 ```
 
 
-### pip-26.2.dist-info/licenses/src/pip/_vendor/tomli/LICENSE
+### pip-26.2.1.dist-info/licenses/src/pip/_vendor/tomli/LICENSE
 
 ```text
 MIT License
@@ -3679,7 +3679,7 @@ SOFTWARE.
 ```
 
 
-### pip-26.2.dist-info/licenses/src/pip/_vendor/tomli_w/LICENSE
+### pip-26.2.1.dist-info/licenses/src/pip/_vendor/tomli_w/LICENSE
 
 ```text
 MIT License
@@ -3707,7 +3707,7 @@ SOFTWARE.
 ```
 
 
-### pip-26.2.dist-info/licenses/src/pip/_vendor/truststore/LICENSE
+### pip-26.2.1.dist-info/licenses/src/pip/_vendor/truststore/LICENSE
 
 ```text
 The MIT License (MIT)
@@ -3735,7 +3735,7 @@ THE SOFTWARE.
 ```
 
 
-### pip-26.2.dist-info/licenses/src/pip/_vendor/urllib3/LICENSE.txt
+### pip-26.2.1.dist-info/licenses/src/pip/_vendor/urllib3/LICENSE.txt
 
 ```text
 MIT License

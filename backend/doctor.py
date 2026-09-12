@@ -4,7 +4,7 @@ Inspects data directory, database, credential storage, localhost binding,
 AI mode, backups and scheduled-task status. Never writes user data, never
 reveals secret values. Returns PASS / WARNING / FAIL with remediation.
 """
-import json, os, sys, subprocess
+import json, os, sys, subprocess, tempfile
 from pathlib import Path
 
 
@@ -44,8 +44,7 @@ def run_checks():
 
     # 1. Data directory writable
     try:
-        probe = DATA / '.doctor-probe'
-        probe.write_text('ok', encoding='utf-8'); probe.unlink()
+        with tempfile.TemporaryFile(dir=DATA) as probe: probe.write(b'ok')
         _check(results, 'data_directory_writable', 'PASS', f'{DATA} is writable')
     except Exception as e:
         _check(results, 'data_directory_writable', 'FAIL', f'{type(e).__name__}', 'Choose a writable HUNTER_DATA_DIR you own')
@@ -123,8 +122,8 @@ def run_checks():
 
     if os.name=='nt':
         try:
-            process=subprocess.run(['powershell','-NoProfile','-File',str(root/'scripts/check_local_security.ps1')],
-                                   capture_output=True,text=True,timeout=20)
+            process=subprocess.run(['powershell','-NoProfile','-ExecutionPolicy','Bypass','-File',str(root/'scripts/check_local_security.ps1')],
+                                   capture_output=True,text=True,timeout=20,env={k:v for k,v in os.environ.items() if k.upper()!='PSMODULEPATH'})
             if process.returncode:raise RuntimeError('Windows check failed')
             state=json.loads(process.stdout)
             _check(results,'data_acl','PASS' if state['acl_safe'] else 'WARNING','Data and backup permissions inspected',

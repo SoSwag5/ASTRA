@@ -1,0 +1,1 @@
+ASTRA: discover public jobs, review evidence, prepare locally, and submit in your own browser. See README.md for installation. /demo contains fictional data. Never expose the private backend online.

@@ -16,3 +16,5 @@
 
 Chromium, bundled Node and container OS vulnerability inventories still require
 clean-machine distribution review. The Windows lock is not a tested Linux lock.
+
+2026-09-12: Source licensed MIT. Release does not bundle Python or Chromium executables. Python packages are installed from hash-checked wheels. Runtime/test inventory has 47 Python packages plus 193 npm lock entries; notices remain required. Optional model weights are not distributed.

@@ -1,13 +1,13 @@
-FROM node:22-bookworm-slim AS frontend
+FROM node:24-bookworm-slim AS frontend
 WORKDIR /ui
 COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend/ ./
 RUN npm run build
-FROM python:3.12-slim
+FROM python:3.14-slim
 WORKDIR /app
 COPY requirements.lock.txt ./
-RUN pip install --no-cache-dir --upgrade pip==26.2 && pip install --no-cache-dir -r requirements.lock.txt && playwright install --with-deps chromium
+RUN pip install --no-cache-dir --require-hashes --only-binary=:all: -r requirements.lock.txt && playwright install --with-deps chromium
 COPY backend ./backend
 COPY scripts ./scripts
 COPY THIRD_PARTY_NOTICES.md ./THIRD_PARTY_NOTICES.md

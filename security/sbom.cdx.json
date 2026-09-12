@@ -1,10 +1,10 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:75857435-e669-4b44-a19a-d0c7e00b9cd1",
+  "serialNumber": "urn:uuid:520f4f33-839e-44b8-b2b2-a7adb6aa8a6c",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-09-12T05:50:20.523933+00:00",
+    "timestamp": "2026-09-12T06:35:19.237612+00:00",
     "component": {
       "type": "application",
       "name": "astra",

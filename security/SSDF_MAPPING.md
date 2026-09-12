@@ -9,37 +9,37 @@ it's marked GAP.*
 
 | Practice | ASTRA | Status |
 |---|---|---|
-| PO.1 Define security requirements | Threat model + ASVS mapping define requirements | DONE |
-| PO.3 Supporting toolchain | pytest, secret scanner, SBOM, dependency audit, CodeQL CI | DONE |
-| PO.4 Criteria for software security checks | CI gates: tests + security suite + dependency review must pass | DONE |
+| PO.1 Define security requirements | Threat model + ASVS mapping define requirements | IMPLEMENTED / locally reviewed |
+| PO.3 Supporting toolchain | pytest, secret scanner, SBOM, dependency audit, CodeQL CI | IMPLEMENTED / locally reviewed |
+| PO.4 Criteria for software security checks | CI gates: tests + security suite + dependency review must pass | IMPLEMENTED / locally reviewed |
 | PO.2 Roles & responsibilities | Solo project | N/A |
 
 ## PS — Protect the Software
 
 | Practice | ASTRA | Status |
 |---|---|---|
-| PS.1 Protect code from unauthorized change | Git history, reviewed changes, CI on push | DONE |
-| PS.2 Provide provenance / verify integrity | CycloneDX SBOM (`security/sbom.cdx.json`), pinned deps | PARTIAL (no lockfile hashes yet) |
+| PS.1 Protect code from unauthorized change | Git history, reviewed changes, CI on push | IMPLEMENTED / locally reviewed |
+| PS.2 Provide provenance / verify integrity | CycloneDX SBOM (`security/sbom.cdx.json`), pinned deps | IMPLEMENTED (hash-enforced install; no signed provenance attestation) |
 | PS.3 Archive & protect each release | Git tags; local DB backups rotated | PARTIAL |
 
 ## PW — Produce Well-Secured Software
 
 | Practice | ASTRA | Status |
 |---|---|---|
-| PW.1 Design meeting security requirements | Documented trust boundaries + secure defaults | DONE |
-| PW.2 Threat modeling / design review | `docs/THREAT_MODEL.md` | DONE |
-| PW.4 Reuse well-secured components | Maintained deps; audited; no custom crypto | DONE |
-| PW.5 Secure coding practices | ORM, input validation, output encoding, SSRF choke point | DONE |
-| PW.7 Code review | Changes reviewed; CodeQL static analysis | DONE |
-| PW.8 Testing (SAST/DAST/regression) | 201 tests incl. 33 security regression + CodeQL | DONE |
-| PW.9 Secure default configuration | rules/dry-run/loopback/PREPARE-ONLY defaults | DONE |
+| PW.1 Design meeting security requirements | Documented trust boundaries + secure defaults | IMPLEMENTED / locally reviewed |
+| PW.2 Threat modeling / design review | `docs/THREAT_MODEL.md` | IMPLEMENTED / locally reviewed |
+| PW.4 Reuse well-secured components | Maintained deps; audited; no custom crypto | IMPLEMENTED / locally reviewed |
+| PW.5 Secure coding practices | ORM, input validation, output encoding, SSRF choke point | IMPLEMENTED / locally reviewed |
+| PW.7 Code review | Changes reviewed; CodeQL static analysis | IMPLEMENTED / locally reviewed |
+| PW.8 Testing (SAST/DAST/regression) | 209 tests incl. 41 security tests; CodeQL configured, remote execution pending | IMPLEMENTED / locally reviewed |
+| PW.9 Secure default configuration | rules/dry-run/loopback/PREPARE-ONLY defaults | IMPLEMENTED / locally reviewed |
 
 ## RV — Respond to Vulnerabilities
 
 | Practice | ASTRA | Status |
 |---|---|---|
-| RV.1 Identify & confirm vulnerabilities | dependency audit, secret scan, CodeQL, `SECURITY.md` reporting | DONE |
-| RV.2 Assess, prioritize, remediate | `docs/INCIDENT_RESPONSE_EXERCISE.md` runbook + risk register | DONE |
+| RV.1 Identify & confirm vulnerabilities | dependency audit, secret scan, CodeQL, `SECURITY.md` reporting | IMPLEMENTED / locally reviewed |
+| RV.2 Assess, prioritize, remediate | `docs/INCIDENT_RESPONSE_EXERCISE.md` runbook + risk register | IMPLEMENTED / locally reviewed |
 | RV.3 Root-cause analysis | Regression test required per fix (documented practice) | PARTIAL |
 
 ## Honest gaps

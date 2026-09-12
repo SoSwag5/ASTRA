@@ -10,7 +10,7 @@ is not a hosted or multi-tenant service.
 
 | Version | Supported |
 |---|---|
-| `main` (latest) | ✅ |
+| `master` / `main` release candidate | ✅ |
 | older tags | ❌ |
 
 ## Reporting a vulnerability
@@ -49,3 +49,5 @@ best-effort fix timeline based on severity. Triage severity follows
 See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md),
 [docs/SECURITY_POSTURE.md](docs/SECURITY_POSTURE.md), and
 [security/](security/) for the full model, tested controls, and mappings.
+
+GitHub private reporting and scanning require owner activation; no remote repository is configured yet.

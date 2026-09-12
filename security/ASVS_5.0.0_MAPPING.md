@@ -23,7 +23,7 @@ Status: **PASS** (implemented + tested) · **PARTIAL** · **N/A** (architecture)
 | V4 API & Web Service | Content-type / method enforcement | PASS | JSON/multipart only; bounded body |
 | V4 | SSRF defense | PASS | `validate_url`, 14-form test |
 | V5 File Handling | Upload type/size/structure validation | PASS | magic-byte/MIME/ext/archive checks |
-| V5 | Safe parsing / resource limits | PASS | sandboxed subprocess + Job Object cap (verified) |
+| V5 | Safe parsing / resource limits | PASS | resource-limited subprocess + Job Object cap (verified) |
 | V5 | Path traversal | PASS | `resolve()`+`is_relative_to`; traversal tests |
 | V6 Authentication | User authentication | N/A | single-user local app; optional `APP_TOKEN` for non-default bind |
 | V7 Session Management | Sessions/cookies | N/A | no sessions/cookies |
@@ -32,19 +32,20 @@ Status: **PASS** (implemented + tested) · **PARTIAL** · **N/A** (architecture)
 | V10 OAuth/OIDC | — | N/A | none used |
 | V11 Cryptography | No custom crypto; use platform | PASS | DPAPI via keyring; no home-rolled crypto |
 | V11 | Secret management | PASS | OS credential store, fail-closed, never logged |
-| V12 Secure Communication | TLS to external services | PASS | https-only outbound; `trust_env=False`; no redirects to untrusted |
+| V12 Secure Communication | TLS to external services | PASS | fixed HTTPS source entry points; validator also permits public HTTP; `trust_env=False`; no redirects to untrusted |
 | V13 Configuration | Secure defaults | PASS | rules mode, dry-run, loopback, PREPARE-ONLY by default |
-| V13 | Dependency / supply chain | PARTIAL | SBOM + audits + CI; lockfile without hashes (see GAP) |
+| V13 | Dependency / supply chain | PARTIAL | Hash-checked wheels, SBOM, audits; CI configured, remote run pending |
 | V14 Data Protection | Sensitive data at rest | PARTIAL | app-level not encrypted; delegated to OS FDE (documented) |
 | V14 | Data deletion / minimization | PASS | scoped delete + secure_delete + VACUUM |
-| V16 Logging & Error Handling | No sensitive data in logs/errors | PASS | generic 500s; redacted security events; log-injection stripping |
+| V16 Logging & Error Handling | No sensitive data in logs/errors | PASS | generic 500s; fixed-taxonomy security events; log-injection stripping |
 | V16 | Security event logging | PASS | CWE-mapped telemetry |
 
 ## Notable GAP / hardening backlog
 
-- **Lockfile hashes:** `requirements.lock.txt` pins versions but lacks `--hash`
-  integrity pins. Backlog item (see risk register R-04).
+- **Resolved lockfile hashes (2026-09-12):** `requirements.lock.txt` enforces wheel SHA-256 hashes for every pin. R-04 is mitigated.
 - **Anti-automation:** no global rate limiter — acceptable for single-user
   loopback, revisit if ever multi-user.
 - **At-rest encryption:** delegated to OS full-disk encryption by design; would be
   first-class in a distributed build.
+
+Current limitations and exact verification: [release report](../docs/RELEASE_CANDIDATE_REPORT.md). This mapping is thematic, not a requirement-by-requirement ASVS certification.

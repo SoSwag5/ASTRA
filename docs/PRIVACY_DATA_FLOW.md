@@ -1,3 +1,5 @@
+> Current verification and corrections: [release report](RELEASE_CANDIDATE_REPORT.md).
+
 # ASTRA — Privacy & Data Flow
 
 *Last reviewed: 2026-09-12.*
@@ -22,7 +24,7 @@ exceptions matters more than a clean slogan.
 
 | Feature | Local data read | Network destination | Data sent | User control | Note |
 |---|---|---|---|---|---|
-| CV upload & parsing | the PDF you choose | none | none | you pick the file | parsed in a sandboxed subprocess |
+| CV upload & parsing | the PDF you choose | none | none | you pick the file | parsed in a resource-limited subprocess |
 | Profile / preferences | SQLite | none | none | — | |
 | Discovery scan | source list | fixed public job APIs | IP + board URL | on/off + interval | read-only public postings |
 | Job ranking / matching | job text + your skills | none | none | — | deterministic, on-device |
@@ -39,7 +41,7 @@ exceptions matters more than a clean slogan.
   `backups/`). **Not encrypted by the app** — protect your OS account and enable
   full-disk encryption (BitLocker).
 - **OpenAI API key:** the **Windows Credential Manager** (DPAPI, bound to your
-  user account) — never written to disk, `.env`, logs, or API responses. If a
+  user account) — never written as plaintext by ASTRA, `.env`, logs, or API responses. If a
   native credential store is unavailable, ASTRA refuses rather than falling back
   to plaintext.
 - **Backups:** `data/backups/`, same directory tree and access controls as the
