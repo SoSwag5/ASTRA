@@ -1,4 +1,4 @@
-import os,json,shutil,csv,io,threading,tempfile,asyncio,secrets
+import os,json,shutil,csv,io,threading,tempfile,asyncio,secrets,logging
 from contextlib import asynccontextmanager
 from datetime import datetime,timedelta,timezone
 from zoneinfo import ZoneInfo
@@ -248,11 +248,17 @@ def unlock_access(data:AccessRequest,req:Request):
 def lock_access(req:Request):
     sessions.revoke(req.headers.get('authorization','').removeprefix('Bearer '))
     return JSONResponse({'locked':True},headers={'Clear-Site-Data':'"cache", "storage"'})
+logger=logging.getLogger('astra')
+# Unexpected internals can name local paths, SQL or credentials. Only messages
+# this application authors itself reach a client; the detail stays in the local
+# log, which is why failures are reported through this single constant.
+UNEXPECTED_FAILURE='The operation could not finish. No success is recorded. Retry or check local storage availability.'
 @app.exception_handler(ValueError)
 async def value_error(req,exc): return JSONResponse({'detail':str(exc)},400)
 @app.exception_handler(Exception)
 async def unexpected_error(req,exc):
-    return JSONResponse({'detail':'The operation could not finish. No success is recorded. Retry or check local storage availability.'},500)
+    logger.exception('Unhandled error serving %s',req.url.path)
+    return JSONResponse({'detail':UNEXPECTED_FAILURE},500)
 def get_job(db,id):
     j=db.get(Job,id)
     if not j: raise HTTPException(404,'Job not found')
@@ -407,9 +413,13 @@ def bulk(data:dict):
     ids=data.get('ids',[])
     if not isinstance(ids,list) or len(ids)>100 or any(type(i) is not int or i<=0 for i in ids):raise ValueError('Select at most 100 valid jobs')
     result=[]
-    for id in data.get('ids',[])[:100]:
+    for id in ids[:100]:
         try: result.append({'id':id,'result':job_action(id,'prepare')})
-        except Exception as e: result.append({'id':id,'error':str(e)[:300]})
+        except HTTPException as e: result.append({'id':id,'error':str(e.detail)[:300]})
+        except ValueError as e: result.append({'id':id,'error':str(e)[:300]})
+        except Exception:
+            logger.exception('Bulk preparation failed for job %s',id)
+            result.append({'id':id,'error':UNEXPECTED_FAILURE})
     return result
 COLLECTIONS={'applications':Application,'answers':ApprovedAnswer,'interviews':Interview,'followups':FollowUp,'sources':JobSource,'sites':SiteAdapter,'logs':ApplicationEvent,'runs':AutomationRun,'documents':ResumeVersion,'recruiters':Recruiter}
 @app.get('/api/records/{kind}')
@@ -499,10 +509,19 @@ def test_browser(): return browser_test()
 def test_rehearsal():
     from .rehearsal import rehearse
     return rehearse()
+DOWNLOAD_NAME=re.compile(r'[A-Za-z0-9._-]+')
+DOWNLOAD_SUFFIXES=('.pdf','.docx','.xlsx','.png')
 @app.get('/api/files/{path:path}')
 def file_download(path:str):
-    target=(DATA/path).resolve()
-    if not target.is_relative_to(DATA.resolve()) or not target.is_file() or target.suffix not in ('.pdf','.docx','.xlsx','.png'): raise HTTPException(404)
+    # Each component is allowlisted before the join, so no traversal, absolute,
+    # UNC or drive-qualified path is ever built. Containment is then re-checked
+    # after resolution, which also stops a symlink inside the data directory
+    # from pointing outside it.
+    parts=[p for p in path.replace('\\','/').split('/') if p]
+    if not parts or any(p in ('.','..') or not DOWNLOAD_NAME.fullmatch(p) for p in parts): raise HTTPException(404)
+    root=DATA.resolve()
+    target=root.joinpath(*parts).resolve()
+    if not target.is_relative_to(root) or not target.is_file() or target.suffix not in DOWNLOAD_SUFFIXES: raise HTTPException(404)
     return FileResponse(target,filename=target.name)
 from .search_workspace import router as search_router
 app.include_router(search_router)
