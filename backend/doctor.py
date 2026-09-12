@@ -8,6 +8,19 @@ import json, os, sys, subprocess, tempfile
 from pathlib import Path
 
 
+def frontend_stale(root):
+    """Whether the built frontend is older than the sources it was built from.
+
+    Only meaningful in a working tree. In an unpacked release the manifest fixes
+    the build and its digests are already verified, while extraction order
+    rather than editing decides mtimes - zipfile.extractall does not restore
+    them - so a packaged installation is never reported stale.
+    """
+    dist=root/'frontend/dist/index.html'
+    if not dist.exists() or (root/'release-manifest.json').exists():return False
+    built=dist.stat().st_mtime
+    return any(p.stat().st_mtime>built for p in (root/'frontend/src').rglob('*') if p.is_file())
+
 def _check(results, name, status, detail, remediation=''):
     results.append({'check': name, 'status': status, 'detail': detail, 'remediation': remediation})
 
@@ -34,7 +47,7 @@ def run_checks():
     _check(results,'dependency_lock','PASS' if '--require-hashes' in lock and '--hash=sha256:' in lock else 'FAIL',
            'Hash enforcement configuration inspected; install validation is a separate release gate','Run setup.bat to verify the locked installation')
     dist=root/'frontend/dist/index.html'
-    stale=dist.exists() and any(p.stat().st_mtime>dist.stat().st_mtime for p in (root/'frontend/src').rglob('*') if p.is_file())
+    stale=frontend_stale(root)
     _check(results,'frontend_build','PASS' if dist.exists() and not stale else 'FAIL',
            'Built frontend present' if dist.exists() and not stale else 'Frontend missing or older than source','Run setup.bat')
     from .build_info import info
