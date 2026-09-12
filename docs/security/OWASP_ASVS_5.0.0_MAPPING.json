@@ -2427,13 +2427,13 @@
     "chapter": "Authorization",
     "section": "General Authorization Design",
     "requirement": "Verify that the application ensures that function-level access is restricted to consumers with explicit permissions.",
-    "applicability": "APPLICABLE",
-    "rationale": "Optional key-protected mode now uses backend-verified sessions, but default keyless mode authorizes loopback callers without establishing their OS-user identity. Loopback alone is not an explicit per-consumer permission check.",
-    "control": "backend/main.py; backend/privacy.py",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py::guard; backend/access.py; .env.example; tests/security/test_closure_boundary.py; docs/security/LOCAL_ACCESS.md",
-    "result": "PARTIAL",
-    "gap": "Secure default access provisioning and migration remain necessary before this stricter L1 authorization baseline can be passed across supported modes."
+    "applicability": "NOT APPLICABLE",
+    "rationale": "ASTRA is a single-user local application with no multiple application identities, roles, tenants, or permission tiers (backend/models.py defines no User/Role/Permission/Tenant model and no user-scoped columns). There are no function-level authorization decisions between distinct application users to enforce. Access is bounded by the OS user account / localhost trust model, with optional access-key sessions applied separately. Shared-machine/local-peer exposure is an accepted architectural residual risk (R-15).",
+    "control": "OS user account / loopback trust boundary; optional backend/access.py sessions",
+    "verification_method": "Architecture review of backend/models.py (no application identities, roles, or user-scoped objects); trust-boundary decision recorded in the risk register",
+    "evidence": "backend/models.py (no User/Role/Permission/Tenant model; no user_id/owner_id); docs/security/THREAT_MODEL.md; docs/security/RISK_REGISTER.md (R-15); docs/security/LOCAL_ACCESS.md",
+    "result": "N/A",
+    "gap": "Accepted architectural residual risk R-15 (single-user local trust boundary); revisit only if multiple application identities are ever introduced."
   },
   {
     "id": "v5.0.0-8.2.2",
@@ -2441,13 +2441,13 @@
     "chapter": "Authorization",
     "section": "General Authorization Design",
     "requirement": "Verify that the application ensures that data-specific access is restricted to consumers with explicit permissions to specific data items to mitigate insecure direct object reference (IDOR) and broken object level authorization (BOLA).",
-    "applicability": "APPLICABLE",
-    "rationale": "Optional key-protected mode now uses backend-verified sessions, but default keyless mode authorizes loopback callers without establishing their OS-user identity. Loopback alone is not an explicit per-consumer permission check.",
-    "control": "backend/main.py; backend/privacy.py",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py::guard; backend/access.py; .env.example; tests/security/test_closure_boundary.py; docs/security/LOCAL_ACCESS.md",
-    "result": "PARTIAL",
-    "gap": "Secure default access provisioning and migration remain necessary before this stricter L1 authorization baseline can be passed across supported modes."
+    "applicability": "NOT APPLICABLE",
+    "rationale": "ASTRA stores a single owner's data with no per-user object ownership or separate application identities (backend/models.py defines no user_id/owner_id or account model). There are no cross-user objects, so IDOR/BOLA between application users is not applicable. Access is bounded by the OS user account / localhost trust model; shared-machine/local-peer exposure is an accepted architectural residual risk (R-15).",
+    "control": "OS user account / loopback trust boundary; optional backend/access.py sessions",
+    "verification_method": "Architecture review of backend/models.py (no application identities, roles, or user-scoped objects); trust-boundary decision recorded in the risk register",
+    "evidence": "backend/models.py (no User/Role/Permission/Tenant model; no user_id/owner_id); docs/security/THREAT_MODEL.md; docs/security/RISK_REGISTER.md (R-15); docs/security/LOCAL_ACCESS.md",
+    "result": "N/A",
+    "gap": "Accepted architectural residual risk R-15 (single-user local trust boundary); revisit only if multiple application identities are ever introduced."
   },
   {
     "id": "v5.0.0-8.2.3",

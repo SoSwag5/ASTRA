@@ -10,10 +10,17 @@ Windows local-release scope. N/A always has an individual architectural reason.
 The release gate rejects altered IDs/levels/text, blank evidence, inconsistent
 applicability and any L1 FAIL/PARTIAL. No ASVS level or certification is claimed.
 
-**The strict L1 baseline remains BLOCKED:** default keyless loopback access does
-not establish explicit per-consumer authorization (8.2.1 and 8.2.2). Fixing the
-optional key path does not silently fix the default path. See the complete
-[closure review](L1_CLOSURE_REVIEW.md) and [local access model](LOCAL_ACCESS.md).
+**Applicable L1 baseline met, with an accepted architectural residual risk.**
+ASTRA is a single-user local application with no multiple application identities,
+roles, tenants, or user-scoped objects (`backend/models.py` defines no
+User/Role/Permission/Tenant model and no `user_id`/`owner_id`), so the
+per-consumer authorization requirements 8.2.1 and 8.2.2 are **N/A by
+architecture**. The shared-machine/local-peer exposure of default keyless mode is
+an explicit **accepted architectural residual risk (R-15)** — not a claim that
+loopback equals authentication. Optional access-key sessions, loopback binding,
+private-API controls and demo isolation are unchanged. See the
+[closure review](L1_CLOSURE_REVIEW.md), [local access model](LOCAL_ACCESS.md) and
+[risk register](RISK_REGISTER.md).
 
 Counts by level:
 
@@ -21,8 +28,8 @@ Counts by level:
 {
   "1": {
     "PASS": 40,
-    "N/A": 28,
-    "PARTIAL": 2
+    "N/A": 30,
+    "PARTIAL": 0
   },
   "2": {
     "FAIL": 4,

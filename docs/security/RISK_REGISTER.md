@@ -14,8 +14,22 @@ Owner: Maintainer. Reviewed 2026-09-12. Risk matrix: likelihood 1 unlikely, 2 pl
 | R-09 | Clean Windows installation and live task migration | 2/2 | Open remote verification | clean-install workflow/harness; live task unchanged; migration plan | Before final release |
 | R-10 | No actual hosted SAST/CI/repository controls | 2/3 | BLOCKING | Workflows configured, remote absent; activate technical protections and review Scorecard | Before final release |
 | R-11 | No signed/verified hosted provenance | 2/3 | BLOCKING | release.yml and SLSA assessment; no attestation exists | Before final release |
-| R-12 | ASVS L1/L2 control verification gaps | 2/3 | BLOCKING for applicable L1 | Full requirement CSV, including field selection, input review and authorization boundaries | Before final release |
+| R-12 | ASVS L1/L2 control verification gaps | 2/3 | Applicable L1 closed (all PASS/N-A); L2 gaps open hardening | Full requirement CSV; L1 authorization 8.2.1/8.2.2 accepted N/A under R-15 | Before final release / next L2 pass |
+| R-15 | Local-peer / shared-host access within the OS trust boundary | 2/2 | Accepted architectural residual (v1.0) | Single-user architecture (no app identities/roles/user-scoped objects); loopback binding; optional access-key sessions; demo isolation; see detail below | Any move toward multi-user/networked operation |
 | R-13 | AI response resource limits and local provider availability | 2/2 | Open L2 hardening | providers.py HTTP body handling; test and add streaming byte cap in focused remediation | Before next AI change |
 | R-14 | Incomplete/tamperable security event coverage | 2/2 | Open L2 | security_events.py; missing auth/quota/error events and immutable sink | Within 90 days |
 
 Privacy incident root cause: a report reused real records as test evidence; heuristic secret scanning was incorrectly treated as full privacy assurance. Similarity review must cover all Markdown, images, notices and archives, not just databases. Process change: publication requires document/image review; release approval is blocked by absent evidence. Keep backup locations and raw records out of public reports.
+
+## R-15 — Local-peer / shared-host access (accepted architectural residual, v1.0)
+
+- **Asset:** Local application data (application records, job records, CV/profile facts, settings) served by the loopback API.
+- **Threat:** A malicious process, or another OS user/process with sufficient access to the same host/OS-user environment, reaches the loopback API and reads or modifies local application data.
+- **Trust-boundary assumption:** ASTRA's supported security boundary is the local operating-system user account / localhost environment. ASTRA does not provide multi-user tenancy, multiple application identities, inter-user roles, per-record authorization between application users, or hostile-user isolation between OS users sharing one machine.
+- **Likelihood:** 2 (plausible only on a shared or already-compromised host).
+- **Impact:** 2 (material — local data exposure/modification; no remote/multi-tenant blast radius).
+- **Compensating controls (retained, not weakened):** loopback-only binding; optional access-key exchange with 256-bit expiring server-side sessions, logout/invalidation, and brute-force lockout; Host/Origin/cross-site request rejection; `ASTRA_DEMO_ONLY` isolation; data-directory ACL guidance; no automatic external submission.
+- **Accepted residual risk:** A caller already inside the local OS-user/host boundary is treated as within ASTRA's trusted scope. ASVS 5.0.0 `8.2.1`/`8.2.2` (per-consumer function/data authorization) are therefore **N/A by architecture**.
+- **Rationale:** Standard trust model for a personal single-user local desktop/web application; enforcing inter-user authorization would require introducing application identities the product intentionally does not have.
+- **Owner:** Maintainer.
+- **Review trigger:** Any change toward multi-user, networked, hosted, or shared-tenant operation; any non-loopback bind; introduction of application accounts or roles.

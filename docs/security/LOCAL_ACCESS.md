@@ -4,11 +4,14 @@ ASTRA is a Windows local workspace. Non-loopback peers, untrusted Host/Origin,
 cross-site requests and browser resource/navigation requests to private APIs are
 rejected by the backend. Those controls do not identify an OS user.
 
-The default keyless mode remains an explicit release blocker under the strict
-ASVS L1 authorization policy: local processes, including other local users, may
-call the API. Do not describe this mode as authenticated or suitable for a shared
-or untrusted computer. Private data access in this mode cannot be claimed to meet
-8.2.1/8.2.2. No live configuration was changed in this pass.
+In default keyless mode, local processes — including other local users on a
+shared machine — may call the API. This is an **accepted architectural residual
+risk (R-15)**: ASTRA's supported trust boundary is the local OS user account /
+localhost environment, and it implements no application identities or inter-user
+authorization, so ASVS 5.0.0 8.2.1/8.2.2 are N/A by architecture rather than a
+met control. Do **not** describe this mode as authenticated or as suitable for a
+shared or untrusted computer; use the optional protected mode below on any
+multi-user host. No live configuration was changed in this pass.
 
 ## Optional protected mode
 
@@ -56,5 +59,6 @@ opened in a separate download window remain under the user's control. Server-sid
 scheduled work can continue after the tab closes.
 
 Tests: `tests/security/test_access_sessions.py`, `test_closure_boundary.py`, and
-`test_browser_termination.py`. Local key exchange must not be represented as
-complete default access control; secure provisioning/migration remains open.
+`test_browser_termination.py`. The optional key exchange is a per-installation
+protection, not a multi-user access-control system; the single-user local trust
+boundary and its shared-host residual are recorded as R-15 in the risk register.

@@ -123,7 +123,13 @@ def main():
         blockers.append('Missing artifact or artifact-bound maintainer review')
     if os.getenv('GITHUB_ACTIONS') != 'true':
         blockers.append('Hosted release execution not established')
+    # Local technical/data blockers are those resolvable without hosted execution
+    # or human review evidence (ASVS mapping integrity + malformed gate inputs).
+    LOCAL_MARKERS = ('ASVS', 'L1', 'Malformed', 'job result', 'job results')
+    local_blockers = [b for b in blockers if any(m in b for m in LOCAL_MARKERS)]
+    local_assurance = 'BLOCKED LOCALLY' if local_blockers else 'PASS FOR REMOTE ASSURANCE'
     result = {'decision': 'BLOCKED' if blockers else 'APPROVED WITH DOCUMENTED RESIDUAL RISK',
+              'local_assurance': local_assurance, 'local_blockers': local_blockers,
               'source_commit': source or None, 'artifact_sha256': digest, 'jobs': needs,
               'generated_at': datetime.now(timezone.utc).isoformat(), 'blockers': blockers,
               'run': os.getenv('GITHUB_RUN_ID'), 'repository': os.getenv('GITHUB_REPOSITORY'),
