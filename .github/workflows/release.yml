@@ -94,11 +94,17 @@ jobs:
       with:
         subject-path: release/astra-1.0.0-rc.1.zip
         create-storage-record: false
+    # sbom-path rejects CycloneDX 1.7 ("Unsupported SBOM format") up to and
+    # including actions/attest v4.2.2, the current release. The predicate inputs
+    # bypass that format sniffing and produce the same statement: predicateType
+    # https://cyclonedx.org/bom with the validated BOM as the predicate, which
+    # is exactly what verify_sbom_attestation.py compares against.
     - id: sbom
       uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
       with:
         subject-path: release/astra-1.0.0-rc.1.zip
-        sbom-path: release/astra-1.0.0-rc.1.cdx.json
+        predicate-type: https://cyclonedx.org/bom
+        predicate-path: release/astra-1.0.0-rc.1.cdx.json
         create-storage-record: false
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       with:
