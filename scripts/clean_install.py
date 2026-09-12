@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -13,6 +14,13 @@ import urllib.request
 import zipfile
 from pathlib import Path, PurePosixPath
 from publication_gate import PRIVATE, scan
+
+def redact(text, *paths, keep=4000):
+    """Keep the failing step readable without putting machine paths in evidence."""
+    for path in sorted((str(p) for p in paths), key=len, reverse=True):
+        text = text.replace(path, '<install>')
+    text = re.sub(r'[A-Za-z]:[\\/][^\s"\'<>|]+', '<path>', text)
+    return text[-keep:]
 
 def request(port, path, data=None):
     req = urllib.request.Request('http://127.0.0.1:'+str(port)+path,
@@ -60,8 +68,11 @@ def run(archive):
         setup = subprocess.run(['cmd.exe', '/d', '/c', 'setup.bat'], cwd=project, env=env,
                                capture_output=True, text=True, timeout=900)
         if setup.returncode:
-            # Synthetic environment, but do not leak local paths in public evidence.
-            raise RuntimeError('setup.bat failed with exit '+str(setup.returncode))
+            # Synthetic environment, but do not leak local paths in public
+            # evidence. Redacted output still names the failing step, which an
+            # exit code alone does not.
+            raise RuntimeError('setup.bat failed with exit '+str(setup.returncode)+'\n'
+                               +redact((setup.stdout or '')+(setup.stderr or ''), target, project))
         with socket.socket() as s:
             s.bind(('127.0.0.1', 0)); port = s.getsockname()[1]
         env.update(HUNTER_PORT=str(port), HUNTER_DATA_DIR=str(project/'data'), DATABASE_URL='sqlite:///'+str(project/'data/hunter.db'))
