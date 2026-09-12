@@ -10,10 +10,13 @@ foreach ($entry in $entries) {
         if ($rule.AccessControlType -eq 'Allow' -and $sid -notin $allowed) {$unsafe++}
     }
 }
-$task=Get-ScheduledTask -TaskName 'Ayham Job Hunter - Local Discovery' -ErrorAction SilentlyContinue
+$task=Get-ScheduledTask -TaskName 'ASTRA Local Discovery' -ErrorAction SilentlyContinue
+$legacyTask=Get-ScheduledTask -TaskName 'Ayham Job Hunter - Local Discovery' -ErrorAction SilentlyContinue
+$duplicateTasks=[bool]($task -and $legacyTask)
+if (-not $task) {$task=$legacyTask}
 $schedulerSafe=$true
 if ($task) {
     $expected=Join-Path $projectRoot '.venv\Scripts\python.exe'
-    $schedulerSafe=($task.Actions[0].Execute -eq $expected) -and (Test-Path -LiteralPath $expected) -and (-not $task.Settings.WakeToRun) -and ($task.Principal.RunLevel -eq 'Limited') -and ($task.Settings.MultipleInstances -eq 'IgnoreNew')
+    $schedulerSafe=(-not $duplicateTasks) -and ($task.Actions.Count -eq 1) -and ($task.Actions[0].Execute -eq $expected) -and (Test-Path -LiteralPath $expected) -and (-not $task.Settings.WakeToRun) -and ($task.Principal.RunLevel -eq 'Limited') -and ($task.Settings.MultipleInstances -eq 'IgnoreNew')
 }
 @{acl_safe=($unsafe -eq 0);scheduler_installed=[bool]$task;scheduler_safe=$schedulerSafe} | ConvertTo-Json -Compress

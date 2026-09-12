@@ -191,7 +191,7 @@ with TestClient(app) as client:
     assert client.get('/api/privacy',headers={'Origin':'https://evil.invalid'}).status_code==403
     assert client.get('/api/privacy').headers['cache-control']=='no-store'
     bad=client.post('/api/records/answers',json={'question':'Synthetic invalid record','answer':{'private':'DO_NOT_LOG_THIS_MARKER'},'approved':True})
-    assert bad.status_code==500 and 'DO_NOT_LOG_THIS_MARKER' not in bad.text
+    assert bad.status_code==400 and 'DO_NOT_LOG_THIS_MARKER' not in bad.text
 with TestClient(app,client=('203.0.113.9',10000)) as remote:
     assert remote.get('/api/privacy',headers={'Host':'localhost'}).status_code==403
 '''

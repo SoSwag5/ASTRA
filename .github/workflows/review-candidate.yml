@@ -1,0 +1,68 @@
+name: Review Existing Candidate
+'on':
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: Completed Release Assurance run on this exact commit
+        required: true
+        type: string
+      maintainer_review:
+        description: Source/artifact-bound review JSON with evidence URLs
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+    - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      with:
+        persist-credentials: false
+    - name: Download exact candidate and authoritative run metadata
+      shell: bash
+      run: |
+        set -euo pipefail
+        [[ "$CANDIDATE_RUN" =~ ^[0-9]+$ ]]
+        mkdir -p release
+        gh run download "$CANDIDATE_RUN" --repo "$REPO" --name release-input --dir release
+        gh run download "$CANDIDATE_RUN" --repo "$REPO" --name clean-install-evidence --dir release
+        gh api "repos/$REPO/actions/runs/$CANDIDATE_RUN" > release/candidate-run.json
+        gh api --paginate --slurp "repos/$REPO/actions/runs/$CANDIDATE_RUN/jobs?per_page=100" > release/candidate-jobs.json
+        python scripts/verify_candidate_run.py
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        CANDIDATE_RUN: ${{ inputs.candidate_run_id }}
+    - name: Independently verify candidate attestations
+      shell: bash
+      run: |
+        set -euo pipefail
+        gh attestation verify release/astra-1.0.0-rc.1.zip --repo "$REPO" --signer-workflow "$REPO/.github/workflows/release.yml" --source-digest "$SOURCE" --format json > release/provenance-verification.json
+        gh attestation verify release/astra-1.0.0-rc.1.zip --repo "$REPO" --signer-workflow "$REPO/.github/workflows/release.yml" --source-digest "$SOURCE" --predicate-type https://cyclonedx.org/bom --format json > release/sbom-verification.json
+        python scripts/verify_sbom_attestation.py release/astra-1.0.0-rc.1.cdx.json release/sbom-verification.json
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        SOURCE: ${{ github.sha }}
+    - name: Prepare source-bound review
+      run: |
+        python - <<'PY'
+        import json,os,zipfile
+        from pathlib import Path
+        Path('release/review.json').write_text(json.dumps(json.loads(os.environ['REVIEW'])))
+        with zipfile.ZipFile('release/astra-1.0.0-rc.1.zip') as z:
+            Path('release/manifest.json').write_bytes(z.read('astra/release-manifest.json'))
+        PY
+      env:
+        REVIEW: ${{ inputs.maintainer_review }}
+    - name: Release Security Gate
+      run: python scripts/release_security_gate.py --manifest release/manifest.json --review release/review.json
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      if: always()
+      with:
+        name: reviewed-candidate-assurance
+        path: release/*security-gate.*
+        if-no-files-found: error

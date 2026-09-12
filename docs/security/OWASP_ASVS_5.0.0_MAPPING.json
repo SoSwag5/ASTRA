@@ -34,12 +34,12 @@
     "section": "Injection Prevention",
     "requirement": "Verify that output encoding for an HTTP response, HTML document, or XML document is relevant for the context required, such as encoding the relevant characters for HTML elements, HTML attributes, HTML comments, CSS, or HTTP header fields, to avoid changing the message or document structure.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Injection Prevention surface; Encoding/interpreter review incomplete across every sink.",
-    "control": "backend/policy.py; backend/document_security.py; backend/models.py; frontend/src",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/policy.py; backend/document_security.py; backend/models.py; frontend/src",
-    "result": "PARTIAL",
-    "gap": "Encoding/interpreter review incomplete across every sink."
+    "rationale": "React escapes text/attributes; reportlab Paragraph receives XML-escaped user text; python-docx inserts text nodes; FileResponse encodes attachment filenames. No untrusted HTML/CSS or response-header construction was found.",
+    "control": "frontend/src; backend/services.py::generate_cv; backend/main.py::file_download; tests/security/test_http_boundary.py",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "frontend/src; backend/services.py::generate_cv; backend/main.py::file_download; tests/security/test_http_boundary.py",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-1.2.2",
@@ -48,12 +48,12 @@
     "section": "Injection Prevention",
     "requirement": "Verify that when dynamically building URLs, untrusted data is encoded according to its context (e.g., URL encoding or base64url encoding for query or path parameters). Ensure that only safe URL protocols are permitted (e.g., disallow javascript: or data:).",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Injection Prevention surface; Encoding/interpreter review incomplete across every sink.",
-    "control": "backend/policy.py; backend/document_security.py; backend/models.py; frontend/src",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/policy.py; backend/document_security.py; backend/models.py; frontend/src",
-    "result": "PARTIAL",
-    "gap": "Encoding/interpreter review incomplete across every sink."
+    "rationale": "All four external anchor sinks use safeLink. Query construction uses urlencode; public board IDs are allowlisted; downloads use app-generated relative paths. URL schemes and credentials are checked before use.",
+    "control": "frontend/src/safeLink.ts; frontend/check-links.cjs; backend/source_catalog.py; backend/adapters.py",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "frontend/src/safeLink.ts; frontend/check-links.cjs; backend/source_catalog.py; backend/adapters.py",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-1.2.3",
@@ -62,12 +62,12 @@
     "section": "Injection Prevention",
     "requirement": "Verify that output encoding or escaping is used when dynamically building JavaScript content (including JSON), to avoid changing the message or document structure (to avoid JavaScript and JSON injection).",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Injection Prevention surface; Encoding/interpreter review incomplete across every sink.",
-    "control": "backend/policy.py; backend/document_security.py; backend/models.py; frontend/src",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/policy.py; backend/document_security.py; backend/models.py; frontend/src",
-    "result": "PARTIAL",
-    "gap": "Encoding/interpreter review incomplete across every sink."
+    "rationale": "JSON requests/responses use standard serializers; the UI uses React expressions and never concatenates untrusted text into executable JavaScript. Generated JSON export is a data blob.",
+    "control": "frontend/src/main.tsx::api; frontend/src/Recall.tsx; backend/providers.py; tests/security/test_http_boundary.py",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "frontend/src/main.tsx::api; frontend/src/Recall.tsx; backend/providers.py; tests/security/test_http_boundary.py",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-1.2.4",
@@ -384,12 +384,12 @@
     "section": "Safe Deserialization",
     "requirement": "Verify that the application configures XML parsers to use a restrictive configuration and that unsafe features such as resolving external entities are disabled to prevent XML eXternal Entity (XXE) attacks.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Safe Deserialization surface; Encoding/interpreter review incomplete across every sink.",
-    "control": "backend/policy.py; backend/document_security.py; backend/models.py; frontend/src",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/policy.py; backend/document_security.py; backend/models.py; frontend/src",
-    "result": "PARTIAL",
-    "gap": "Encoding/interpreter review incomplete across every sink."
+    "rationale": "XLSX import rejects DOCTYPE/ENTITY declarations and NUL-bearing UTF-16/32 XML before openpyxl parsing; archive limits apply. Imported workbooks disable external links. DOCX input and arbitrary XML endpoints are absent.",
+    "control": "backend/document_security.py::validate_document; backend/services.py::import_tracker; tests/security/test_closure_boundary.py::test_workbook_entity_declarations_cannot_hide_in_unicode",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "backend/document_security.py::validate_document; backend/services.py::import_tracker; tests/security/test_closure_boundary.py::test_workbook_entity_declarations_cannot_hide_in_unicode",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-1.5.2",
@@ -468,12 +468,12 @@
     "section": "Input Validation",
     "requirement": "Verify that input is validated to enforce business or functional expectations for that input. This should either use positive validation against an allow list of values, patterns, and ranges, or be based on comparing the input to an expected structure and logical limits according to predefined rules. For L1, this can focus on input which is used to make specific business or security decisions. For L2 and up, this should apply to all input.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Input Validation surface; Business flow and generic dict inputs require complete per-endpoint validation review.",
-    "control": "backend/main.py; backend/policy.py; backend/ai_usage.py",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; backend/policy.py; backend/ai_usage.py",
-    "result": "PARTIAL",
-    "gap": "Business flow and generic dict inputs require complete per-endpoint validation review."
+    "rationale": "Reviewed decision inputs: profile confirmation is a strict bool; cloud approval requires literal True; settings and legacy record writes have positive type/range/date validation; uploads, source URLs/IDs, stage enums, deletion confirmations and schedules are checked server-side. Invalid inputs cannot enable external submission.",
+    "control": "backend/input_rules.py; backend/main.py; backend/privacy.py; backend/campaign.py; backend/search_workspace.py; backend/recall_api.py; backend/source_catalog.py; tests/security/test_closure_boundary.py",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "backend/input_rules.py; backend/main.py; backend/privacy.py; backend/campaign.py; backend/search_workspace.py; backend/recall_api.py; backend/source_catalog.py; tests/security/test_closure_boundary.py",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-2.2.2",
@@ -510,12 +510,12 @@
     "section": "Business Logic Security",
     "requirement": "Verify that the application will only process business logic flows for the same user in the expected sequential step order and without skipping steps.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Business Logic Security surface; Business flow and generic dict inputs require complete per-endpoint validation review.",
-    "control": "backend/main.py; backend/policy.py; backend/ai_usage.py",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; backend/policy.py; backend/ai_usage.py",
-    "result": "PARTIAL",
-    "gap": "Business flow and generic dict inputs require complete per-endpoint validation review."
+    "rationale": "Document preparation and cloud advice require confirmed profile facts; corrected facts require reconfirmation; automated submission is disabled independently of setup or status values. Manual tracking records user-reported historical events and permits corrections; it is not a submission approval workflow.",
+    "control": "backend/services.py::generate_cv,cover,prepare; backend/main.py::correct_fact,job_action; backend/browser.py::run_browser; tests/test_readiness.py; tests/test_campaign.py",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "backend/services.py::generate_cv,cover,prepare; backend/main.py::correct_fact,job_action; backend/browser.py::run_browser; tests/test_readiness.py; tests/test_campaign.py",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-2.3.2",
@@ -622,12 +622,12 @@
     "section": "Unintended Content Interpretation",
     "requirement": "Verify that security controls are in place to prevent browsers from rendering content or functionality in HTTP responses in an incorrect context (e.g., when an API, a user-uploaded file or other resource is requested directly). Possible controls could include: not serving the content unless HTTP request header fields (such as Sec-Fetch-\\*) indicate it is the correct context, using the sandbox directive of the Content-Security-Policy header field or using the attachment disposition type in the Content-Disposition header field.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Unintended Content Interpretation surface; Early-return headers and browser state need targeted verification.",
-    "control": "backend/main.py; frontend/src/main.tsx",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
-    "result": "PARTIAL",
-    "gap": "Early-return headers and browser state need targeted verification."
+    "rationale": "Private API requests with a browser destination other than empty are denied. Every response, including early rejections, has nosniff/CSP/no-store. Downloads use attachment disposition; only the built frontend is mounted as static content.",
+    "control": "backend/main.py::guard,response_policy,file_download; tests/security/test_closure_boundary.py::test_access_http_contract",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "backend/main.py::guard,response_policy,file_download; tests/security/test_closure_boundary.py::test_access_http_contract",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-3.2.2",
@@ -830,7 +830,7 @@
     "level": 3,
     "chapter": "Web Frontend Security",
     "section": "Browser Security Mechanism Headers",
-    "requirement": "Verify that all HTTP responses that initiate a document rendering (such as responses with Content-Type text/html), include the Cross\u2011Origin\u2011Opener\u2011Policy header field with the same-origin directive or the same-origin-allow-popups directive as required. This prevents attacks that abuse shared access to Window objects, such as tabnabbing and frame counting.",
+    "requirement": "Verify that all HTTP responses that initiate a document rendering (such as responses with Content-Type text/html), include the Cross‑Origin‑Opener‑Policy header field with the same-origin directive or the same-origin-allow-popups directive as required. This prevents attacks that abuse shared access to Window objects, such as tabnabbing and frame counting.",
     "applicability": "APPLICABLE",
     "rationale": "Outside L1/L2 release target; retained for completeness. Requirement applies to the Browser Security Mechanism Headers surface; Early-return headers and browser state need targeted verification.",
     "control": "backend/main.py; frontend/src/main.tsx",
@@ -874,12 +874,12 @@
     "section": "Browser Origin Separation",
     "requirement": "Verify that HTTP requests to sensitive functionality use appropriate HTTP methods such as POST, PUT, PATCH, or DELETE, and not methods defined by the HTTP specification as \"safe\" such as HEAD, OPTIONS, or GET. Alternatively, strict validation of the Sec-Fetch-* request header fields can be used to ensure that the request did not originate from an inappropriate cross-origin call, a navigation request, or a resource load (such as an image source) where this is not expected.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Browser Origin Separation surface; Early-return headers and browser state need targeted verification.",
-    "control": "backend/main.py; frontend/src/main.tsx",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
-    "result": "PARTIAL",
-    "gap": "Early-return headers and browser state need targeted verification."
+    "rationale": "Reviewed router inventory: mutations use POST/PUT. Sensitive GET responses, including exports, reject browser navigation/resource destinations as well as cross-site requests. Normal same-origin fetch remains available.",
+    "control": "backend/main.py::guard; backend/privacy.py::export_data; tests/security/test_closure_boundary.py::test_access_http_contract",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "backend/main.py::guard; backend/privacy.py::export_data; tests/security/test_closure_boundary.py::test_access_http_contract",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-3.5.4",
@@ -1042,12 +1042,12 @@
     "section": "Generic Web Service Security",
     "requirement": "Verify that every HTTP response with a message body contains a Content-Type header field that matches the actual content of the response, including the charset parameter to specify safe character encoding (e.g., UTF-8, ISO-8859-1) according to IANA Media Types, such as \"text/\", \"/+xml\" and \"/xml\".",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Generic Web Service Security surface; Protocol and proxy boundary behavior needs full negative verification.",
-    "control": "backend/main.py; tests/security/test_http_boundary.py",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; tests/security/test_http_boundary.py",
-    "result": "PARTIAL",
-    "gap": "Protocol and proxy boundary behavior needs full negative verification."
+    "rationale": "FastAPI/JSONResponse serialize API bodies as application/json; Starlette serves text with charset and downloads with media types. Early guard failures are JSON, TrustedHost errors are text/plain. No user-controlled response content type was found.",
+    "control": "backend/main.py; backend/privacy.py::_export_data; tests/security/test_http_boundary.py; tests/security/test_closure_boundary.py",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "backend/main.py; backend/privacy.py::_export_data; tests/security/test_http_boundary.py; tests/security/test_closure_boundary.py",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-4.1.2",
@@ -1280,12 +1280,12 @@
     "section": "File Upload and Content",
     "requirement": "Verify that the application will only accept files of a size which it can process without causing a loss of performance or a denial of service attack.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the File Upload and Content surface; Parser bounds exist; archive/type/path combinations need wider adversarial tests.",
-    "control": "backend/document_security.py; backend/pdf_worker.py; backend/main.py",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/document_security.py; backend/pdf_worker.py; backend/main.py",
-    "result": "PARTIAL",
-    "gap": "Parser bounds exist; archive/type/path combinations need wider adversarial tests."
+    "rationale": "Uploads are bounded to 10 MB, XLSX to 1,000 entries/30 MB expanded/10,000 rows and bounded dimensions. PDF extraction runs with 512 MiB process memory, 20-second timeout, 100-page and 200,000-character limits.",
+    "control": "backend/document_security.py; backend/pdf_worker.py; tests/test_readiness.py; tests/security/test_release_controls.py",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "backend/document_security.py; backend/pdf_worker.py; tests/test_readiness.py; tests/security/test_release_controls.py",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-5.2.2",
@@ -1294,12 +1294,12 @@
     "section": "File Upload and Content",
     "requirement": "Verify that when the application accepts a file, either on its own or within an archive such as a zip file, it checks if the file extension matches an expected file extension and validates that the contents correspond to the type represented by the extension. This includes, but is not limited to, checking the initial 'magic bytes', performing image re-writing, and using specialized libraries for file content validation. For L1, this can focus just on files which are used to make specific business or security decisions. For L2 and up, this must apply to all files being accepted.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the File Upload and Content surface; Parser bounds exist; archive/type/path combinations need wider adversarial tests.",
-    "control": "backend/document_security.py; backend/pdf_worker.py; backend/main.py",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/document_security.py; backend/pdf_worker.py; backend/main.py",
-    "result": "PARTIAL",
-    "gap": "Parser bounds exist; archive/type/path combinations need wider adversarial tests."
+    "rationale": "PDF/XLSX/CSV are the only imported formats. Extension, declared MIME and content structure/magic are checked; binary/HTML CSV, executable signatures, double extensions, malformed and active documents are rejected.",
+    "control": "backend/document_security.py::validate_document; tests/test_readiness.py::test_upload_rejects_adversarial; tests/security/test_controls.py::test_pdf_type_and_magic_checks",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "backend/document_security.py::validate_document; tests/test_readiness.py::test_upload_rejects_adversarial; tests/security/test_controls.py::test_pdf_type_and_magic_checks",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-5.2.3",
@@ -1378,12 +1378,12 @@
     "section": "File Storage",
     "requirement": "Verify that when the application creates file paths for file operations, instead of user-submitted filenames, it uses internally generated or trusted data, or if user-submitted filenames or file metadata must be used, strict validation and sanitization must be applied. This is to protect against path traversal, local or remote file inclusion (LFI, RFI), and server-side request forgery (SSRF) attacks.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the File Storage surface; Parser bounds exist; archive/type/path combinations need wider adversarial tests.",
-    "control": "backend/document_security.py; backend/pdf_worker.py; backend/main.py",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/document_security.py; backend/pdf_worker.py; backend/main.py",
-    "result": "PARTIAL",
-    "gap": "Parser bounds exist; archive/type/path combinations need wider adversarial tests."
+    "rationale": "Upload names are never storage paths: the server creates temporary directories and fixed cv.pdf/tracker.xlsx names. Generated documents use numeric job IDs and timestamps. Downloads resolve beneath DATA, restrict suffixes, and use attachment filenames.",
+    "control": "backend/main.py::cv_upload,tracker_upload,file_download; backend/services.py::generate_cv; tests/security/test_http_boundary.py",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "backend/main.py::cv_upload,tracker_upload,file_download; backend/services.py::generate_cv; tests/security/test_http_boundary.py",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-5.3.3",
@@ -1448,12 +1448,12 @@
     "section": "Authentication Documentation",
     "requirement": "Verify that application documentation defines how controls such as rate limiting, anti-automation, and adaptive response, are used to defend against attacks such as credential stuffing and password brute force. The documentation must make clear how these controls are configured and prevent malicious account lockout.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Authentication Documentation surface; Optional static bearer secret lacks entropy policy, anti-brute-force and full lifecycle; loopback does not identify an OS user.",
-    "control": "backend/main.py; frontend/src/main.tsx",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
-    "result": "PARTIAL",
-    "gap": "Optional static bearer secret lacks entropy policy, anti-brute-force and full lifecycle; loopback does not identify an OS user."
+    "rationale": "The optional access-key authentication path is documented with a global five-failure/60-second window, bounded cooldown, no permanent account lock, local restart limitations and short-lived session rules. It is explicitly applicable rather than exempted as loopback-only.",
+    "control": "docs/security/LOCAL_ACCESS.md; backend/access.py; tests/security/test_access_sessions.py",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "docs/security/LOCAL_ACCESS.md; backend/access.py; tests/security/test_access_sessions.py",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-6.1.2",
@@ -1476,12 +1476,12 @@
     "section": "Authentication Documentation",
     "requirement": "Verify that, if the application includes multiple authentication pathways, these are all documented together with the security controls and authentication strength which must be consistently enforced across them.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Authentication Documentation surface; Optional static bearer secret lacks entropy policy, anti-brute-force and full lifecycle; loopback does not identify an OS user.",
+    "rationale": "Optional local key exchange and dynamic sessions are now implemented; this higher-level requirement still needs its own verification.",
     "control": "backend/main.py; frontend/src/main.tsx",
     "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
+    "evidence": "backend/access.py; backend/main.py; frontend/src/access.tsx; docs/security/LOCAL_ACCESS.md",
     "result": "PARTIAL",
-    "gap": "Optional static bearer secret lacks entropy policy, anti-brute-force and full lifecycle; loopback does not identify an OS user."
+    "gap": "Requirement-specific L2/L3 review remains incomplete"
   },
   {
     "id": "v5.0.0-6.2.1",
@@ -1490,7 +1490,7 @@
     "section": "Password Security",
     "requirement": "Verify that user set passwords are at least 8 characters in length although a minimum of 15 characters is strongly recommended.",
     "applicability": "NOT APPLICABLE",
-    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally supplied API bearer secret, separately assessed under generic authentication.",
+    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally configured installation access key, separately assessed under generic authentication.",
     "control": "Mechanism absent in reviewed architecture",
     "verification_method": "Route, dependency and implementation inventory review",
     "evidence": "backend/main.py; frontend/src/main.tsx",
@@ -1504,7 +1504,7 @@
     "section": "Password Security",
     "requirement": "Verify that users can change their password.",
     "applicability": "NOT APPLICABLE",
-    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally supplied API bearer secret, separately assessed under generic authentication.",
+    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally configured installation access key, separately assessed under generic authentication.",
     "control": "Mechanism absent in reviewed architecture",
     "verification_method": "Route, dependency and implementation inventory review",
     "evidence": "backend/main.py; frontend/src/main.tsx",
@@ -1518,7 +1518,7 @@
     "section": "Password Security",
     "requirement": "Verify that password change functionality requires the user's current and new password.",
     "applicability": "NOT APPLICABLE",
-    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally supplied API bearer secret, separately assessed under generic authentication.",
+    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally configured installation access key, separately assessed under generic authentication.",
     "control": "Mechanism absent in reviewed architecture",
     "verification_method": "Route, dependency and implementation inventory review",
     "evidence": "backend/main.py; frontend/src/main.tsx",
@@ -1532,7 +1532,7 @@
     "section": "Password Security",
     "requirement": "Verify that passwords submitted during account registration or password change are checked against an available set of, at least, the top 3000 passwords which match the application's password policy, e.g. minimum length.",
     "applicability": "NOT APPLICABLE",
-    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally supplied API bearer secret, separately assessed under generic authentication.",
+    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally configured installation access key, separately assessed under generic authentication.",
     "control": "Mechanism absent in reviewed architecture",
     "verification_method": "Route, dependency and implementation inventory review",
     "evidence": "backend/main.py; frontend/src/main.tsx",
@@ -1546,7 +1546,7 @@
     "section": "Password Security",
     "requirement": "Verify that passwords of any composition can be used, without rules limiting the type of characters permitted. There must be no requirement for a minimum number of upper or lower case characters, numbers, or special characters.",
     "applicability": "NOT APPLICABLE",
-    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally supplied API bearer secret, separately assessed under generic authentication.",
+    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally configured installation access key, separately assessed under generic authentication.",
     "control": "Mechanism absent in reviewed architecture",
     "verification_method": "Route, dependency and implementation inventory review",
     "evidence": "backend/main.py; frontend/src/main.tsx",
@@ -1560,7 +1560,7 @@
     "section": "Password Security",
     "requirement": "Verify that password input fields use type=password to mask the entry. Applications may allow the user to temporarily view the entire masked password, or the last typed character of the password.",
     "applicability": "NOT APPLICABLE",
-    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally supplied API bearer secret, separately assessed under generic authentication.",
+    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally configured installation access key, separately assessed under generic authentication.",
     "control": "Mechanism absent in reviewed architecture",
     "verification_method": "Route, dependency and implementation inventory review",
     "evidence": "backend/main.py; frontend/src/main.tsx",
@@ -1574,7 +1574,7 @@
     "section": "Password Security",
     "requirement": "Verify that \"paste\" functionality, browser password helpers, and external password managers are permitted.",
     "applicability": "NOT APPLICABLE",
-    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally supplied API bearer secret, separately assessed under generic authentication.",
+    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally configured installation access key, separately assessed under generic authentication.",
     "control": "Mechanism absent in reviewed architecture",
     "verification_method": "Route, dependency and implementation inventory review",
     "evidence": "backend/main.py; frontend/src/main.tsx",
@@ -1588,7 +1588,7 @@
     "section": "Password Security",
     "requirement": "Verify that the application verifies the user's password exactly as received from the user, without any modifications such as truncation or case transformation.",
     "applicability": "NOT APPLICABLE",
-    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally supplied API bearer secret, separately assessed under generic authentication.",
+    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally configured installation access key, separately assessed under generic authentication.",
     "control": "Mechanism absent in reviewed architecture",
     "verification_method": "Route, dependency and implementation inventory review",
     "evidence": "backend/main.py; frontend/src/main.tsx",
@@ -1602,7 +1602,7 @@
     "section": "Password Security",
     "requirement": "Verify that passwords of at least 64 characters are permitted.",
     "applicability": "NOT APPLICABLE",
-    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally supplied API bearer secret, separately assessed under generic authentication.",
+    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally configured installation access key, separately assessed under generic authentication.",
     "control": "Mechanism absent in reviewed architecture",
     "verification_method": "Route, dependency and implementation inventory review",
     "evidence": "backend/main.py; frontend/src/main.tsx",
@@ -1616,7 +1616,7 @@
     "section": "Password Security",
     "requirement": "Verify that a user's password stays valid until it is discovered to be compromised or the user rotates it. The application must not require periodic credential rotation.",
     "applicability": "NOT APPLICABLE",
-    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally supplied API bearer secret, separately assessed under generic authentication.",
+    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally configured installation access key, separately assessed under generic authentication.",
     "control": "Mechanism absent in reviewed architecture",
     "verification_method": "Route, dependency and implementation inventory review",
     "evidence": "backend/main.py; frontend/src/main.tsx",
@@ -1630,7 +1630,7 @@
     "section": "Password Security",
     "requirement": "Verify that the documented list of context specific words is used to prevent easy to guess passwords being created.",
     "applicability": "NOT APPLICABLE",
-    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally supplied API bearer secret, separately assessed under generic authentication.",
+    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally configured installation access key, separately assessed under generic authentication.",
     "control": "Mechanism absent in reviewed architecture",
     "verification_method": "Route, dependency and implementation inventory review",
     "evidence": "backend/main.py; frontend/src/main.tsx",
@@ -1644,7 +1644,7 @@
     "section": "Password Security",
     "requirement": "Verify that passwords submitted during account registration or password changes are checked against a set of breached passwords.",
     "applicability": "NOT APPLICABLE",
-    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally supplied API bearer secret, separately assessed under generic authentication.",
+    "rationale": "No user passwords, registration, password change or password database. APP_TOKEN is an optional externally configured installation access key, separately assessed under generic authentication.",
     "control": "Mechanism absent in reviewed architecture",
     "verification_method": "Route, dependency and implementation inventory review",
     "evidence": "backend/main.py; frontend/src/main.tsx",
@@ -1658,12 +1658,12 @@
     "section": "General Authentication Security",
     "requirement": "Verify that controls to prevent attacks such as credential stuffing and password brute force are implemented according to the application's security documentation.",
     "applicability": "APPLICABLE",
-    "rationale": "No bearer-guessing rate limit or brute-force enforcement.",
-    "control": "backend/main.py; frontend/src/main.tsx",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
-    "result": "FAIL",
-    "gap": "No bearer-guessing rate limit or brute-force enforcement."
+    "rationale": "The access-key exchange permits five failed attempts per 60-second process-wide window; rejects further attempts before checking the key; returns Retry-After; blocked attempts do not extend the cooldown. Threaded regression verifies the shared bound.",
+    "control": "backend/access.py::AccessSessions.issue; backend/main.py::unlock_access; tests/security/test_access_sessions.py::test_bruteforce_window_is_global_bounded_and_not_extended_by_rejections; tests/security/test_closure_boundary.py",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "backend/access.py::AccessSessions.issue; backend/main.py::unlock_access; tests/security/test_access_sessions.py::test_bruteforce_window_is_global_bounded_and_not_extended_by_rejections; tests/security/test_closure_boundary.py",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-6.3.2",
@@ -1686,12 +1686,12 @@
     "section": "General Authentication Security",
     "requirement": "Verify that either a multi-factor authentication mechanism or a combination of single-factor authentication mechanisms, must be used in order to access the application. For L3, one of the factors must be a hardware-based authentication mechanism which provides compromise and impersonation resistance against phishing attacks while verifying the intent to authenticate by requiring a user-initiated action (such as a button press on a FIDO hardware key or a mobile phone). Relaxing any of the considerations in this requirement requires a fully documented rationale and a comprehensive set of mitigating controls.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the General Authentication Security surface; Optional static bearer secret lacks entropy policy, anti-brute-force and full lifecycle; loopback does not identify an OS user.",
+    "rationale": "Optional local key exchange and dynamic sessions are now implemented; this higher-level requirement still needs its own verification.",
     "control": "backend/main.py; frontend/src/main.tsx",
     "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
+    "evidence": "backend/access.py; backend/main.py; frontend/src/access.tsx; docs/security/LOCAL_ACCESS.md",
     "result": "PARTIAL",
-    "gap": "Optional static bearer secret lacks entropy policy, anti-brute-force and full lifecycle; loopback does not identify an OS user."
+    "gap": "Requirement-specific L2/L3 review remains incomplete"
   },
   {
     "id": "v5.0.0-6.3.4",
@@ -1700,12 +1700,12 @@
     "section": "General Authentication Security",
     "requirement": "Verify that, if the application includes multiple authentication pathways, there are no undocumented pathways and that security controls and authentication strength are enforced consistently.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the General Authentication Security surface; Optional static bearer secret lacks entropy policy, anti-brute-force and full lifecycle; loopback does not identify an OS user.",
+    "rationale": "Optional local key exchange and dynamic sessions are now implemented; this higher-level requirement still needs its own verification.",
     "control": "backend/main.py; frontend/src/main.tsx",
     "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
+    "evidence": "backend/access.py; backend/main.py; frontend/src/access.tsx; docs/security/LOCAL_ACCESS.md",
     "result": "PARTIAL",
-    "gap": "Optional static bearer secret lacks entropy policy, anti-brute-force and full lifecycle; loopback does not identify an OS user."
+    "gap": "Requirement-specific L2/L3 review remains incomplete"
   },
   {
     "id": "v5.0.0-6.3.5",
@@ -1714,12 +1714,12 @@
     "section": "General Authentication Security",
     "requirement": "Verify that users are notified of suspicious authentication attempts (successful or unsuccessful). This may include authentication attempts from an unusual location or client, partially successful authentication (only one of multiple factors), an authentication attempt after a long period of inactivity or a successful authentication after several unsuccessful attempts.",
     "applicability": "APPLICABLE",
-    "rationale": "Outside L1/L2 release target; retained for completeness. Requirement applies to the General Authentication Security surface; Optional static bearer secret lacks entropy policy, anti-brute-force and full lifecycle; loopback does not identify an OS user.",
+    "rationale": "Optional local key exchange and dynamic sessions are now implemented; this higher-level requirement still needs its own verification.",
     "control": "backend/main.py; frontend/src/main.tsx",
     "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
+    "evidence": "backend/access.py; backend/main.py; frontend/src/access.tsx; docs/security/LOCAL_ACCESS.md",
     "result": "PARTIAL",
-    "gap": "L3 not verified; no L3 claim. Optional static bearer secret lacks entropy policy, anti-brute-force and full lifecycle; loopback does not identify an OS user."
+    "gap": "Requirement-specific L2/L3 review remains incomplete"
   },
   {
     "id": "v5.0.0-6.3.6",
@@ -1728,12 +1728,12 @@
     "section": "General Authentication Security",
     "requirement": "Verify that email is not used as either a single-factor or multi-factor authentication mechanism.",
     "applicability": "APPLICABLE",
-    "rationale": "Outside L1/L2 release target; retained for completeness. Requirement applies to the General Authentication Security surface; Optional static bearer secret lacks entropy policy, anti-brute-force and full lifecycle; loopback does not identify an OS user.",
+    "rationale": "Optional local key exchange and dynamic sessions are now implemented; this higher-level requirement still needs its own verification.",
     "control": "backend/main.py; frontend/src/main.tsx",
     "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
+    "evidence": "backend/access.py; backend/main.py; frontend/src/access.tsx; docs/security/LOCAL_ACCESS.md",
     "result": "PARTIAL",
-    "gap": "L3 not verified; no L3 claim. Optional static bearer secret lacks entropy policy, anti-brute-force and full lifecycle; loopback does not identify an OS user."
+    "gap": "Requirement-specific L2/L3 review remains incomplete"
   },
   {
     "id": "v5.0.0-6.3.7",
@@ -1742,12 +1742,12 @@
     "section": "General Authentication Security",
     "requirement": "Verify that users are notified after updates to authentication details, such as credential resets or modification of the username or email address.",
     "applicability": "APPLICABLE",
-    "rationale": "Outside L1/L2 release target; retained for completeness. Requirement applies to the General Authentication Security surface; Optional static bearer secret lacks entropy policy, anti-brute-force and full lifecycle; loopback does not identify an OS user.",
+    "rationale": "Optional local key exchange and dynamic sessions are now implemented; this higher-level requirement still needs its own verification.",
     "control": "backend/main.py; frontend/src/main.tsx",
     "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
+    "evidence": "backend/access.py; backend/main.py; frontend/src/access.tsx; docs/security/LOCAL_ACCESS.md",
     "result": "PARTIAL",
-    "gap": "L3 not verified; no L3 claim. Optional static bearer secret lacks entropy policy, anti-brute-force and full lifecycle; loopback does not identify an OS user."
+    "gap": "Requirement-specific L2/L3 review remains incomplete"
   },
   {
     "id": "v5.0.0-6.3.8",
@@ -1756,12 +1756,12 @@
     "section": "General Authentication Security",
     "requirement": "Verify that valid users cannot be deduced from failed authentication challenges, such as by basing on error messages, HTTP response codes, or different response times. Registration and forgot password functionality must also have this protection.",
     "applicability": "APPLICABLE",
-    "rationale": "Outside L1/L2 release target; retained for completeness. Requirement applies to the General Authentication Security surface; Optional static bearer secret lacks entropy policy, anti-brute-force and full lifecycle; loopback does not identify an OS user.",
+    "rationale": "Optional local key exchange and dynamic sessions are now implemented; this higher-level requirement still needs its own verification.",
     "control": "backend/main.py; frontend/src/main.tsx",
     "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
+    "evidence": "backend/access.py; backend/main.py; frontend/src/access.tsx; docs/security/LOCAL_ACCESS.md",
     "result": "PARTIAL",
-    "gap": "L3 not verified; no L3 claim. Optional static bearer secret lacks entropy policy, anti-brute-force and full lifecycle; loopback does not identify an OS user."
+    "gap": "Requirement-specific L2/L3 review remains incomplete"
   },
   {
     "id": "v5.0.0-6.4.1",
@@ -2106,12 +2106,12 @@
     "section": "Session Management Documentation",
     "requirement": "Verify that the user's session inactivity timeout and absolute maximum session lifetime are documented, are appropriate in combination with other controls, and that the documentation includes justification for any deviations from NIST SP 800-63B re-authentication requirements.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Session Management Documentation surface; No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented.",
+    "rationale": "Optional local key exchange and dynamic sessions are now implemented; this higher-level requirement still needs its own verification.",
     "control": "backend/main.py; frontend/src/main.tsx",
     "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
+    "evidence": "backend/access.py; backend/main.py; frontend/src/access.tsx; docs/security/LOCAL_ACCESS.md",
     "result": "PARTIAL",
-    "gap": "No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented."
+    "gap": "Requirement-specific L2/L3 review remains incomplete"
   },
   {
     "id": "v5.0.0-7.1.2",
@@ -2120,12 +2120,12 @@
     "section": "Session Management Documentation",
     "requirement": "Verify that the documentation defines how many concurrent (parallel) sessions are allowed for one account as well as the intended behaviors and actions to be taken when the maximum number of active sessions is reached.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Session Management Documentation surface; No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented.",
+    "rationale": "Optional local key exchange and dynamic sessions are now implemented; this higher-level requirement still needs its own verification.",
     "control": "backend/main.py; frontend/src/main.tsx",
     "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
+    "evidence": "backend/access.py; backend/main.py; frontend/src/access.tsx; docs/security/LOCAL_ACCESS.md",
     "result": "PARTIAL",
-    "gap": "No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented."
+    "gap": "Requirement-specific L2/L3 review remains incomplete"
   },
   {
     "id": "v5.0.0-7.1.3",
@@ -2148,12 +2148,12 @@
     "section": "Fundamental Session Management Security",
     "requirement": "Verify that the application performs all session token verification using a trusted, backend service.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Fundamental Session Management Security surface; No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented.",
-    "control": "backend/main.py; frontend/src/main.tsx",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
-    "result": "PARTIAL",
-    "gap": "No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented."
+    "rationale": "The backend alone verifies opaque session-token digests and deadlines before every protected private API request. Browser state cannot set backend authorization. Static APP_TOKEN is accepted only by the bounded exchange endpoint.",
+    "control": "backend/access.py::AccessSessions.verify; backend/main.py::guard; tests/security/test_closure_boundary.py::test_access_http_contract",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "backend/access.py::AccessSessions.verify; backend/main.py::guard; tests/security/test_closure_boundary.py::test_access_http_contract",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-7.2.2",
@@ -2162,12 +2162,12 @@
     "section": "Fundamental Session Management Security",
     "requirement": "Verify that the application uses either self-contained or reference tokens that are dynamically generated for session management, i.e. not using static API secrets and keys.",
     "applicability": "APPLICABLE",
-    "rationale": "Optional browser token is static APP_TOKEN, not a dynamically generated session token.",
-    "control": "backend/main.py; frontend/src/main.tsx",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
-    "result": "FAIL",
-    "gap": "Optional browser token is static APP_TOKEN, not a dynamically generated session token."
+    "rationale": "Optional authenticated browser sessions now use dynamically generated random reference tokens. The configured APP_TOKEN is an exchange credential, never a session identifier accepted by private API routes.",
+    "control": "backend/access.py::AccessSessions.issue; frontend/src/access.tsx; tests/security/test_access_sessions.py::test_tokens_are_random_dynamic_and_only_digest_is_stored",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "backend/access.py::AccessSessions.issue; frontend/src/access.tsx; tests/security/test_access_sessions.py::test_tokens_are_random_dynamic_and_only_digest_is_stored",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-7.2.3",
@@ -2176,12 +2176,12 @@
     "section": "Fundamental Session Management Security",
     "requirement": "Verify that if reference tokens are used to represent user sessions, they are unique and generated using a cryptographically secure pseudo-random number generator (CSPRNG) and possess at least 128 bits of entropy.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Fundamental Session Management Security surface; No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented.",
-    "control": "backend/main.py; frontend/src/main.tsx",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
-    "result": "PARTIAL",
-    "gap": "No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented."
+    "rationale": "Each reference token uses secrets.token_urlsafe(32), providing 256 random bits. Only a SHA-256 digest and timestamps are retained in bounded backend session memory.",
+    "control": "backend/access.py; tests/security/test_access_sessions.py::test_tokens_are_random_dynamic_and_only_digest_is_stored",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "backend/access.py; tests/security/test_access_sessions.py::test_tokens_are_random_dynamic_and_only_digest_is_stored",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-7.2.4",
@@ -2190,12 +2190,12 @@
     "section": "Fundamental Session Management Security",
     "requirement": "Verify that the application generates a new session token on user authentication, including re-authentication, and terminates the current session token.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Fundamental Session Management Security surface; No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented.",
-    "control": "backend/main.py; frontend/src/main.tsx",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
-    "result": "PARTIAL",
-    "gap": "No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented."
+    "rationale": "Successful authentication always creates a new random token. Reauthentication with a previous token removes that session before issuing the replacement; expired and rotated-key tokens cannot be reused.",
+    "control": "backend/access.py::AccessSessions.issue; tests/security/test_access_sessions.py::test_reauthentication_revokes_previous_session",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "backend/access.py::AccessSessions.issue; tests/security/test_access_sessions.py::test_reauthentication_revokes_previous_session",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-7.3.1",
@@ -2204,12 +2204,12 @@
     "section": "Session Timeout",
     "requirement": "Verify that there is an inactivity timeout such that re-authentication is enforced according to risk analysis and documented security decisions.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Session Timeout surface; No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented.",
+    "rationale": "Optional local key exchange and dynamic sessions are now implemented; this higher-level requirement still needs its own verification.",
     "control": "backend/main.py; frontend/src/main.tsx",
     "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
+    "evidence": "backend/access.py; backend/main.py; frontend/src/access.tsx; docs/security/LOCAL_ACCESS.md",
     "result": "PARTIAL",
-    "gap": "No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented."
+    "gap": "Requirement-specific L2/L3 review remains incomplete"
   },
   {
     "id": "v5.0.0-7.3.2",
@@ -2218,12 +2218,12 @@
     "section": "Session Timeout",
     "requirement": "Verify that there is an absolute maximum session lifetime such that re-authentication is enforced according to risk analysis and documented security decisions.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Session Timeout surface; No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented.",
+    "rationale": "Optional local key exchange and dynamic sessions are now implemented; this higher-level requirement still needs its own verification.",
     "control": "backend/main.py; frontend/src/main.tsx",
     "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
+    "evidence": "backend/access.py; backend/main.py; frontend/src/access.tsx; docs/security/LOCAL_ACCESS.md",
     "result": "PARTIAL",
-    "gap": "No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented."
+    "gap": "Requirement-specific L2/L3 review remains incomplete"
   },
   {
     "id": "v5.0.0-7.4.1",
@@ -2232,12 +2232,12 @@
     "section": "Session Termination",
     "requirement": "Verify that when session termination is triggered (such as logout or expiration), the application disallows any further use of the session. For reference tokens or stateful sessions, this means invalidating the session data at the application backend. Applications using self-contained tokens will need a solution such as maintaining a list of terminated tokens, disallowing tokens produced before a per-user date and time or rotating a per-user signing key.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Session Termination surface; No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented.",
-    "control": "backend/main.py; frontend/src/main.tsx",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
-    "result": "PARTIAL",
-    "gap": "No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented."
+    "rationale": "Close workspace revokes the current server reference token where reachable and immediately clears local state regardless of network availability. Backend idle/absolute deadlines, key changes and restart invalidate tokens. An offline revocation request cannot reach the backend; its token expires there within the documented bound.",
+    "control": "backend/access.py; backend/main.py::lock_access; frontend/src/access.tsx; tests/security/test_access_sessions.py; tests/security/test_browser_termination.py",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "backend/access.py; backend/main.py::lock_access; frontend/src/access.tsx; tests/security/test_access_sessions.py; tests/security/test_browser_termination.py",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-7.4.2",
@@ -2245,13 +2245,13 @@
     "chapter": "Session Management",
     "section": "Session Termination",
     "requirement": "Verify that the application terminates all active sessions when a user account is disabled or deleted (such as an employee leaving the company).",
-    "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Session Termination surface; No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented.",
-    "control": "backend/main.py; frontend/src/main.tsx",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
-    "result": "PARTIAL",
-    "gap": "No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented."
+    "applicability": "NOT APPLICABLE",
+    "rationale": "ASTRA has no application accounts or account-disable/delete operation. Deleting CV/application data is a content operation, not account deletion. Optional installation-key rotation and server restart invalidate all sessions; OS account lifecycle is outside the application.",
+    "control": "Mechanism absent from this application",
+    "verification_method": "Requirement-specific architecture and implementation review",
+    "evidence": "backend/models.py (no account model); backend/privacy.py::delete_data; backend/access.py::_sync",
+    "result": "N/A",
+    "gap": "Reassess if accounts or application encryption are introduced"
   },
   {
     "id": "v5.0.0-7.4.3",
@@ -2260,12 +2260,12 @@
     "section": "Session Termination",
     "requirement": "Verify that the application gives the option to terminate all other active sessions after a successful change or removal of any authentication factor (including password change via reset or recovery and, if present, an MFA settings update).",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Session Termination surface; No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented.",
+    "rationale": "Optional local key exchange and dynamic sessions are now implemented; this higher-level requirement still needs its own verification.",
     "control": "backend/main.py; frontend/src/main.tsx",
     "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
+    "evidence": "backend/access.py; backend/main.py; frontend/src/access.tsx; docs/security/LOCAL_ACCESS.md",
     "result": "PARTIAL",
-    "gap": "No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented."
+    "gap": "Requirement-specific L2/L3 review remains incomplete"
   },
   {
     "id": "v5.0.0-7.4.4",
@@ -2274,12 +2274,12 @@
     "section": "Session Termination",
     "requirement": "Verify that all pages that require authentication have easy and visible access to logout functionality.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Session Termination surface; No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented.",
+    "rationale": "Optional local key exchange and dynamic sessions are now implemented; this higher-level requirement still needs its own verification.",
     "control": "backend/main.py; frontend/src/main.tsx",
     "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
+    "evidence": "backend/access.py; backend/main.py; frontend/src/access.tsx; docs/security/LOCAL_ACCESS.md",
     "result": "PARTIAL",
-    "gap": "No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented."
+    "gap": "Requirement-specific L2/L3 review remains incomplete"
   },
   {
     "id": "v5.0.0-7.4.5",
@@ -2288,12 +2288,12 @@
     "section": "Session Termination",
     "requirement": "Verify that application administrators are able to terminate active sessions for an individual user or for all users.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Session Termination surface; No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented.",
+    "rationale": "Optional local key exchange and dynamic sessions are now implemented; this higher-level requirement still needs its own verification.",
     "control": "backend/main.py; frontend/src/main.tsx",
     "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
+    "evidence": "backend/access.py; backend/main.py; frontend/src/access.tsx; docs/security/LOCAL_ACCESS.md",
     "result": "PARTIAL",
-    "gap": "No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented."
+    "gap": "Requirement-specific L2/L3 review remains incomplete"
   },
   {
     "id": "v5.0.0-7.5.1",
@@ -2302,12 +2302,12 @@
     "section": "Defenses Against Session Abuse",
     "requirement": "Verify that the application requires full re-authentication before allowing modifications to sensitive account attributes which may affect authentication such as email address, phone number, MFA configuration, or other information used in account recovery.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Defenses Against Session Abuse surface; No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented.",
+    "rationale": "Optional local key exchange and dynamic sessions are now implemented; this higher-level requirement still needs its own verification.",
     "control": "backend/main.py; frontend/src/main.tsx",
     "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
+    "evidence": "backend/access.py; backend/main.py; frontend/src/access.tsx; docs/security/LOCAL_ACCESS.md",
     "result": "PARTIAL",
-    "gap": "No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented."
+    "gap": "Requirement-specific L2/L3 review remains incomplete"
   },
   {
     "id": "v5.0.0-7.5.2",
@@ -2316,12 +2316,12 @@
     "section": "Defenses Against Session Abuse",
     "requirement": "Verify that users are able to view and (having authenticated again with at least one factor) terminate any or all currently active sessions.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Defenses Against Session Abuse surface; No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented.",
+    "rationale": "Optional local key exchange and dynamic sessions are now implemented; this higher-level requirement still needs its own verification.",
     "control": "backend/main.py; frontend/src/main.tsx",
     "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
+    "evidence": "backend/access.py; backend/main.py; frontend/src/access.tsx; docs/security/LOCAL_ACCESS.md",
     "result": "PARTIAL",
-    "gap": "No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented."
+    "gap": "Requirement-specific L2/L3 review remains incomplete"
   },
   {
     "id": "v5.0.0-7.5.3",
@@ -2330,12 +2330,12 @@
     "section": "Defenses Against Session Abuse",
     "requirement": "Verify that the application requires further authentication with at least one factor or secondary verification before performing highly sensitive transactions or operations.",
     "applicability": "APPLICABLE",
-    "rationale": "Outside L1/L2 release target; retained for completeness. Requirement applies to the Defenses Against Session Abuse surface; No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented.",
+    "rationale": "Optional local key exchange and dynamic sessions are now implemented; this higher-level requirement still needs its own verification.",
     "control": "backend/main.py; frontend/src/main.tsx",
     "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
+    "evidence": "backend/access.py; backend/main.py; frontend/src/access.tsx; docs/security/LOCAL_ACCESS.md",
     "result": "PARTIAL",
-    "gap": "L3 not verified; no L3 claim. No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented."
+    "gap": "Requirement-specific L2/L3 review remains incomplete"
   },
   {
     "id": "v5.0.0-7.6.1",
@@ -2358,12 +2358,12 @@
     "section": "Federated Re-authentication",
     "requirement": "Verify that creation of a session requires either the user's consent or an explicit action, preventing the creation of new application sessions without user interaction.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Federated Re-authentication surface; No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented.",
+    "rationale": "Optional local key exchange and dynamic sessions are now implemented; this higher-level requirement still needs its own verification.",
     "control": "backend/main.py; frontend/src/main.tsx",
     "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; frontend/src/main.tsx",
+    "evidence": "backend/access.py; backend/main.py; frontend/src/access.tsx; docs/security/LOCAL_ACCESS.md",
     "result": "PARTIAL",
-    "gap": "No managed sessions; browser optionally retains a static API bearer token; session-like lifecycle remains unimplemented."
+    "gap": "Requirement-specific L2/L3 review remains incomplete"
   },
   {
     "id": "v5.0.0-8.1.1",
@@ -2428,12 +2428,12 @@
     "section": "General Authorization Design",
     "requirement": "Verify that the application ensures that function-level access is restricted to consumers with explicit permissions.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the General Authorization Design surface; Loopback/Origin and optional bearer guard do not establish per-OS-user identity; field-level review incomplete.",
+    "rationale": "Optional key-protected mode now uses backend-verified sessions, but default keyless mode authorizes loopback callers without establishing their OS-user identity. Loopback alone is not an explicit per-consumer permission check.",
     "control": "backend/main.py; backend/privacy.py",
     "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; backend/privacy.py",
+    "evidence": "backend/main.py::guard; backend/access.py; .env.example; tests/security/test_closure_boundary.py; docs/security/LOCAL_ACCESS.md",
     "result": "PARTIAL",
-    "gap": "Loopback/Origin and optional bearer guard do not establish per-OS-user identity; field-level review incomplete."
+    "gap": "Secure default access provisioning and migration remain necessary before this stricter L1 authorization baseline can be passed across supported modes."
   },
   {
     "id": "v5.0.0-8.2.2",
@@ -2442,12 +2442,12 @@
     "section": "General Authorization Design",
     "requirement": "Verify that the application ensures that data-specific access is restricted to consumers with explicit permissions to specific data items to mitigate insecure direct object reference (IDOR) and broken object level authorization (BOLA).",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the General Authorization Design surface; Loopback/Origin and optional bearer guard do not establish per-OS-user identity; field-level review incomplete.",
+    "rationale": "Optional key-protected mode now uses backend-verified sessions, but default keyless mode authorizes loopback callers without establishing their OS-user identity. Loopback alone is not an explicit per-consumer permission check.",
     "control": "backend/main.py; backend/privacy.py",
     "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; backend/privacy.py",
+    "evidence": "backend/main.py::guard; backend/access.py; .env.example; tests/security/test_closure_boundary.py; docs/security/LOCAL_ACCESS.md",
     "result": "PARTIAL",
-    "gap": "Loopback/Origin and optional bearer guard do not establish per-OS-user identity; field-level review incomplete."
+    "gap": "Secure default access provisioning and migration remain necessary before this stricter L1 authorization baseline can be passed across supported modes."
   },
   {
     "id": "v5.0.0-8.2.3",
@@ -2554,7 +2554,7 @@
     "section": "Token source and integrity",
     "requirement": "Verify that self-contained tokens are validated using their digital signature or MAC to protect against tampering before accepting the token's contents.",
     "applicability": "NOT APPLICABLE",
-    "rationale": "No self-contained tokens or JWT/JWS parsing; APP_TOKEN is an opaque string, not a claims-bearing token.",
+    "rationale": "No self-contained tokens or JWT/JWS parsing; session references are opaque random strings, not a claims-bearing token.",
     "control": "Mechanism absent in reviewed architecture",
     "verification_method": "Route, dependency and implementation inventory review",
     "evidence": "backend/main.py",
@@ -2568,7 +2568,7 @@
     "section": "Token source and integrity",
     "requirement": "Verify that only algorithms on an allowlist can be used to create and verify self-contained tokens, for a given context. The allowlist must include the permitted algorithms, ideally only either symmetric or asymmetric algorithms, and must not include the 'None' algorithm. If both symmetric and asymmetric must be supported, additional controls will be needed to prevent key confusion.",
     "applicability": "NOT APPLICABLE",
-    "rationale": "No self-contained tokens or JWT/JWS parsing; APP_TOKEN is an opaque string, not a claims-bearing token.",
+    "rationale": "No self-contained tokens or JWT/JWS parsing; session references are opaque random strings, not a claims-bearing token.",
     "control": "Mechanism absent in reviewed architecture",
     "verification_method": "Route, dependency and implementation inventory review",
     "evidence": "backend/main.py",
@@ -2582,7 +2582,7 @@
     "section": "Token source and integrity",
     "requirement": "Verify that key material that is used to validate self-contained tokens is from trusted pre-configured sources for the token issuer, preventing attackers from specifying untrusted sources and keys. For JWTs and other JWS structures, headers such as 'jku', 'x5u', and 'jwk' must be validated against an allowlist of trusted sources.",
     "applicability": "NOT APPLICABLE",
-    "rationale": "No self-contained tokens or JWT/JWS parsing; APP_TOKEN is an opaque string, not a claims-bearing token.",
+    "rationale": "No self-contained tokens or JWT/JWS parsing; session references are opaque random strings, not a claims-bearing token.",
     "control": "Mechanism absent in reviewed architecture",
     "verification_method": "Route, dependency and implementation inventory review",
     "evidence": "backend/main.py",
@@ -2596,7 +2596,7 @@
     "section": "Token content",
     "requirement": "Verify that, if a validity time span is present in the token data, the token and its content are accepted only if the verification time is within this validity time span. For example, for JWTs, the claims 'nbf' and 'exp' must be verified.",
     "applicability": "NOT APPLICABLE",
-    "rationale": "No self-contained claims-bearing tokens; opaque APP_TOKEN does not carry audience, issuer or validity claims.",
+    "rationale": "No self-contained claims-bearing tokens; opaque session references do not carry audience, issuer or validity claims.",
     "control": "Mechanism absent in reviewed architecture",
     "verification_method": "Route, dependency and implementation inventory review",
     "evidence": "backend/main.py",
@@ -2610,7 +2610,7 @@
     "section": "Token content",
     "requirement": "Verify that the service receiving a token validates the token to be the correct type and is meant for the intended purpose before accepting the token's contents. For example, only access tokens can be accepted for authorization decisions and only ID Tokens can be used for proving user authentication.",
     "applicability": "NOT APPLICABLE",
-    "rationale": "No self-contained claims-bearing tokens; opaque APP_TOKEN does not carry audience, issuer or validity claims.",
+    "rationale": "No self-contained claims-bearing tokens; opaque session references do not carry audience, issuer or validity claims.",
     "control": "Mechanism absent in reviewed architecture",
     "verification_method": "Route, dependency and implementation inventory review",
     "evidence": "backend/main.py",
@@ -2624,7 +2624,7 @@
     "section": "Token content",
     "requirement": "Verify that the service only accepts tokens which are intended for use with that service (audience). For JWTs, this can be achieved by validating the 'aud' claim against an allowlist defined in the service.",
     "applicability": "NOT APPLICABLE",
-    "rationale": "No self-contained claims-bearing tokens; opaque APP_TOKEN does not carry audience, issuer or validity claims.",
+    "rationale": "No self-contained claims-bearing tokens; opaque session references do not carry audience, issuer or validity claims.",
     "control": "Mechanism absent in reviewed architecture",
     "verification_method": "Route, dependency and implementation inventory review",
     "evidence": "backend/main.py",
@@ -2638,7 +2638,7 @@
     "section": "Token content",
     "requirement": "Verify that, if a token issuer uses the same private key for issuing tokens to different audiences, the issued tokens contain an audience restriction that uniquely identifies the intended audiences. This will prevent a token from being reused with an unintended audience. If the audience identifier is dynamically provisioned, the token issuer must validate these audiences in order to make sure that they do not result in audience impersonation.",
     "applicability": "NOT APPLICABLE",
-    "rationale": "No self-contained claims-bearing tokens; opaque APP_TOKEN does not carry audience, issuer or validity claims.",
+    "rationale": "No self-contained claims-bearing tokens; opaque session references do not carry audience, issuer or validity claims.",
     "control": "Mechanism absent in reviewed architecture",
     "verification_method": "Route, dependency and implementation inventory review",
     "evidence": "backend/main.py",
@@ -3281,13 +3281,13 @@
     "chapter": "Cryptography",
     "section": "Encryption Algorithms",
     "requirement": "Verify that insecure block modes (e.g., ECB) and weak padding schemes (e.g., PKCS#1 v1.5) are not used.",
-    "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Encryption Algorithms surface; OS keyring/stdlib cryptography used; complete primitive/configuration inventory not verified.",
-    "control": "backend/privacy.py; backend/ai_usage.py; scripts/build_release.py",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/privacy.py; backend/ai_usage.py; scripts/build_release.py",
-    "result": "PARTIAL",
-    "gap": "OS keyring/stdlib cryptography used; complete primitive/configuration inventory not verified."
+    "applicability": "NOT APPLICABLE",
+    "rationale": "ASTRA does not select or implement symmetric encryption, block modes or asymmetric padding for application data. SQLite/files are plaintext; encrypted PDF imports are rejected. Native Windows credential protection and TLS are platform/library boundaries assessed separately, not an ASTRA ECB/RSA encryption feature.",
+    "control": "Mechanism absent from this application",
+    "verification_method": "Requirement-specific architecture and implementation review",
+    "evidence": "backend/pdf_worker.py::main; backend/privacy.py::credential_backend; backend/models.py; backend/providers.py",
+    "result": "N/A",
+    "gap": "Reassess if accounts or application encryption are introduced"
   },
   {
     "id": "v5.0.0-11.3.2",
@@ -3295,13 +3295,13 @@
     "chapter": "Cryptography",
     "section": "Encryption Algorithms",
     "requirement": "Verify that only approved ciphers and modes such as AES with GCM are used.",
-    "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Encryption Algorithms surface; OS keyring/stdlib cryptography used; complete primitive/configuration inventory not verified.",
-    "control": "backend/privacy.py; backend/ai_usage.py; scripts/build_release.py",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/privacy.py; backend/ai_usage.py; scripts/build_release.py",
-    "result": "PARTIAL",
-    "gap": "OS keyring/stdlib cryptography used; complete primitive/configuration inventory not verified."
+    "applicability": "NOT APPLICABLE",
+    "rationale": "No application-data cipher or encryption mode is selected by ASTRA. Native credential storage and standard TLS are delegated platform controls; the app neither implements its own cipher nor claims encrypted SQLite/files. Encrypted PDF imports are unsupported.",
+    "control": "Mechanism absent from this application",
+    "verification_method": "Requirement-specific architecture and implementation review",
+    "evidence": "backend/privacy.py::credential_backend; backend/pdf_worker.py::main; docs/security/DATA_PROTECTION.md",
+    "result": "N/A",
+    "gap": "Reassess if accounts or application encryption are introduced"
   },
   {
     "id": "v5.0.0-11.3.3",
@@ -3492,12 +3492,12 @@
     "section": "General TLS Security Guidance",
     "requirement": "Verify that only the latest recommended versions of the TLS protocol are enabled, such as TLS 1.2 and TLS 1.3. The latest version of the TLS protocol must be the preferred option.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the General TLS Security Guidance surface; Public HTTP allowed in generic validator; numeric loopback traffic unencrypted; transport claim must remain scoped.",
-    "control": "backend/policy.py; backend/adapters.py; backend/providers.py",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/policy.py; backend/adapters.py; backend/providers.py",
-    "result": "PARTIAL",
-    "gap": "Public HTTP allowed in generic validator; numeric loopback traffic unencrypted; transport claim must remain scoped."
+    "rationale": "External provider HTTPS uses HTTPX certificate verification with Python default TLS context (minimum TLS 1.2, TLS 1.3 available). No custom weak TLS versions or verification bypass is configured. Supported inbound listener and Ollama are numeric loopback HTTP, not externally facing TLS services.",
+    "control": "backend/providers.py; backend/adapters.py; backend/policy.py; tests/security/test_closure_boundary.py::test_runtime_tls_context",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "backend/providers.py; backend/adapters.py; backend/policy.py; tests/security/test_closure_boundary.py::test_runtime_tls_context",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-12.1.2",
@@ -3562,12 +3562,12 @@
     "section": "HTTPS Communication with External Facing Services",
     "requirement": "Verify that TLS is used for all connectivity between a client and external facing, HTTP-based services, and does not fall back to insecure or unencrypted communications.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the HTTPS Communication with External Facing Services surface; Public HTTP allowed in generic validator; numeric loopback traffic unencrypted; transport claim must remain scoped.",
-    "control": "backend/policy.py; backend/adapters.py; backend/providers.py",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/policy.py; backend/adapters.py; backend/providers.py",
-    "result": "PARTIAL",
-    "gap": "Public HTTP allowed in generic validator; numeric loopback traffic unencrypted; transport claim must remain scoped."
+    "rationale": "All application-initiated external HTTP services require HTTPS. Public fetch validation rejects HTTP initially and on each redirect; OpenAI endpoint is fixed HTTPS without redirects. Local Ollama is restricted to numeric loopback; manual employer links are outside the app service connection.",
+    "control": "backend/policy.py::validate_url; backend/adapters.py::fetch; backend/providers.py; tests/security/test_closure_boundary.py; tests/security/test_release_controls.py::test_redirect_ssrf",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "backend/policy.py::validate_url; backend/adapters.py::fetch; backend/providers.py; tests/security/test_closure_boundary.py; tests/security/test_release_controls.py::test_redirect_ssrf",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-12.2.2",
@@ -3686,7 +3686,7 @@
     "level": 3,
     "chapter": "Configuration",
     "section": "Configuration Documentation",
-    "requirement": "Verify that the application documentation defines resource\u2011management strategies for every external system or service it uses (e.g., databases, file handles, threads, HTTP connections). This should include resource\u2011release procedures, timeout settings, failure handling, and where retry logic is implemented, specifying retry limits, delays, and back\u2011off algorithms. For synchronous HTTP request\u2013response operations it should mandate short timeouts and either disable retries or strictly limit retries to prevent cascading delays and resource exhaustion.",
+    "requirement": "Verify that the application documentation defines resource‑management strategies for every external system or service it uses (e.g., databases, file handles, threads, HTTP connections). This should include resource‑release procedures, timeout settings, failure handling, and where retry logic is implemented, specifying retry limits, delays, and back‑off algorithms. For synchronous HTTP request–response operations it should mandate short timeouts and either disable retries or strictly limit retries to prevent cascading delays and resource exhaustion.",
     "applicability": "APPLICABLE",
     "rationale": "Outside L1/L2 release target; retained for completeness. Requirement applies to the Configuration Documentation surface; Configuration hardening and complete resource allowlists need review.",
     "control": "backend/main.py; backend/privacy.py; scripts/build_release.py",
@@ -3856,12 +3856,12 @@
     "section": "Unintended Information Leakage",
     "requirement": "Verify that the application is deployed either without any source control metadata, including the .git or .svn folders, or in a way that these folders are inaccessible both externally and to the application itself.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Unintended Information Leakage surface; Configuration hardening and complete resource allowlists need review.",
-    "control": "backend/main.py; backend/privacy.py; scripts/build_release.py",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; backend/privacy.py; scripts/build_release.py",
-    "result": "PARTIAL",
-    "gap": "Configuration hardening and complete resource allowlists need review."
+    "rationale": "The distributed ZIP is built from tracked files and prebuilt UI without .git/.svn metadata; clean-install verifies the complete manifest. The static server exposes only frontend/dist. Source developer checkouts are not the deployed release baseline.",
+    "control": "scripts/build_release.py; scripts/clean_install.py; backend/main.py; tests/security/test_closure_boundary.py::test_access_http_contract",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "scripts/build_release.py; scripts/clean_install.py; backend/main.py; tests/security/test_closure_boundary.py::test_access_http_contract",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-13.4.2",
@@ -3982,12 +3982,12 @@
     "section": "General Data Protection",
     "requirement": "Verify that sensitive data is only sent to the server in the HTTP message body or header fields, and that the URL and query string do not contain sensitive information, such as an API key or session token.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the General Data Protection surface; Full storage/retention and browser termination verification incomplete.",
-    "control": "backend/privacy.py; frontend/src/main.tsx; backend/security_events.py",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/privacy.py; frontend/src/main.tsx; backend/security_events.py",
-    "result": "PARTIAL",
-    "gap": "Full storage/retention and browser termination verification incomplete."
+    "rationale": "Private request content is carried in JSON/multipart bodies; session and provider tokens use Authorization headers. The static access key is sent only in the exchange JSON body. Private API URLs use record IDs, not credentials or CV text. No sensitive query/fragment navigation was found.",
+    "control": "frontend/src/main.tsx::api; frontend/src/access.tsx; backend/providers.py; backend/recall_api.py::audit",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "frontend/src/main.tsx::api; frontend/src/access.tsx; backend/providers.py; backend/recall_api.py::audit",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-14.2.2",
@@ -4094,12 +4094,12 @@
     "section": "Client-side Data Protection",
     "requirement": "Verify that authenticated data is cleared from client storage, such as the browser DOM, after the client or session is terminated. The 'Clear-Site-Data' HTTP response header field may be able to help with this but the client-side should also be able to clear up if the server connection is not available when the session is terminated.",
     "applicability": "APPLICABLE",
-    "rationale": "Private DOM state persists on disconnect; no application termination/logout cleanup is implemented.",
-    "control": "backend/privacy.py; frontend/src/main.tsx; backend/security_events.py",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/privacy.py; frontend/src/main.tsx; backend/security_events.py",
-    "result": "FAIL",
-    "gap": "Private DOM state persists on disconnect; no application termination/logout cleanup is implemented."
+    "rationale": "Legacy sessionStorage token is removed; current tokens remain in memory. Close, pagehide, offline and 401 unmount the private React tree, clear keys, abort pending fetches and revoke tracked blob URLs. BFCache restoration remains closed. Explicit downloaded/exported files are separately user-managed.",
+    "control": "frontend/src/access.tsx; tests/security/test_browser_termination.py; tests/security/test_closure_boundary.py",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "frontend/src/access.tsx; tests/security/test_browser_termination.py; tests/security/test_closure_boundary.py",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-14.3.2",
@@ -4206,12 +4206,12 @@
     "section": "Security Architecture and Dependencies",
     "requirement": "Verify that the application only contains components which have not breached the documented update and remediation time frames.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Security Architecture and Dependencies surface; Field selection/mass assignment and resource limits need complete review; remote checks pending.",
-    "control": "backend/main.py; backend/providers.py; requirements.lock.txt",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; backend/providers.py; requirements.lock.txt",
-    "result": "PARTIAL",
-    "gap": "Field selection/mass assignment and resource limits need complete review; remote checks pending."
+    "rationale": "Runtime and frontend locks were re-audited in this pass with zero reported vulnerabilities. Remediation policy blocks overdue or unresolved advisories, and CI audit failure blocks verification. This is a dated component review, not a claim that advisories cannot appear later.",
+    "control": "docs/security/VULNERABILITY_MANAGEMENT.md; release/closure-python-sca.json; release/closure-npm-sca.json; .github/workflows/ci.yml",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "docs/security/VULNERABILITY_MANAGEMENT.md; release/closure-python-sca.json; release/closure-npm-sca.json; .github/workflows/ci.yml",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-15.2.2",
@@ -4276,12 +4276,12 @@
     "section": "Defensive Coding",
     "requirement": "Verify that the application only returns the required subset of fields from a data object. For example, it should not return an entire data object, as some individual fields should not be accessible to users.",
     "applicability": "APPLICABLE",
-    "rationale": "Requirement applies to the Defensive Coding surface; Field selection/mass assignment and resource limits need complete review; remote checks pending.",
-    "control": "backend/main.py; backend/providers.py; requirements.lock.txt",
-    "verification_method": "Source review; additional requirement-specific verification required",
-    "evidence": "backend/main.py; backend/providers.py; requirements.lock.txt",
-    "result": "PARTIAL",
-    "gap": "Field selection/mass assignment and resource limits need complete review; remote checks pending."
+    "rationale": "Endpoint field review: the single workspace owner can inspect job descriptions, profile facts, application history and document diffs. ORM serialization contains application records, not access keys or provider credentials; credential endpoints return presence/save status only. Overview routes strip large decision payloads; dedicated audit and export routes provide explicitly requested detail.",
+    "control": "backend/main.py::job_detail,records,get_settings; backend/search_workspace.py::overview; backend/privacy.py; backend/recall_api.py::audit; docs/security/L1_CLOSURE_REVIEW.md",
+    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
+    "evidence": "backend/main.py::job_detail,records,get_settings; backend/search_workspace.py::overview; backend/privacy.py; backend/recall_api.py::audit; docs/security/L1_CLOSURE_REVIEW.md",
+    "result": "PASS",
+    "gap": ""
   },
   {
     "id": "v5.0.0-15.3.2",
@@ -4386,7 +4386,7 @@
     "level": 3,
     "chapter": "Secure Coding and Architecture",
     "section": "Safe Concurrency",
-    "requirement": "Verify that checks on a resource's state, such as its existence or permissions, and the actions that depend on them are performed as a single atomic operation to prevent time-of-check to time-of-use (TOCTOU) race conditions. For example, checking if a file exists before opening it, or verifying a user\u2019s access before granting it.",
+    "requirement": "Verify that checks on a resource's state, such as its existence or permissions, and the actions that depend on them are performed as a single atomic operation to prevent time-of-check to time-of-use (TOCTOU) race conditions. For example, checking if a file exists before opening it, or verifying a user’s access before granting it.",
     "applicability": "APPLICABLE",
     "rationale": "Outside L1/L2 release target; retained for completeness. Requirement applies to the Safe Concurrency surface; Field selection/mass assignment and resource limits need complete review; remote checks pending.",
     "control": "backend/main.py; backend/providers.py; requirements.lock.txt",

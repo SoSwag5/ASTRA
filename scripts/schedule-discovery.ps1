@@ -1,8 +1,18 @@
 param([ValidateSet('Enable','Disable','Remove','RunNow','Status')][string]$Action='Status',[ValidateSet(3,6,12,24)][int]$Hours=6)
 $ErrorActionPreference='Stop'
-$taskName='Ayham Job Hunter - Local Discovery'
+$taskName='ASTRA Local Discovery'
+$legacyTaskName='Ayham Job Hunter - Local Discovery'
 $projectRoot=Split-Path $PSScriptRoot -Parent
 $task=Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+$legacyTask=Get-ScheduledTask -TaskName $legacyTaskName -ErrorAction SilentlyContinue
+if ($task -and $legacyTask) {throw 'Both ASTRA and legacy discovery tasks exist. Review docs/SCHEDULED_TASK_MIGRATION.md before changing either.'}
+if ($legacyTask) {$task=$legacyTask; $taskName=$legacyTaskName}
+if ($task) {
+    $expectedPython=Join-Path $projectRoot '.venv\Scripts\python.exe'
+    if ($task.Actions.Count -ne 1 -or $task.Actions[0].Execute -ne $expectedPython -or $task.Actions[0].WorkingDirectory -ne $projectRoot) {
+        throw 'The discovery task belongs to another installation. Review its action before changing it.'
+    }
+}
 if ($Action -eq 'Remove' -and $task) {Unregister-ScheduledTask -TaskName $taskName -Confirm:$false}
 if ($Action -eq 'Disable' -and $task) {Disable-ScheduledTask -TaskName $taskName | Out-Null}
 if ($Action -eq 'RunNow') {

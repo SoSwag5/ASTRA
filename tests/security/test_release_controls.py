@@ -80,7 +80,7 @@ def test_redirect_private_destination_never_requested(monkeypatch):
     requests=[]
     def handler(request):
         requests.append(str(request.url))
-        return httpx.Response(302,headers={'location':'http://127.0.0.1/private'})
+        return httpx.Response(302,headers={'location':'https://127.0.0.1/private'})
     original=httpx.Client
     monkeypatch.setattr(adapters.httpx,'Client',lambda **kw:original(transport=httpx.MockTransport(handler),**kw))
     with pytest.raises(ValueError,match='Private network'): adapters.fetch('https://example.com/job')

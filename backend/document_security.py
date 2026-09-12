@@ -48,7 +48,9 @@ def validate_document(data, filename, kind, content_type=None):
                         raise ValueError('Macros and external workbook links are unsupported')
                     if item.filename.endswith(('.xml','.rels')):
                         xml=archive.read(item)
-                        if b'<!DOCTYPE' in xml.upper() or b'<!ENTITY' in xml.upper(): raise ValueError('XML entities are unsupported')
+                        # NUL rejection also covers UTF-16/32 declarations that
+                        # would bypass an ASCII-only DOCTYPE/ENTITY scan.
+                        if b'\x00' in xml or b'<!DOCTYPE' in xml.upper() or b'<!ENTITY' in xml.upper(): raise ValueError('XML entities and non-UTF-8 workbook XML are unsupported')
         except (zipfile.BadZipFile,RuntimeError,EOFError) as exc:
             raise ValueError('Malformed XLSX archive') from None
     else:
@@ -68,4 +70,3 @@ def extract_pdf(path):
         return json.loads(result.stdout)['text']
     except subprocess.TimeoutExpired:
         raise ValueError('PDF parsing exceeded 20 seconds. Use a smaller text-based PDF.') from None
-

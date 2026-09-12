@@ -19,6 +19,7 @@ from .browser import run_browser,browser_test
 from .discovery import discovery_reason
 from . import career_tracks
 from .build_info import info as build_info
+from .access import sessions
 
 from .reliability import ProcessLock
 scheduler=BackgroundScheduler(timezone='Asia/Dubai'); task_lock=ProcessLock()
@@ -184,7 +185,12 @@ async def guard(req:Request,call_next):
         security_event('CSRF_REJECTED','Sec-Fetch-Site cross-site rejected',path=req.url.path,method=req.method)
         return JSONResponse({'detail':'Cross-site access blocked'},403)
     token=os.getenv('APP_TOKEN','')
-    if token and req.url.path.startswith('/api') and not secrets.compare_digest(req.headers.get('authorization',''),'Bearer '+token): return JSONResponse({'detail':'Enter your access token'},401)
+    if not token: sessions.verify('','')
+    if req.url.path.startswith('/api') and req.headers.get('sec-fetch-dest','empty')!='empty':
+        return JSONResponse({'detail':'Use the workspace to access private data'},403)
+    if token and req.url.path.startswith('/api') and req.url.path != '/api/access':
+        bearer=req.headers.get('authorization','').removeprefix('Bearer ')
+        if not sessions.verify(token,bearer): return JSONResponse({'detail':'Unlock your workspace to continue'},401)
     try: length=int(req.headers.get('content-length','0'))
     except ValueError: return JSONResponse({'detail':'Invalid content length'},400)
     if length<0 or length>11_000_000: return JSONResponse({'detail':'Upload limit is 10 MB'},413)
@@ -205,6 +211,43 @@ async def guard(req:Request,call_next):
     response.headers['Permissions-Policy']='geolocation=(), camera=(), microphone=(), payment=(), usb=(), interest-cohort=()'
     response.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'"
     return response
+
+# Outermost response policy includes guard rejections and TrustedHost failures.
+@app.middleware('http')
+async def response_policy(req:Request,call_next):
+    response=await call_next(req)
+    response.headers.update({
+        'X-Content-Type-Options':'nosniff', 'Referrer-Policy':'no-referrer',
+        'X-Frame-Options':'DENY', 'Cache-Control':'no-store',
+        'Permissions-Policy':'geolocation=(), camera=(), microphone=(), payment=(), usb=(), interest-cohort=()',
+        'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'",
+    })
+    return response
+
+class AccessRequest(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    key: str=Field(min_length=1,max_length=1000)
+
+@app.get('/api/access')
+def access_status():
+    return {'required':bool(os.getenv('APP_TOKEN',''))}
+
+@app.post('/api/access')
+def unlock_access(data:AccessRequest,req:Request):
+    key=os.getenv('APP_TOKEN','')
+    if not key: raise HTTPException(400,'Access-key protection is not configured')
+    token,retry=sessions.issue(key,data.key,req.headers.get('authorization','').removeprefix('Bearer '))
+    if not token:
+        from .security_events import record
+        record('ACCESS_REJECTED')
+        if retry: return JSONResponse({'detail':'Too many attempts. Wait one minute before trying again.'},429,headers={'Retry-After':str(retry)})
+        raise HTTPException(401,'Access key was not accepted')
+    return {'token':token,'idle_seconds':sessions.IDLE_SECONDS,'maximum_seconds':sessions.MAX_SECONDS}
+
+@app.post('/api/access/lock')
+def lock_access(req:Request):
+    sessions.revoke(req.headers.get('authorization','').removeprefix('Bearer '))
+    return JSONResponse({'locked':True},headers={'Clear-Site-Data':'"cache", "storage"'})
 @app.exception_handler(ValueError)
 async def value_error(req,exc): return JSONResponse({'detail':str(exc)},400)
 @app.exception_handler(Exception)
@@ -361,6 +404,8 @@ def job_action(id:int,action:str,data:dict={}):
         db.commit(); return result
 @app.post('/api/bulk/prepare')
 def bulk(data:dict):
+    ids=data.get('ids',[])
+    if not isinstance(ids,list) or len(ids)>100 or any(type(i) is not int or i<=0 for i in ids):raise ValueError('Select at most 100 valid jobs')
     result=[]
     for id in data.get('ids',[])[:100]:
         try: result.append({'id':id,'result':job_action(id,'prepare')})
@@ -375,6 +420,8 @@ def records(kind:str):
 def save_record(kind:str,data:dict):
     if kind not in ('answers','interviews','followups','sources','sites','recruiters'): raise ValueError('Read-only collection')
     model=COLLECTIONS[kind]
+    from .input_rules import record_input
+    data=record_input(kind,data,model)
     if kind=='answers': data['normalized_question']=norm(data.get('question',''))
     if kind=='sites':
         domain=data.get('domain','').lower().strip().rstrip('.')
@@ -418,6 +465,8 @@ def get_settings():
 def put_settings(data:dict):
     with Session.begin() as db:
         cfg={**settings(db),**{k:v for k,v in data.items() if k in DEFAULTS}}
+        from .input_rules import settings_input
+        settings_input(cfg,DEFAULTS)
         if cfg['autopilot'] not in ('OFF','PREPARE_ONLY'): raise ValueError('Automatic submission is disabled. Choose OFF or PREPARE_ONLY.')
         cfg['dry_run']=True
         if cfg['provider'] not in ('rules','ollama','openai'): raise ValueError('Unknown model provider')

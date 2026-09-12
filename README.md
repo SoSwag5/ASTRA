@@ -57,6 +57,7 @@ Optional scheduled discovery runs as your normal Windows user and does not wake 
   This is resource isolation, not a full OS sandbox or malware detector.
 - SSRF validation on requests and redirects; formula-safe spreadsheet export.
 - Native credential storage, bounded local security events, and a visible self-check.
+- Optional access-key exchange with expiring browser sessions and private-screen cleanup.
 - Persistent OpenAI request limits, bounded input/output and no automatic retries.
 - Hash-checked Python wheels, npm lock, CycloneDX inventory and pinned CI actions.
 
@@ -96,7 +97,10 @@ data and Git history, and are never published automatically.
 ## Limits
 
 Single trusted user, localhost only. Files and SQLite are not encrypted by ASTRA;
-use OS account protection and disk encryption. Same-user processes can reach the API.
+use OS account protection and disk encryption. Default keyless mode accepts local
+callers without establishing OS-user identity; this remains a strict L1 release
+blocker. [Local access](docs/security/LOCAL_ACCESS.md) explains optional protection
+and browser-session changes. No live configuration was migrated in this pass.
 DNS validation has a residual reconnect race. Deletion is app-scoped and cannot erase
 exports, OS backups or SSD remnants. AI commentary can be wrong; it has no tools and
 cannot approve facts or submit applications. PDF extraction is text-only and supports

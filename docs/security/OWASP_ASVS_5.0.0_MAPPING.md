@@ -1,20 +1,28 @@
 # OWASP ASVS 5.0.0 applicability and verification
 
-Canonical evidence: [full CSV](OWASP_ASVS_5.0.0_MAPPING.csv) and [JSON](OWASP_ASVS_5.0.0_MAPPING.json), derived from the official 345-requirement release (see STANDARDS_BASELINE.md, including CC BY-SA attribution).
+The [JSON](OWASP_ASVS_5.0.0_MAPPING.json) and [CSV](OWASP_ASVS_5.0.0_MAPPING.csv)
+retain all 345 official version-qualified requirements and levels. The official
+source and CC BY-SA attribution are in [STANDARDS_BASELINE.md](STANDARDS_BASELINE.md).
 
-All L1 and L2 requirements are individually assessed. Scope: Windows single-user loopback, browser UI, optional static bearer gate and AI/job-provider integrations. Generic authentication, authorization and browser token lifecycle are assessed rather than blanket-exempted. No applicable L1/L2 requirement becomes PASS solely because a themed test exists. PASS denotes the specified manual verification or test-linked implementation; actual execution is recorded separately. PARTIAL means not fully verified or partially implemented, never an implicit pass. N/A reasons are mechanism-specific in each row.
+All 70 Level 1 requirements were re-reviewed during the closure pass. PASS means
+the specified implementation and verification evidence, within the documented
+Windows local-release scope. N/A always has an individual architectural reason.
+The release gate rejects altered IDs/levels/text, blank evidence, inconsistent
+applicability and any L1 FAIL/PARTIAL. No ASVS level or certification is claimed.
 
-L1 is the intended baseline. **ASVS L1 and L2 are not achieved.** The gate blocks all applicable L1 FAIL/PARTIAL rows; this is deliberately stricter than accepting undocumented uncertainty. Some wider reviews are substantial and remain explicit blockers, including generic inputs, field selection, optional bearer lifecycle and browser data termination. L2 gaps include logging, canonicalization, resource/transport controls and antivirus absence. No level claim is permitted.
+**The strict L1 baseline remains BLOCKED:** default keyless loopback access does
+not establish explicit per-consumer authorization (8.2.1 and 8.2.2). Fixing the
+optional key path does not silently fix the default path. See the complete
+[closure review](L1_CLOSURE_REVIEW.md) and [local access model](LOCAL_ACCESS.md).
 
-Counts by level (including L3 outside target):
+Counts by level:
 
 ```json
 {
   "1": {
-    "PARTIAL": 28,
-    "PASS": 14,
-    "N/A": 25,
-    "FAIL": 3
+    "PASS": 40,
+    "N/A": 28,
+    "PARTIAL": 2
   },
   "2": {
     "FAIL": 4,
@@ -28,5 +36,3 @@ Counts by level (including L3 outside target):
   }
 }
 ```
-
-A failed requirement is not automatically an exploitable vulnerability; assess threat scope and CWE/CVSS only when substantiated. Fix focused controls and rerun relevant regressions before changing a result.

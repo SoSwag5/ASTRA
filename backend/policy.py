@@ -22,9 +22,9 @@ def _ssrf_block(url,reason):
     raise ValueError(reason)
 def validate_url(url,resolve=True):
     p=urlsplit(url)
-    if p.scheme not in ('https','http') or not p.hostname or p.username or p.password: _ssrf_block(url,'Use a public HTTP(S) URL without credentials')
+    if p.scheme != 'https' or not p.hostname or p.username or p.password: _ssrf_block(url,'Use a public HTTPS URL without credentials')
     if linkedin(url): raise ValueError('LinkedIn is manual-only. Paste the job description instead.')
-    if p.port not in (None,80,443): _ssrf_block(url,'Only public web ports are permitted')
+    if p.port not in (None,443): _ssrf_block(url,'Only the public HTTPS port is permitted')
     if resolve:
         for item in socket.getaddrinfo(p.hostname,p.port or 443):
             if not ipaddress.ip_address(item[4][0]).is_global: _ssrf_block(url,'Private network addresses are blocked')

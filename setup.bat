@@ -7,7 +7,7 @@ if not exist .venv\Scripts\python.exe (
   if errorlevel 1 py -3.14 -m venv .venv
 )
 if not exist .venv\Scripts\python.exe goto fail
-.venv\Scripts\python.exe -c "import sys; assert sys.version_info[:2] in ((3,13),(3,14)), 'Use Python 3.14 or 3.13; preserve an old environment before recreating it'"
+.venv\Scripts\python.exe -c "import sys; assert sys.version_info[:2] in ((3,13),(3,14)), 'Use reference Python 3.13 (3.14 is a verification target); preserve an old environment before recreating it'"
 if errorlevel 1 goto fail
 .venv\Scripts\python.exe -m pip install --require-hashes --only-binary=:all: -r requirements.lock.txt
 if errorlevel 1 goto fail
@@ -32,5 +32,5 @@ exit /b 0
 :buildfail
 popd
 :fail
-echo Setup failed. Use Windows, Python 3.14 or 3.13, and Node 24 for source builds. Read the error above.
+echo Setup failed. Use Windows, reference Python 3.13, and Node 24 for source builds. Read the error above.
 exit /b 1
