@@ -38,14 +38,22 @@ with TestClient(app) as c:
     expect('no_local_path', SECRET not in body, body)
     expect('no_exception_type', 'OSError' not in body, body)
 
-    # Messages the application authors itself stay useful to the operator.
-    main.job_action = raises(HTTPException(404, 'Job not found'))
-    body = c.post('/api/bulk/prepare', json={'ids': [2]}).json()
-    expect('curated_http_detail', body[0]['error'] == 'Job not found', json.dumps(body))
+    # Even application-authored exception text stays out of the response; the
+    # client gets a fixed string and the reason is available per job.
+    main.job_action = raises(HTTPException(404, 'Job not found at ' + SECRET))
+    body = json.dumps(c.post('/api/bulk/prepare', json={'ids': [2]}).json())
+    expect('http_detail_withheld', 'Job not found at' not in body, body)
+    expect('http_fixed_string', 'no longer available' in body, body)
 
-    main.job_action = raises(ValueError('Confirm profile facts before preparing'))
-    body = c.post('/api/bulk/prepare', json={'ids': [3]}).json()
-    expect('curated_validation', body[0]['error'] == 'Confirm profile facts before preparing', json.dumps(body))
+    main.job_action = raises(ValueError('Confirm profile facts for ' + SECRET))
+    body = json.dumps(c.post('/api/bulk/prepare', json={'ids': [3]}).json())
+    expect('validation_text_withheld', 'Confirm profile facts' not in body, body)
+    expect('validation_no_secret', SECRET not in body, body)
+    expect('validation_fixed_string', 'needs attention' in body, body)
+
+    # A forged log record cannot be injected through a request value.
+    expect('log_safe_strips_newlines', main.log_safe('12' + chr(10) + 'FORGED') == '12_FORGED')
+    expect('log_safe_keeps_plain', main.log_safe(7) == '7')
 
     # Unhandled errors on ordinary routes stay generic too.
     main.job_action = raises(RuntimeError('internal ' + SECRET))

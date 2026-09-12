@@ -249,6 +249,9 @@ def lock_access(req:Request):
     sessions.revoke(req.headers.get('authorization','').removeprefix('Bearer '))
     return JSONResponse({'locked':True},headers={'Clear-Site-Data':'"cache", "storage"'})
 logger=logging.getLogger('astra')
+def log_safe(value):
+    """Keep request data from forging extra log records or hiding in control bytes."""
+    return re.sub(r'[^\w./:-]','_',str(value))[:200]
 # Unexpected internals can name local paths, SQL or credentials. Only messages
 # this application authors itself reach a client; the detail stays in the local
 # log, which is why failures are reported through this single constant.
@@ -257,7 +260,7 @@ UNEXPECTED_FAILURE='The operation could not finish. No success is recorded. Retr
 async def value_error(req,exc): return JSONResponse({'detail':str(exc)},400)
 @app.exception_handler(Exception)
 async def unexpected_error(req,exc):
-    logger.exception('Unhandled error serving %s',req.url.path)
+    logger.exception('Unhandled error serving %s',log_safe(req.url.path))
     return JSONResponse({'detail':UNEXPECTED_FAILURE},500)
 def get_job(db,id):
     j=db.get(Job,id)
@@ -415,10 +418,17 @@ def bulk(data:dict):
     result=[]
     for id in ids[:100]:
         try: result.append({'id':id,'result':job_action(id,'prepare')})
-        except HTTPException as e: result.append({'id':id,'error':str(e.detail)[:300]})
-        except ValueError as e: result.append({'id':id,'error':str(e)[:300]})
+        # Fixed strings only: no exception text reaches a client from here. The
+        # per-job route reports the specific reason when it is opened, and the
+        # cause of an unexpected failure is written to the local log.
+        except HTTPException:
+            logger.exception('Bulk preparation rejected job %s',log_safe(id))
+            result.append({'id':id,'error':'This job is no longer available. Reload the list.'})
+        except ValueError:
+            logger.exception('Bulk preparation validation failed for job %s',log_safe(id))
+            result.append({'id':id,'error':'This job needs attention before it can be prepared. Open it to see what is required.'})
         except Exception:
-            logger.exception('Bulk preparation failed for job %s',id)
+            logger.exception('Bulk preparation failed for job %s',log_safe(id))
             result.append({'id':id,'error':UNEXPECTED_FAILURE})
     return result
 COLLECTIONS={'applications':Application,'answers':ApprovedAnswer,'interviews':Interview,'followups':FollowUp,'sources':JobSource,'sites':SiteAdapter,'logs':ApplicationEvent,'runs':AutomationRun,'documents':ResumeVersion,'recruiters':Recruiter}
