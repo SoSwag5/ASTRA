@@ -14,14 +14,20 @@ def canonical(url):
     p=urlsplit(url)
     query=urlencode(sorted((k,v) for k,v in parse_qsl(p.query) if not k.startswith(('utm_','trk')) and k not in ('ref','source')))
     return urlunsplit((p.scheme.lower(),p.netloc.lower(),p.path.rstrip('/'),query,''))
+def _ssrf_block(url,reason):
+    try:
+        from .security_events import record
+        record('SSRF_DESTINATION_BLOCKED',reason,host=host(url) or 'unparsed')
+    except Exception: pass
+    raise ValueError(reason)
 def validate_url(url,resolve=True):
     p=urlsplit(url)
-    if p.scheme not in ('https','http') or not p.hostname or p.username or p.password: raise ValueError('Use a public HTTP(S) URL without credentials')
+    if p.scheme not in ('https','http') or not p.hostname or p.username or p.password: _ssrf_block(url,'Use a public HTTP(S) URL without credentials')
     if linkedin(url): raise ValueError('LinkedIn is manual-only. Paste the job description instead.')
-    if p.port not in (None,80,443): raise ValueError('Only public web ports are permitted')
+    if p.port not in (None,80,443): _ssrf_block(url,'Only public web ports are permitted')
     if resolve:
         for item in socket.getaddrinfo(p.hostname,p.port or 443):
-            if not ipaddress.ip_address(item[4][0]).is_global: raise ValueError('Private network addresses are blocked')
+            if not ipaddress.ip_address(item[4][0]).is_global: _ssrf_block(url,'Private network addresses are blocked')
     return url
 def duplicate(a,b):
     if a.get('job_url') and canonical(a['job_url'])==canonical(b.get('job_url','')): return True

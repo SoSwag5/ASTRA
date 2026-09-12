@@ -143,6 +143,10 @@ def credential_backend():
     backend=keyring.get_keyring()
     module=type(backend).__module__
     if module not in ('keyring.backends.Windows','keyring.backends.macOS','keyring.backends.SecretService'):
+        try:
+            from .security_events import record
+            record('SECRET_STORAGE_UNAVAILABLE','Native credential store unavailable; failing closed',backend=module)
+        except Exception: pass
         raise ValueError('A supported native secure credential store is unavailable; no plaintext fallback is used')
     return backend
 
@@ -213,6 +217,19 @@ def save_application_profile(value:ApplicationProfile):
     from .main import configure_schedule
     configure_schedule()
     return value.model_dump()
+
+@router.get('/self-check')
+def self_check():
+    from .doctor import run_checks
+    checks=run_checks()
+    order={'PASS':0,'WARNING':1,'FAIL':2}
+    overall=max((c['status'] for c in checks),key=lambda s:order[s],default='PASS')
+    return {'overall':overall,'checks':checks}
+
+@router.get('/security-events')
+def security_events(limit:int=100):
+    from .security_events import tail
+    return {'events':tail(min(max(limit,1),500))}
 
 @router.get('/market/{country}')
 def market_policy(country:str):

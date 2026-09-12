@@ -161,15 +161,22 @@ mutation_lock=asyncio.Lock()
 @app.middleware('http')
 async def guard(req:Request,call_next):
     import ipaddress
+    from .security_events import record as security_event
     peer=req.client.host if req.client else ''
     if peer!='testclient':
         try: local=ipaddress.ip_address(peer).is_loopback
         except ValueError: local=False
-        if not local: return JSONResponse({'detail':'This workspace accepts connections only from this device'},403)
+        if not local:
+            security_event('PEER_BLOCKED','Non-loopback network peer rejected',peer=peer,path=req.url.path)
+            return JSONResponse({'detail':'This workspace accepts connections only from this device'},403)
     origin=req.headers.get('origin')
     port=os.getenv('HUNTER_PORT','8787')
-    if origin and origin not in (f'http://localhost:{port}',f'http://127.0.0.1:{port}','http://localhost:5173'): return JSONResponse({'detail':'Origin blocked'},403)
-    if req.headers.get('sec-fetch-site')=='cross-site': return JSONResponse({'detail':'Cross-site access blocked'},403)
+    if origin and origin not in (f'http://localhost:{port}',f'http://127.0.0.1:{port}','http://localhost:5173'):
+        security_event('INVALID_ORIGIN_BLOCKED','Cross-origin request rejected',origin=origin,path=req.url.path)
+        return JSONResponse({'detail':'Origin blocked'},403)
+    if req.headers.get('sec-fetch-site')=='cross-site':
+        security_event('CSRF_REJECTED','Sec-Fetch-Site cross-site rejected',path=req.url.path,method=req.method)
+        return JSONResponse({'detail':'Cross-site access blocked'},403)
     token=os.getenv('APP_TOKEN','')
     if token and req.url.path.startswith('/api') and not secrets.compare_digest(req.headers.get('authorization',''),'Bearer '+token): return JSONResponse({'detail':'Enter your access token'},401)
     try: length=int(req.headers.get('content-length','0'))
@@ -189,6 +196,7 @@ async def guard(req:Request,call_next):
         response=JSONResponse({'detail':'The operation could not finish. No success is recorded. Check the input or local storage, then retry.'},500)
     response.headers['X-Content-Type-Options']='nosniff'; response.headers['Referrer-Policy']='no-referrer'; response.headers['X-Frame-Options']='DENY'
     response.headers['Cache-Control']='no-store'
+    response.headers['Permissions-Policy']='geolocation=(), camera=(), microphone=(), payment=(), usb=(), interest-cohort=()'
     response.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'"
     return response
 @app.exception_handler(ValueError)

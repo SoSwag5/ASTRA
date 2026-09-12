@@ -15,7 +15,10 @@ sync_lock=threading.Lock()
 HEADERS=['Application ID','Company','Job Title','Location','Emirate','Source','Job URL','Date Found','Date Applied','Fit','Status','Current Stage','CV Version','Salary','Last Activity','Next Action','Next Action Date','Follow-up Date','Outcome','Rejection Reason','Notes']
 
 def safe(value):
-    return "'"+value if isinstance(value,str) and value.startswith(('=','+','-','@')) else value
+    # Neutralize spreadsheet formula injection (OWASP): a leading =,+,-,@ or a
+    # leading tab / carriage return can cause Excel to evaluate untrusted job data
+    # as a formula. Prefix a text apostrophe so the cell is stored as inert text.
+    return "'"+value if isinstance(value,str) and value[:1] in ('=','+','-','@','\t','\r') else value
 
 def sheet(book,name,headers,rows,table_name):
     if name in book:book.remove(book[name])

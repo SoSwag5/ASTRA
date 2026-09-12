@@ -9,21 +9,28 @@ from pathlib import Path, PurePosixPath
 MAX_FILE=10_000_000
 MAX_TEXT=200_000
 
+def _reject(reason, active=False, kind='', name=''):
+    try:
+        from .security_events import record
+        record('UPLOAD_ACTIVE_CONTENT_BLOCKED' if active else 'UPLOAD_REJECTED', reason, kind=kind, filename=name)
+    except Exception: pass
+    raise ValueError(reason)
+
 def validate_document(data, filename, kind, content_type=None):
     name=Path(filename or '').name.lower()
     if kind not in ('pdf','xlsx','csv') or not name.endswith('.'+kind):
-        raise ValueError('Supported imports: text PDF CV, XLSX tracker, UTF-8 CSV tracker')
+        _reject('Supported imports: text PDF CV, XLSX tracker, UTF-8 CSV tracker', kind=kind, name=name)
     if any('.'+ext+'.' in name for ext in ('exe','com','bat','cmd','ps1','js','vbs','scr','dll')):
-        raise ValueError('Executable or double-extension upload rejected')
+        _reject('Executable or double-extension upload rejected', kind=kind, name=name)
     if not data or len(data)>MAX_FILE: raise ValueError('File must be non-empty and no larger than 10 MB')
     allowed={'pdf':{'application/pdf'},'xlsx':{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'},'csv':{'text/csv','application/csv','text/plain','application/vnd.ms-excel'}}
     if content_type and content_type.split(';')[0].lower() not in allowed[kind]|{'application/octet-stream'}:
         raise ValueError('The declared file type does not match this import')
     if data.startswith((b'MZ',b'\x7fELF')): raise ValueError('Executable content rejected')
     if kind=='pdf':
-        if not data.startswith(b'%PDF-') or b'%%EOF' not in data[-2048:]: raise ValueError('Malformed PDF')
+        if not data.startswith(b'%PDF-') or b'%%EOF' not in data[-2048:]: _reject('Malformed PDF', kind=kind, name=name)
         if any(token in data for token in (b'/JavaScript',b'/JS ',b'/Launch',b'/EmbeddedFile',b'/OpenAction')):
-            raise ValueError('Active or embedded PDF content is not supported')
+            _reject('Active or embedded PDF content is not supported', active=True, kind=kind, name=name)
     elif kind=='xlsx':
         if not data.startswith(b'PK\x03\x04'): raise ValueError('Not an XLSX archive')
         try:
