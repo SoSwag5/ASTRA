@@ -1,5 +1,5 @@
 # Security risk register
-Owner: Maintainer. Reviewed 2026-09-12. Risk matrix: likelihood 1 unlikely, 2 plausible, 3 likely; impact 1 limited, 2 material, 3 severe. Score L*I: 1-2 low, 3-4 moderate, 6-9 high. These are design/process ratings, not CVSS. Existing acceptances in security/RISK_REGISTER.md are historical; new risks below are proposed, not silently accepted.
+Owner: Maintainer. Reviewed 2026-09-13. Risk matrix: likelihood 1 unlikely, 2 plausible, 3 likely; impact 1 limited, 2 material, 3 severe. Score L*I: 1-2 low, 3-4 moderate, 6-9 high. These are design/process ratings, not CVSS. Existing acceptances in security/RISK_REGISTER.md are historical; new risks below are proposed, not silently accepted.
 
 | ID | Risk | L/I | State | Evidence / treatment | Due or recheck |
 |---|---|---|---|---|---|
@@ -11,9 +11,9 @@ Owner: Maintainer. Reviewed 2026-09-12. Risk matrix: likelihood 1 unlikely, 2 pl
 | R-06 | Private employment table in report, reachable history and old ZIP | 3/3 | Remediation in verification; release blocker until final scan/review | Confirmed CWE-359. Narrow history repair with external private bundle; old ZIP quarantined; structural scanner regression | Before any publication |
 | R-07 | Deleted data remains in external backups | 2/2 | Historical accepted residual | privacy.py scoped deletion; no forensic-erasure promise | Backup/privacy change |
 | R-08 | PDF native exploit despite resource limits | 2/3 | Historical accepted residual | document_security.py/pdf_worker.py; not an exploit sandbox | Parser update |
-| R-09 | Clean Windows installation and live task migration | 2/2 | Open remote verification | clean-install workflow/harness; live task unchanged; migration plan | Before final release |
-| R-10 | No actual hosted SAST/CI/repository controls | 2/3 | BLOCKING | Workflows configured, remote absent; activate technical protections and review Scorecard | Before final release |
-| R-11 | No signed/verified hosted provenance | 2/3 | BLOCKING | release.yml and SLSA assessment; no attestation exists | Before final release |
+| R-09 | Clean Windows installation and live task migration | 2/2 | Hosted acceptance PASS; live-task migration still unverified | clean_install.py on GitHub-hosted Windows, run 34721409583: setup.bat, empty database, demo isolation, synthetic mutation, restart persistence, demo API denial, shutdown, cleanup | Live-task migration before final release |
+| R-10 | No actual hosted SAST/CI/repository controls | 2/3 | Closed | CodeQL (python/js-ts/actions) green with all 9 alerts fixed; pip-audit and npm audit clean; dependency review proven on PRs; branch and tag protection active; secret scanning, push protection, Dependabot and private reporting enabled; Scorecard 7.1/10 reviewed | Next release |
+| R-11 | No signed/verified hosted provenance | 2/3 | Closed for the assessed candidate | Signed provenance and CycloneDX 1.7 SBOM attestations for artifact 8113a6ff on source b698bfde, independently verified off-runner with a tamper negative control; SLSA v1.2 Build L2 assessed satisfied, L3 not met | Every new candidate |
 | R-12 | ASVS L1/L2 control verification gaps | 2/3 | Applicable L1 closed (all PASS/N-A); L2 gaps open hardening | Full requirement CSV; L1 authorization 8.2.1/8.2.2 accepted N/A under R-15 | Before final release / next L2 pass |
 | R-15 | Local-peer / shared-host access within the OS trust boundary | 2/2 | Accepted architectural residual (v1.0) | Single-user architecture (no app identities/roles/user-scoped objects); loopback binding; optional access-key sessions; demo isolation; see detail below | Any move toward multi-user/networked operation |
 | R-13 | AI response resource limits and local provider availability | 2/2 | Open L2 hardening | providers.py HTTP body handling; test and add streaming byte cap in focused remediation | Before next AI change |
