@@ -10,6 +10,9 @@ name: Review Existing Candidate
         description: Source/artifact-bound review JSON with evidence URLs
         required: true
         type: string
+concurrency:
+  group: review-${{ github.ref }}
+  cancel-in-progress: false
 permissions:
   contents: read
   actions: read

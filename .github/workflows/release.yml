@@ -6,6 +6,9 @@ name: Release Assurance
         description: Source/artifact-bound review JSON; {} produces a blocked rehearsal
         required: false
         default: '{}'
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:
