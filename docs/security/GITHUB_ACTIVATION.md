@@ -1,5 +1,5 @@
 # Authorized GitHub activation and release checklist
-No remote exists and no push/publication is authorized in this pass. Workflows are prepared locally; they are not remote evidence.
+The remote now exists at <https://github.com/SoSwag5/ASTRA> and the sanitized history has been pushed under explicit owner authorization; the activation steps below have been carried out. No tag or release has been published. The requirements are kept as the standing checklist for this and any future candidate.
 
 After explicit owner authorization: create/select the public repository, inspect all public documents/images and history, configure remote, then push reviewed source. Enable private vulnerability reporting and test availability; CodeQL/code scanning, dependency graph, Dependabot alerts/security updates, secret scanning and push protection where available. Enable default-branch rules requiring the configured aggregate CI check; prohibit force-push/delete on protected branches and release tags. Do not impose a fictional external-review requirement on a solo maintainer. Protect workflow changes and scope tokens to minimum permissions.
 
