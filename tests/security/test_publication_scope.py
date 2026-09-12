@@ -8,7 +8,12 @@ from pathlib import Path
 
 import pytest
 
-from scripts.publication_gate import audit, publishable_tips
+from scripts.publication_gate import PATTERNS, audit, publishable_tips, scan
+
+BACKSLASH = chr(92)
+# Split so this file carries no literal the gate is required to flag; exempting
+# the path instead would blind the gate to a real leak here.
+DRIVE = 'C' + ':'
 
 # Assembled at runtime so this file does not itself carry a literal address the
 # gate must flag. Exempting the path instead would blind the gate to a real leak
@@ -117,3 +122,30 @@ def test_synthetic_merge_does_not_hide_the_proposed_commit_content(repo):
     result = audit(repo)
     assert result['status'] == 'BLOCKED'
     assert any(f['location'] == 'history:feature.txt' for f in result['findings'])
+
+
+# Payloads are synthetic. A scoping change once silently dropped an escape from
+# private_machine_path so it matched forward slashes only; these pin every rule.
+DETECTIONS = [
+    ('private_machine_path', DRIVE + BACKSLASH + 'Users' + BACKSLASH + 'someone' + BACKSLASH + 'notes.txt'),
+    ('private_machine_path', DRIVE + '/Users/someone/notes.txt'),
+    ('personal_email', 'contact ' + FIXTURE_EMAIL),
+    ('private_key', '-----BEGIN OPENSSH ' + 'PRIVATE KEY-----'),
+    ('api_token', 'ghp_' + 'A' * 36),
+    ('api_token', 'AKIA' + 'B' * 16),
+    ('employment_record_table', '| ID | Company | Role | Status | Result |'),
+]
+
+
+@pytest.mark.parametrize('category,payload', DETECTIONS)
+def test_each_detection_rule_still_fires(category, payload):
+    findings = []
+    scan(payload.encode(), 'tree:fixture.txt', findings)
+    assert {'location': 'tree:fixture.txt', 'category': category} in findings
+
+
+def test_detection_rule_set_is_not_silently_reduced():
+    assert set(PATTERNS) == {
+        'employment_record_table', 'private_key', 'api_token',
+        'private_machine_path', 'personal_email',
+    }

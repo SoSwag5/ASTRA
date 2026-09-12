@@ -14,7 +14,7 @@ PATTERNS={
     'employment_record_table':rb'(?im)^\|\s*ID\s*\|\s*Company\s*\|\s*Role\s*\|\s*Status\s*\|\s*Result\s*\|',
     'private_key':rb'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----',
     'api_token':rb'(?:sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{24,}|gh[pousr]_[A-Za-z0-9]{30,}|AKIA[0-9A-Z]{16})',
-    'private_machine_path':rb'[A-Za-z]:[\/]Users[\/][^\s\x22\x27]+',
+    'private_machine_path':rb'[A-Za-z]:[\\/]Users[\\/][^\s\x22\x27]+',
     'personal_email':rb'[\w.+-]+@(?:gmail|outlook|hotmail|yahoo)\.com',
 }
 PRIVATE=re.compile(r'(^|/)(data|backups|\.local|private|node_modules|\.venv)/|\.(db|sqlite|xlsx|docx|pdf|bundle)$|(^|/)(UAE_.*|CAMPAIGN_GAP_MAP|SEARCH_QUALITY_AUDIT|AUDIT_SECOND_PASS)\.md$|(^|/)\.env$',re.I)
