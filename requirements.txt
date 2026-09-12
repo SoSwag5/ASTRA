@@ -1,0 +1,17 @@
+fastapi>=0.115,<1
+uvicorn>=0.34,<1
+sqlalchemy>=2.0,<3
+pydantic>=2.10,<3
+python-multipart>=0.0.20
+python-dotenv>=1.0
+httpx>=0.28,<1
+beautifulsoup4>=4.12
+apscheduler>=3.11,<4
+playwright>=1.51,<2
+openpyxl>=3.1,<4
+pypdf>=5,<7
+reportlab>=4,<5
+python-docx>=1.1,<2
+keyring>=25,<26
+pytest>=9.0.3,<10
+tzdata

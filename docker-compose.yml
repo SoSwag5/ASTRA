@@ -1,0 +1,12 @@
+services:
+  hunter:
+    build: .
+    ports:
+      - "127.0.0.1:8787:8787"
+    env_file: .env
+    environment:
+      BIND_HOST: 0.0.0.0
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    shm_size: 1gb

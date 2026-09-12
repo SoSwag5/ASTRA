@@ -1,0 +1,32 @@
+/* Keep the established interface; repair focus, direction, reflow and demo semantics. */
+.skip-link{position:fixed;inset-block-start:8px;inset-inline-start:8px;z-index:10000;padding:12px;background:#fff;color:#102019;transform:translateY(-180%)}
+.skip-link:focus{transform:none}
+:focus-visible{outline:3px solid #3ca980;outline-offset:3px}
+button,input,select{min-height:32px}
+.privacy-panel{max-width:1000px}
+.privacy-panel .panel{margin-block-end:20px}
+.privacy-panel label{display:flex;flex-direction:column;gap:8px;margin-block:12px}
+.privacy-panel fieldset{border:1px solid #737d8d;border-radius:10px;margin-block:20px;padding:16px}
+.privacy-panel .check{flex-direction:row;align-items:center}
+.privacy-panel input,.privacy-panel select{max-width:100%}
+.privacy-panel code{overflow-wrap:anywhere}
+.privacy-panel p{line-height:1.7}
+.privacy-panel{overflow-wrap:anywhere}
+.privacy-panel button{white-space:normal;max-width:100%}
+.privacy-panel fieldset{min-inline-size:0}
+.demo-main{width:100%;margin-inline:auto}
+.demo-detail{position:static;width:auto;height:auto;inset:auto;overflow:visible}
+.demo-job-open{display:flex;align-items:center;gap:16px;flex:1;min-width:0;border:0;background:transparent;color:inherit;text-align:start;padding:0}
+.demo-job-copy{min-width:0}
+.demo-job-copy strong,.demo-job-copy small{overflow-wrap:anywhere}
+.demo-toast{max-width:min(90vw,600px)}
+.app>aside{inset-inline-start:0;left:auto}
+.app>main{margin-left:0;margin-inline-start:246px}
+.sidebar-collapsed>main{margin-inline-start:82px}
+.close{right:auto;inset-inline-end:20px}
+.detail,.dialog{text-align:start}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;unicode-bidi:plaintext}
+.record>div,.jobname,.opportunity>div{unicode-bidi:plaintext;text-align:start}
+@media(max-width:850px){.app>main{margin-inline-start:68px}.demo-grid{grid-template-columns:1fr}.demo-main{padding-inline:16px}.demo-header .brand{width:auto}.demo-job{flex-wrap:wrap}.demo-job-open{flex-basis:75%}.formgrid{grid-template-columns:1fr}.privacy-panel{min-width:0}}
+@media(max-width:520px){.demo-intro h1{font-size:38px}.demo-header{flex-wrap:wrap;gap:12px}.demo-intro{padding-block:32px}.content{padding-inline:14px}.pagetitle .actions{flex-wrap:wrap}.privacy-panel .panel{padding:16px}.dialog,.detail{max-width:100vw}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0.01ms!important;transition-duration:0.01ms!important;scroll-behavior:auto!important}}
