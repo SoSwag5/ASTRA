@@ -17,9 +17,10 @@ is not a hosted or multi-tenant service.
 
 Please **do not** open a public issue for a security vulnerability.
 
-Use **GitHub's private vulnerability reporting** ("Report a vulnerability" under
-the repository's *Security* tab). If that is unavailable, open a minimal public
-issue asking for a private contact channel — without technical detail.
+Use **GitHub's private vulnerability reporting**, which is enabled on this
+repository: <https://github.com/SoSwag5/ASTRA/security/advisories/new>. If that
+is unavailable to you, open a minimal public issue asking for a private contact
+channel — without technical detail.
 
 When reporting, please include:
 
@@ -50,6 +51,10 @@ See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md),
 [docs/SECURITY_POSTURE.md](docs/SECURITY_POSTURE.md), and
 [security/](security/) for the full model, tested controls, and mappings.
 
-GitHub private reporting and scanning require owner activation; no remote repository is configured yet.
+Private vulnerability reporting, code scanning, secret scanning with push
+protection, and Dependabot alerts are active on
+<https://github.com/SoSwag5/ASTRA>.
 
-See [Vulnerability Management](docs/security/VULNERABILITY_MANAGEMENT.md) and [Incident Response](docs/security/INCIDENT_RESPONSE.md). Provide version, platform, synthetic reproducer, impact and boundary. Private reporting remains pending activation.
+See [Vulnerability Management](docs/security/VULNERABILITY_MANAGEMENT.md) and
+[Incident Response](docs/security/INCIDENT_RESPONSE.md). Provide version,
+platform, synthetic reproducer, impact and boundary.
