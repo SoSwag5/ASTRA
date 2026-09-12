@@ -58,7 +58,7 @@ def test_ssrf():
     with pytest.raises(ValueError): validate_url('file:///etc/passwd')
     with pytest.raises(ValueError): validate_url('http://127.0.0.1')
 def test_cv_preserves_facts(db,tmp_path):
-    p=CandidateProfile(name='Ayham',email='test@example.com',phone='UNKNOWN',location='Abu Dhabi',summary='Security graduate.',raw_text='Security graduate.\nPython\nAcademic project only.',confirmed=True);db.add(p);db.flush()
+    p=CandidateProfile(name='Candidate Example',email='test@example.com',phone='UNKNOWN',location='Abu Dhabi',summary='Security graduate.',raw_text='Security graduate.\nPython\nAcademic project only.',confirmed=True);db.add(p);db.flush()
     db.add(Skill(candidate_id=p.id,text='Python'));db.add(Project(candidate_id=p.id,text='Academic project only.'));db.flush()
     j,_=add_job(db,{'company':'X','title':'SOC','description':'CISSP Splunk Python'});r=generate_cv(db,j)
     assert 'Splunk' not in r.tailored and 'CISSP' not in r.tailored and 'Academic project only.' in r.tailored

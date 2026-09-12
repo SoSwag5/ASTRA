@@ -16,10 +16,12 @@ Taxonomy (event -> CWE / control):
   SECRET_STORAGE_UNAVAILABLE   CWE-522  native credential store missing (fail-closed)
 """
 import json, re, threading
+from collections import deque
 from datetime import datetime, timezone
 
 _LOCK = threading.Lock()
 _CONTROL = re.compile(r'[\x00-\x1f\x7f]')
+MAX_BYTES = 1_000_000
 
 SEVERITY = {
     'INVALID_ORIGIN_BLOCKED': 'WARNING',
@@ -43,12 +45,18 @@ def record(event, reason='', **fields):
             'ts': datetime.now(timezone.utc).isoformat(),
             'event': event,
             'severity': SEVERITY.get(event, 'NOTICE'),
-            'reason': _clean(reason),
-            'fields': {k: _clean(v, 120) for k, v in fields.items()},
+            # Free text, URLs, filenames and request paths can contain PII/secrets.
+            # Persist only our fixed taxonomy, never attacker-supplied strings.
+            'reason': 'Security control blocked an operation',
+            'fields': {},
         }
+        if event not in SEVERITY:
+            return
         path = DATA / 'security-events.log'
         line = json.dumps(entry, ensure_ascii=True)
         with _LOCK:
+            if path.exists() and path.stat().st_size + len(line) > MAX_BYTES:
+                path.replace(path.with_suffix('.log.1'))
             with open(path, 'a', encoding='utf-8') as handle:
                 handle.write(line + '\n')
     except Exception:
@@ -63,7 +71,7 @@ def tail(limit=200):
         if not path.exists():
             return []
         with open(path, encoding='utf-8') as handle:
-            lines = handle.readlines()[-limit:]
+            lines = deque(handle, maxlen=min(max(limit, 1), 500))
         out = []
         for line in lines:
             try:

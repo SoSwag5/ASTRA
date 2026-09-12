@@ -3,6 +3,8 @@ type Row=Record<string,any>;
 type Api=(path:string,method?:string,data?:any)=>Promise<any>;
 export function PrivacyPanel({api,refresh}:{api:Api,refresh:()=>Promise<any>}){
  const [info,setInfo]=useState<Row|null>(null),[profile,setProfile]=useState<Row>({}),[candidate,setCandidate]=useState<Row|null>(null),[error,setError]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[scope,setScope]=useState('cv'),[confirmation,setConfirmation]=useState(''),[key,setKey]=useState('');
+ const [checks,setChecks]=useState<Row|null>(null),[events,setEvents]=useState<Row[]>([]),[usage,setUsage]=useState<Row|null>(null);
+ const securityCheck=async()=>{const [c,e,u]=await Promise.all([api('/privacy/self-check'),api('/privacy/security-events'),api('/privacy/ai-usage')]);setChecks(c);setEvents(e.events);setUsage(u)};
  const load=async()=>{const [data,person]=await Promise.all([api('/privacy'),api('/profile')]);setInfo(data);setProfile(data.application_profile);setCandidate(person)};
  useEffect(()=>{load().catch(e=>setError(e.message))},[]);
  const run=async(fn:()=>Promise<any>,success:string)=>{if(busy)return;setBusy(true);setError('');setMessage('');try{await fn();setMessage(success)}catch(e:any){setError(e.message)}finally{setBusy(false)}};
@@ -16,6 +18,11 @@ export function PrivacyPanel({api,refresh}:{api:Api,refresh:()=>Promise<any>}){
   {message&&<p role="status" className="notice">{message}</p>}
   {!info&&!error&&<p role="status">Loading local data controlsâ€¦</p>}
   {info&&<>
+   <section className="panel spaced"><h2>Privacy & security check</h2><p>Local server, credential storage, runtime, data permissions and backups.</p><button className="secondary" disabled={busy} onClick={()=>run(securityCheck,'Security check finished')}>Run security check</button>
+    {checks&&<><h3>{checks.overall}</h3>{checks.checks.map((c:Row)=><p key={c.check}><strong>{c.check.replaceAll('_',' ')}: {c.status}</strong> — {c.detail}{c.remediation&&<> · {c.remediation}</>}</p>)}</>}
+    {usage&&<><h3>Optional OpenAI usage today (UTC)</h3><p>{usage.requests} requests · {usage.input_tokens} input tokens · {usage.output_tokens} output tokens. Failed attempts count toward the limit. Local Ollama is excluded.</p><label>Daily AI request limit (0 turns off remote requests)<input type="number" min={0} max={100} value={usage.daily_limit} onChange={e=>setUsage({...usage,daily_limit:Number(e.target.value)})}/></label><button disabled={busy} onClick={()=>run(async()=>{await api('/settings','PUT',{ai_daily_limit:usage.daily_limit});await securityCheck()},'Daily AI limit saved')}>Save daily AI limit</button></>}
+    {!!events.length&&<><h3>Recent security events</h3>{events.slice(-10).reverse().map((e:Row,i:number)=><p key={i}>{e.ts} · {e.event.replaceAll('_',' ').toLowerCase()}</p>)}</>}
+   </section>
    <section className="panel"><h2>Privacy & local data</h2><p>Stored on this computer: <code dir="ltr">{info.storage_path}</code></p>{Object.entries(info.copy).map(([name,value])=><p key={name}>{String(value)}</p>)}<button className="secondary" disabled={busy} onClick={()=>run(exportData,'Private export downloaded. It contains unencrypted personal information.')}>Export My Data</button></section>
    <section className="panel spaced"><h2>Application profile</h2><p>These are your own answers, separate from extracted CV text. Blank fields mean unknown. They never become demographic matching variables or automatically submitted answers.</p>
     <form onSubmit={e=>{e.preventDefault();run(async()=>{await api('/privacy/application-profile','PUT',profile);localStorage.setItem('uiLocale',profile.ui_locale);localStorage.setItem('uiTimeZone',profile.timezone);document.documentElement.dir=/^(ar|he|fa|ur)(-|$)/i.test(profile.ui_locale)?'rtl':'ltr';document.documentElement.lang='en';await refresh()},'Application profile saved locally. Interface text is currently English; locale controls formatting and direction.')}}>

@@ -32,7 +32,8 @@ def managed_files():
     db_path=Path(engine.url.database).resolve() if engine.url.database else None
     active_db={str(db_path)+suffix for suffix in ('','-wal','-shm','-journal')} if db_path else set()
     known_files={'master.pdf','incoming.pdf','incoming.xlsx','tracker.xlsx','tracker_previous.xlsx','tracker.tmp.xlsx',
-                 'hunter.db','hunter.db-wal','hunter.db-shm','hunter.db-journal'}
+                 'hunter.db','hunter.db-wal','hunter.db-shm','hunter.db-journal',
+                 'security-events.log','security-events.log.1','ai-usage.db','ai-usage.db-journal','ai-usage.db-wal','ai-usage.db-shm'}
     known_directories={'documents','backups','screenshots','browser_profiles'}
     # A wrongly configured data root must never turn these controls into a general
     # filesystem exporter or recursive eraser. Inspect before touching any files.
@@ -82,7 +83,7 @@ def _export_data():
     if not task_lock.acquire(False): raise HTTPException(409,'Wait for the current scan or task to finish')
     try:
         # Browser cookies and sessions are intentionally never exported.
-        files=[p for p in managed_files() if not any(part.lower()=='browser_profiles' or part.lower().startswith('.import-') for part in p.relative_to(DATA).parts)]
+        files=[p for p in managed_files() if not p.name.startswith(('security-events.log','ai-usage.db')) and not any(part.lower()=='browser_profiles' or part.lower().startswith('.import-') for part in p.relative_to(DATA).parts)]
         if sum(p.stat().st_size for p in files)>100_000_000: raise ValueError('Export exceeds 100 MB; use a protected local backup while the app is stopped')
         with Session() as db:
             records={table.name:[dict(row) for row in db.execute(select(table)).mappings()] for table in Base.metadata.sorted_tables}
@@ -106,6 +107,7 @@ def delete_data(request:DeleteRequest):
     if not task_lock.acquire(False): raise HTTPException(409,'Wait for the current scan or task to finish')
     try:
         files=managed_files()
+        if request.scope!='all': files=[p for p in files if not p.name.startswith('ai-usage.db')]
         if request.scope=='history': files=[p for p in files if p.name not in ('master.pdf','incoming.pdf')]
         if request.scope=='all': delete_credential('openai')
         # Preflight all paths before removing anything. A filesystem failure is surfaced,
@@ -230,6 +232,11 @@ def self_check():
 def security_events(limit:int=100):
     from .security_events import tail
     return {'events':tail(min(max(limit,1),500))}
+
+@router.get('/ai-usage')
+def ai_usage():
+    from .ai_usage import snapshot
+    return snapshot()
 
 @router.get('/market/{country}')
 def market_policy(country:str):

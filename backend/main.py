@@ -18,6 +18,7 @@ from .providers import provider
 from .browser import run_browser,browser_test
 from .discovery import discovery_reason
 from . import career_tracks
+from .build_info import info as build_info
 
 from .reliability import ProcessLock
 scheduler=BackgroundScheduler(timezone='Asia/Dubai'); task_lock=ProcessLock()
@@ -143,6 +144,9 @@ def configure_schedule():
     scheduler.add_job(backup_database,'interval',hours=24,id='daily_backup',coalesce=True,max_instances=1)
 @asynccontextmanager
 async def lifespan(app):
+    if os.getenv('ASTRA_DEMO_ONLY')=='1':
+        yield
+        return
     initialize()
     if os.getenv('BIND_HOST','127.0.0.1') not in ('127.0.0.1','localhost') and not os.getenv('APP_TOKEN'): raise RuntimeError('APP_TOKEN required for public binding')
     # A process restart cannot finish an earlier in-memory scan.
@@ -162,6 +166,8 @@ mutation_lock=asyncio.Lock()
 async def guard(req:Request,call_next):
     import ipaddress
     from .security_events import record as security_event
+    if os.getenv('ASTRA_DEMO_ONLY')=='1' and req.url.path.startswith('/api'):
+        return JSONResponse({'detail':'Private API disabled in demo-only mode'},404)
     peer=req.client.host if req.client else ''
     if peer!='testclient':
         try: local=ipaddress.ip_address(peer).is_loopback
@@ -209,7 +215,7 @@ def get_job(db,id):
     if not j: raise HTTPException(404,'Job not found')
     return j
 @app.get('/api/health')
-def health(): return {'ok':True,'scheduler':scheduler.running,'version':'campaign-2026-09','pid':os.getpid()}
+def health(): return {'ok':True,'scheduler':scheduler.running,'pid':os.getpid(),**build_info()}
 def metrics(db):
     jobs=list(db.scalars(select(Job))); apps=list(db.scalars(select(Application))); counts=Counter(a.status for a in apps); applied=[a for a in apps if a.applied_date]; today=datetime.now(ZoneInfo('Asia/Dubai')).date(); dates=[]
     for a in applied:
@@ -415,6 +421,8 @@ def put_settings(data:dict):
         if cfg['autopilot'] not in ('OFF','PREPARE_ONLY'): raise ValueError('Automatic submission is disabled. Choose OFF or PREPARE_ONLY.')
         cfg['dry_run']=True
         if cfg['provider'] not in ('rules','ollama','openai'): raise ValueError('Unknown model provider')
+        if type(cfg['ai_daily_limit']) is not int or not 0<=cfg['ai_daily_limit']<=100:
+            raise ValueError('Daily AI limit must be a whole number from 0 to 100')
         if type(cfg['discovery_enabled']) is not bool or type(cfg['discovery_interval_hours']) is not int or cfg['discovery_interval_hours'] not in (3,6,12,24): raise ValueError('Choose scans every 3, 6, 12 or 24 hours')
         if not 0<=int(cfg['daily_limit'])<=100 or not 0<=int(cfg['max_retries'])<=5: raise ValueError('Invalid limits')
         if set(cfg['weights'])!=set(DEFAULTS['weights']) or any(not isinstance(v,(int,float)) or v<0 for v in cfg['weights'].values()) or sum(cfg['weights'].values())<=0: raise ValueError('Invalid scoring weights')
