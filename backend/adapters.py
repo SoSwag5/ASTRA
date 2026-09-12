@@ -7,7 +7,7 @@ from .policy import validate_url, host, linkedin, challenge
 
 def fetch(url):
     validate_url(url)
-    with httpx.Client(timeout=25,follow_redirects=False,headers={'User-Agent':'AyhamJobHunter/1.0 personal-career-assistant'}) as c:
+    with httpx.Client(timeout=25,follow_redirects=False,headers={'User-Agent':'ASTRA/1.0 personal-career-assistant'}) as c:
         for _ in range(5):
             with c.stream('GET',url) as stream:
                 chunks=[]; size=0

@@ -1,6 +1,6 @@
 # Third-party notices
 
-Generated from installed package metadata on 2026-09-11.
+Generated from installed package metadata on 2026-09-12.
 These notices are not a legal clearance. Unknown metadata and missing licence files must be resolved before redistribution. Optional platform packages absent from this installation need review on the target platform. Browser downloads and operating-system packages need their own inventory.
 
 

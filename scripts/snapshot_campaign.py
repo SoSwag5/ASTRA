@@ -1,5 +1,5 @@
 """Pre-change local backup and compact baseline inventory; no private text in stdout."""
-import hashlib,json,sqlite3,shutil,sys
+import hashlib,json,os,sqlite3,shutil,sys
 from pathlib import Path
 from datetime import datetime
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
@@ -18,7 +18,10 @@ with sqlite3.connect(engine.url.database) as source,sqlite3.connect(destination/
 raw=json.dumps(records,sort_keys=True,ensure_ascii=False)
 (destination/'applications.json').write_text(raw,encoding='utf-8')
 books=[]
-for file in [DATA/'tracker.xlsx',root.parent/'Ayham_Job_Application_Tracker.xlsx']:
+# Optional external workbook path via env var; no personal filename is hard-coded.
+external=os.getenv('ASTRA_EXTERNAL_TRACKER')
+candidates=[DATA/'tracker.xlsx']+([Path(external)] if external else [])
+for file in candidates:
     if not file.exists():continue
     shutil.copy2(file,destination/file.name)
     book=load_workbook(file,read_only=False,data_only=False)
