@@ -133,6 +133,11 @@ def core_skills(cfg):
 def credentials(cfg):
     return list(dict.fromkeys(cred for track in active_tracks(cfg) for cred in track.get('credentials', [])))
 
+def target_role_titles(cfg):
+    custom = [x.strip() for x in (cfg or {}).get('custom_target_roles', []) if x.strip()]
+    generated = [role for track in active_tracks(cfg) for role in track['target_roles']]
+    return list(dict.fromkeys(custom + generated))
+
 def search_queries(cfg):
     custom = [x.strip() for x in (cfg or {}).get('custom_target_roles', []) if x.strip()]
     generated = [q for track in active_tracks(cfg) for q in track['queries']]

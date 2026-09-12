@@ -17,6 +17,7 @@ from .adapters import discover,parse_url
 from .providers import provider
 from .browser import run_browser,browser_test
 from .discovery import discovery_reason
+from . import career_tracks
 
 from .reliability import ProcessLock
 scheduler=BackgroundScheduler(timezone='Asia/Dubai'); task_lock=ProcessLock()
@@ -372,6 +373,30 @@ def save_record(kind:str,data:dict):
         for k,v in data.items():
             if k in model.__table__.columns.keys() and k not in ('id','created_at','updated_at'): setattr(row,k,v)
         db.add(row); db.flush(); return serialize(row)
+@app.get('/api/career-tracks')
+def career_tracks_list():
+    return career_tracks.public_tracks()
+@app.get('/api/profile/career-suggestions')
+def career_suggestions():
+    with Session() as db:
+        p=candidate(db) if db.scalar(select(CandidateProfile)) else None
+        if not p: return []
+        text=' '.join([p.get('raw_text',''),p.get('summary','')]+[s['text'] for s in p.get('skills',[])])
+        return career_tracks.suggest(text)
+@app.post('/api/settings/career-focus')
+def set_career_focus(data:dict):
+    ids=[x for x in data.get('career_tracks',[]) if isinstance(x,str)]
+    if any(x not in career_tracks.TRACKS for x in ids): raise ValueError('Unknown career track')
+    custom=[x.strip() for x in data.get('custom_target_roles',[]) if isinstance(x,str) and x.strip()][:20]
+    if any(len(x)>200 for x in custom): raise ValueError('Target role titles must be under 200 characters')
+    if not ids and not custom: raise ValueError('Choose at least one career track or add a custom target role')
+    with Session.begin() as db:
+        cfg={**settings(db),'career_tracks':ids,'custom_target_roles':custom}
+        cfg['target_roles']=career_tracks.target_role_titles(cfg)
+        cfg['search_focus_confirmed']=True
+        cfg['career_profile_version']=career_tracks.VERSION
+        db.get(Settings,1).value=cfg
+        return cfg
 @app.get('/api/settings')
 def get_settings():
     with Session() as db: return settings(db)
