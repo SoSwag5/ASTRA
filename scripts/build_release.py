@@ -41,7 +41,10 @@ def main():
     files['security/sbom.cdx.json']=args.sbom.read_bytes()
     findings=[]
     for name,data in files.items():scan(data,'artifact:'+name,findings)
-    if findings:raise RuntimeError('Artifact content failed publication gate')
+    if findings:
+        # Locations and categories only; payloads are never printed.
+        print(json.dumps({'status':'BLOCKED','findings':findings},indent=2),file=sys.stderr)
+        raise RuntimeError('Artifact content failed publication gate: '+', '.join(sorted({f['location']+' ('+f['category']+')' for f in findings})))
     manifest={'version':'1.0.0-rc.1','source_commit':git('rev-parse','HEAD').decode().strip(),
               'python_reference':'3.13.2','python_verification_target':['3.13','3.14'],'node_build':'24 LTS','node_runtime_required':False,
               'sbom_sha256':validation['sha256'],'sbom_specification':'1.7',

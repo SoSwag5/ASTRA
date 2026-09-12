@@ -144,6 +144,34 @@ def test_each_detection_rule_still_fires(category, payload):
     assert {'location': 'tree:fixture.txt', 'category': category} in findings
 
 
+NOTICE_SOURCES = ('THIRD_PARTY_NOTICES.md', 'frontend/public/third-party-notices.txt')
+NOTICE_PACKAGED = 'frontend/dist/third-party-notices.txt'
+
+
+@pytest.mark.parametrize('path', NOTICE_SOURCES + (NOTICE_PACKAGED,))
+def test_upstream_attribution_is_waived_in_notice_files(path):
+    """Vite publishes public/ into dist/, so the artifact carries it twice."""
+    findings = []
+    scan(('maintainer ' + FIXTURE_EMAIL).encode(), 'artifact:' + path, findings)
+    assert findings == []
+
+
+@pytest.mark.parametrize('path', NOTICE_SOURCES + (NOTICE_PACKAGED,))
+def test_notice_waiver_covers_only_attribution(path):
+    """A key or token in a notice file is still a finding."""
+    findings = []
+    scan(('-----BEGIN OPENSSH ' + 'PRIVATE KEY-----').encode(), 'artifact:' + path, findings)
+    assert [f['category'] for f in findings] == ['private_key']
+
+
+def test_notice_waiver_does_not_leak_to_neighbouring_paths():
+    for path in ('frontend/dist/notes.txt', 'docs/third-party-notices.txt',
+                 'frontend/dist/third-party-notices.txt.bak'):
+        findings = []
+        scan(('maintainer ' + FIXTURE_EMAIL).encode(), 'artifact:' + path, findings)
+        assert [f['category'] for f in findings] == ['personal_email'], path
+
+
 def test_detection_rule_set_is_not_silently_reduced():
     assert set(PATTERNS) == {
         'employment_record_table', 'private_key', 'api_token',

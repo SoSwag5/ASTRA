@@ -25,6 +25,7 @@ PRIVATE=re.compile(r'(^|/)(data|backups|\.local|private|node_modules|\.venv)/|\.
 # head - are publishable and are scanned in its place, so no authored commit is
 # ever skipped.
 SYNTHETIC_REF=re.compile(r'^refs/(?:remotes/)?pull/')
+NOTICE_PATHS=('THIRD_PARTY_NOTICES.md','frontend/public/third-party-notices.txt','frontend/dist/third-party-notices.txt')
 
 def git(*args,root=ROOT):
     root=Path(root)
@@ -51,7 +52,10 @@ def scan(data,location,findings):
     if PRIVATE.search(path):findings.append({'location':location,'category':'private_artifact'})
     for name,pattern in PATTERNS.items():
         # Preserve upstream license authors' chosen public contact attribution.
-        if name=='personal_email' and path in ('THIRD_PARTY_NOTICES.md','frontend/public/third-party-notices.txt'):continue
+        # The dist copy is the same bytes: Vite publishes public/ into dist/, so
+        # the packaged artifact carries it under that name too. Only this one
+        # category is waived, and only for these exact paths.
+        if name=='personal_email' and path in NOTICE_PATHS:continue
         if re.search(pattern,data):findings.append({'location':location,'category':name})
 
 def audit(root=ROOT):
