@@ -9,7 +9,7 @@ if (Test-Path $pidPath) {
     $previous = Get-Content -Raw $pidPath | ConvertFrom-Json
     $existing = Get-Process -Id $previous.pid -ErrorAction SilentlyContinue
     if ($existing -and [Math]::Abs(($existing.StartTime.ToUniversalTime() - ([datetime]$previous.started).ToUniversalTime()).TotalSeconds) -lt 1) {
-        Write-Output 'Ayham Job Hunter is already running at http://localhost:8787'
+        Write-Output 'ASTRA is already running at http://localhost:8787'
         exit 0
     }
 }
@@ -24,7 +24,7 @@ for ($attempt=0; $attempt -lt 30; $attempt++) {
         $serviceProcess = Get-Process -Id $health.pid -ErrorAction Stop
         @{pid=$serviceProcess.Id; started=$serviceProcess.StartTime.ToUniversalTime().ToString('o')} | ConvertTo-Json | Set-Content $pidPath
         if (-not $NoBrowser) { Start-Process 'http://localhost:8787' }
-        Write-Output 'Ayham Job Hunter is running at http://localhost:8787'
+        Write-Output 'ASTRA is running at http://localhost:8787'
         exit 0
     } catch { Start-Sleep -Milliseconds 500 }
 }

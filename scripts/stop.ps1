@@ -13,4 +13,4 @@ if (Test-Path $pidPath) {
     }
     Remove-Item -LiteralPath $pidPath
 }
-Write-Output 'Ayham Job Hunter stopped.'
+Write-Output 'ASTRA stopped.'

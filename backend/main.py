@@ -155,7 +155,7 @@ async def lifespan(app):
     configure_schedule(); scheduler.start()
     yield
     scheduler.shutdown(wait=False)
-app=FastAPI(title='Ayham Job Hunter',lifespan=lifespan)
+app=FastAPI(title='ASTRA',lifespan=lifespan)
 app.add_middleware(TrustedHostMiddleware,allowed_hosts=['localhost','127.0.0.1','testserver'])
 mutation_lock=asyncio.Lock()
 @app.middleware('http')
