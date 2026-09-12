@@ -15,3 +15,10 @@ audit/
 debug.log
 *.tsbuildinfo
 .DS_Store
+
+.local/
+private/
+release/
+!.env.example
+
+.audit-env/

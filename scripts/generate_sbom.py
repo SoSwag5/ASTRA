@@ -9,6 +9,7 @@ import importlib.metadata as md
 import json
 import re
 import uuid
+import base64
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -23,9 +24,10 @@ def purl(ecosystem, name, version):
 
 def python_components():
     comps = []
+    locked=set(re.findall(r'^([\w.-]+)==', (ROOT/'requirements.lock.txt').read_text(), re.M))
     for dist in sorted(md.distributions(), key=lambda d: (d.metadata['Name'] or '').lower()):
         name = dist.metadata['Name']
-        if not name:
+        if not name or name not in locked:
             continue
         version = dist.version
         lic = (dist.metadata.get('License-Expression') or dist.metadata.get('License')
@@ -59,7 +61,7 @@ def npm_components():
             comp['licenses'] = [{'license': {'name': str(entry['license'])[:200]}}]
         if entry.get('integrity'):
             algo, _, val = entry['integrity'].partition('-')
-            comp['hashes'] = [{'alg': {'sha512': 'SHA-512', 'sha256': 'SHA-256', 'sha1': 'SHA-1'}.get(algo, algo), 'content': val}]
+            comp['hashes'] = [{'alg': {'sha512': 'SHA-512', 'sha256': 'SHA-256', 'sha1': 'SHA-1'}.get(algo, algo), 'content': base64.b64decode(val).hex()}]
         comps.append(comp)
     return comps
 
@@ -74,7 +76,7 @@ def main():
         'metadata': {
             'timestamp': datetime.now(timezone.utc).isoformat(),
             'component': {'type': 'application', 'name': 'astra', 'version': '1.0.0'},
-            'tools': [{'name': 'astra-generate-sbom', 'version': '1.0'}],
+            'tools': [{'name': 'astra-generate-sbom', 'version': '1.1'}],
         },
         'components': components,
     }
