@@ -55,6 +55,12 @@ with TestClient(app) as c:
     expect('log_safe_strips_newlines', main.log_safe('12' + chr(10) + 'FORGED') == '12_FORGED')
     expect('log_safe_keeps_plain', main.log_safe(7) == '7')
 
+    # Logged ids are ints by validation, which is what makes int() sound there.
+    for bad in ['1' + chr(10) + 'FORGED', 1.5, True, -3, 0, None, {'x': 1}]:
+        status = c.post('/api/bulk/prepare', json={'ids': [bad]}).status_code
+        expect('rejects_non_positive_int[' + repr(bad) + ']', status == 400, status)
+    expect('rejects_oversized_batch', c.post('/api/bulk/prepare', json={'ids': list(range(1, 102))}).status_code == 400)
+
     # Unhandled errors on ordinary routes stay generic too.
     main.job_action = raises(RuntimeError('internal ' + SECRET))
     response = c.post('/api/jobs/1/analyze')

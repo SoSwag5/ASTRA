@@ -420,15 +420,17 @@ def bulk(data:dict):
         try: result.append({'id':id,'result':job_action(id,'prepare')})
         # Fixed strings only: no exception text reaches a client from here. The
         # per-job route reports the specific reason when it is opened, and the
-        # cause of an unexpected failure is written to the local log.
+        # cause of an unexpected failure is written to the local log. Every id
+        # is a positive int by the check above, so int() cannot carry a newline
+        # into a log record; log_safe covers the free-text values elsewhere.
         except HTTPException:
-            logger.exception('Bulk preparation rejected job %s',log_safe(id))
+            logger.exception('Bulk preparation rejected job %d',int(id))
             result.append({'id':id,'error':'This job is no longer available. Reload the list.'})
         except ValueError:
-            logger.exception('Bulk preparation validation failed for job %s',log_safe(id))
+            logger.exception('Bulk preparation validation failed for job %d',int(id))
             result.append({'id':id,'error':'This job needs attention before it can be prepared. Open it to see what is required.'})
         except Exception:
-            logger.exception('Bulk preparation failed for job %s',log_safe(id))
+            logger.exception('Bulk preparation failed for job %d',int(id))
             result.append({'id':id,'error':UNEXPECTED_FAILURE})
     return result
 COLLECTIONS={'applications':Application,'answers':ApprovedAnswer,'interviews':Interview,'followups':FollowUp,'sources':JobSource,'sites':SiteAdapter,'logs':ApplicationEvent,'runs':AutomationRun,'documents':ResumeVersion,'recruiters':Recruiter}
