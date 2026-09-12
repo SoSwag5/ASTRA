@@ -1,5 +1,6 @@
 import pytest,copy
 from types import SimpleNamespace as NS
+from urllib.parse import urlsplit
 from sqlalchemy import create_engine,select
 from sqlalchemy.orm import Session as OrmSession
 from backend.models import *
@@ -22,7 +23,7 @@ def test_duplicates():
 def test_duplicate_import(db):
     j,_=add_job(db,{'company':'A','title':'SOC','job_url':'https://linkedin.com/jobs/1'})
     j2,d=add_job(db,{'company':'A','title':'SOC','job_url':'https://example.com/jobs/1'})
-    assert j.id==j2.id and d and j.job_url.startswith('https://example.com')
+    assert j.id==j2.id and d and urlsplit(j.job_url).netloc=='example.com'
 def test_scoring():
     result=score(job(),profile(),DEFAULTS); assert result['score']>=80; assert result['recommendation']=='HIGH_PRIORITY'
 @pytest.mark.parametrize('requirement',['UAE National only','Active security clearance required','Arabic mandatory','CCNA required','5 years minimum required'])
