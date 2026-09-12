@@ -25,12 +25,12 @@ jobs:
         persist-credentials: false
     - uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc
       with:
-        results_file: release/scorecard.json
+        results_file: scorecard.json
         results_format: json
         publish_results: false
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       with:
         name: scorecard-results
-        path: release/scorecard.json
+        path: scorecard.json
         if-no-files-found: error
       if: always()
