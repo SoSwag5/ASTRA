@@ -8,6 +8,7 @@ carries no literal the publication gate is required to flag.
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 HARNESS = r'''
 import json, sys
@@ -79,6 +80,23 @@ with TestClient(app) as c:
 print(json.dumps(fails))
 sys.exit(1 if fails else 0)
 '''
+
+
+def test_clean_install_redacts_machine_paths_from_evidence():
+    """Failure output must name the failing step without carrying local paths."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts'))
+    from clean_install import redact
+
+    B = chr(92)
+    install = 'D' + ':' + B + 'a' + B + 'ASTRA' + B + 'work'
+    other = 'C' + ':' + B + 'Users' + B + 'someone' + B + 'keys.txt'
+    text = 'installing into ' + install + ' failed; see ' + other
+    out = redact(text, install)
+
+    assert '<install>' in out and install not in out
+    assert other not in out and '<path>' in out
+    assert 'installing into' in out and 'failed' in out
+    assert redact('plain failure, no paths') == 'plain failure, no paths'
 
 
 def test_failures_expose_no_internals_and_downloads_reject_traversal(tmp_path):
