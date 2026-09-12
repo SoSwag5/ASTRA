@@ -22,6 +22,8 @@ TRACKS = OrderedDict({
         'skills': ['SIEM', 'SOC', 'log analysis', 'security monitoring', 'Nmap', 'Metasploit', 'TCP/IP', 'DNS', 'Linux', 'Python', 'ISO 27001', 'risk assessment', 'vulnerability assessment', 'Microsoft Sentinel', 'Splunk', 'CrowdStrike', 'QRadar', 'KQL', 'IAM', 'incident response', 'network security', 'cloud security', 'Security+', 'CCNA'],
         'resume_signals': ['cybersecurity', 'cyber security', 'information security', 'soc', 'siem', 'nmap', 'metasploit', 'vulnerability', 'incident response', 'network security', 'iso 27001', 'splunk', 'sentinel'],
         'queries': ['SOC Analyst', 'Cybersecurity Analyst', 'Information Security Analyst', 'GRC Analyst', 'IT Security Analyst'],
+        'credentials': ['CISSP', 'OSCP', 'CCNA', 'Security+', 'SC-200'],
+        'core_skills': ['soc', 'siem', 'linux', 'python', 'incident response', 'network security', 'risk assessment', 'vulnerability', 'iam', 'cloud security', 'splunk', 'security monitoring'],
     },
     'DATA_ANALYTICS': {
         'label': 'Data & Analytics',
@@ -36,6 +38,8 @@ TRACKS = OrderedDict({
         'skills': ['SQL', 'Python', 'Excel', 'Power BI', 'Tableau', 'pandas', 'NumPy', 'statistics', 'data visualization', 'data cleaning', 'ETL', 'dashboard', 'scikit-learn'],
         'resume_signals': ['data analysis', 'data analytics', 'sql', 'power bi', 'tableau', 'pandas', 'numpy', 'statistics', 'data visualization', 'dashboard', 'excel'],
         'queries': ['Graduate Data Analyst', 'Junior Data Analyst', 'Business Intelligence Analyst', 'Reporting Analyst', 'Business Analyst'],
+        'credentials': ['Google Data Analytics', 'Microsoft Power BI Data Analyst', 'Tableau Desktop Specialist'],
+        'core_skills': ['sql', 'power bi', 'tableau', 'excel', 'pandas', 'statistics', 'data visualization', 'dashboard'],
     },
     'SOFTWARE_ENGINEERING': {
         'label': 'Software Engineering',
@@ -50,6 +54,8 @@ TRACKS = OrderedDict({
         'skills': ['Python', 'Java', 'JavaScript', 'TypeScript', 'React', 'Node.js', 'C#', '.NET', 'Git', 'REST API', 'HTML', 'CSS', 'SQL', 'Docker', 'Spring', 'Django', 'FastAPI'],
         'resume_signals': ['software engineering', 'software development', 'java', 'javascript', 'typescript', 'react', 'node.js', 'c#', '.net', 'rest api', 'frontend', 'backend', 'full stack', 'git'],
         'queries': ['Graduate Software Engineer', 'Junior Software Developer', 'Junior Backend Developer', 'Junior Frontend Developer', 'Graduate Technology Developer'],
+        'credentials': [],
+        'core_skills': ['python', 'java', 'javascript', 'typescript', 'react', 'node.js', 'git', 'rest api', 'sql'],
     },
     'AI_ML': {
         'label': 'AI & Machine Learning',
@@ -64,6 +70,8 @@ TRACKS = OrderedDict({
         'skills': ['Python', 'scikit-learn', 'TensorFlow', 'PyTorch', 'pandas', 'NumPy', 'machine learning', 'deep learning', 'NLP', 'computer vision', 'statistics', 'Jupyter'],
         'resume_signals': ['machine learning', 'artificial intelligence', 'data science', 'scikit-learn', 'tensorflow', 'pytorch', 'deep learning', 'nlp', 'computer vision', 'jupyter'],
         'queries': ['Graduate Machine Learning Engineer', 'Junior AI Engineer', 'Junior Data Scientist', 'AI Research Assistant'],
+        'credentials': ['TensorFlow Developer Certificate'],
+        'core_skills': ['python', 'scikit-learn', 'tensorflow', 'pytorch', 'machine learning', 'deep learning', 'nlp', 'statistics'],
     },
     'IT_CLOUD': {
         'label': 'IT, Cloud & Networks',
@@ -78,6 +86,8 @@ TRACKS = OrderedDict({
         'skills': ['Windows', 'Linux', 'Active Directory', 'Azure', 'AWS', 'TCP/IP', 'DNS', 'DHCP', 'Microsoft 365', 'PowerShell', 'Bash', 'CCNA', 'virtualization'],
         'resume_signals': ['it support', 'technical support', 'active directory', 'azure', 'aws', 'tcp/ip', 'dns', 'dhcp', 'microsoft 365', 'powershell', 'ccna', 'networking'],
         'queries': ['Graduate IT Support Analyst', 'Cloud Support Associate', 'Junior Network Engineer', 'NOC Analyst', 'Junior Systems Administrator'],
+        'credentials': ['CCNA', 'AZ-900', 'AWS Cloud Practitioner', 'CompTIA A+'],
+        'core_skills': ['windows', 'linux', 'active directory', 'azure', 'aws', 'tcp/ip', 'dns', 'powershell'],
     },
     'QA_TESTING': {
         'label': 'QA & Software Testing',
@@ -91,6 +101,8 @@ TRACKS = OrderedDict({
         'skills': ['manual testing', 'test cases', 'Selenium', 'Cypress', 'Playwright', 'Postman', 'API testing', 'Jira', 'SQL', 'Python', 'Java', 'test automation'],
         'resume_signals': ['quality assurance', 'software testing', 'manual testing', 'test cases', 'selenium', 'cypress', 'playwright', 'postman', 'api testing', 'test automation'],
         'queries': ['Graduate QA Analyst', 'Junior QA Engineer', 'Software Tester', 'Junior Test Engineer'],
+        'credentials': ['ISTQB'],
+        'core_skills': ['manual testing', 'test cases', 'selenium', 'cypress', 'postman', 'api testing', 'sql', 'jira'],
     },
 })
 
@@ -98,7 +110,7 @@ def _has(text, phrase):
     return bool(re.search(r'(?<!\w)' + re.escape(phrase) + r'(?!\w)', text or '', re.I))
 
 def selected_ids(cfg):
-    return [key for key in cfg.get('career_tracks', []) if key in TRACKS]
+    return [key for key in (cfg or {}).get('career_tracks', []) if key in TRACKS]
 
 def active_tracks(cfg):
     ids = selected_ids(cfg)
@@ -115,8 +127,14 @@ def adjacent_roles(cfg):
 def matching_skills(cfg):
     return list(dict.fromkeys(skill for track in active_tracks(cfg) for skill in track['skills']))
 
+def core_skills(cfg):
+    return list(dict.fromkeys(skill.casefold() for track in active_tracks(cfg) for skill in track.get('core_skills', [])))
+
+def credentials(cfg):
+    return list(dict.fromkeys(cred for track in active_tracks(cfg) for cred in track.get('credentials', [])))
+
 def search_queries(cfg):
-    custom = [x.strip() for x in cfg.get('custom_target_roles', []) if x.strip()]
+    custom = [x.strip() for x in (cfg or {}).get('custom_target_roles', []) if x.strip()]
     generated = [q for track in active_tracks(cfg) for q in track['queries']]
     return list(dict.fromkeys(custom + generated))[:30]
 

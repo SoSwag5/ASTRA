@@ -2,16 +2,10 @@
 import re
 from datetime import datetime,timezone
 from .policy import norm,host
+from . import career_tracks
 VERSION='uae-recall-1'
-FAMILIES={
- 'SOC / Detection':['soc','security operations','security monitoring','siem','blue team','cyber defence','cyber defense','secops','cyber analytics','detection engineering'],
- 'Threat / Incident Response':['threat intelligence','threat analyst','threat hunting','incident response','dfir','digital forensics'],
- 'Information / IT Security':['cybersecurity','cyber security','information security','it security','security analyst','security engineer','security consultant','security specialist','security track specialist','امن المعلومات','أمن المعلومات','أمن سيبراني'],
- 'Network / Cloud Security':['network security','cloud security','endpoint security','application security','devsecops'],
- 'Identity / Access':['iam','pam','identity and access','identity access','privileged access'],
- 'Vulnerability':['vulnerability','penetration test','pentest'],
- 'GRC / Technology Risk':['grc','it risk','technology risk','it audit','it compliance','security compliance','information security governance']}
-ADJACENT=['it support','technical support','systems administrator','system administrator','network operations','cloud operations','helpdesk']
+FAMILIES=career_tracks.families(None)
+ADJACENT=career_tracks.adjacent_roles(None)
 UAE=['uae','u.a.e','united arab emirates','dubai','abu dhabi','sharjah','ajman','ras al khaimah','fujairah','umm al quwain','al ain','الإمارات','دبي','أبوظبي','أبو ظبي','الشارقة']
 SENIOR=['senior','sr','lead','principal','staff','distinguished','manager','director','head','chief','ciso','architect','مدير','رئيس']
 POLICIES={'STRICT':{'max_gap':0,'recommendation_bar':75,'near_margin':10},'BALANCED':{'max_gap':3,'recommendation_bar':70,'near_margin':15},'EXPLORATORY':{'max_gap':4,'recommendation_bar':65,'near_margin':20}}
@@ -38,13 +32,13 @@ def experience(text):
 def role(title,description='',cfg=None):
  if re.search(r'physical security|security guard|loss prevention|\bgsoc\b',title,re.I):return {'family':'Physical security','kind':'UNRELATED','signals':[]}
  if re.search(r'corporate counsel|legal counsel|attorney',title,re.I):return {'family':'Legal','kind':'UNRELATED','signals':[]}
- for family,aliases in FAMILIES.items():
+ for family,aliases in career_tracks.families(cfg).items():
   hits=[w for w in aliases if has(title,w)]
   if hits:return {'family':family,'kind':'DIRECT','signals':hits}
  configured=[r for r in (cfg or {}).get('target_roles',[]) if r.strip() and has(title,r)]
  if configured:return {'family':'Configured target','kind':'DIRECT','signals':configured}
- hits=[w for w in ['siem','incident response','vulnerability','endpoint security','security monitoring','identity and access','firewall'] if has(description,w)]
- if any(has(title,w) for w in ADJACENT) and len(hits)>=2:return {'family':'Adjacent security paths','kind':'ADJACENT','signals':hits}
+ hits=[w for w in career_tracks.core_skills(cfg) if has(description,w)]
+ if any(has(title,w) for w in career_tracks.adjacent_roles(cfg)) and len(hits)>=2:return {'family':'Adjacent target paths','kind':'ADJACENT','signals':hits}
  if any(has(title,w) for w in (cfg or {}).get('campaign',{}).get('adjacent_roles',[]) if w.strip()):return {'family':'Configured adjacent','kind':'ADJACENT','signals':hits}
  return {'family':'Other','kind':'UNRELATED','signals':[]}
 
@@ -66,7 +60,7 @@ def evaluate(item,cfg,p=None,clock=None):
  p=p or {};clock=clock or datetime.now(timezone.utc);policy_name=cfg.get('discovery_policy','BALANCED');policy={**POLICIES.get(policy_name,POLICIES['BALANCED']),**cfg.get('recall_thresholds',{})}
  title=item.get('title','');desc=item.get('description','');loc=item.get('location','');text=title+'\n'+desc+'\n'+item.get('experience_requirement','')
  family=role(title,desc,cfg);exp=experience(text);elig=eligibility(text,p)
- d=p.get('declarations',{});verified=d.get('professional_security_years') if d.get('professional_security_years_confirmed') is True else None
+ d=p.get('declarations',{});verified=d.get('verified_relevant_experience_years') if d.get('verified_relevant_experience_years_confirmed') is True else None
  years=float(verified) if isinstance(verified,(float,int)) and 0<=verified<=60 else 0
  hard=[];soft=[]
  def add(code,evidence,blocking=False): (hard if blocking else soft).append({'code':code,'evidence':evidence[:600]})
@@ -94,18 +88,18 @@ def evaluate(item,cfg,p=None,clock=None):
  if exp['preferred_minimum']>years:add('PREFERRED_EXPERIENCE','Preferred experience exceeds recorded profile; preference is not mandatory.')
  if not exp['stated'] and verified is None and re.search(r'production.quality|experienced|hands.on.{0,45}(?:required|experience)',desc,re.I) and not re.search(r'graduate|junior|entry|\bl1\b',title,re.I):add('EXPERIENCE_SCOPE_UNKNOWN','Professional hands-on experience is requested without a clear year range; verify the scope against your internships and projects.')
  if not desc.strip():add('DESCRIPTION_MISSING','Paste the full job description before deciding.')
- if family['kind']=='ADJACENT':add('ADJACENT_ROLE','Substantial security duties in an adjacent entry route; direct cybersecurity roles rank first.')
+ if family['kind']=='ADJACENT':add('ADJACENT_ROLE','Substantial overlapping duties in an adjacent entry route; direct target-track roles rank first.')
  posted=date(item.get('date_posted'));closing=date(item.get('closing_date'));age=(clock-posted).total_seconds()/86400 if posted else None
  if closing and closing<clock:add('EXPIRED','Explicit closing date: '+item['closing_date'],True)
  if age is not None and age<0:add('POSTING_DATE_INVALID','Future posting date; freshness is unverified.');age=None
  if age is not None and age>90:add('STALE','Posted over 90 days ago; check availability. Kept outside daily recommendations.')
  evidence=' '.join(str(f.get('text','')) for k in ['skills','employments','projects','certifications'] for f in p.get(k,[])) or p.get('raw_text','')
- core=['soc','siem','linux','python','incident response','network security','risk assessment','vulnerability','iam','cloud security','splunk','security monitoring']
+ core=career_tracks.core_skills(cfg)
  requested=[w for w in core if has(text,w)];matches=[w for w in requested if has(evidence,w)]
  credentials=[]
  for sentence in re.split(r'[\n.!?;]',text):
   if re.search(r'required|mandatory|must hold|preferred|advantage|possession|certifications?',sentence,re.I):
-   mentioned=[c for c in ['CISSP','OSCP','CCNA','Security+','SC-200'] if has(sentence,c)]
+   mentioned=[c for c in career_tracks.credentials(cfg) if has(sentence,c)]
    if not (re.search(r'\bor\b|such as|like|/',sentence,re.I) and any(has(evidence,c) for c in mentioned)):
     credentials.extend(c for c in mentioned if not has(evidence,c))
  if credentials:add('CREDENTIAL_REVIEW','Credential not evidenced; confirm requirement: '+', '.join(sorted(set(credentials))))
@@ -122,13 +116,13 @@ def evaluate(item,cfg,p=None,clock=None):
 
 def funnel(decisions):
  from collections import Counter
- f={'fetched':len(decisions),'uae':0,'security':0,'seniority_compatible':0,'location_compatible':0,'eligibility_not_incompatible':0,'fresh_7d':0,'date_unknown':0,'plausible':0,'strong':0,'stretch':0,'possible':0,'excluded':0,'new':0,'duplicates':0,'already_seen':0,'near_misses':0};reasons=Counter()
+ f={'fetched':len(decisions),'uae':0,'role_relevant':0,'seniority_compatible':0,'location_compatible':0,'eligibility_not_incompatible':0,'fresh_7d':0,'date_unknown':0,'plausible':0,'strong':0,'stretch':0,'possible':0,'excluded':0,'new':0,'duplicates':0,'already_seen':0,'near_misses':0};reasons=Counter()
  for row in decisions:
-  d=row['decision'];f['uae']+=d['uae'];f['security']+=d['role']['kind']!='UNRELATED';f['seniority_compatible']+=d['seniority_compatible'];f['location_compatible']+=d['location_compatible'];f['eligibility_not_incompatible']+=d['eligibility']['state']!='INELIGIBLE';f['fresh_7d']+=d['freshness'] in ('POSTED_24H','POSTED_3D','POSTED_7D');f['date_unknown']+=d['age_days'] is None;f['excluded']+=d['excluded'];f['plausible']+=not d['excluded'];f['near_misses']+=d['near_miss'];f['new']+=row.get('disposition')=='NEW';f['duplicates']+=row.get('disposition')=='DUPLICATE';f['already_seen']+=bool(row.get('already_seen'))
+  d=row['decision'];f['uae']+=d['uae'];f['role_relevant']+=d['role']['kind']!='UNRELATED';f['seniority_compatible']+=d['seniority_compatible'];f['location_compatible']+=d['location_compatible'];f['eligibility_not_incompatible']+=d['eligibility']['state']!='INELIGIBLE';f['fresh_7d']+=d['freshness'] in ('POSTED_24H','POSTED_3D','POSTED_7D');f['date_unknown']+=d['age_days'] is None;f['excluded']+=d['excluded'];f['plausible']+=not d['excluded'];f['near_misses']+=d['near_miss'];f['new']+=row.get('disposition')=='NEW';f['duplicates']+=row.get('disposition')=='DUPLICATE';f['already_seen']+=bool(row.get('already_seen'))
   if d['fit_band'].lower() in f:f[d['fit_band'].lower()]+=1 if d['fit_band']!='EXCLUDED' else 0
   if d['hard']:reasons[d['hard'][0]['code']]+=1
  stages={'Fetched':len(decisions)};remaining=decisions
- for label,codes in [('UAE or location worth verifying',{'NON_UAE','REMOTE_NOT_UAE_COMPATIBLE'}),('Security role or adjacent duties',{'ROLE_NOT_RELEVANT','EXCLUDED_ROLE'}),('Seniority plausible',{'TOO_SENIOR'}),('Experience plausible under policy',{'EXPERIENCE_GAP'}),('No confirmed eligibility conflict',{'EXPLICIT_NATIONALITY_RESTRICTION'}),('Not closed or blocked',{'EXPIRED','BLOCKED_COMPANY','BLOCKED_DOMAIN'})]:
+ for label,codes in [('UAE or location worth verifying',{'NON_UAE','REMOTE_NOT_UAE_COMPATIBLE'}),('Target-track role or adjacent duties',{'ROLE_NOT_RELEVANT','EXCLUDED_ROLE'}),('Seniority plausible',{'TOO_SENIOR'}),('Experience plausible under policy',{'EXPERIENCE_GAP'}),('No confirmed eligibility conflict',{'EXPLICIT_NATIONALITY_RESTRICTION'}),('Not closed or blocked',{'EXPIRED','BLOCKED_COMPANY','BLOCKED_DOMAIN'})]:
   remaining=[r for r in remaining if not any(e['code'] in codes for e in r['decision']['hard'])];stages[label]=len(remaining)
  stages['Daily review candidates']=sum(r['decision']['daily'] for r in remaining)
  stages['New daily review candidates']=sum(r['decision']['daily'] and r.get('disposition')=='NEW' for r in remaining)

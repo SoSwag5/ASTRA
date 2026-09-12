@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from .models import JobSource,Session,serialize,now,settings
 from .campaign import router
+from . import career_tracks
 
 VERIFIED='2026-09-11'
 CATALOG=[
@@ -56,15 +57,16 @@ def seed_catalog(db):
 @router.get('/portals')
 def portals():
     with Session() as db:
+        cfg=settings(db)
         sources=[serialize(s) for s in db.scalars(select(JobSource).where(JobSource.adapter=='manual'))]
-        roles=[r for r in settings(db)['target_roles'] if r.strip()]
-        role=roles[datetime.now(timezone.utc).timetuple().tm_yday%len(roles)] if roles else 'cybersecurity'
+        roles=[r for r in cfg['target_roles'] if r.strip()]
+        role=roles[datetime.now(timezone.utc).timetuple().tm_yday%len(roles)] if roles else 'graduate roles'
         for s in sources:
             if s['name']=='LinkedIn':s['url']='https://www.linkedin.com/jobs/search/?'+urlencode({'keywords':role,'location':'United Arab Emirates'})
             if s['name']=='Indeed UAE':s['url']='https://ae.indeed.com/jobs?'+urlencode({'q':role,'l':'United Arab Emirates'})
         clock=datetime.now(timezone.utc)
-        from .recall import date,FAMILIES
-        queries=['SOC Analyst','Security Analyst','Threat Intelligence Analyst','IAM Analyst','GRC Analyst','Vulnerability Analyst','IT Security Analyst']
+        from .recall import date
+        queries=career_tracks.search_queries(cfg) or roles or ['Graduate roles']
         for index,s in enumerate(sources):
             tier=s['details'].get('cadence','DAILY' if s['details'].get('group')=='Major UAE portals' or s['name'] in ('CPX','Core42','Help AG') else 'WEEKLY' if s['details'].get('group')=='Government' else 'ROTATING')
             days={'DAILY':1,'ROTATING':3,'WEEKLY':7}.get(tier,3)

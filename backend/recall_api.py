@@ -4,7 +4,8 @@ from datetime import datetime,timedelta,timezone
 from fastapi import APIRouter,HTTPException
 from sqlalchemy import select
 from .models import *
-from .recall import evaluate,FAMILIES,POLICIES,VERSION,date
+from .recall import evaluate,POLICIES,VERSION,date
+from . import career_tracks
 router=APIRouter(prefix='/api/recall')
 
 @router.get('')
@@ -36,7 +37,7 @@ def overview():
   for row in observations:
    row['quality_label']=row['feedback'].get('quality_label','NOT_LABELLED')
    row['coverage_check']='Manual discovery; check whether an allowed feed should cover it' if row['source_type']!='AUTOMATIC' else 'Automatic source'
-  return {'version':VERSION,'policy':cfg.get('discovery_policy','BALANCED'),'families':FAMILIES,'recommendations':shortlist,'near_misses':near,'adjacent':adjacent,'latest':{**serialize(latest),'report':{k:v for k,v in latest.report.items() if k!='decisions'}} if latest else None,'scorecards':scorecards,'observation':observations,'potential_employers':[{'company':c,'manual_jobs':n} for c,n in counts.items() if n>=2 and c.casefold() not in known],'feedback_summary':dict(Counter(j.analysis.get('feedback',{}).get('reason','Other') for j in jobs if j.analysis.get('feedback'))),'learning':'Feedback is local evidence. No automatic retuning or rejection-based learning.'}
+  return {'version':VERSION,'policy':cfg.get('discovery_policy','BALANCED'),'families':career_tracks.families(cfg),'recommendations':shortlist,'near_misses':near,'adjacent':adjacent,'latest':{**serialize(latest),'report':{k:v for k,v in latest.report.items() if k!='decisions'}} if latest else None,'scorecards':scorecards,'observation':observations,'potential_employers':[{'company':c,'manual_jobs':n} for c,n in counts.items() if n>=2 and c.casefold() not in known],'feedback_summary':dict(Counter(j.analysis.get('feedback',{}).get('reason','Other') for j in jobs if j.analysis.get('feedback'))),'learning':'Feedback is local evidence. No automatic retuning or rejection-based learning.'}
 
 @router.get('/audit/{run_id}')
 def audit(run_id:int,disposition:str='',limit:int=20,offset:int=0):

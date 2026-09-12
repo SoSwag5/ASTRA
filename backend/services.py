@@ -64,18 +64,19 @@ def candidate(db):
     if not p: raise ValueError('Import the master CV first')
     return {**serialize(p),'skills':[serialize(x) for x in db.scalars(select(Skill))],**{m.__tablename__:[serialize(x) for x in db.scalars(select(m))] for m in FACT_MODELS.values()}}
 
-KNOWN=['SIEM','SOC','MSSGard','log analysis','security monitoring','Nmap','Nikto','Metasploit','Scapy','TCP/IP','DNS','DHCP','Linux','SSL/TLS','Python','Java','pandas','scikit-learn','Streamlit','ISO 27001','PCI DSS','SOC 2','CSA STAR','risk assessment','vulnerability assessment','Microsoft Sentinel','Splunk','CrowdStrike','QRadar','KQL','CISSP','CCNA']
 def contains(text,word): return bool(re.search(r'(?<!\w)'+re.escape(word.lower())+r'(?!\w)',text.lower()))
 def score(job,p,cfg):
+    from .career_tracks import matching_skills
+    known=matching_skills(cfg)
     desc=job.description; lower=desc.lower(); full=(job.title+' '+desc).lower()
     fields=('skills','employments','projects','education','certifications')
     evidence=(' '.join(str(f['text']) for key in fields for f in p.get(key,[])) if any(key in p for key in fields) else p['raw_text']).lower()
-    requested=[s for s in KNOWN if contains(full,s)]
+    requested=[s for s in known if contains(full,s)]
     matches=[s for s in requested if contains(evidence,s) and (s!='CCNA' or p.get('declarations',{}).get('ccna_certification_verified') is True)]
     missing=[s for s in requested if s not in matches]
     blockers=[]; review=[]; hard=[]
     if discovery_reason({'title':job.title,'location':job.location},cfg) in ('Unrelated role','Physical security role'):
-        blockers.append('Outside cybersecurity role focus')
+        blockers.append('Outside your selected career-track focus')
     if re.search(r'UAE nationals?|Emirati|United Arab Emirates citizens?',job.title+' '+desc,re.I):
         review.append('Confirm UAE citizenship eligibility; UAE residence does not establish nationality')
     for sentence in re.split(r'[\n.!?]',desc):
