@@ -5,9 +5,11 @@ import pytest
 
 from backend.job_providers import registry
 from backend.job_providers.compatibility import to_legacy_items
-from backend.job_providers.contracts import FetchCompletion, FetchContext, SourceHealth
-from backend.job_providers.greenhouse import GreenhouseProvider
+from backend.job_providers.contracts import CompletionReason, FetchCompletion, FetchContext, SourceHealth
+from backend.job_providers.greenhouse import GreenhouseProvider, ProviderFetchFailed
 from backend.job_providers import transport as t
+
+pytestmark = pytest.mark.usefixtures('no_unexpected_network')
 
 
 def _fake_fetch_json(pages):
@@ -156,7 +158,8 @@ def test_detail_budget_exceeded_is_partial_never_empty_never_silently_complete(m
     assert len(batch.records) == 5  # every summary row is still returned
     assert batch.completion == FetchCompletion.PARTIAL
     assert batch.health == SourceHealth.PARTIAL
-    assert batch.metrics.coverage_cap_reached is True
+    assert batch.metrics.content_cap_reached is True
+    assert batch.completion_reason == CompletionReason.DETAIL_BUDGET_EXHAUSTED.value
 
 
 def test_title_hints_prioritize_detail_budget_without_ranking_them(monkeypatch):
@@ -231,3 +234,136 @@ def test_compatibility_raises_on_failed_batch_matching_legacy_discover_contract(
     batch = GreenhouseProvider().fetch(FetchContext(), 'acme')
     with pytest.raises(ValueError):
         to_legacy_items(batch)
+
+
+def test_compatibility_failure_exception_carries_true_completion_not_stale_complete(monkeypatch):
+    """Codex F5: a failing source must not be reported as COMPLETE."""
+    fake, _ = _fake_fetch_json([('boards-api', t.TransportError('TIMEOUT', 'Request timed out'))])
+    monkeypatch.setattr('backend.job_providers.greenhouse.fetch_json', fake)
+    batch = GreenhouseProvider().fetch(FetchContext(), 'acme')
+    with pytest.raises(ProviderFetchFailed) as exc:
+        to_legacy_items(batch)
+    assert exc.value.completion == 'FAILED'
+    assert exc.value.health == 'UNAVAILABLE'
+
+
+# ---- F3: malformed records/details must not look successful ----
+
+def test_dict_job_id_is_rejected_not_stringified(monkeypatch):
+    payload = {'jobs': [{'id': {'bad': 1}, 'title': 'A', 'absolute_url': 'https://x/1', 'location': {'name': 'Dubai'}}]}
+    fake, _ = _fake_fetch_json([('boards-api', payload)])
+    monkeypatch.setattr('backend.job_providers.greenhouse.fetch_json', fake)
+    batch = GreenhouseProvider().fetch(FetchContext(), 'acme')
+    assert batch.records == []
+    assert batch.completion == FetchCompletion.FAILED  # the only row was rejected -> not a genuine empty board
+
+
+def test_dict_content_is_rejected_not_silently_emptied(monkeypatch):
+    payload = {'jobs': [
+        {'id': 1, 'title': 'A', 'absolute_url': 'https://x/1', 'location': {'name': 'Dubai'}, 'content': {'nested': True}},
+        {'id': 2, 'title': 'B', 'absolute_url': 'https://x/2', 'location': {'name': 'Dubai'}, 'content': 'fine'},
+    ]}
+    fake, _ = _fake_fetch_json([('boards-api', payload)])
+    monkeypatch.setattr('backend.job_providers.greenhouse.fetch_json', fake)
+    batch = GreenhouseProvider().fetch(FetchContext(), 'acme')
+    assert len(batch.records) == 1
+    assert batch.records[0].provider_job_id == '2'
+    assert batch.metrics.records_rejected == 1
+
+
+def test_board_with_only_unusable_rows_is_failed_not_empty(monkeypatch):
+    payload = {'jobs': [{'id': 1}]}  # missing title/url/location entirely
+    fake, _ = _fake_fetch_json([('boards-api', payload)])
+    monkeypatch.setattr('backend.job_providers.greenhouse.fetch_json', fake)
+    batch = GreenhouseProvider().fetch(FetchContext(), 'acme')
+    assert batch.completion == FetchCompletion.FAILED
+    assert batch.health == SourceHealth.MALFORMED
+    assert batch.error.code == 'ALL_RECORDS_REJECTED'
+    assert batch.completion_reason == CompletionReason.ALL_RECORDS_REJECTED.value
+
+
+def test_malformed_location_shape_rejects_the_row(monkeypatch):
+    payload = {'jobs': [{'id': 1, 'title': 'A', 'absolute_url': 'https://x/1', 'location': 'Dubai'}]}  # location must be a dict
+    fake, _ = _fake_fetch_json([('boards-api', payload)])
+    monkeypatch.setattr('backend.job_providers.greenhouse.fetch_json', fake)
+    batch = GreenhouseProvider().fetch(FetchContext(), 'acme')
+    assert batch.records == []
+
+
+def test_non_http_url_is_rejected(monkeypatch):
+    payload = {'jobs': [{'id': 1, 'title': 'A', 'absolute_url': 'javascript:alert(1)', 'location': {'name': 'Dubai'}}]}
+    fake, _ = _fake_fetch_json([('boards-api', payload)])
+    monkeypatch.setattr('backend.job_providers.greenhouse.fetch_json', fake)
+    batch = GreenhouseProvider().fetch(FetchContext(), 'acme')
+    assert batch.records == []
+
+
+def test_empty_detail_dict_is_a_failed_detail_attempt_not_a_success(monkeypatch):
+    summary = {'jobs': [{'id': 1, 'title': 'A', 'absolute_url': 'https://x/1', 'location': {'name': 'Dubai'}}]}
+
+    def fake(url, budget, **kw):
+        if url.endswith('?content=true'):
+            raise t.TransportError('RESPONSE_TOO_LARGE', 'Response exceeded the size cap')
+        if url == 'https://boards-api.greenhouse.io/v1/boards/acme/jobs':
+            return summary
+        return {}  # empty dict: not a usable detail payload
+
+    monkeypatch.setattr('backend.job_providers.greenhouse.fetch_json', fake)
+    batch = GreenhouseProvider().fetch(FetchContext(), 'acme')
+    assert len(batch.records) == 1  # summary row still usable
+    assert batch.completion == FetchCompletion.PARTIAL
+    assert batch.metrics.detail_requests_attempted == 1
+    assert batch.metrics.detail_requests_succeeded == 0
+
+
+# ---- F1: source deadline is a real upper bound, not a between-calls check ----
+
+def test_deadline_expiring_mid_detail_loop_stops_further_detail_attempts(monkeypatch):
+    summary = {'jobs': [
+        {'id': 1, 'title': 'A', 'absolute_url': 'https://x/1', 'location': {'name': 'Dubai'}},
+        {'id': 2, 'title': 'B', 'absolute_url': 'https://x/2', 'location': {'name': 'Dubai'}},
+        {'id': 3, 'title': 'C', 'absolute_url': 'https://x/3', 'location': {'name': 'Dubai'}},
+    ]}
+    calls = []
+
+    def fake(url, budget, **kw):
+        if url.endswith('?content=true'):
+            raise t.TransportError('RESPONSE_TOO_LARGE', 'Response exceeded the size cap')
+        if url == 'https://boards-api.greenhouse.io/v1/boards/acme/jobs':
+            return summary
+        calls.append(url)
+        if url.endswith('/1'):
+            return {'content': 'Detail 1'}
+        raise t.TransportError('DEADLINE_EXCEEDED', 'Source deadline exceeded')
+
+    monkeypatch.setattr('backend.job_providers.greenhouse.fetch_json', fake)
+    batch = GreenhouseProvider().fetch(FetchContext(), 'acme')
+    assert len(calls) == 2  # stopped after the deadline hit on item 2 -- never attempted item 3
+    assert len(batch.records) == 3  # every summary row is still present
+    assert batch.completion == FetchCompletion.PARTIAL
+
+
+def test_result_arriving_after_deadline_expired_is_not_reported_as_complete(monkeypatch):
+    """The transport itself is responsible for not returning a parsed
+    result once the deadline has passed; the provider must not
+    second-guess a raised DEADLINE_EXCEEDED as anything but a failure to
+    fully complete that particular call.
+    """
+    fake, _ = _fake_fetch_json([('boards-api', t.TransportError('DEADLINE_EXCEEDED', 'Source deadline exceeded'))])
+    monkeypatch.setattr('backend.job_providers.greenhouse.fetch_json', fake)
+    batch = GreenhouseProvider().fetch(FetchContext(), 'acme')
+    assert batch.completion == FetchCompletion.FAILED
+    assert batch.completion != FetchCompletion.COMPLETE
+
+
+# ---- F6: telemetry precision ----
+
+def test_metrics_track_attempted_vs_succeeded_and_encoded_vs_decoded(monkeypatch):
+    payload = {'jobs': [{'id': 1, 'title': 'A', 'absolute_url': 'https://x/1', 'location': {'name': 'Dubai'}, 'content': 'x'}]}
+    fake, _ = _fake_fetch_json([('boards-api', payload)])
+    monkeypatch.setattr('backend.job_providers.greenhouse.fetch_json', fake)
+    batch = GreenhouseProvider().fetch(FetchContext(), 'acme')
+    assert batch.metrics.records_received == 1
+    assert batch.metrics.records_accepted == 1
+    assert batch.metrics.records_rejected == 0
+    assert batch.metrics.errors_count == 0

@@ -7,6 +7,7 @@ ingestion (backend.services.add_job) needs no change.
 from dataclasses import asdict
 
 from .contracts import FetchCompletion
+from .greenhouse import ProviderFetchFailed
 
 
 class ProviderItems(list):
@@ -35,21 +36,24 @@ def _record_to_dict(record):
 def to_legacy_items(batch):
     """Translate a FetchBatch into the existing discover()-shaped list.
 
-    Raises ValueError on FAILED/CANCELLED, matching discover()'s existing
-    contract (backend.main.py's per-source try/except already treats a
-    raised exception as that source's failure) -- callers that want the
-    richer truthful completion/metrics data read it from the returned
-    list's `.health` attribute instead of only inferring success from "did
-    not raise".
+    Raises ProviderFetchFailed (a ValueError subclass, so it matches
+    discover()'s existing exception-on-failure contract for callers that
+    only check "did this raise") on FAILED/CANCELLED -- but unlike a plain
+    ValueError, it carries the batch's own truthful `completion`/`health`
+    so backend.main.py's per-source exception handler can report what
+    actually happened instead of falling back to a stale or default
+    'COMPLETE' value.
     """
     items = ProviderItems(_record_to_dict(r) for r in batch.records)
     items.health = {
         'completion': batch.completion.value,
         'health': batch.health.value,
+        'completion_reason': batch.completion_reason,
         'metrics': asdict(batch.metrics),
         'error': {'code': batch.error.code, 'message': batch.error.message} if batch.error else None,
     }
     if batch.completion in (FetchCompletion.FAILED, FetchCompletion.CANCELLED):
         message = batch.error.message if batch.error else 'Provider fetch failed'
-        raise ValueError(message)
+        raise ProviderFetchFailed(message, batch.completion, batch.health,
+                                   error_code=batch.error.code if batch.error else None)
     return items

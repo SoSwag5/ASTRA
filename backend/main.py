@@ -54,8 +54,9 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                                 # adapters carry no .health and stay implicitly COMPLETE
                                 # here (they already raise on any failure).
                                 source_report['completion']=health['completion']
-                                source_report['coverage_cap_reached']=health['metrics'].get('coverage_cap_reached',False)
-                                source.details={**source.details,'last_completion':health['completion']}
+                                source_report['completion_reason']=health.get('completion_reason')
+                                source_report['metrics']=health['metrics']
+                                source.details={**source.details,'last_completion':health['completion'],'last_metrics':health['metrics']}
                             for item in items:
                                 report['scanned']+=1; source_report['scanned']+=1
                                 item['company']=source.name
@@ -85,7 +86,12 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                             for audit in report.get('decisions',[]):
                                 if audit['source_id']==source.id and audit['disposition'] in ('NEW','DUPLICATE','PENDING'):audit['disposition']='SOURCE_ERROR';audit.pop('job_id',None)
                             source_report['funnel']=funnel(source_decisions)
-                            source.details={**source.details,'last_attempted':now(),'last_error':'Request failed; retry or review source configuration'}
+                            # A provider-framework exception (issue #38) carries the batch's own
+                            # truthful completion/health; a legacy adapter's plain exception has
+                            # none, so it is truthfully FAILED here regardless of the default set
+                            # at the top of this loop.
+                            source_report['completion']=getattr(e,'completion','FAILED')
+                            source.details={**source.details,'last_attempted':now(),'last_error':'Request failed; retry or review source configuration','last_completion':source_report['completion']}
                             report['failures']+=1; source_report['error']='Source request failed ('+type(e).__name__+'). Check the source URL or retry later.'; log(db,source_report['error'],level='ERROR'); db.commit()
                         report['sources'].append(source_report)
                 elif name in ('analyze','prepare','process'):

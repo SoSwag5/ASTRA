@@ -9,7 +9,7 @@ extend this contract when that provider is actually being migrated.
 from dataclasses import dataclass, field
 from enum import Enum
 
-VERSION = 'job-providers-1'
+VERSION = 'job-providers-2'
 
 
 class FetchCompletion(str, Enum):
@@ -18,11 +18,29 @@ class FetchCompletion(str, Enum):
     EMPTY is not a value here on purpose: a healthy board with zero open
     roles is a COMPLETE fetch that happens to have zero records, never
     treated the same as a failure. See SourceHealth.EMPTY for that case.
+
+    PARTIAL is about CONTENT completeness, not ENUMERATION completeness:
+    every posting summary the source actually returned is still present
+    in `FetchBatch.records` (a provider never silently drops a posting it
+    successfully enumerated). PARTIAL means some of those records may be
+    missing optional detail/content fields a bounded detail-fetch budget
+    could not cover -- never that a subset of postings was dropped from
+    the count. See `FetchBatch.completion_reason` for why.
     """
     COMPLETE = 'COMPLETE'
     PARTIAL = 'PARTIAL'
     FAILED = 'FAILED'
     CANCELLED = 'CANCELLED'
+
+
+class CompletionReason(str, Enum):
+    """Why `FetchBatch.completion` is not COMPLETE. Only set for
+    PARTIAL/FAILED/CANCELLED; None for COMPLETE.
+    """
+    DETAIL_BUDGET_EXHAUSTED = 'DETAIL_BUDGET_EXHAUSTED'
+    DETAIL_FETCH_INCOMPLETE = 'DETAIL_FETCH_INCOMPLETE'
+    ALL_RECORDS_REJECTED = 'ALL_RECORDS_REJECTED'
+    TRANSPORT_ERROR = 'TRANSPORT_ERROR'
 
 
 class SourceHealth(str, Enum):
@@ -87,15 +105,27 @@ class ProviderRecord:
 
 @dataclass
 class SourceMetrics:
+    """`requests_*` count every HTTP request the transport made for this
+    fetch -- list and detail calls combined, including a redirect hop or a
+    retried attempt as a separate request. `detail_requests_*` are the
+    subset of those specifically spent on a per-posting detail fetch.
+    `encoded_bytes_read` is wire (possibly compressed) bytes;
+    `decoded_bytes_read` is usable content bytes after decompression --
+    they differ only when the response was compressed.
+    """
     elapsed_seconds: float = 0.0
-    requests: int = 0
-    detail_requests: int = 0
+    requests_attempted: int = 0
+    requests_succeeded: int = 0
+    detail_requests_attempted: int = 0
+    detail_requests_succeeded: int = 0
     retries: int = 0
-    bytes_read: int = 0
+    encoded_bytes_read: int = 0
+    decoded_bytes_read: int = 0
     records_received: int = 0
     records_accepted: int = 0
     records_rejected: int = 0
-    coverage_cap_reached: bool = False
+    content_cap_reached: bool = False
+    errors_count: int = 0
 
 
 @dataclass
@@ -108,6 +138,7 @@ class FetchBatch:
     metrics: SourceMetrics
     error: 'ProviderError | None' = None
     cursor: 'str | None' = None
+    completion_reason: 'str | None' = None
 
 
 class Provider:
