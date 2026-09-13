@@ -207,6 +207,60 @@ def test_nearby_non_negated_wrapped_location_still_affirms(query, expected_locat
     assert len(rows) > 1
 
 
+# ---- Every occurrence of a repeated location must be inspected for negation
+#      (Codex final narrow review) ----
+
+@pytest.mark.parametrize('query', [
+    'SOC Analyst Dubai not Dubai',
+    'SOC Analyst Dubai not (Dubai)',
+    'SOC Analyst not Dubai Dubai',
+    'SOC Analyst not (Dubai) Dubai',
+    'SOC Analyst Abu Dhabi except Abu Dhabi',
+    'SOC Analyst Abu Dhabi, except (Abu Dhabi)',
+    'SOC Analyst except Abu Dhabi Abu Dhabi',
+])
+def test_any_negated_occurrence_of_a_repeated_location_forces_exact_only(query):
+    rows = plan(query)
+    assert len(rows) == 1
+    assert rows[0]['query'] == query
+    assert rows[0]['constraints']['locations'] == []
+    assert rows[0]['constraints']['role'] is None
+    assert rows[0]['source_rule'] == 'ambiguous_negation_exact_only'
+
+@pytest.mark.parametrize('query,expected_location', [
+    ('SOC Analyst Dubai Dubai', 'Dubai'),
+    ('SOC Analyst Dubai, Dubai', 'Dubai'),
+    ('SOC Analyst (Dubai) Dubai', 'Dubai'),
+    ('SOC Analyst Abu Dhabi Abu Dhabi', 'Abu Dhabi'),
+])
+def test_repeated_non_negated_location_is_affirmed_once_and_deduplicated(query, expected_location):
+    rows = plan(query)
+    assert rows[0]['constraints']['locations'] == [expected_location]
+    assert rows[0]['constraints']['role'] == 'SOC Analyst'
+    assert len(rows) > 1
+    texts = _casefold_texts(rows)
+    assert len(texts) == len(set(texts))
+
+def test_two_distinct_adjacent_locations_sharing_one_delimiter_run_are_both_captured():
+    # Regression for an overlap bug: widening a match's boundary over shared
+    # punctuation from both sides at once (Dubai's forward-widen and
+    # Sharjah's backward-widen both claiming the same ", ") incorrectly
+    # dropped the second location entirely.
+    rows = plan('SOC Analyst Dubai, Sharjah')
+    assert set(rows[0]['constraints']['locations']) == {'Dubai', 'Sharjah'}
+    assert rows[0]['constraints']['role'] == 'SOC Analyst'
+
+def test_negation_of_one_location_still_forces_the_whole_query_to_exact_only():
+    # "not" negates Dubai specifically (Sharjah has no negation word before
+    # it). Per the conservative rule, any negated location anywhere makes
+    # the whole query ambiguous -> exact-only, not just a partial exclusion
+    # of Dubai while affirming Sharjah alone.
+    rows = plan('SOC Analyst not Dubai Sharjah')
+    assert len(rows) == 1
+    assert rows[0]['constraints']['locations'] == []
+    assert rows[0]['source_rule'] == 'ambiguous_negation_exact_only'
+
+
 # ---- max_expansions contract (Codex finding 5) ----
 
 def test_max_expansions_one_returns_exact_only():
@@ -398,6 +452,22 @@ def test_query_within_length_limit_containing_punctuation_is_fast_through_plan()
     result = plan(query)
     assert _elapsed(lambda: plan(query)) < 1.0
     assert 'Dubai' in result[0]['constraints']['locations']
+
+def test_scan_locations_many_repeated_non_negated_occurrences_stay_linear():
+    # Regression for a second O(n) issue found alongside the repeated-
+    # location correctness bug: _negated_before used to slice the entire
+    # prefix (up to O(n) long) per match, making a query with many
+    # occurrences of the same location O(n^2) overall even though the
+    # widening/reconstruction logic itself was already linear.
+    small = _elapsed(lambda: _scan_locations('Dubai ' * 500))
+    large = _elapsed(lambda: _scan_locations('Dubai ' * 8000))
+    assert large < max(small * 32, 0.5)
+
+def test_negation_word_as_suffix_of_a_longer_word_is_not_a_false_positive():
+    # "cannot" ends in "not" but is not the word "not"; must not be
+    # treated as negating the following location.
+    rows = plan('SOC Analyst cannot Dubai')
+    assert rows[0]['constraints']['locations'] == ['Dubai']
 
 def test_over_length_query_is_rejected_immediately_regardless_of_size():
     huge = '-' * 50000

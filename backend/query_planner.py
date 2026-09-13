@@ -44,7 +44,7 @@ be treated as a contiguous 0..n-1 index.
 """
 import re
 
-VERSION = 'query-planner-3'
+VERSION = 'query-planner-4'
 MAX_EXPANSIONS = 10
 MAX_QUERY_LENGTH = 1024
 
@@ -87,46 +87,92 @@ def _validate_query_length(raw_query):
     if len(raw_query) > MAX_QUERY_LENGTH:
         raise ValueError(f'raw_query must be at most {MAX_QUERY_LENGTH} characters')
 
+_MAX_NEGATION_WORD_LEN = max(len(w) for w in _NEGATION_WORDS)
+
 def _negated_before(text, match_start):
-    """Bounded backward scan: skip only delimiter chars immediately before the match."""
+    """Bounded backward scan: skip only delimiter chars immediately before the match,
+    then check a small constant-size window for a preceding negation word.
+
+    Slicing `text[:i]` here (the whole prefix, up to O(n) long) instead of a
+    bounded window would make this function O(n) per call; with one call
+    per location occurrence, a query repeating the same location many
+    times would make the overall scan O(n^2) again -- exactly the class of
+    bug this module exists to avoid. The window includes one extra
+    leading character (when available) so `\\b` at the window's start
+    still reflects genuine context instead of an artifact of where the
+    window happens to begin (e.g. distinguishing `not Dubai` from
+    `cannot Dubai`, where "not" is a whole word only in the first case).
+    """
     i = match_start
     while i > 0 and text[i - 1] in _LOC_DELIM_CHARS:
         i -= 1
-    prefix = text[:i]
+    window_start = max(0, i - _MAX_NEGATION_WORD_LEN - 1)
+    window = text[window_start:i]
     for word in _NEGATION_WORDS:
-        if re.search(r'\b' + word + r'\b\s*$', prefix, re.I):
+        if re.search(r'\b' + word + r'\b\s*$', window, re.I):
             return True
     return False
 
-def _widen_to_delimiters(text, start, end):
-    """Bounded forward/backward scan: widen a match span over adjacent delimiter chars only."""
-    while start > 0 and text[start - 1] in _LOC_DELIM_CHARS:
-        start -= 1
-    while end < len(text) and text[end] in _LOC_DELIM_CHARS:
-        end += 1
-    return start, end
-
 def _scan_locations(text):
-    """Find non-negated locations and strip them cleanly; report if any negated location was seen.
+    """Find non-negated locations and strip them cleanly; report if any occurrence was negated.
 
-    Uses a plain bounded literal search per location, then a linear scan
-    of only the delimiter characters touching a confirmed match -- never
-    an unbounded delimiter-consuming regex, which is O(n^2) against long
-    non-matching punctuation runs.
+    Every occurrence of every supported location is inspected for a
+    preceding negation, not just the first -- a query can affirm a
+    location once and then explicitly exclude the same location later
+    (`SOC Analyst Dubai not Dubai`), and that later occurrence must not
+    be silently skipped.
+
+    Uses a plain bounded literal search per location (`finditer`, not an
+    unbounded delimiter-consuming regex) plus a linear scan of only the
+    delimiter characters touching a confirmed match. All matches across
+    all locations are collected and negation-checked against the
+    original, unmodified text first; only if none are negated is the
+    text rebuilt, in a single linear pass over the collected spans --
+    never by repeated whole-string slicing per occurrence, which would
+    reintroduce quadratic behavior when a location repeats many times.
+
+    Adjacent matches are widened in left-to-right order, each one capped
+    at the previous match's already-widened end: two locations separated
+    by a single shared delimiter run (`Dubai, Sharjah`) would otherwise
+    both greedily claim that run from opposite directions and overlap,
+    which would incorrectly drop the second location.
     """
-    found = []
-    any_negated = False
+    raw_matches = []
     for loc, pattern in _LOCATION_PATTERNS:
-        m = pattern.search(text)
-        if not m:
-            continue
-        if _negated_before(text, m.start()):
-            any_negated = True
-            continue
-        start, end = _widen_to_delimiters(text, m.start(), m.end())
-        found.append(loc)
-        text = text[:start] + ' ' + text[end:]
-    return found, _collapse(text), any_negated
+        for m in pattern.finditer(text):
+            if _negated_before(text, m.start()):
+                return [], text, True
+            raw_matches.append((m.start(), m.end(), loc))
+
+    if not raw_matches:
+        return [], text, False
+
+    raw_matches.sort(key=lambda s: s[0])
+    spans = []
+    prev_end = 0
+    for start, end, loc in raw_matches:
+        widened_start = start
+        while widened_start > prev_end and text[widened_start - 1] in _LOC_DELIM_CHARS:
+            widened_start -= 1
+        widened_end = end
+        while widened_end < len(text) and text[widened_end] in _LOC_DELIM_CHARS:
+            widened_end += 1
+        spans.append((widened_start, widened_end, loc))
+        prev_end = widened_end
+
+    found = []
+    seen = set()
+    pieces = []
+    cursor = 0
+    for start, end, loc in spans:
+        pieces.append(text[cursor:start])
+        pieces.append(' ')
+        cursor = end
+        if loc not in seen:
+            seen.add(loc)
+            found.append(loc)
+    pieces.append(text[cursor:])
+    return found, _collapse(''.join(pieces)), False
 
 def _extract_level(text):
     m = _LEVEL_RE.search(text)
