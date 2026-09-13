@@ -1,9 +1,10 @@
 # ADR-0004: Build once and verify the same release artifact
 
-- **Status:** Proposed (reconstructed; Owner confirmation required)
+- **Status:** Accepted
 - **Date:** 2026-09-13
 - **Owner:** Ayham
-- **Issue / pull request:** Governance v1 branch
+- **Issue / pull request:** [PR #28](https://github.com/SoSwag5/ASTRA/pull/28)
+- **Owner approval:** Approved 2026-09-13
 - **Target release:** v1.0
 - **Supersedes / superseded by:** None
 
@@ -24,7 +25,8 @@ between reviewed source, tests, SBOM, installation, provenance, and publication.
 Freeze the source, build one candidate on the approved hosted workflow, calculate
 its digest, and reuse that artifact for manifest, SBOM association, clean-install,
 attestation, independent verification, review, and publication. Any artifact or
-source change invalidates the affected evidence. Owner confirmation is required.
+source change invalidates the affected evidence. The Owner approved this
+decision on 2026-09-13.
 
 ## Rationale
 
@@ -53,8 +55,8 @@ not safety. The workflow must be executed and reviewed before any claim.
 build/verification scripts implemented the design. Run 34722561421 built and
 attested the candidate from released source `81ad2d3`; run 34732173819 reviewed
 the same artifact with SHA-256 `a5842744…b4399f` and produced the final successful
-gate. Execution evidence remains release-specific, and Owner confirmation of this
-ADR remains pending.
+gate. Execution evidence remains release-specific. The Owner confirmed this ADR
+on 2026-09-13.
 
 ## Framework impact
 

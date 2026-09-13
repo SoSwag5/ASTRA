@@ -34,7 +34,7 @@ applicable.
 threat and privacy models; local-access guide; hosted clean-install and security
 verification.
 
-**Recommendation:** APPROVE
+**Recommendation:** APPROVE — Owner approved 2026-09-13.
 
 ## ADR-0003 — Access-key to expiring session-token exchange
 
@@ -68,7 +68,7 @@ not replace R-15.
 local-access documentation; focused session tests; successful v1.0 Python
 3.13/3.14 and security-verification jobs.
 
-**Recommendation:** APPROVE
+**Recommendation:** APPROVE — Owner approved 2026-09-13.
 
 ## ADR-0004 — Build once and verify the same artifact
 
@@ -102,7 +102,7 @@ matching digest proves identity, not product safety.
 `81ad2d3`; final review run 34732173819 approved the same artifact digest
 `a5842744…b4399f`; the public release contains those bytes.
 
-**Recommendation:** APPROVE
+**Recommendation:** APPROVE — Owner approved 2026-09-13.
 
 ## ADR-0005 — CycloneDX 1.7 SBOM
 
@@ -134,7 +134,7 @@ component trustworthiness, or absence of vulnerabilities.
 `6f8b681e…ea293`; schema validation and SBOM attestation verified for the released
 artifact.
 
-**Recommendation:** APPROVE
+**Recommendation:** APPROVE — Owner approved 2026-09-13.
 
 ## ADR-0006 — Hosted provenance
 
@@ -170,4 +170,4 @@ and SBOM attestations; runs 34722561421 and 34732173819; final source `81ad2d3`
 and released artifact digest `a5842744…b4399f`. Issue #26 tracks stale candidate
 wording in the source risk record.
 
-**Recommendation:** APPROVE
+**Recommendation:** APPROVE — Owner approved 2026-09-13.

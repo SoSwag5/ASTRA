@@ -28,10 +28,10 @@ evidence chain and run URLs.
 
 - Next milestone: **v1.1 — Operational Security & Resilience**.
 - v1.1 implementation status: **NOT STARTED**. Planning, issue triage, or local
-  exploratory changes do not start the governed milestone. It begins only after
-  Owner approval and merge of Release Governance v1.
-- The primary worktree is clean on `master` at the frozen release commit. This
-  governance worktree did not modify it.
+  exploratory changes do not start the governed milestone. Governance v1 is
+  Owner-approved, but no instruction to begin v1.1 implementation has been given.
+- Governance integration advances `master` from the frozen release commit without
+  moving or modifying the immutable v1.0.0 tag, source, or artifacts.
 
 ## Current residual risks and follow-up
 
@@ -74,8 +74,9 @@ evidence chain and run URLs.
 - Claude Code owns implementation/remediation branches assigned by the Owner.
   Codex owns this governance branch and independently reviews other branches
   without editing them.
-- This branch is pushed and PR #28 is open. It must not be merged until the Owner
-  reviews the proposed ADRs and explicitly authorizes the merge.
+- The Owner approved ADR-0001 and ADR-0003 through ADR-0006 on 2026-09-13 and
+  authorized PR #28 to merge only after its updated required checks pass. When
+  this file is present on `master`, Governance v1 is active project policy.
 
 ## Authoritative evidence
 
@@ -93,7 +94,6 @@ evidence chain and run URLs.
 
 ## Exact next action
 
-The Owner reviews PR #28 and chooses APPROVE or REVISE for ADR-0001 and ADR-0003
-through ADR-0006. Apply requested revisions, rerun governance validation, and
-merge only after explicit Owner authorization. Start v1.1 planning and
-implementation only after that merge.
+PR #28 is authorized to merge after its required checks pass. Once it is on
+`master`, verify the immutable v1.0.0 tag, stop Governance v1 integration work,
+and await a separate Owner instruction before beginning v1.1 implementation.

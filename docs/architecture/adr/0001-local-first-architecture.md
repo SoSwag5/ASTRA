@@ -1,9 +1,10 @@
 # ADR-0001: Local-first single-user architecture
 
-- **Status:** Proposed (reconstructed; Owner confirmation required)
+- **Status:** Accepted
 - **Date:** 2026-09-13
 - **Owner:** Ayham
-- **Issue / pull request:** Governance v1 branch
+- **Issue / pull request:** [PR #28](https://github.com/SoSwag5/ASTRA/pull/28)
+- **Owner approval:** Approved 2026-09-13
 - **Target release:** v1.0
 - **Supersedes / superseded by:** None
 
@@ -23,8 +24,8 @@ storage and manual control over final application submission.
 
 For v1.x, retain a local-first, single-user product. Store user data locally,
 bind the service to loopback, keep final application submission manual, and
-require explicit consent for each cloud-AI request. This record reconstructs the
-implemented design and requires Owner confirmation before acceptance.
+require explicit consent for each cloud-AI request. The Owner approved this
+reconstructed decision on 2026-09-13.
 
 ## Rationale
 
@@ -56,7 +57,7 @@ provide remote access, shared tenancy, or hostile-user isolation.
 The architecture shipped in immutable v1.0.0 source `81ad2d3`. Evidence includes
 the README, architecture inventory, threat model, privacy flow, local-access
 guide, demo isolation, hosted clean-install verification, and application/security
-tests. Owner confirmation remains missing for this reconstructed ADR.
+tests. The Owner confirmed this reconstructed ADR on 2026-09-13.
 
 ## Framework impact
 

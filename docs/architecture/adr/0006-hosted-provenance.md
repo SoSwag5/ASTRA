@@ -1,9 +1,10 @@
 # ADR-0006: Hosted provenance with independent verification
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-09-13
 - **Owner:** Ayham
-- **Issue / pull request:** Governance v1 branch
+- **Issue / pull request:** [PR #28](https://github.com/SoSwag5/ASTRA/pull/28)
+- **Owner approval:** Approved 2026-09-13
 - **Target release:** v1.0
 - **Supersedes / superseded by:** None
 
@@ -25,8 +26,8 @@ statement.
 Use the SHA-pinned GitHub hosted release workflow to build and attest the artifact
 and SBOM. A separate verification stage and release reviewer must validate the
 attestations against the repository, signer workflow, source SHA, predicate type,
-and artifact digest. v1.0.0 supplied execution evidence; this ADR remains Proposed
-until Owner confirmation.
+and artifact digest. v1.0.0 supplied execution evidence, and the Owner approved
+this decision on 2026-09-13.
 
 ## Rationale
 

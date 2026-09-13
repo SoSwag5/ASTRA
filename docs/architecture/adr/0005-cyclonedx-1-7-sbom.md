@@ -1,9 +1,10 @@
 # ADR-0005: CycloneDX 1.7 release SBOM
 
-- **Status:** Proposed (reconstructed; Owner confirmation required)
+- **Status:** Accepted
 - **Date:** 2026-09-13
 - **Owner:** Ayham
-- **Issue / pull request:** Governance v1 branch
+- **Issue / pull request:** [PR #28](https://github.com/SoSwag5/ASTRA/pull/28)
+- **Owner approval:** Approved 2026-09-13
 - **Target release:** v1.0
 - **Supersedes / superseded by:** None
 
@@ -22,7 +23,7 @@ and npm dependency graph, with strict validation and a digest bound to a release
 
 Generate a CycloneDX 1.7 JSON SBOM from locked dependencies, validate its schema
 and graph, record generator/validator versions and SHA-256, and bind the result to
-the exact candidate artifact. Owner confirmation is required.
+the exact candidate artifact. The Owner approved this decision on 2026-09-13.
 
 ## Rationale
 
@@ -50,7 +51,7 @@ packages, or absence of vulnerabilities.
 `scripts/generate_sbom.py`, `scripts/validate_sbom.py`, `docs/security/SBOM.md`,
 and v1.0 release evidence record a schema-validated CycloneDX 1.7 SBOM with 246
 components and SHA-256 `6f8b681e…ea293`. Its attestation was verified against the
-released artifact. Owner confirmation of this ADR remains pending.
+released artifact. The Owner confirmed this ADR on 2026-09-13.
 
 ## Framework impact
 

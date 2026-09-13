@@ -27,9 +27,9 @@ Create or update an ADR for changes to:
 
 | ID | Decision | Status |
 |---|---|---|
-| [ADR-0001](0001-local-first-architecture.md) | Local-first single-user architecture | Proposed, reconstructed; Owner confirmation required |
+| [ADR-0001](0001-local-first-architecture.md) | Local-first single-user architecture | Accepted; Owner approved 2026-09-13 |
 | [ADR-0002](0002-os-account-loopback-trust-boundary.md) | OS-account and localhost trust boundary | Accepted; existing Owner risk decision R-15 |
-| [ADR-0003](0003-access-key-session-exchange.md) | Access key exchanged for expiring server-side session | Proposed, reconstructed; Owner confirmation required |
-| [ADR-0004](0004-build-once-verify-same-artifact.md) | Build once and verify the same artifact | Proposed, reconstructed; Owner confirmation required |
-| [ADR-0005](0005-cyclonedx-1-7-sbom.md) | CycloneDX 1.7 release SBOM | Proposed, reconstructed; Owner confirmation required |
-| [ADR-0006](0006-hosted-provenance.md) | Hosted provenance and independent verification | Proposed; execution evidence required |
+| [ADR-0003](0003-access-key-session-exchange.md) | Access key exchanged for expiring server-side session | Accepted; Owner approved 2026-09-13 |
+| [ADR-0004](0004-build-once-verify-same-artifact.md) | Build once and verify the same artifact | Accepted; Owner approved 2026-09-13 |
+| [ADR-0005](0005-cyclonedx-1-7-sbom.md) | CycloneDX 1.7 release SBOM | Accepted; Owner approved 2026-09-13 |
+| [ADR-0006](0006-hosted-provenance.md) | Hosted provenance and independent verification | Accepted; Owner approved 2026-09-13 |
