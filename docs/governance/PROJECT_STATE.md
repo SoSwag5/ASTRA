@@ -37,11 +37,15 @@ evidence chain and run URLs.
   delta is Approved; risks R-16 (2/3=6, HIGH), R-17 (2/2), R-18 (2/2) are
   registered OPEN with treatment planned for v1.1 — registered, not
   residual-accepted. See `docs/governance/V1_1_OWNER_REVIEW_PACKET.md`.
-- v1.1 implementation status: **AUTHORIZED, starting with issue #37**
-  (Discovery Query Planner). The Owner has authorized implementation to
-  begin on the approved 12-issue backlog under the "v1.1 — Discovery &
-  Application Intelligence" milestone (issues #37-#48); issues beyond #37
-  are not yet started.
+- v1.1 implementation status: **issue #37 (Discovery Query Planner) COMPLETE**
+  and merged to `master` via [PR #51](https://github.com/SoSwag5/ASTRA/pull/51)
+  (squash commit `a1e6373356b59e379f1b33910f3b678ddf4211fd`), following three
+  rounds of independent Codex review and a final Codex APPROVE. `master` now
+  carries `backend/query_planner.py` and its 123-test regression suite. Next
+  authorized implementation target is **issue #38** (common job-provider
+  framework + Greenhouse migration); #38 implementation has not started.
+  Issues beyond #38 remain not started under the approved 12-issue backlog
+  ("v1.1 — Discovery & Application Intelligence" milestone, issues #37-#48).
 - Governance integration advances `master` from the frozen release commit without
   moving or modifying the immutable v1.0.0 tag, source, or artifacts.
 
@@ -82,6 +86,12 @@ Open follow-up: [#33](https://github.com/SoSwag5/ASTRA/issues/33) tracks the
 rebased R-13/R-14 hardening branch into the v1.2 milestone; not yet reviewed
 or merged.
 
+## Resolved v1.1 issues
+
+| Issue | Resolution | Notes |
+|---|---|---|
+| [#37](https://github.com/SoSwag5/ASTRA/issues/37) | Closed. Discovery query planner merged via [PR #51](https://github.com/SoSwag5/ASTRA/pull/51) (squash commit `a1e6373356b59e379f1b33910f3b678ddf4211fd`). | Deterministic, rule-based query expansion (`backend/query_planner.py`); 123 tests; three rounds of independent Codex review, final Codex APPROVE, Owner-authorized merge. |
+
 ## Git and collaboration snapshot
 
 - Canonical remote: `https://github.com/SoSwag5/ASTRA.git`.
@@ -120,9 +130,11 @@ or merged.
 Governance v1 is merged; the four post-release documentation corrections
 (#24-#27) are complete; the v1.1 mission, architecture, backlog, three ADRs,
 and threat-model delta are all Owner-approved (OD-011 through OD-018).
-Implementation is authorized to begin on issue #37 (Discovery Query
-Planner) under a dedicated feature branch; Governance v1 rules apply (no
-direct push to `master`, focused scope, tests, PR review before merge). The
-rebased `hardening/l2-r13-r14` branch (issue #33) remains parked for v1.2
-and awaits independent review before a PR is opened — not touched by v1.1
-implementation.
+Issue #37 (Discovery Query Planner) is complete and merged to `master`
+(PR #51). The next authorized implementation target is issue #38 (common
+job-provider framework + Greenhouse migration); it has not been started.
+Governance v1 rules apply to #38 as they did to #37 (dedicated feature
+branch, no direct push to `master`, focused scope, tests, independent
+review before Owner-authorized merge). The rebased `hardening/l2-r13-r14`
+branch (issue #33) remains parked for v1.2 and awaits independent review
+before a PR is opened — not touched by v1.1 implementation.
