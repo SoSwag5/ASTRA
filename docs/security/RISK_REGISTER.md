@@ -15,7 +15,7 @@ Owner: Maintainer. Reviewed 2026-09-13. Risk matrix: likelihood 1 unlikely, 2 pl
 | R-10 | No actual hosted SAST/CI/repository controls | 2/3 | Closed | CodeQL (python/js-ts/actions) green with all 9 alerts fixed; pip-audit and npm audit clean; dependency review proven on PRs; branch and tag protection active; secret scanning, push protection, Dependabot and private reporting enabled; Scorecard 6.7/10 on the released commit `81ad2d3`, run 34722534910 (the earlier 7.1 figure was measured on a prior commit; the drop reflects `Branch-Protection` becoming measurable once protection existed, not a regression) | Next release |
 | R-11 | No signed/verified hosted provenance | 2/3 | Closed for the released candidate | Signed provenance and CycloneDX 1.7 SBOM attestations independently verified off-runner with a tamper negative control; SLSA v1.2 Build L2 assessed satisfied, L3 not met. Authoritative for the released v1.0.0: candidate run 34722561421, gate run 34732173819, [release](https://github.com/SoSwag5/ASTRA/releases/tag/v1.0.0) (source `81ad2d3`, artifact SHA-256 `a584274…4399f`, SBOM SHA-256 `6f8b681…6ea293`) | Every new candidate |
 | R-12 | ASVS L1/L2 control verification gaps | 2/3 | Applicable L1 closed (all PASS/N-A); L2 gaps open hardening | Full requirement CSV; L1 authorization 8.2.1/8.2.2 accepted N/A under R-15 | Before final release / next L2 pass |
-| R-15 | Local-peer / shared-host access within the OS trust boundary | 2/2 | Accepted architectural residual (v1.0) | Single-user architecture (no app identities/roles/user-scoped objects); loopback binding; optional access-key sessions; demo isolation; see detail below | Any move toward multi-user/networked operation |
+| R-15 | Local-peer / shared-host access within the OS trust boundary | 2/2 | Accepted architectural residual (v1.0) | Single-user architecture (no app identities/roles/user-scoped objects); loopback binding; optional access-key sessions; demo isolation; see detail below | Dated review 2026-12-12, or immediately on any trigger below |
 | R-13 | AI response resource limits and local provider availability | 2/2 | Open L2 hardening | providers.py HTTP body handling; test and add streaming byte cap in focused remediation | Before next AI change |
 | R-14 | Incomplete/tamperable security event coverage | 2/2 | Open L2 | security_events.py; missing auth/quota/error events and immutable sink | Within 90 days |
 
@@ -32,4 +32,10 @@ Privacy incident root cause: a report reused real records as test evidence; heur
 - **Accepted residual risk:** A caller already inside the local OS-user/host boundary is treated as within ASTRA's trusted scope. ASVS 5.0.0 `8.2.1`/`8.2.2` (per-consumer function/data authorization) are therefore **N/A by architecture**.
 - **Rationale:** Standard trust model for a personal single-user local desktop/web application; enforcing inter-user authorization would require introducing application identities the product intentionally does not have.
 - **Owner:** Maintainer.
-- **Review trigger:** Any change toward multi-user, networked, hosted, or shared-tenant operation; any non-loopback bind; introduction of application accounts or roles.
+- **Next formal review date:** 2026-12-12 (Owner decision, recorded 2026-09-13; see `OWNER_DECISIONS.md` OD-008).
+- **Review trigger (whichever comes first):** the dated review above, or immediately on any of:
+  - ASTRA becomes network accessible beyond localhost;
+  - ASTRA becomes multi-user;
+  - the authentication architecture materially changes;
+  - authorization or user ownership is introduced;
+  - cloud-hosted application operation begins.
