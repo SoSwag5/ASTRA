@@ -41,28 +41,39 @@ evidence chain and run URLs.
 ## Current residual risks and follow-up
 
 - R-01, R-02, R-03, R-07, and R-08 remain historical accepted residuals under
-  their existing triggers.
-- R-15 remains the accepted v1.0 OS-account/localhost trust-boundary decision.
-  Its missing dated review/expiry is tracked by issue #27.
+  their existing event triggers. The Owner declined to invent dated
+  expirations for these (OD-008); only R-15 carries a dated review.
+- R-15 remains the accepted v1.0 OS-account/localhost trust-boundary decision,
+  now with a dated review of 2026-12-12 alongside its existing event triggers
+  (OD-008; issue #27, closed).
 - R-04 and R-05 are mitigated but remain subject to dependency and AI-change
   review.
-- R-09's hosted installation path passed; live scheduled-task migration remains
-  unverified and requires separate Owner approval.
+- R-09's hosted installation path passed; live scheduled-task migration is
+  deferred to the v1.3 Professional Distribution / Installer milestone (OD-009)
+  and requires separate Owner approval when undertaken.
 - Applicable ASVS L1 is closed. R-12 retains open L2 hardening work.
-- R-13 and R-14 remain open L2 hardening/resilience risks for future governed
-  planning.
-- R-06, R-10, and R-11 have release evidence supporting closure, but their
-  source-controlled wording has post-release documentation debt in issues
-  #24-#26. The frozen v1.0.0 files are not rewritten.
+- R-13 and R-14 remain open L2 hardening/resilience risks. The prior isolated
+  WIP (`hardening/l2-r13-r14`) has been rebased onto current `master`
+  (commit `f4b8f6f`) and mapped to the v1.2 milestone via issue #33; it awaits
+  independent review before a PR is opened, and is not merged.
+- R-06, R-10, and R-11 post-release documentation debt is resolved: issues
+  #24-#26 are closed and `docs/security/RISK_REGISTER.md` reflects the final
+  publication evidence, the authoritative 6.7/10 Scorecard figure, and the
+  released-candidate provenance references. The frozen v1.0.0 files were not
+  rewritten.
 
-## Open post-release issues
+## Resolved post-release issues
 
-| Issue | Required follow-up | Release impact |
+| Issue | Resolution | Release impact |
 |---|---|---|
-| [#24](https://github.com/SoSwag5/ASTRA/issues/24) | Set R-06 to CLOSED using the final publication evidence. | Documentation correction after v1.0; do not rebuild v1.0.0. |
-| [#25](https://github.com/SoSwag5/ASTRA/issues/25) | Correct the released-commit Scorecard reference from 7.1 to 6.7. | Documentation correction after v1.0; no security regression implied. |
-| [#26](https://github.com/SoSwag5/ASTRA/issues/26) | Point R-11 to the released candidate and final gate/release references. | Documentation correction after v1.0; avoid self-referential artifact digests. |
-| [#27](https://github.com/SoSwag5/ASTRA/issues/27) | Add a dated review/expiry to R-15 and decide whether other standing acceptances need the same treatment. | Owner governance decision; v1.0 remains immutable. |
+| [#24](https://github.com/SoSwag5/ASTRA/issues/24) | Closed. R-06 set to Closed using the final publication evidence (PR #29). | Documentation correction after v1.0; v1.0.0 not rebuilt. |
+| [#25](https://github.com/SoSwag5/ASTRA/issues/25) | Closed. Scorecard reference corrected from 7.1 to 6.7 (PR #30). | Documentation correction after v1.0; no security regression implied. |
+| [#26](https://github.com/SoSwag5/ASTRA/issues/26) | Closed. R-11 now points to the released candidate and final gate/release references (PR #31). | Documentation correction after v1.0; avoids a self-referential artifact digest. |
+| [#27](https://github.com/SoSwag5/ASTRA/issues/27) | Closed. R-15 carries a dated review/expiry; other standing acceptances left event-triggered per OD-008 (PR #32). | Owner governance decision; v1.0 remains immutable. |
+
+Open follow-up: [#33](https://github.com/SoSwag5/ASTRA/issues/33) tracks the
+rebased R-13/R-14 hardening branch into the v1.2 milestone; not yet reviewed
+or merged.
 
 ## Git and collaboration snapshot
 
@@ -94,11 +105,14 @@ evidence chain and run URLs.
 - `docs/release/RELEASE_SECURITY_ASSURANCE_REPORT.md` is a dated pre-remote local
   assessment. `docs/security/SLSA_V1.2_ASSESSMENT.md` assesses an earlier candidate.
   Neither replaces the final release record.
-- `docs/security/RISK_REGISTER.md` is the current source risk register, subject to
-  post-release corrections #24-#27.
+- `docs/security/RISK_REGISTER.md` is the current source risk register; the
+  post-release corrections #24-#27 are applied and closed.
 
 ## Exact next action
 
-PR #28 is authorized to merge after its required checks pass. Once it is on
-`master`, verify the immutable v1.0.0 tag, stop Governance v1 integration work,
-and await a separate Owner instruction before beginning v1.1 implementation.
+Governance v1 is merged and the four post-release documentation corrections
+(#24-#27) are complete. `docs/planning/V1_1_DISCOVERY_AND_APPLICATION_INTELLIGENCE.md`
+is proposed for Owner review; no v1.1 implementation begins until the Owner
+approves its mission, architecture, and backlog. The rebased
+`hardening/l2-r13-r14` branch (issue #33) awaits independent review before a
+PR is opened.
