@@ -26,10 +26,15 @@ evidence chain and run URLs.
 
 ## Milestone state
 
-- Next milestone: **v1.1 — Operational Security & Resilience**.
+- Next milestone: **v1.1 — Discovery & Application Intelligence** (reprioritized
+  by the Owner on 2026-09-13; the prior next milestone, Operational Security &
+  Resilience, moved to v1.2 without being dropped). See
+  `docs/governance/OWNER_DECISIONS.md` OD-010 and
+  `docs/planning/V1_1_DISCOVERY_AND_APPLICATION_INTELLIGENCE.md`.
 - v1.1 implementation status: **NOT STARTED**. Planning, issue triage, or local
-  exploratory changes do not start the governed milestone. Governance v1 is
-  Owner-approved, but no instruction to begin v1.1 implementation has been given.
+  exploratory changes do not start the governed milestone. The v1.1 product
+  mission and architecture are proposed for Owner review; no instruction to
+  begin v1.1 implementation has been given.
 - Governance integration advances `master` from the frozen release commit without
   moving or modifying the immutable v1.0.0 tag, source, or artifacts.
 
