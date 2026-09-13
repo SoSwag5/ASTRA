@@ -11,6 +11,16 @@ A reconstructed record remains Proposed until the Owner confirms that it
 accurately represents the intended decision. Implementation is evidence of the
 current design, not proof of a historical approval conversation.
 
+**`Accepted` means the Owner has approved the architecture decision — the
+chosen design, options considered, and stated consequences — not that it has
+been implemented or verified.** An ADR's own "Evidence and validation"
+section tracks implementation evidence separately, using its own status
+(e.g. `Pending`, `Partial`, `Complete`) independent of the ADR's `Accepted`
+status. Do not treat an `Accepted` ADR as proof a control exists in code; the
+release evidence pack and the linked risk-register entries are the
+authoritative source for whether a described control has actually been
+built and tested.
+
 ## ADR triggers
 
 Create or update an ADR for changes to:
