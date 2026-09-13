@@ -41,13 +41,21 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                             last=parse_date(source.details['last_success'])
                             interval=source.details.get('interval_hours',cfg['discovery_interval_hours'])
                             if last and interval in (3,6,12,24) and last+timedelta(hours=interval)>datetime.now(timezone.utc):continue
-                        source_report={'id':source.id,'name':source.name,'scanned':0,'imported':0,'duplicates':0,'filtered':{},'error':''}
+                        source_report={'id':source.id,'name':source.name,'scanned':0,'imported':0,'duplicates':0,'filtered':{},'error':'','completion':'COMPLETE'}
                         source_decisions=[]
                         try:
                             source.details={**source.details,'last_attempted':now(),'mode':'AUTOMATIC','market':'UAE campaign','interval_hours':source.details.get('interval_hours',cfg['discovery_interval_hours'])}
                             if source.adapter=='generic':
                                 raise ValueError('Generic page scanning is disabled pending destination and platform review; use a public board API or paste the description')
-                            items=discover(source.adapter,source.board,source.url)
+                            items=discover(source.adapter,source.board,source.url,cfg)
+                            health=getattr(items,'health',None)
+                            if health:
+                                # Truthful provider completion/metrics (issue #38); legacy
+                                # adapters carry no .health and stay implicitly COMPLETE
+                                # here (they already raise on any failure).
+                                source_report['completion']=health['completion']
+                                source_report['coverage_cap_reached']=health['metrics'].get('coverage_cap_reached',False)
+                                source.details={**source.details,'last_completion':health['completion']}
                             for item in items:
                                 report['scanned']+=1; source_report['scanned']+=1
                                 item['company']=source.name

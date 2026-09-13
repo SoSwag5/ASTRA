@@ -37,7 +37,7 @@ def fetch(url):
 def clean(s):
     import html
     return BeautifulSoup(html.unescape(html.unescape(s or '')),'html.parser').get_text('\n',strip=True)
-def discover(kind,board,url=''):
+def discover(kind,board,url='',cfg=None):
     if not re.fullmatch(r'[a-zA-Z0-9_-]{1,100}',board) and kind!='generic': raise ValueError('Invalid board name')
     if kind=='smartrecruiters':
         # Public UAE listings only. No credentials, candidate data or application APIs.
@@ -60,28 +60,19 @@ def discover(kind,board,url=''):
             output.append(dict(company=board,title=detail.get('name',item['name']),location=', '.join(filter(None,[loc.get('city'),loc.get('region'),'United Arab Emirates'])),job_url=detail.get('postingUrl') or f'https://jobs.smartrecruiters.com/{board}/{ident}',description=description,source='SmartRecruiters',source_job_id=ident,date_posted=detail.get('releasedDate',item.get('releasedDate','')),remote_status='Remote' if loc.get('remote') else 'UNKNOWN'))
         return output
     if kind=='greenhouse':
-        base=f'https://boards-api.greenhouse.io/v1/boards/{board}/jobs'
-        try:rows=fetch(base+'?content=true').json()['jobs']
-        except ValueError as error:
-            if str(error)!='Response too large':raise
-            # Documented list/detail endpoints preserve the response-size boundary.
-            # All summaries enter the audit; only relevant families need full detail.
-            from .recall import role,ADJACENT,has
-            rows=fetch(base).json()['jobs']
-            relevant=[x for x in rows if role(x['title'])['kind']!='UNRELATED' or any(has(x['title'],w) for w in ADJACENT)]
-            if len(relevant)>100:raise ValueError('Public detail budget exceeded; review this source')
-            for x in relevant:
-                if not str(x['id']).isdigit():raise ValueError('Invalid posting identifier')
-                detail=fetch(base+'/'+str(x['id'])).json();x.update(detail)
-        output=[]
-        for x in rows:
-            description=clean(x.get('content',''));location=x['location']['name']
-            # Some boards put cities in the public description, while location says Hybrid.
-            if location.lower() in ('hybrid','remote','distributed','in-office','on-site','onsite'):
-                match=re.search(r'(?:Available Locations?|Work Location|Location)\s*:\s*([^\n]{1,220})',description,re.I)
-                if match:location=match[1].strip()+' / '+location
-            output.append(dict(company=board,title=x['title'],location=location,job_url=x['absolute_url'],description=description,source='Greenhouse',source_job_id=str(x['id']),date_posted=x.get('first_published',''),closing_date=x.get('application_deadline','')))
-        return output
+        # Delegates to the common job-provider framework (issue #38);
+        # backend/job_providers/greenhouse.py owns Greenhouse's own
+        # endpoint/schema/budget rules. title_hints is a plain configured
+        # keyword list (never recall.py's role classifier) used only to
+        # prioritize a bounded detail-fetch budget when the full board is
+        # too large to fetch with content inline.
+        from .job_providers.compatibility import to_legacy_items
+        from .job_providers.contracts import FetchContext
+        from .job_providers.registry import get_provider
+        cfg=cfg or {}
+        hints=tuple(cfg.get('target_roles',[]))+tuple(cfg.get('campaign',{}).get('adjacent_roles',[]))
+        batch=get_provider('greenhouse').fetch(FetchContext(title_hints=hints),board)
+        return to_legacy_items(batch)
     if kind=='lever':
         rows=fetch(f'https://api.lever.co/v0/postings/{board}?mode=json').json()
         return [dict(company=board,title=x['text'],location=' / '.join(x.get('categories',{}).get('allLocations') or [x.get('categories',{}).get('location','UNKNOWN')]),job_url=x['hostedUrl'],description=clean(x.get('description','')+' '.join(y.get('content','') for y in x.get('lists',[]))),source='Lever',source_job_id=x['id'],remote_status=x.get('workplaceType','UNKNOWN'),date_posted=datetime.fromtimestamp(x['createdAt']/1000,timezone.utc).isoformat() if x.get('createdAt') else '') for x in rows]
