@@ -48,6 +48,7 @@ def reserve(job, facts):
             raise ValueError('An AI request is active or was just sent; wait before retrying')
         conn.execute('INSERT OR IGNORE INTO usage(day,requests) VALUES (?,0)',(reserved_day,))
         if conn.execute('SELECT requests FROM usage WHERE day=?',(reserved_day,)).fetchone()[0] >= limit:
+            from .security_events import record; record('AI_QUOTA_EXCEEDED')
             raise ValueError('Daily AI request limit reached; rules mode remains available')
         conn.execute('UPDATE usage SET requests=requests+1 WHERE day=?',(reserved_day,))
         conn.execute('INSERT OR REPLACE INTO lease VALUES (1,?,?)',(time.time()+300,fingerprint))

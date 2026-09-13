@@ -187,10 +187,13 @@ async def guard(req:Request,call_next):
     token=os.getenv('APP_TOKEN','')
     if not token: sessions.verify('','')
     if req.url.path.startswith('/api') and req.headers.get('sec-fetch-dest','empty')!='empty':
+        security_event('REQUEST_REJECTED','Private API request with disallowed browser destination',path=req.url.path)
         return JSONResponse({'detail':'Use the workspace to access private data'},403)
     if token and req.url.path.startswith('/api') and req.url.path != '/api/access':
         bearer=req.headers.get('authorization','').removeprefix('Bearer ')
-        if not sessions.verify(token,bearer): return JSONResponse({'detail':'Unlock your workspace to continue'},401)
+        if not sessions.verify(token,bearer):
+            security_event('SESSION_INVALID','Expired or invalid access session rejected',path=req.url.path)
+            return JSONResponse({'detail':'Unlock your workspace to continue'},401)
     try: length=int(req.headers.get('content-length','0'))
     except ValueError: return JSONResponse({'detail':'Invalid content length'},400)
     if length<0 or length>11_000_000: return JSONResponse({'detail':'Upload limit is 10 MB'},413)
@@ -261,6 +264,7 @@ async def value_error(req,exc): return JSONResponse({'detail':str(exc)},400)
 @app.exception_handler(Exception)
 async def unexpected_error(req,exc):
     logger.exception('Unhandled error serving %s',log_safe(req.url.path))
+    from .security_events import record; record('UNHANDLED_ERROR')
     return JSONResponse({'detail':UNEXPECTED_FAILURE},500)
 def get_job(db,id):
     j=db.get(Job,id)
