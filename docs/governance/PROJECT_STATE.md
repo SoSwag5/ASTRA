@@ -31,10 +31,17 @@ evidence chain and run URLs.
   Resilience, moved to v1.2 without being dropped). See
   `docs/governance/OWNER_DECISIONS.md` OD-010 and
   `docs/planning/V1_1_DISCOVERY_AND_APPLICATION_INTELLIGENCE.md`.
-- v1.1 implementation status: **NOT STARTED**. Planning, issue triage, or local
-  exploratory changes do not start the governed milestone. The v1.1 product
-  mission and architecture are proposed for Owner review; no instruction to
-  begin v1.1 implementation has been given.
+- v1.1 architecture/security approval: **COMPLETE (OD-018, 2026-09-13).**
+  ADR-0007, ADR-0008, ADR-0009 are Accepted as architecture decisions
+  (implementation evidence for each remains Pending); the v1.1 threat-model
+  delta is Approved; risks R-16 (2/3=6, HIGH), R-17 (2/2), R-18 (2/2) are
+  registered OPEN with treatment planned for v1.1 — registered, not
+  residual-accepted. See `docs/governance/V1_1_OWNER_REVIEW_PACKET.md`.
+- v1.1 implementation status: **AUTHORIZED, starting with issue #37**
+  (Discovery Query Planner). The Owner has authorized implementation to
+  begin on the approved 12-issue backlog under the "v1.1 — Discovery &
+  Application Intelligence" milestone (issues #37-#48); issues beyond #37
+  are not yet started.
 - Governance integration advances `master` from the frozen release commit without
   moving or modifying the immutable v1.0.0 tag, source, or artifacts.
 
@@ -110,9 +117,12 @@ or merged.
 
 ## Exact next action
 
-Governance v1 is merged and the four post-release documentation corrections
-(#24-#27) are complete. `docs/planning/V1_1_DISCOVERY_AND_APPLICATION_INTELLIGENCE.md`
-is proposed for Owner review; no v1.1 implementation begins until the Owner
-approves its mission, architecture, and backlog. The rebased
-`hardening/l2-r13-r14` branch (issue #33) awaits independent review before a
-PR is opened.
+Governance v1 is merged; the four post-release documentation corrections
+(#24-#27) are complete; the v1.1 mission, architecture, backlog, three ADRs,
+and threat-model delta are all Owner-approved (OD-011 through OD-018).
+Implementation is authorized to begin on issue #37 (Discovery Query
+Planner) under a dedicated feature branch; Governance v1 rules apply (no
+direct push to `master`, focused scope, tests, PR review before merge). The
+rebased `hardening/l2-r13-r14` branch (issue #33) remains parked for v1.2
+and awaits independent review before a PR is opened — not touched by v1.1
+implementation.

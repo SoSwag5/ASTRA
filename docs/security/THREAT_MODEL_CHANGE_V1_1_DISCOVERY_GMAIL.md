@@ -145,10 +145,15 @@ covers these flows.
   third external mailbox provider; or the provider-adapter list grows to
   include a source that cannot honor the size/time-cap or URL-validation
   controls.
-- **Owner decision:** Pending. This document, together with ADR-0007,
-  ADR-0008, ADR-0009, and the risk-register additions below, is submitted as
-  part of the v1.1 Owner Review Packet (`docs/governance/V1_1_OWNER_REVIEW_PACKET.md`)
-  for approval before any implementation begins.
+- **Owner decision: APPROVED (2026-09-13, OD-018).** This delta, ADR-0007,
+  ADR-0008, and ADR-0009 are approved as architecture decisions (each ADR's
+  status moves to Accepted); R-16/R-17/R-18 below are registered as OPEN
+  risks with treatment planned for v1.1 — registration, not residual-risk
+  acceptance. Implementation evidence for all three ADRs and negative-test
+  evidence for every abuse case above remain **Pending** until implemented
+  and independently reviewed (issue #48). This approval authorizes
+  implementation to begin on the approved backlog (starting with issue #37),
+  not a claim that any control described here yet exists in code.
 
 ## Risk-register additions — registered, not residual-accepted
 
