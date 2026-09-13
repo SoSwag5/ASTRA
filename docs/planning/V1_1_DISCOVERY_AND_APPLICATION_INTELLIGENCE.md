@@ -1,8 +1,15 @@
 # ASTRA v1.1 — Discovery & Application Intelligence
 
-**Status:** Proposed. Requirements and architecture planning only. No
-implementation has started. The Owner must approve the mission, architecture
-direction, and backlog before any v1.1 branch opens.
+**Status:** Owner-approved with amendments (2026-09-13; OD-011 through
+OD-017). Requirements and architecture planning only — implementation has
+still not started. The mission, Discovery v2 architecture, and application
+state model are approved as proposed (OD-011). The Gmail architecture is
+approved with the amendments in §6 (OD-012). The release-scope recommendation
+in the original draft of §12 was **not** approved and has been replaced with
+the Owner's mandated scope (OD-013). The backlog in §11 is trimmed to the
+Owner-approved 12 items (OD-014). Three ADRs (§13) and a threat-model delta
+are drafted and awaiting Owner approval before any code is written
+(OD-016, OD-017) — see `docs/governance/V1_1_OWNER_REVIEW_PACKET.md`.
 
 **Origin:** Owner reprioritization on 2026-09-13, recorded in
 `docs/governance/OWNER_DECISIONS.md` OD-010 and `docs/ROADMAP.md`. Real-world
@@ -168,17 +175,23 @@ Greenhouse
 Every filtering stage must be explainable/debuggable — an operator (the Owner)
 can see exactly where candidates were lost, not just a pass/fail source count.
 
-## 6. Gmail application capture — requirements only
+## 6. Gmail application capture — requirements only (amended by OD-012)
 
 ### 6.1 Scope and constraints
 
-- Two user-owned Gmail accounts.
+- Architect for **two** user-owned Gmail accounts from the start, but roll
+  out in order: activate and validate the **primary** account first
+  (OAuth, sync, parsing, reconciliation, and duplicate-prevention all
+  proven), then enable the **second** account. Do not debug two live
+  mailboxes simultaneously on the first implementation pass (OD-012).
 - Official Gmail API via OAuth only. No passwords requested, no HTML
   scraping.
-- **Read-only** in this phase: no send, delete, archive, or modify.
+- **Read-only** in this phase: no send, delete, archive, or modify (see
+  ADR-0008).
 - Local OAuth/token handling consistent with ASTRA's local-first security
-  architecture (tokens stay on the local host, under the same OS-account trust
-  boundary as the rest of ASTRA's data — see §8).
+  architecture — refresh tokens encrypted at rest via an OS-backed mechanism
+  (e.g. Windows DPAPI), under the same OS-account trust boundary as the rest
+  of ASTRA's data (see §8 and ADR-0007).
 
 ### 6.2 Target signals (priority order)
 
@@ -189,18 +202,31 @@ v1.1 priority: **application confirmation / "applied" only.**
 - Deferred to a later evaluated phase: viewed, assessment invitation,
   interview invitation, rejection, offer.
 
-### 6.3 Extraction fields
+### 6.3 Extraction fields and retention (amended by OD-012)
 
-- Company, role, application date/time, source platform, Gmail account,
-  confirmation message ID, related job/application URL (if present),
-  confidence, parser/source identifier.
+- Store only: message ID, account ID, sender, subject, received timestamp,
+  detected company, detected role, detected application state, confidence,
+  evidence/parser identifier, and the relevant job/application URL.
+- **Do not retain full email bodies indefinitely.** If body content is
+  temporarily needed for parsing, it is used transiently (in memory, or a
+  short-lived cache) and discarded once parsing completes — not persisted as
+  a durable record. A specific, separately-approved requirement (e.g. a
+  snippet for the Needs Review queue) may retain a minimal excerpt, never the
+  full body, and must be called out explicitly when proposed, not added
+  silently. See ADR-0008.
 
-### 6.4 Parsing strategy
+### 6.4 Parsing strategy (amended by OD-012: deterministic-first)
 
-- Source-specific deterministic parsers first (Greenhouse/Lever/Workday-style
-  confirmation templates are highly regular).
+- **Deterministic-first, not AI-first.** Initial detection is source-specific
+  deterministic parsers matching known platforms, senders, subjects, and body
+  patterns (Greenhouse/Lever/Workday-style confirmation templates are highly
+  regular).
 - A controlled generic fallback (pattern/heuristic-based) only for messages no
   deterministic parser matches, always tagged with lower confidence.
+- **Cloud AI is not part of the initial classifier.** AI may only be
+  evaluated later as a controlled fallback if deterministic/source-specific
+  approaches prove insufficient in practice — that is a future, separately
+  proposed decision, not part of this milestone's initial scope.
 
 ### 6.5 Confidence policy
 
@@ -318,9 +344,10 @@ covering:
   integration boundary, and provider-adapter external-data trust boundary.
 
 No claim is made that the current threat model already covers Gmail
-integration; this section is the planning input for a dedicated threat-model
-change document (`docs/security/THREAT_MODEL_CHANGE_TEMPLATE.md`) to be
-completed before implementation begins.
+integration; this section was the planning input for the dedicated
+threat-model delta now drafted at
+`docs/security/THREAT_MODEL_CHANGE_V1_1_DISCOVERY_GMAIL.md`, submitted for
+Owner approval alongside the three ADRs in §13.
 
 ## 10. R-13/R-14 WIP recommendation
 
@@ -354,92 +381,134 @@ edits plus one new test file.
 
 **Recommendation:** retain it. Roadmap reprioritization moves Operational
 Security & Resilience to **v1.2**, and R-13/R-14 are exactly that class of
-work, so this WIP maps to **v1.2**, not v1.1. Do not merge as-is per the
-Owner's instruction and the governance model: the branch should be rebased
-onto current `master`, tracked by a GitHub issue mapping it into v1.2, and
-independently reviewed (Codex, per `RELEASE_GOVERNANCE.md` roles) before a PR
-is opened — this session performs the mapping and rebase, not the independent
-review or merge.
+work, so this WIP maps to **v1.2**, not v1.1. Rebased onto current `master`
+(commit `f4b8f6f`) and tracked by issue #33.
 
-## 11. Proposed v1.1 issue backlog (for Owner approval — not yet created)
+**Owner decision (OD-015): on hold for the duration of v1.1.** Do not merge
+it and do not spend further implementation or independent-review time on it
+during v1.1, unless a genuine v1.1 dependency requires it. v1.1 may itself
+alter logging/security events (e.g. new OAuth-grant/revoke and
+parser-failure event types, §9), which would otherwise create unnecessary
+rebase churn on this branch — review it properly when the v1.2 milestone
+opens.
 
-1. Discovery v2: query planner (title/seniority expansion, exact-match
-   weighting).
-2. Discovery v2: provider-adapter interface + first adapter (Greenhouse).
-3. Discovery v2: additional provider adapters (Lever, Ashby; evaluate
-   Workable).
-4. Discovery v2: retrieval normalization and cross-provider deduplication.
-5. Discovery v2: eligibility filtering per the "retrieve broadly, rank second"
-   rule.
-6. Explainable ranking model + per-result evidence rendering.
-7. Discovery evaluation dataset + Precision@10/Recall@K/nDCG@10 harness.
-8. Discovery funnel telemetry (per-source funnel metrics, §5).
-9. Gmail OAuth and two-account management (local token handling).
-10. Gmail incremental sync (read-only, scoped to relevant label/query).
-11. Application-confirmation parsing (deterministic parsers + generic
-    fallback + confidence policy).
-12. Application reconciliation/deduplication against existing records.
-13. Application state model implementation (transitions, provenance,
-    conflict resolution, audit trail).
-14. Progress/dashboard redesign around verified events.
-15. Gmail/external-data threat-model update and risk-register additions.
+## 11. Approved v1.1 issue backlog (OD-014 — trimmed to 12)
 
-This is 15 items; the Owner may combine or drop items to land closer to 8-12
-for the initial milestone slice.
+The Owner trimmed the originally proposed 15 items to 12, combining the
+ranking/eligibility split and folding Workable evaluation into the
+Lever/Ashby issue. Each issue, when filed, states scope, explicit non-goals,
+acceptance criteria, security/privacy considerations, dependencies, and
+testing/evaluation requirements, with the "v1.1 — Discovery & Application
+Intelligence" milestone and appropriate labels.
 
-## 12. Proposed release scope
+1. Discovery query planner (exact queries, synonym/title expansion,
+   seniority interpretation).
+2. Job provider adapter framework + Greenhouse (adapter contract, first real
+   provider).
+3. Lever + Ashby providers (Workable evaluated inside this issue before any
+   implementation decision).
+4. Normalization + cross-provider deduplication.
+5. Eligibility filtering + explainable ranking (combined: title, seniority,
+   skills, location, experience, recency signals, plus explanation evidence).
+6. Discovery evaluation harness (manually labeled dataset; Precision@10,
+   Recall@K, nDCG@10, duplicate rate, stale-link rate).
+7. Discovery funnel telemetry (fetched → unique → eligible → relevant → new
+   → displayed → saved/applied).
+8. Gmail OAuth + two-account architecture (primary account activated first;
+   second enabled only after validation; secure local token storage per
+   ADR-0007).
+9. Gmail incremental read-only sync + confirmation parsing (deterministic
+   source parsers first, generic fallback, confidence scoring — §6.4).
+10. Application reconciliation + application-state model (dedupe, manual vs.
+    automatic provenance, transition rules, evidence history — §7).
+11. Progress/dashboard redesign (weekly progress, confirmed applications,
+    Gmail-detected events, Needs Review queue — §8).
+12. v1.1 security/privacy assurance (threat-model delta, Gmail/data/provider
+    risks, ASVS/SSDF delta, regression/security tests, release evidence).
 
-Recommendation: **stage rather than ship v1.1.0 as one large release.**
+Do not create unnecessary micro-issues beyond this list.
 
-- **v1.1.0 — Discovery v2 core:** query planner, provider adapters (at least
-  Greenhouse), normalization/deduplication, explainable ranking, evaluation
-  harness, funnel telemetry. This alone directly addresses "discovery reports
-  healthy but finds nothing" and is independently valuable and testable.
-- **v1.1.1 (or v1.2.0, Owner's call on versioning) — Gmail application
-  capture + reconciliation + dashboard redesign:** depends on its own OAuth
-  threat-model work and is a distinct trust-boundary change (ADR-triggering)
-  from discovery. Shipping it separately avoids coupling a data-flow/privacy
-  review to a ranking-algorithm release, and lets the discovery half ship
-  sooner.
+## 12. Release scope (amended — OD-013)
 
-Rationale: Discovery v2 and Gmail capture have different risk profiles (pure
-retrieval/ranking vs. OAuth/external-mailbox trust boundary) and different
-validation needs (an evaluation dataset vs. a threat-model review). Coupling
-them into one release gates the lower-risk, higher-certainty work behind the
-higher-risk, higher-review-burden work.
+**The Owner did not approve the originally proposed staged release split**
+(Discovery-only v1.1.0, Gmail deferred to a later v1.1.x/v1.2.0). The
+rationale for rejecting it: the reprioritization exists precisely because
+ASTRA currently fails at *both* ends — it doesn't find enough useful jobs,
+and it doesn't know about the applications actually being submitted.
+Shipping Discovery alone would only solve half the problem.
 
-## 13. ADRs likely required before implementation
+**Approved scope:** final `v1.1.0` must deliver the complete minimum product
+loop in one release — Discovery v2 + Gmail application-confirmation capture
++ application reconciliation/state + a basic progress dashboard.
 
-- OAuth/credential handling for Gmail (local storage, scope, revocation).
-- Gmail read-only integration trust boundary (what ASTRA can and cannot do
-  with mailbox access — explicitly no send/delete/modify).
-- External job-provider data trust boundary (provider adapters as an untrusted
-  external data source, distinct from the existing AI-provider trust
-  boundary).
+Development is staged **internally**, not as separate public releases:
+
+- **Phase A — Discovery:** query planner, providers, normalization, ranking,
+  evaluation harness (backlog items 1-7).
+- **Phase B — Application Intelligence:** Gmail OAuth, one-account sync,
+  confirmation parser, reconciliation (backlog items 8-9, primary account
+  only).
+- **Phase C — Complete loop:** second Gmail account, application state
+  model, progress/dashboard (backlog items 8 completion, 10-11).
+- **Phase D — Release assurance:** security/privacy assurance, full
+  regression, release evidence pack (backlog item 12).
+
+If intermediate public builds are wanted, use prereleases rather than
+treating a major new capability as a patch release:
+
+```
+v1.1.0-alpha.1   Discovery working
+v1.1.0-beta.1    Gmail + reconciliation working
+v1.1.0-rc.1      complete candidate
+v1.1.0           final
+```
+
+## 13. ADRs required before implementation (drafted — OD-016)
+
+Three ADRs are drafted (status: Proposed, not yet Accepted) and included in
+the Owner Review Packet:
+
+- [ADR-0007](../architecture/adr/0007-gmail-oauth-credential-storage.md) —
+  Gmail OAuth and credential storage (local token storage, scope, revocation,
+  two-account isolation).
+- [ADR-0008](../architecture/adr/0008-gmail-read-only-mailbox-trust-boundary.md)
+  — Gmail read-only mailbox trust boundary (no send/delete/archive/modify;
+  minimized retention per §6.3).
+- [ADR-0009](../architecture/adr/0009-external-job-provider-trust-boundary.md)
+  — external job-provider trust boundary (untrusted-by-default providers,
+  URL validation, size/time caps, sanitization).
 
 Each follows the ADR triggers in `docs/architecture/adr/README.md`
-(persistence/privacy boundaries; secrets/credentials; and, for the mailbox
-integration, arguably a data-flow/deployment-topology change).
+(persistence/privacy boundaries; secrets/credentials; data-flow change).
 
-## 14. Owner decisions required before implementation
+## 14. Owner decisions recorded this round (OD-011 through OD-017)
 
-- Approve or amend the v1.1 mission (§2) and the discovery/Gmail architecture
-  direction (§3, §6).
-- Approve, trim, or reorder the proposed backlog (§11).
-- Approve the staged release recommendation (§12) or direct a different
-  scope split.
-- Approve the R-13/R-14 mapping to v1.2 (§10) and authorize opening the
-  tracking issue and rebasing the branch (implementation/merge still requires
-  independent review first).
-- Decide which Gmail read scope and which of the two accounts is in scope for
-  the first increment, if not both simultaneously.
+- **OD-011:** mission, Discovery v2 architecture, and application state
+  model approved as proposed.
+- **OD-012:** Gmail architecture approved with amendments — single-account
+  rollout first, deterministic-first classification, minimized retention
+  (§6).
+- **OD-013:** release-scope split rejected; single complete-loop v1.1.0
+  with internal phases and prerelease tags approved (§12).
+- **OD-014:** backlog approved and trimmed to 12 issues (§11).
+- **OD-015:** R-13/R-14 mapping to v1.2 approved; on hold during v1.1 (§10).
+- **OD-016:** ADR-0007/0008/0009 required; drafted, not yet Accepted (§13).
+- **OD-017:** v1.1 threat-model delta required; drafted, not yet approved
+  (`docs/security/THREAT_MODEL_CHANGE_V1_1_DISCOVERY_GMAIL.md`).
 
-## 15. Next implementation step (after Owner approval)
+**Still pending Owner approval:** the three ADR drafts and the threat-model
+delta itself (including the three proposed risk-register additions R-16,
+R-17, R-18) — submitted together as
+`docs/governance/V1_1_OWNER_REVIEW_PACKET.md`.
 
-1. Owner approves this document (in whole or with amendments).
-2. Open the approved subset of the backlog (§11) as GitHub issues with
-   acceptance criteria.
-3. Write the Gmail/external-data threat-model delta and the ADRs in §13
-   before any OAuth or provider-adapter code is written.
-4. Begin Discovery v2 core (query planner + first provider adapter) as the
-   first implementation branch, per the staged release plan (§12).
+## 15. Next implementation step
+
+1. Owner reviews and approves (or amends) the Owner Review Packet — the
+   three ADR drafts and the threat-model delta, including the proposed
+   risk-register additions.
+2. Once approved, file the 12 backlog issues (§11) under the "v1.1 —
+   Discovery & Application Intelligence" milestone with full scope/non-goals/
+   acceptance-criteria/security/dependency/testing detail.
+3. Mark ADR-0007/0008/0009 Accepted.
+4. Begin Phase A: the first implementation branch is the **Discovery Query
+   Planner** (backlog item 1).
