@@ -49,8 +49,10 @@ still applies; this design is not multi-user authorization.
 
 ## Evidence and validation
 
-`backend/access.py`, `docs/security/LOCAL_ACCESS.md`, and focused security tests.
-Final evidence must identify the reviewed source SHA and exact test results.
+`backend/access.py`, `docs/security/LOCAL_ACCESS.md`, and focused session/security
+tests are present in released source `81ad2d3`. The v1.0 candidate's Python
+3.13/3.14 test and security-verification jobs passed. Owner confirmation of the
+reconstructed architecture decision remains pending.
 
 ## Framework impact
 

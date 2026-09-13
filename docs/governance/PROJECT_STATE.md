@@ -2,79 +2,98 @@
 
 **Snapshot date:** 2026-09-13 (Asia/Dubai)
 **Rule:** This is a handoff snapshot, not a substitute for live verification.
-Refresh it at session end when repository state changes.
+Refresh it at session end when repository or release state changes.
 
-## Product and release
+## Released product
 
-- Product: ASTRA, a single-user, local-first Windows job discovery and
-  application-tracking application.
-- Release target: `v1.0.0`; repository evidence does not contain a Git tag as of
-  this snapshot.
-- Candidate named by the assurance documents: `1.0.0-rc.1`.
-- Public-release status: **BLOCKED unless the current commit's generated release
-  security gate says PASS and the Owner separately approves publication**.
-- Historical local assessment: 271 tests passed; applicable ASVS 5.0.0 L1
-  controls were recorded as PASS or justified N/A; CycloneDX 1.7 SBOM validation
-  passed. These results apply only to the assessed source and do not establish
-  the current release decision.
-- Accepted residual risk: R-15, the local OS-account/localhost trust boundary,
-  with mandatory review if ASTRA becomes networked, hosted, multi-user, or
-  multi-tenant. The existing record has no explicit expiry even though the
-  Secure SDLC requires exception expiry within 90 days; this needs Owner
-  reconciliation and is not silently corrected here.
+- Current release: [`v1.0.0`](https://github.com/SoSwag5/ASTRA/releases/tag/v1.0.0),
+  published 2026-09-13.
+- Frozen source commit: `81ad2d38869980fe854d92f26a9ae16b774f58a6`.
+- Release artifact: `astra-1.0.0-rc.1.zip`, SHA-256
+  `a5842744bad86a249381f5c1c4f509785375c994af1cbc70fef5f6e283b4399f`.
+- CycloneDX 1.7 SBOM: 246 components, SHA-256
+  `6f8b681e352a8efb58b344f22a28eabad5090aa37f5b123c0ef06ab0a16ea293`.
+- Final release gate: **APPROVED WITH DOCUMENTED RESIDUAL RISK**, blockers `[]`.
+- Provenance and SBOM attestations were independently verified for the released
+  artifact. The gate did not authorize publication; the Owner approved and
+  published the release separately.
+- The `v1.0.0` tag, source, artifacts, digests, attestations, and release record
+  are immutable. Corrections ship from later commits and versions; never rebuild,
+  replace, move, or retag v1.0.0.
+
+See [the immutable release record](../release/V1_0_0_RELEASE_RECORD.md) for the
+evidence chain and run URLs.
+
+## Milestone state
+
+- Next milestone: **v1.1 — Operational Security & Resilience**.
+- v1.1 implementation status: **NOT STARTED**. Planning, issue triage, or local
+  exploratory changes do not start the governed milestone. It begins only after
+  Owner approval and merge of Release Governance v1.
+- At this snapshot, another local worktree contained uncommitted changes on
+  `hardening/l2-r13-r14`. This governance worktree did not inspect, edit, stage,
+  commit, or publish those changes. They are not recorded as v1.1 work.
+
+## Current residual risks and follow-up
+
+- R-01, R-02, R-03, R-07, and R-08 remain historical accepted residuals under
+  their existing triggers.
+- R-15 remains the accepted v1.0 OS-account/localhost trust-boundary decision.
+  Its missing dated review/expiry is tracked by issue #27.
+- R-04 and R-05 are mitigated but remain subject to dependency and AI-change
+  review.
+- R-09's hosted installation path passed; live scheduled-task migration remains
+  unverified and requires separate Owner approval.
+- Applicable ASVS L1 is closed. R-12 retains open L2 hardening work.
+- R-13 and R-14 remain open L2 hardening/resilience risks for future governed
+  planning.
+- R-06, R-10, and R-11 have release evidence supporting closure, but their
+  source-controlled wording has post-release documentation debt in issues
+  #24-#26. The frozen v1.0.0 files are not rewritten.
+
+## Open post-release issues
+
+| Issue | Required follow-up | Release impact |
+|---|---|---|
+| [#24](https://github.com/SoSwag5/ASTRA/issues/24) | Set R-06 to CLOSED using the final publication evidence. | Documentation correction after v1.0; do not rebuild v1.0.0. |
+| [#25](https://github.com/SoSwag5/ASTRA/issues/25) | Correct the released-commit Scorecard reference from 7.1 to 6.7. | Documentation correction after v1.0; no security regression implied. |
+| [#26](https://github.com/SoSwag5/ASTRA/issues/26) | Point R-11 to the released candidate and final gate/release references. | Documentation correction after v1.0; avoid self-referential artifact digests. |
+| [#27](https://github.com/SoSwag5/ASTRA/issues/27) | Add a dated review/expiry to R-15 and decide whether other standing acceptances need the same treatment. | Owner governance decision; v1.0 remains immutable. |
 
 ## Git and collaboration snapshot
 
 - Canonical remote: `https://github.com/SoSwag5/ASTRA.git`.
-- Default branch: `master`.
-- Remote repository: public.
-- Governance worktree: a separate local checkout named
-  `astra-release-governance-v1` (record the absolute path in the private session
-  handoff, not in public repository content).
+- Protected default branch: `master`.
+- Final integration base: `81ad2d38869980fe854d92f26a9ae16b774f58a6`.
+- Governance worktree: separate local checkout `astra-release-governance-v1`.
 - Governance branch: `governance/release-governance-v1`.
-- Governance base: `cf9a6bc30ce93cedc9bed48b3ba0fefbbcd8eef8`.
-- Concurrent implementation moved `master` to
-  `846b8d7020730fec5dac01d6c978010dafc18587` while this governance pass was in
-  progress. Do not rebase or merge this branch until the Owner chooses the
-  post-v1.0 integration point.
-- Pull request #16 was merged. Pull requests #1-#9 and #15 were open Dependabot
-  proposals at the snapshot time. No open non-PR issues were returned by the
-  public GitHub API.
-- CI and Scorecard for `master` commit `846b8d7` completed successfully. This is
-  source validation, not hosted release/provenance evidence.
-- The public GitHub Actions API registered `ci.yml` and `scorecard.yml`, but
-  returned 404 for `codeql.yml`, `release.yml`, and `review-candidate.yml` even
-  though those files existed locally. Concurrent work then moved the active
-  checkout to `chore/register-release-workflows` at `a77927b`. Treat CodeQL,
-  hosted release, provenance, and review-candidate evidence as NOT RUN until the
-  files are registered on `master` and exact runs pass. The active implementation
-  checkout was on `chore/register-release-workflows` at `a77927b` when this
-  governance snapshot closed.
-
-## Current work boundaries
-
-- Claude Code owns implementation and remediation branches assigned by the
-  Owner.
-- Codex owns this governance branch and may independently review other branches
-  without modifying them.
-- No agent may merge this governance branch, create a tag/release, publish, or
-  alter the live scheduled task without explicit Owner authorization.
-- The existing scheduled task keeps its current name until the Owner approves
-  the migration procedure in `docs/security/WINDOWS_INSTALLATION.md`.
+- Original governance commit `f2307be` is preserved locally on
+  `backup/governance-release-governance-v1-f2307be`.
+- Claude Code owns implementation/remediation branches assigned by the Owner.
+  Codex owns this governance branch and independently reviews other branches
+  without editing them.
+- This branch may be pushed and opened as a pull request under the Owner's current
+  instruction. It must not be merged until the Owner reviews the proposed ADRs
+  and explicitly authorizes the merge.
 
 ## Authoritative evidence
 
-- `release/release-security-gate.json` from the exact candidate run controls the
-  technical release verdict.
-- `docs/release/RELEASE_SECURITY_ASSURANCE_REPORT.md` is a dated local assessment,
-  not a live dashboard.
-- `docs/security/RISK_REGISTER.md` holds accepted and open risks.
-- GitHub run URLs, source SHA, artifact digest, SBOM digest, and attestation
-  verification output must be captured in the release evidence pack.
+- Final gate: `release-security-gate.json` attached to v1.0.0; gate run
+  [34732173819](https://github.com/SoSwag5/ASTRA/actions/runs/34732173819).
+- Candidate build and attestations: run
+  [34722561421](https://github.com/SoSwag5/ASTRA/actions/runs/34722561421).
+- Release/tag annotation and GitHub release assets bind the frozen source,
+  artifact digest, and SBOM digest.
+- `docs/release/RELEASE_SECURITY_ASSURANCE_REPORT.md` is a dated pre-remote local
+  assessment. `docs/security/SLSA_V1.2_ASSESSMENT.md` assesses an earlier candidate.
+  Neither replaces the final release record.
+- `docs/security/RISK_REGISTER.md` is the current source risk register, subject to
+  post-release corrections #24-#27.
 
 ## Exact next action
 
-Complete and review this governance branch in isolation. After the v1.0 source
-and remote assurance state are frozen, update this snapshot, resolve the two
-or more commits of branch drift, rerun documentation/privacy validation, and open a
-governance pull request for Owner review. Do not merge it during the v1.0 freeze.
+Push this rebased governance branch and open a pull request against `master`.
+The Owner reviews ADR-0001 and ADR-0003 through ADR-0006 and chooses APPROVE or
+REVISE for each. Apply any requested revisions, rerun governance validation, and
+merge only after explicit Owner authorization. Start v1.1 planning and
+implementation only after that merge.

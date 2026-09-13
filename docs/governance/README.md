@@ -21,6 +21,7 @@ gate and its verified evidence remain authoritative for technical readiness.
 - [Current project state](PROJECT_STATE.md)
 - [Session start](SESSION_START.md) and [session end](SESSION_END.md)
 - [Owner decisions](OWNER_DECISIONS.md)
+- [Owner ADR review packet](ADR_OWNER_REVIEW_PACKET.md)
 - [Known policy conflicts](CONFLICT_REGISTER.md)
 - [AI-assisted engineering](AI_ASSISTED_ENGINEERING.md)
 - [Framework evidence deltas](FRAMEWORK_EVIDENCE_DELTA.md)
@@ -30,6 +31,7 @@ gate and its verified evidence remain authoritative for technical readiness.
 ## Release and security records
 
 - [Release checklist](../release/RELEASE_CHECKLIST.md)
+- [v1.0.0 immutable release record](../release/V1_0_0_RELEASE_RECORD.md)
 - [Evidence pack template](../release/RELEASE_EVIDENCE_PACK_TEMPLATE.md)
 - [Release notes template](../release/RELEASE_NOTES_TEMPLATE.md)
 - [Security patch template](../release/SECURITY_PATCH_TEMPLATE.md)

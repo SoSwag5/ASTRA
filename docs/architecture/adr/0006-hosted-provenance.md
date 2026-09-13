@@ -25,8 +25,8 @@ statement.
 Use the SHA-pinned GitHub hosted release workflow to build and attest the artifact
 and SBOM. A separate verification stage and release reviewer must validate the
 attestations against the repository, signer workflow, source SHA, predicate type,
-and artifact digest. This remains Proposed until Owner confirmation and actual
-execution evidence exist.
+and artifact digest. v1.0.0 supplied execution evidence; this ADR remains Proposed
+until Owner confirmation.
 
 ## Rationale
 
@@ -52,9 +52,13 @@ predicate interpretation. A valid signature does not prove the software is safe.
 
 ## Evidence and validation
 
-`.github/workflows/release.yml`, `.github/workflows/review-candidate.yml`,
-`docs/security/SLSA_V1.2_ASSESSMENT.md`, and future exact-run verification. A
-prepared workflow is not executed provenance.
+`.github/workflows/release.yml`, `.github/workflows/review-candidate.yml`, and
+`docs/security/SLSA_V1.2_ASSESSMENT.md` define and assess the mechanism. For
+v1.0.0, run 34722561421 created the hosted provenance and SBOM attestations; run
+34732173819 independently reviewed the existing artifact and produced a
+successful zero-blocker gate for source `81ad2d3` and artifact
+`a5842744…b4399f`. The older SLSA assessment names a superseded candidate, so any
+release-specific Build-level wording must be reconciled rather than inferred.
 
 ## Framework impact
 

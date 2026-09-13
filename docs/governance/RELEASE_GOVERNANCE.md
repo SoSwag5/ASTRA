@@ -156,6 +156,9 @@ Only PASS plus APPROVED permits an authorized publisher to tag or release.
 
 ## Post-release process
 
+Published tags, release assets, recorded digests, and attestations are immutable.
+Corrections are made on later commits and, when shipped, in a later version.
+
 Within seven days of a standard release, or sooner for a security release:
 
 1. Verify the published tag, source SHA, artifact digest, SBOM, provenance, and

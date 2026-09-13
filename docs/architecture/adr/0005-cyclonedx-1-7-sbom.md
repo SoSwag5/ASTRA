@@ -48,7 +48,9 @@ packages, or absence of vulnerabilities.
 ## Evidence and validation
 
 `scripts/generate_sbom.py`, `scripts/validate_sbom.py`, `docs/security/SBOM.md`,
-the release SBOM, validation output, component count, tool versions, and digest.
+and v1.0 release evidence record a schema-validated CycloneDX 1.7 SBOM with 246
+components and SHA-256 `6f8b681e…ea293`. Its attestation was verified against the
+released artifact. Owner confirmation of this ADR remains pending.
 
 ## Framework impact
 

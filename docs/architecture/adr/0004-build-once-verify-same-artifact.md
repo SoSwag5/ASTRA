@@ -49,9 +49,12 @@ not safety. The workflow must be executed and reviewed before any claim.
 
 ## Evidence and validation
 
-`.github/workflows/release.yml`, `.github/workflows/review-candidate.yml`, build
-scripts, and the exact hosted run/evidence pack. Execution evidence remains
-release-specific.
+`.github/workflows/release.yml`, `.github/workflows/review-candidate.yml`, and the
+build/verification scripts implemented the design. Run 34722561421 built and
+attested the candidate from released source `81ad2d3`; run 34732173819 reviewed
+the same artifact with SHA-256 `a5842744…b4399f` and produced the final successful
+gate. Execution evidence remains release-specific, and Owner confirmation of this
+ADR remains pending.
 
 ## Framework impact
 

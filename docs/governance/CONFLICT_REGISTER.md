@@ -1,16 +1,17 @@
 # Governance conflict register
 
-This register records disagreements between snapshots, policies, and current
-repository evidence. Resolve conflicts explicitly; do not silently rewrite dated
-assurance records.
+This register records drift between the original Governance v1 snapshot and the
+frozen v1.0.0 state. Resolved entries remain visible as history.
 
-| ID | Conflict | Resolution for governance v1 | Follow-up |
+| ID | Drift or conflict | Final integration resolution | State / follow-up |
 |---|---|---|---|
-| C-001 | The initiating brief described a repository with no remote, while the current repository is public at `SoSwag5/ASTRA`. | Treat the brief as historical context. Verify hosted state at every session. | Refresh `PROJECT_STATE.md` before the governance PR. |
-| C-002 | `RELEASE_SECURITY_ASSURANCE_REPORT.md` contains a pre-remote assessment and a later status note, while hosted runs now exist. | Preserve the dated report. Use the exact hosted run's generated gate and evidence pack for a current decision. | Create a new candidate evidence pack; do not back-edit historical results. |
-| C-003 | Some security documents still say remote execution is pending. | Treat those statements as time-scoped until updated through a dedicated evidence change. Never infer PASS from the existence of a remote. | Reconcile after remote assurance completes. |
-| C-004 | Security documents exist under both root `security/` and `docs/security/`. | `docs/security/` is the current governance source unless a file explicitly identifies another generated source. Avoid deleting or merging duplicates during this pass. | Inventory and consolidate in a separate reviewed documentation issue. |
-| C-005 | The repository default branch is `master`, while generic examples often use `main`. | ASTRA governance names `master` as the protected default branch. | Revisit only through an Owner-approved repository change. |
-| C-006 | The governance branch was based on `cf9a6bc`; `master` advanced to `846b8d7` during the pass. | Keep the isolated branch stable and record drift. | Integrate after v1.0 freeze, then rerun validation. |
-| C-007 | R-15 is recorded as an accepted architectural residual without an expiry, while `docs/security/SECURE_SDLC.md` requires risk exceptions to expire within 90 days. | Preserve the historical decision and flag the missing expiry; governance does not invent an Owner date. | Owner adds an expiry/reapproval date or amends the exception policy through explicit review. |
-| C-008 | `codeql.yml`, `release.yml`, and `review-candidate.yml` existed locally but were not registered by GitHub Actions; their public API endpoints returned 404. | Record these controls as NOT RUN. The concurrent `chore/register-release-workflows` branch appears intended to remediate registration, but its name is not proof of completion. | After that work merges, verify registration and successful exact-SHA runs before changing release status. |
+| C-001 | The initiating brief described no remote; v1.0.0 is now public at `SoSwag5/ASTRA`. | Rebased Governance v1 onto released `master` and recorded the public release as authoritative. | Resolved. |
+| C-002 | `RELEASE_SECURITY_ASSURANCE_REPORT.md` is a pre-remote assessment that ends BLOCKED. | Preserved it as a dated historical record. Added `V1_0_0_RELEASE_RECORD.md` for the final gate and publication evidence. | Resolved without rewriting history. |
+| C-003 | `SLSA_V1.2_ASSESSMENT.md` names an earlier attested candidate rather than the released artifact. | The immutable release record points to the final release and gate. Issue #26 tracks the source-controlled risk-register correction; a future evidence update may supersede the earlier assessment. | Open documentation follow-up; v1.0 unchanged. |
+| C-004 | Security documents exist under both root `security/` and `docs/security/`. | `docs/security/` remains the governance source unless a file identifies a generated source elsewhere. | Separate consolidation review; no deletion in this PR. |
+| C-005 | Generic branch examples used `main`, while ASTRA uses `master`. | Governance names `master` as the protected default branch. | Resolved. |
+| C-006 | Governance v1 was based on `cf9a6bc`; v1.0.0 froze at `81ad2d3`. | Preserved `f2307be` on a local backup branch and cleanly rebased the governance commit onto `81ad2d3`; no release files conflicted. | Resolved. |
+| C-007 | R-15 has an event trigger but no dated review/expiry, while Governance v1 requires time-bounded reapproval. | Preserved the accepted v1.0 decision and linked issue #27. No expiry was invented. | Owner decision open. |
+| C-008 | CodeQL, release, and review-candidate workflows were not registered in the original snapshot. | The workflows are now registered and active; the released artifact's hosted provenance and SBOM attestations were verified. | Resolved for v1.0; reverify every candidate. |
+| C-009 | R-06, R-10, and R-11 text at the frozen release commit does not reflect the final release evidence. | Kept the immutable tag untouched and linked issues #24-#26 from durable project state. | Open post-release documentation debt. |
+| C-010 | A local `hardening/l2-r13-r14` worktree has uncommitted changes, while governed v1.1 work is explicitly not started. | Left that worktree untouched and recorded that local exploration does not establish milestone start. | Owner must decide its disposition after Governance v1 merges. |

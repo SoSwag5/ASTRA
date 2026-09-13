@@ -53,9 +53,10 @@ provide remote access, shared tenancy, or hostile-user isolation.
 
 ## Evidence and validation
 
-README, architecture inventory, threat model, privacy flow, local-access guide,
-demo isolation, and application/security tests. Owner confirmation remains
-missing for this reconstructed ADR.
+The architecture shipped in immutable v1.0.0 source `81ad2d3`. Evidence includes
+the README, architecture inventory, threat model, privacy flow, local-access
+guide, demo isolation, hosted clean-install verification, and application/security
+tests. Owner confirmation remains missing for this reconstructed ADR.
 
 ## Framework impact
 
