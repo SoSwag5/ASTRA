@@ -30,9 +30,8 @@ evidence chain and run URLs.
 - v1.1 implementation status: **NOT STARTED**. Planning, issue triage, or local
   exploratory changes do not start the governed milestone. It begins only after
   Owner approval and merge of Release Governance v1.
-- At this snapshot, another local worktree contained uncommitted changes on
-  `hardening/l2-r13-r14`. This governance worktree did not inspect, edit, stage,
-  commit, or publish those changes. They are not recorded as v1.1 work.
+- The primary worktree is clean on `master` at the frozen release commit. This
+  governance worktree did not modify it.
 
 ## Current residual risks and follow-up
 
@@ -69,12 +68,14 @@ evidence chain and run URLs.
 - Governance branch: `governance/release-governance-v1`.
 - Original governance commit `f2307be` is preserved locally on
   `backup/governance-release-governance-v1-f2307be`.
+- Governance pull request:
+  [#28 — Add ASTRA Release Governance v1](https://github.com/SoSwag5/ASTRA/pull/28),
+  targeting `master`.
 - Claude Code owns implementation/remediation branches assigned by the Owner.
   Codex owns this governance branch and independently reviews other branches
   without editing them.
-- This branch may be pushed and opened as a pull request under the Owner's current
-  instruction. It must not be merged until the Owner reviews the proposed ADRs
-  and explicitly authorizes the merge.
+- This branch is pushed and PR #28 is open. It must not be merged until the Owner
+  reviews the proposed ADRs and explicitly authorizes the merge.
 
 ## Authoritative evidence
 
@@ -92,8 +93,7 @@ evidence chain and run URLs.
 
 ## Exact next action
 
-Push this rebased governance branch and open a pull request against `master`.
-The Owner reviews ADR-0001 and ADR-0003 through ADR-0006 and chooses APPROVE or
-REVISE for each. Apply any requested revisions, rerun governance validation, and
+The Owner reviews PR #28 and chooses APPROVE or REVISE for ADR-0001 and ADR-0003
+through ADR-0006. Apply requested revisions, rerun governance validation, and
 merge only after explicit Owner authorization. Start v1.1 planning and
 implementation only after that merge.
