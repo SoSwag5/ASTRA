@@ -202,25 +202,39 @@ v1.1 priority: **application confirmation / "applied" only.**
 - Deferred to a later evaluated phase: viewed, assessment invitation,
   interview invitation, rejection, offer.
 
-### 6.3 Extraction fields and retention (amended by OD-012)
+### 6.3 Extraction fields and retention (amended by OD-012, then by Owner security review)
 
 - Store only: message ID, account ID, sender, subject, received timestamp,
   detected company, detected role, detected application state, confidence,
   evidence/parser identifier, and the relevant job/application URL.
-- **Do not retain full email bodies indefinitely.** If body content is
-  temporarily needed for parsing, it is used transiently (in memory, or a
-  short-lived cache) and discarded once parsing completes — not persisted as
-  a durable record. A specific, separately-approved requirement (e.g. a
-  snippet for the Needs Review queue) may retain a minimal excerpt, never the
-  full body, and must be called out explicitly when proposed, not added
-  silently. See ADR-0008.
+- **Full email body/HTML is memory-only.** It is used transiently during
+  parsing and discarded once parsing completes — **no implementation-defined
+  disk cache is permitted** (ADR-0008; this replaces an earlier draft that
+  allowed an unspecified "short-lived cache"). A specific, separately-approved
+  requirement (e.g. a snippet for the Needs Review queue) may retain a
+  minimal excerpt, never the full body, and must be called out explicitly
+  when proposed, not added silently.
+- **Disconnecting a Gmail account does not delete already-created evidence
+  records** — disconnect removes that account's token and sync state only;
+  removing evidence records is a separate, explicit user action (ADR-0008).
+- Granted scope is `https://www.googleapis.com/auth/gmail.readonly`,
+  explicitly selected (not `gmail.metadata`, which cannot support body-based
+  parsing or the `q` search filter needed to bound sync scope) — see
+  ADR-0007.
 
-### 6.4 Parsing strategy (amended by OD-012: deterministic-first)
+### 6.4 Parsing strategy (amended by OD-012: deterministic-first; confidence gating amended by Owner security review)
 
 - **Deterministic-first, not AI-first.** Initial detection is source-specific
   deterministic parsers matching known platforms, senders, subjects, and body
   patterns (Greenhouse/Lever/Workday-style confirmation templates are highly
   regular).
+- **HIGH confidence requires multiple independent corroborating signals**
+  (sender identity, structural template match, and consistent extracted
+  fields) — a single matched element is not sufficient. Where Gmail exposes
+  message authentication evidence (SPF/DKIM/DMARC alignment), it is
+  incorporated as one required signal; missing/contradictory authentication
+  evidence caps a message at MEDIUM regardless of template match quality
+  (ADR-0008).
 - A controlled generic fallback (pattern/heuristic-based) only for messages no
   deterministic parser matches, always tagged with lower confidence.
 - **Cloud AI is not part of the initial classifier.** AI may only be
@@ -322,10 +336,16 @@ covering:
   ASTRA's existing outbound-fetch policy controls (loopback/private-range
   blocking, redirect checks — see R-01, `policy.py`).
 - **Parser/resource exhaustion:** bound message/job-body sizes read into
-  memory, matching the pattern already used for AI provider responses (R-13).
+  memory via a size/time-capped reader implemented independently on current
+  `master` as part of v1.1 (ADR-0009) — this does not architecturally depend
+  on the unmerged `hardening/l2-r13-r14` branch, which stays parked for v1.2
+  per OD-015; that branch's approach is a design reference only.
 - **AI use, if any:** if ranking/explanation uses the existing AI provider
   path, it inherits R-04/R-05 controls and must not receive raw email content
   without the same untrusted-data framing used for job/CV comparison today.
+  UI sanitization and AI-bound untrusted-data framing are distinct controls
+  (ADR-0009) — provider- or email-sourced content passed to the AI path must
+  never authorize an action, invoke a tool, or mutate application state.
 - **Audit/security events:** new event types for OAuth grant/revoke, parser
   failures, and reconciliation conflicts, extending `security_events.py`
   (relevant to R-14, §10).
@@ -496,19 +516,27 @@ Each follows the ADR triggers in `docs/architecture/adr/README.md`
 - **OD-017:** v1.1 threat-model delta required; drafted, not yet approved
   (`docs/security/THREAT_MODEL_CHANGE_V1_1_DISCOVERY_GMAIL.md`).
 
-**Still pending Owner approval:** the three ADR drafts and the threat-model
-delta itself (including the three proposed risk-register additions R-16,
-R-17, R-18) — submitted together as
-`docs/governance/V1_1_OWNER_REVIEW_PACKET.md`.
+The 12 backlog issues (§11) are filed as GitHub issues #37-#48 under the
+"v1.1 — Discovery & Application Intelligence" milestone.
+
+**Still pending Owner approval (Owner Review Packet, Revision 2):** the
+three ADR drafts (`Proposed`) and the threat-model delta, including
+registering (not accepting the residual of) R-16 (2/3=6, HIGH), R-17 (2/2),
+and R-18 (2/2) — submitted as
+`docs/governance/V1_1_OWNER_REVIEW_PACKET.md`. The Owner's first security
+review round (2026-09-13) required amendments to scope selection, OAuth
+flow hardening, retention/disconnect wording, confidence-gating, removing
+an architectural dependency on the unmerged R-13 branch, and ADR status
+semantics — all applied in Revision 2; ADR-0007/0008/0009 and R-16/R-17/
+R-18 remain unaccepted pending this round's Owner review.
 
 ## 15. Next implementation step
 
-1. Owner reviews and approves (or amends) the Owner Review Packet — the
-   three ADR drafts and the threat-model delta, including the proposed
-   risk-register additions.
-2. Once approved, file the 12 backlog issues (§11) under the "v1.1 —
-   Discovery & Application Intelligence" milestone with full scope/non-goals/
-   acceptance-criteria/security/dependency/testing detail.
-3. Mark ADR-0007/0008/0009 Accepted.
-4. Begin Phase A: the first implementation branch is the **Discovery Query
-   Planner** (backlog item 1).
+1. Owner reviews and approves (or amends) Revision 2 of the Owner Review
+   Packet — the three ADR drafts and the threat-model delta, including
+   registering R-16/R-17/R-18.
+2. Once approved, mark ADR-0007/0008/0009 `Accepted` (architecture approval
+   only — implementation evidence stays `Pending` per each ADR's own
+   Evidence and validation section and issue #48).
+3. Begin Phase A: the first implementation branch is **Discovery Query
+   Planner**, issue #37.

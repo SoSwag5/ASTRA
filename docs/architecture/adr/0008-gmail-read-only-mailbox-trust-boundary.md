@@ -56,25 +56,60 @@ This is enforced at the integration layer (the Gmail client wrapper
 exposes only read operations; no code path holds or calls a mutating
 credential/scope), not merely as a policy statement.
 
-Retention: for each detected application-related message, persist only
-the minimized evidence record already specified in OD-012 — message
-ID, account ID, sender, subject, received timestamp, detected
+**Retention:** for each detected application-related message, persist
+only the minimized evidence record already specified in OD-012 —
+message ID, account ID, sender, subject, received timestamp, detected
 company, detected role, detected application state, confidence,
 evidence/parser identifier, and the relevant job/application URL.
-Full message body or HTML is used only transiently during parsing (in
-memory, or in a short-lived cache with a defined maximum lifetime to
-be set during implementation) and is not persisted once parsing
-completes, unless a specific, separately-approved requirement
-demonstrates an actual need (e.g., surfacing a snippet in the "needs
-review" queue for a MEDIUM-confidence match) — in which case only the
-minimal snippet needed for that UI, not the full body, is retained,
-and that exception must be called out explicitly in the implementing
-PR, not silently added.
+
+**Full message body or HTML is memory-only in v1.1.** It is used
+transiently during parsing, held in process memory, and discarded once
+parsing completes. **No implementation-defined disk cache of message
+bodies/HTML is permitted** — this closes the ambiguity in the original
+draft, which allowed "a short-lived cache" without specifying its
+medium; that option is withdrawn. A specific, separately-approved
+requirement may retain a minimal *snippet* (e.g., for the Needs Review
+queue on a MEDIUM-confidence match) — never the full body — as the one
+narrow exception, and that exception must be called out explicitly in
+the implementing PR, not silently added.
+
+**Disconnect and retention (resolved wording):** disconnecting a Gmail
+account (ADR-0007) deletes that account's refresh token **and its
+synchronization/account-integration state** (last-sync cursor, queued
+work, per-account credential record). Disconnect does **not** delete
+already-created Gmail-derived evidence records (the minimized rows
+above) — those persist as part of the application state model's
+history, on their own evidence, independent of whether the
+originating account is still connected. **Removing that Gmail-derived
+metadata is a separate, explicit user action** (e.g. deleting the
+specific application record, or a distinct "also erase Gmail-derived
+history" action if one is built) — disconnect alone does not imply it.
+This is the authoritative resolution of the retention/disconnect
+wording; the threat-model delta's data-flow row is corrected to match
+(see `docs/security/THREAT_MODEL_CHANGE_V1_1_DISCOVERY_GMAIL.md`,
+which previously stated evidence is "retained until ... disconnects
+the account," implying disconnect deletes evidence — it does not).
 
 Sync scope is narrowed at the query level where Gmail's search syntax
 allows it (e.g., restricting to a bounded time window or label/query
 filter relevant to job applications) rather than pulling the entire
 mailbox, both for minimization and to bound processing cost.
+
+**HIGH-confidence reconciliation requires multiple independent
+evidence signals** — a single matched element (e.g. subject line
+alone, or sender address alone) is not sufficient to reach HIGH
+confidence; the deterministic parser must corroborate at least sender
+identity, structural template match, and extracted field consistency
+(company/role/date all present and mutually consistent) before a
+detection is tagged HIGH. **Where Gmail exposes message authentication
+evidence (e.g. SPF/DKIM/DMARC alignment information available via the
+Gmail API), that evidence is incorporated into source-authenticity
+assessment as one of the required independent signals.** Missing or
+contradictory authentication evidence (the message fails or lacks
+alignment information ASTRA can check) **must prevent automatic HIGH-
+confidence treatment**, regardless of how well the content otherwise
+matches a known template — such a message is capped at MEDIUM and
+routed to Needs Review.
 
 ## Rationale
 
@@ -125,13 +160,27 @@ the authorization layer, not just the code layer — ADR-0007's scope
 selection and this ADR's code-level enforcement are both required,
 not either/or.
 
+This is registered as risk R-17 (shared with ADR-0009) in
+`docs/security/RISK_REGISTER.md`, state **OPEN — treatment planned for
+v1.1** — the Owner has approved recording this risk, not accepted its
+residual; residual risk is reassessed only after the controls above
+and their negative tests exist.
+
 ## Evidence and validation
 
-None yet — pre-implementation draft. Required before Accepted: the
-actual Gmail scope requested by ADR-0007's implementation confirmed as
-read-only; a code-level test asserting the Gmail client wrapper
-exposes no mutating method; a test confirming full message bodies are
-not present in the SQLite database after a sync/parse cycle completes.
+**Implementation evidence status: Pending.** This ADR's `Accepted`
+status (if granted) reflects Owner approval of the architecture
+decision above, not proof that any control has been built. Required
+before this ADR's controls may be relied upon in the v1.1 release
+evidence pack: the actual Gmail scope requested by ADR-0007's
+implementation confirmed as read-only; a code-level test asserting the
+Gmail client wrapper exposes no mutating method; a test confirming no
+full message body or HTML is present in the SQLite database or any
+on-disk cache after a sync/parse cycle completes (memory-only
+enforcement); a test proving a single-signal match cannot reach HIGH
+confidence; and a test proving a message with missing/contradictory
+authentication evidence is capped at MEDIUM regardless of template
+match quality. See issue #48 for where this evidence is assembled.
 
 ## Framework impact
 

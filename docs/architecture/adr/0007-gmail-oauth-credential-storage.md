@@ -54,21 +54,65 @@ Decision questions this ADR must answer:
 
 ## Decision
 
-Use the OAuth 2.0 authorization-code flow with PKCE and a loopback
-redirect, as an installed-app OAuth client, requesting the **narrowest
-read-only Gmail scope that supports the confirmation-detection use
-case** (`gmail.readonly` or a more restrictive label/query-scoped
-alternative if Google offers one suitable for this use — to be
-confirmed during implementation against current Google API scope
-documentation, not assumed here).
+**Scope (explicitly selected, not left open):** request
+`https://www.googleapis.com/auth/gmail.readonly` for v1.1.
 
-Store per-account refresh tokens locally, encrypted at rest using an
-OS-backed mechanism appropriate to ASTRA's supported platform (Windows
-DPAPI via the current user's profile, matching the protection model
-already implied by ASTRA's OS-account trust boundary in ADR-0002)
-rather than plaintext in the SQLite database or a config file. Access
-tokens are held only in memory for the duration of a sync operation
-and are not persisted.
+This is a Google **Restricted** scope (Google's sensitive/restricted
+scope classification), which carries additional obligations if ASTRA
+is ever distributed beyond personal/local-first use — see
+"Distribution scope" below. It is selected deliberately over the
+narrower `gmail.metadata` scope: `gmail.metadata` does not grant
+message-body access, which ASTRA's automatic body-based confirmation
+parsing requires (§6.4 of the planning document), and `gmail.metadata`
+does not support the Gmail `q` search parameter, which ASTRA needs to
+narrow sync to a bounded, relevant query rather than pulling the
+entire mailbox (ADR-0008). `gmail.readonly` is therefore the narrowest
+scope that actually supports the required functionality, not merely
+the narrowest scope in the abstract.
+
+**Distribution scope:** this decision covers **personal/local-first
+use** — a single user running their own installation with their own
+Google OAuth client. Restricted scopes carry a Google OAuth
+verification/security-assessment requirement for apps used by parties
+beyond the developer's own accounts. **Wider public distribution of
+ASTRA's Gmail integration requires a separate, explicit Owner decision
+and a Google OAuth verification/readiness review before it ships** —
+this ADR does not authorize that and must not be read as having
+already cleared it.
+
+**Flow:** OAuth 2.0 authorization-code flow with **PKCE using the S256
+code-challenge method** (not `plain`), as an installed-app OAuth
+client. Required elements:
+
+- A **cryptographically random `state` parameter** is generated per
+  authorization attempt and validated for an **exact match** on the
+  callback; the callback is **consumed once** (single-use) — a replayed
+  or reused callback is rejected.
+- The redirect listens on a **random ephemeral loopback port, bound
+  only to loopback** (`127.0.0.1`/`::1`), never `0.0.0.0` or any
+  non-loopback interface.
+- Authorization codes, access tokens, and refresh tokens are **never
+  logged**, at any log level, including debug/diagnostic output.
+- **After token exchange, ASTRA queries the authorized Gmail
+  identity/profile and binds the resulting credential record to the
+  actual authorized account** before persisting it — this closes the
+  "account mix-up" case where a user intends to authorize one account
+  but the consent flow completes against a different one (see the
+  threat-model delta's new OAuth-callback abuse case).
+
+**Storage:** per-account refresh tokens are stored locally, encrypted
+at rest using an OS-backed mechanism (Windows DPAPI, using
+**`CurrentUser` protection scope, never `LocalMachine`** — binding
+decryption to the specific OS user, matching ASTRA's OS-account trust
+boundary in ADR-0002) rather than plaintext in the SQLite database or
+a config file. Access tokens are held only in memory for the duration
+of a sync operation and are not persisted.
+
+**Backup/export exclusion:** the OAuth credential store is **excluded
+from ASTRA's normal backup, export, and diagnostic-bundle paths** —
+those paths must not read, copy, or bundle it. This is a stricter rule
+than "don't log it": it also is not swept up incidentally by a feature
+that was not designed with credential handling in mind.
 
 Each Gmail account is a **distinct, independently-scoped credential
 record** — keyed by account identifier, never merged or shared between
@@ -77,7 +121,9 @@ records. Revocation is per-account: the user can disconnect one
 account (deleting its stored refresh token and prompting Google-side
 revocation) without affecting the other, and without deleting
 already-reconciled application records (those stand on their own
-evidence, per the application state model's provenance rules).
+evidence, per the application state model's provenance rules — see
+ADR-0008's amended disconnect/retention rules for the exact scope of
+what disconnect does and does not delete).
 
 Implementation activates and validates the **primary account only**
 first (OD-012); the second account's credential flow reuses the same
@@ -123,7 +169,16 @@ second.
   exported, or included in a diagnostic bundle. Structured logging
   and diagnostics must treat tokens as secrets (never logged, never
   included in exports — see `docs/security/PRIVACY_DATA_FLOW.md`
-  conventions).
+  conventions). Because the granted scope is `gmail.readonly`, theft
+  of a refresh token exposes the **entire mailbox's read access**, not
+  merely ASTRA's own minimized evidence records — this is reflected in
+  risk R-16's rating (see `docs/security/RISK_REGISTER.md`), which
+  rates inherent impact as severe (3) on that basis, not as material
+  (2).
+- **OAuth callback interception / CSRF / account mix-up:** covered as
+  its own abuse case in the threat-model delta, with the state/PKCE/
+  loopback/single-use-callback/identity-binding controls specified in
+  the Decision section above as the mitigations.
 - **Revocation:** must be user-initiated and effective immediately
   (local deletion) with a best-effort server-side revocation call;
   a failed server-side revocation must not block local deletion or be
@@ -141,19 +196,32 @@ credential). No server-side component to operate, monitor, or scale.
 
 DPAPI-style protection is tied to the Windows user profile; it does
 not protect against a compromise of that same user account (consistent
-with R-15's existing scope, not a new limitation). A new risk-register
-entry is proposed in the v1.1 threat-model delta for Owner acceptance
-before implementation. Cross-platform support (if ASTRA ever ships
-non-Windows) would need an equivalent OS-backed store, not plaintext
-fallback.
+with R-15's existing scope, not a new limitation). This is registered
+as risk R-16 in `docs/security/RISK_REGISTER.md`, state **OPEN —
+treatment planned for v1.1**: the Owner has approved recording this
+risk, not accepted its residual — residual risk is reassessed only
+after the controls above and their negative tests exist. Cross-platform
+support (if ASTRA ever ships non-Windows) would need an equivalent
+OS-backed store, not plaintext fallback.
 
 ## Evidence and validation
 
-None yet — this is a pre-implementation draft. Required before
-Accepted: a working local proof-of-concept of the auth-code+PKCE flow
-against a real Google OAuth client, confirmation of the exact scope
-requested, and a negative test proving tokens are never written to
-logs, exports, or the SQLite database in plaintext.
+**Implementation evidence status: Pending.** This ADR's `Accepted`
+status (if granted) reflects Owner approval of the architecture
+decision above — it does not certify that any control described here
+has been built. The following evidence is required before this ADR's
+controls may be relied upon in the v1.1 release evidence pack, and is
+tracked independently of the ADR's status field: a working local
+proof-of-concept of the auth-code+PKCE(S256) flow against a real
+Google OAuth client; confirmation that the exact granted scope is
+`gmail.readonly`; a negative test proving tokens are never written to
+logs, exports, backups, diagnostic bundles, or the SQLite database in
+plaintext; negative tests for the OAuth-callback abuse case (incorrect
+state rejected, missing state rejected, reused callback rejected,
+invalid PKCE verifier rejected, credential cannot attach to the wrong
+Gmail account record); and confirmation that DPAPI storage uses
+`CurrentUser` scope. See issue #48 (v1.1 security/privacy assurance)
+for where this evidence is assembled.
 
 ## Framework impact
 
