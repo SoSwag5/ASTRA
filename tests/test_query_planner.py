@@ -50,6 +50,7 @@ def test_senior_soc_analyst_level_1_does_not_acquire_junior():
         assert r['constraints']['seniority'] != 'junior'
         assert r['constraints']['seniority'] == 'senior'
         assert r['constraints']['level'] == 1
+        assert r['constraints']['seniority_conflict'] is True
     texts = _casefold_texts(rows)
     assert texts == ['senior soc analyst level 1', 'soc analyst', 'security operations analyst', 'cybersecurity analyst']
 
@@ -58,8 +59,14 @@ def test_principal_soc_analyst_tier_2_conflict_suppresses_seniority_expansion():
     for r in rows:
         assert r['constraints']['seniority'] == 'senior'
         assert r['constraints']['level'] == 2
+        assert r['constraints']['seniority_conflict'] is True
     texts = _casefold_texts(rows)
     assert texts == ['principal soc analyst tier 2', 'soc analyst', 'security operations analyst', 'cybersecurity analyst']
+
+def test_no_conflict_flag_when_only_one_signal_present():
+    for query in ['SOC Analyst Level 1', 'SOC Analyst Level 2', 'Junior SOC Analyst']:
+        rows = plan(query)
+        assert all(r['constraints']['seniority_conflict'] is False for r in rows)
 
 def test_junior_soc_analyst():
     rows = plan('Junior SOC Analyst')
@@ -83,7 +90,8 @@ def test_junior_cybersecurity_analyst():
 def test_security_architect_is_not_stripped_to_security():
     rows = plan('Security Architect')
     assert _texts(rows) == ['Security Architect']
-    assert rows[0]['constraints'] == {'locations': [], 'seniority': None, 'level': None, 'role': None}
+    assert rows[0]['constraints'] == {'locations': [], 'seniority': None, 'level': None,
+                                       'role': None, 'seniority_conflict': False}
     assert rows[0]['source_rule'] == 'exact_only_unrecognized'
 
 def test_lead_generation_specialist_is_not_stripped_to_generation_specialist():
@@ -158,7 +166,7 @@ def test_raw_exact_query_is_never_mutated_beyond_outer_trim():
     assert rows[0]['query'] == raw.strip()
 
 
-# ---- Negation (Codex finding 4) ----
+# ---- Negation, including wrapped forms (Codex finding 4, round 2) ----
 
 def test_negated_location_is_not_an_affirmative_constraint():
     rows = plan('SOC Analyst not Dubai')
@@ -174,6 +182,29 @@ def test_other_negation_words_also_fall_back_to_exact_only(query):
     rows = plan(query)
     assert len(rows) == 1
     assert rows[0]['constraints']['locations'] == []
+
+@pytest.mark.parametrize('query', [
+    'SOC Analyst not (Dubai)',
+    'SOC Analyst no (Abu Dhabi)',
+    'SOC Analyst excluding [Sharjah]',
+    'SOC Analyst except (UAE)',
+])
+def test_wrapped_negated_location_still_falls_back_to_exact_only(query):
+    rows = plan(query)
+    assert len(rows) == 1
+    assert rows[0]['query'] == query
+    assert rows[0]['constraints']['locations'] == []
+    assert rows[0]['source_rule'] == 'ambiguous_negation_exact_only'
+
+@pytest.mark.parametrize('query,expected_location', [
+    ('SOC Analyst (Dubai)', 'Dubai'),
+    ('SOC Analyst [Abu Dhabi]', 'Abu Dhabi'),
+])
+def test_nearby_non_negated_wrapped_location_still_affirms(query, expected_location):
+    rows = plan(query)
+    assert rows[0]['constraints']['locations'] == [expected_location]
+    assert rows[0]['constraints']['role'] == 'SOC Analyst'
+    assert len(rows) > 1
 
 
 # ---- max_expansions contract (Codex finding 5) ----
@@ -208,7 +239,8 @@ def test_soc_analyst_level_1_exact_row_provenance():
         'query': 'SOC Analyst Level 1', 'priority': 0,
         'reason': "User's original query, always preserved and ranked highest.",
         'source_rule': 'exact_query',
-        'constraints': {'locations': [], 'seniority': 'junior', 'level': 1, 'role': 'SOC Analyst'},
+        'constraints': {'locations': [], 'seniority': 'junior', 'level': 1,
+                         'role': 'SOC Analyst', 'seniority_conflict': False},
     }
 
 def test_soc_analyst_level_1_tier_row_provenance():
@@ -233,7 +265,13 @@ def test_every_row_has_full_provenance_fields():
     for row in plan('SOC Analyst Level 1'):
         assert row['query'] and row['reason'] and row['source_rule']
         assert isinstance(row['priority'], int)
-        assert set(row['constraints']) == {'locations', 'seniority', 'level', 'role'}
+        assert set(row['constraints']) == {'locations', 'seniority', 'level', 'role', 'seniority_conflict'}
+
+def test_priority_may_have_gaps_after_dedup_and_is_not_a_contiguous_index():
+    rows = plan('SOC Analyst Tier 1')
+    priorities = [r['priority'] for r in rows]
+    assert priorities == sorted(priorities)
+    assert len(set(priorities)) == len(priorities)
 
 
 # ---- Role table stays small (Codex finding 7) ----
@@ -291,3 +329,79 @@ def test_exact_query_always_present_and_highest_priority():
         rows = plan(query)
         assert rows[0]['query'] == query
         assert rows[0]['priority'] == min(r['priority'] for r in rows)
+
+
+# ---- Input length ceiling (Codex finding 1, round 2 defense-in-depth) ----
+
+def test_query_at_max_length_is_processed():
+    query = 'SOC Analyst ' + ('x' * (1024 - len('SOC Analyst ')))
+    assert len(query) == 1024
+    rows = plan(query)
+    assert rows[0]['query'] == query
+
+def test_query_over_max_length_raises_value_error():
+    with pytest.raises(ValueError):
+        plan('x' * 1025)
+
+def test_query_length_checked_before_stripping():
+    with pytest.raises(ValueError):
+        plan(' ' * 1025)
+
+
+# ---- Adversarial/resource performance (Codex finding 1, round 2) ----
+#
+# plan() itself now rejects anything over MAX_QUERY_LENGTH (1024 chars) as a
+# defense-in-depth ceiling, so 2k/4k/8k-scale adversarial input can no longer
+# reach the scanning code through the public plan() entry point -- that
+# ceiling check is a cheap len() comparison performed before any scanning.
+# The actual algorithmic fix (bounded, linear location/negation scanning,
+# never an unbounded delimiter regex around the location literal) is what
+# must scale, so it is exercised directly here via _scan_locations,
+# independent of the public-API length ceiling, at sizes well beyond 1024.
+
+from backend.query_planner import _scan_locations, MAX_QUERY_LENGTH
+
+def _elapsed(fn):
+    import time
+    start = time.perf_counter()
+    fn()
+    return time.perf_counter() - start
+
+@pytest.mark.parametrize('n', [1000, 2000, 4000])
+def test_scan_locations_punctuation_only_is_fast_and_bounded(n):
+    assert _elapsed(lambda: _scan_locations('-' * n)) < 1.0
+
+def test_scan_locations_scaling_is_not_quadratic():
+    # A quadratic implementation shows a much-worse-than-linear time increase
+    # per doubling; a linear one should not. Sizes are far beyond anything
+    # plan() will accept, specifically to prove the algorithm itself (not
+    # just the length ceiling) is no longer pathological. Generous margin so
+    # this is not a flaky microbenchmark.
+    small = _elapsed(lambda: _scan_locations('(' * 4000))
+    large = _elapsed(lambda: _scan_locations('(' * 32000))
+    assert large < max(small * 16, 0.5)
+
+@pytest.mark.parametrize('filler', ['-', '(', ')', ',', '[', ']', '- , ( ) [ ] '])
+def test_scan_locations_mixed_punctuation_fillers_stay_fast(filler):
+    assert _elapsed(lambda: _scan_locations(filler * 4000)) < 1.0
+
+def test_scan_locations_real_location_after_long_punctuation_prefix():
+    prefix = '-(),[] ' * 2000
+    text = 'SOC Analyst ' + prefix + 'Dubai'
+    found, cleaned, negated = _scan_locations(text)
+    assert _elapsed(lambda: _scan_locations(text)) < 1.0
+    assert found == ['Dubai']
+    assert negated is False
+
+def test_query_within_length_limit_containing_punctuation_is_fast_through_plan():
+    query = ('SOC Analyst ' + '-(),[] ' * 100 + 'Dubai')[:MAX_QUERY_LENGTH]
+    result = plan(query)
+    assert _elapsed(lambda: plan(query)) < 1.0
+    assert 'Dubai' in result[0]['constraints']['locations']
+
+def test_over_length_query_is_rejected_immediately_regardless_of_size():
+    huge = '-' * 50000
+    def attempt():
+        with pytest.raises(ValueError):
+            plan(huge)
+    assert _elapsed(attempt) < 1.0

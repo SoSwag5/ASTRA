@@ -17,30 +17,47 @@ ambiguous, preserve the exact query and avoid expansion. Concretely:
   categorical seniority where a specific role rule documents that
   (tier_one_implies_junior); level 2+ never implies junior. When an
   explicit categorical word and a numeric level are both present, that is
-  treated as a conflict: both signals are preserved in constraints, but no
-  seniority/level-derived expansion row is generated for that plan.
-- A location wrapped in common delimiters (parentheses, commas, hyphens,
-  irregular whitespace) is recognized and cleanly removed from the parsing
-  representation without leaving punctuation debris; the raw exact query
-  is never altered beyond outer whitespace trimming. A location preceded
-  by an explicit negation word is never turned into an affirmative
-  constraint -- the whole query is treated as ambiguous and returned
-  exact-only instead.
+  treated as a conflict: both signals are preserved in constraints
+  (seniority_conflict=True), but no seniority/level-derived expansion row
+  is generated for that plan.
+- A location wrapped in common delimiters (parentheses, brackets, commas,
+  hyphens, irregular whitespace) is recognized and cleanly removed from
+  the parsing representation without leaving punctuation debris; the raw
+  exact query is never altered beyond outer whitespace trimming. A
+  location preceded by an explicit negation word -- allowing the same
+  delimiter wrapping in between (`not (Dubai)`, `excluding [Sharjah]`) --
+  is never turned into an affirmative constraint; the whole query is
+  instead treated as ambiguous and returned exact-only.
+- Location and negation matching use a plain bounded literal search
+  followed by a linear, bounded scan of only the delimiter characters
+  immediately adjacent to a confirmed match. This is deliberate: an
+  earlier revision wrapped the location literal in an unbounded
+  `[delimiters]*` regex quantifier on both sides, which is O(n^2) via
+  backtracking against long punctuation runs that never contain a real
+  location. Never reintroduce that pattern; any surrounding-delimiter
+  cleanup must be bounded to the characters next to an actual match, not
+  attempted at every non-matching position in the input.
+
+`priority` on a returned row is a relative ordering signal only (lower
+sorts first); after deduplication its values may have gaps and must not
+be treated as a contiguous 0..n-1 index.
 """
 import re
 
-VERSION = 'query-planner-2'
+VERSION = 'query-planner-3'
 MAX_EXPANSIONS = 10
+MAX_QUERY_LENGTH = 1024
 
 _JUNIOR_WORDS = sorted(['entry level', 'entry-level', 'junior', 'graduate'], key=len, reverse=True)
 _SENIOR_WORDS = sorted(['senior', 'principal', 'director', 'architect', 'manager', 'lead', 'head'], key=len, reverse=True)
 _LEVEL_RE = re.compile(r'\b(?:level|tier)\s*-?\s*(1|2|3|i{1,3})\b', re.I)
 _ROMAN = {'i': 1, 'ii': 2, 'iii': 3}
-_NEGATION_WORDS = ['not', 'no', 'excluding', 'except']
+_NEGATION_WORDS = ['excluding', 'except', 'not', 'no']
 
 _LOCATIONS = sorted(['United Arab Emirates', 'Abu Dhabi', 'Ras Al Khaimah', 'Umm Al Quwain',
                      'Dubai', 'Sharjah', 'Ajman', 'Fujairah', 'Al Ain', 'UAE'], key=len, reverse=True)
-_LOC_DELIM = r'[\s,;/\-()\[\]]*'
+_LOCATION_PATTERNS = [(loc, re.compile(r'\b' + re.escape(loc) + r'\b', re.I)) for loc in _LOCATIONS]
+_LOC_DELIM_CHARS = set(' \t\n\r,;/-()[]')
 
 _ROLE_RELATIONS = [
     {'id': 'soc_analyst', 'aliases': ['soc analyst'], 'canonical': 'SOC Analyst',
@@ -66,22 +83,50 @@ def _validate_max_expansions(value):
     if value < 1:
         raise ValueError('max_expansions must be >= 1')
 
-def _negated_location_present(text):
+def _validate_query_length(raw_query):
+    if len(raw_query) > MAX_QUERY_LENGTH:
+        raise ValueError(f'raw_query must be at most {MAX_QUERY_LENGTH} characters')
+
+def _negated_before(text, match_start):
+    """Bounded backward scan: skip only delimiter chars immediately before the match."""
+    i = match_start
+    while i > 0 and text[i - 1] in _LOC_DELIM_CHARS:
+        i -= 1
+    prefix = text[:i]
     for word in _NEGATION_WORDS:
-        for loc in _LOCATIONS:
-            if re.search(r'\b' + word + r'\s+' + re.escape(loc) + r'\b', text, re.I):
-                return True
+        if re.search(r'\b' + word + r'\b\s*$', prefix, re.I):
+            return True
     return False
 
-def _extract_locations(text):
+def _widen_to_delimiters(text, start, end):
+    """Bounded forward/backward scan: widen a match span over adjacent delimiter chars only."""
+    while start > 0 and text[start - 1] in _LOC_DELIM_CHARS:
+        start -= 1
+    while end < len(text) and text[end] in _LOC_DELIM_CHARS:
+        end += 1
+    return start, end
+
+def _scan_locations(text):
+    """Find non-negated locations and strip them cleanly; report if any negated location was seen.
+
+    Uses a plain bounded literal search per location, then a linear scan
+    of only the delimiter characters touching a confirmed match -- never
+    an unbounded delimiter-consuming regex, which is O(n^2) against long
+    non-matching punctuation runs.
+    """
     found = []
-    for loc in _LOCATIONS:
-        pattern = re.compile(_LOC_DELIM + r'\b' + re.escape(loc) + r'\b' + _LOC_DELIM, re.I)
+    any_negated = False
+    for loc, pattern in _LOCATION_PATTERNS:
         m = pattern.search(text)
-        if m:
-            found.append(loc)
-            text = text[:m.start()] + ' ' + text[m.end():]
-    return found, _collapse(text)
+        if not m:
+            continue
+        if _negated_before(text, m.start()):
+            any_negated = True
+            continue
+        start, end = _widen_to_delimiters(text, m.start(), m.end())
+        found.append(loc)
+        text = text[:start] + ' ' + text[end:]
+    return found, _collapse(text), any_negated
 
 def _extract_level(text):
     m = _LEVEL_RE.search(text)
@@ -136,40 +181,40 @@ def plan(raw_query, max_expansions=MAX_EXPANSIONS):
     _validate_max_expansions(max_expansions)
     if not isinstance(raw_query, str):
         return []
+    _validate_query_length(raw_query)
     original = raw_query.strip()
     if not original:
         return []
 
     parsing_text = _normalize_whitespace(original)
+    locations, working, any_negated = _scan_locations(parsing_text)
 
-    if _negated_location_present(parsing_text):
-        constraints = {'locations': [], 'seniority': None, 'level': None, 'role': None}
+    if any_negated:
+        constraints = {'locations': [], 'seniority': None, 'level': None, 'role': None, 'seniority_conflict': False}
         return [_row(original, 0,
                      'Query contains a negated location; parsing is ambiguous, so only the exact query is used.',
                      'ambiguous_negation_exact_only', constraints)]
 
-    locations, working = _extract_locations(parsing_text)
     level, working = _extract_level(working)
     entry, category = _resolve_role(working)
 
     if entry is None:
-        constraints = {'locations': locations, 'seniority': None, 'level': None, 'role': None}
+        constraints = {'locations': locations, 'seniority': None, 'level': None, 'role': None, 'seniority_conflict': False}
         return [_row(original, 0,
                      'No curated role rule recognized this title; only the exact query is used to avoid '
                      'destructively altering unrecognized role-identity words.',
                      'exact_only_unrecognized', constraints)]
 
     conflict = category is not None and level is not None
-    if conflict:
-        seniority = category
-    elif category is not None:
+    if category is not None:
         seniority = category
     elif level == 1 and entry['tier_one_implies_junior']:
         seniority = 'junior'
     else:
         seniority = None
 
-    constraints = {'locations': locations, 'seniority': seniority, 'level': level, 'role': entry['canonical']}
+    constraints = {'locations': locations, 'seniority': seniority, 'level': level,
+                   'role': entry['canonical'], 'seniority_conflict': conflict}
     primary = entry['canonical']
     rows = [_row(original, 0, "User's original query, always preserved and ranked highest.", 'exact_query', constraints)]
     rank = 1
