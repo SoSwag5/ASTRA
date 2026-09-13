@@ -22,6 +22,7 @@ gate and its verified evidence remain authoritative for technical readiness.
 - [Session start](SESSION_START.md) and [session end](SESSION_END.md)
 - [Owner decisions](OWNER_DECISIONS.md)
 - [Owner ADR review packet](ADR_OWNER_REVIEW_PACKET.md)
+- [v1.1 Owner review packet](V1_1_OWNER_REVIEW_PACKET.md)
 - [Known policy conflicts](CONFLICT_REGISTER.md)
 - [AI-assisted engineering](AI_ASSISTED_ENGINEERING.md)
 - [Framework evidence deltas](FRAMEWORK_EVIDENCE_DELTA.md)

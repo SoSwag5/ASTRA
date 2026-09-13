@@ -33,3 +33,6 @@ Create or update an ADR for changes to:
 | [ADR-0004](0004-build-once-verify-same-artifact.md) | Build once and verify the same artifact | Accepted; Owner approved 2026-09-13 |
 | [ADR-0005](0005-cyclonedx-1-7-sbom.md) | CycloneDX 1.7 release SBOM | Accepted; Owner approved 2026-09-13 |
 | [ADR-0006](0006-hosted-provenance.md) | Hosted provenance and independent verification | Accepted; Owner approved 2026-09-13 |
+| [ADR-0007](0007-gmail-oauth-credential-storage.md) | Gmail OAuth and credential storage | Proposed; drafted for v1.1 Owner review |
+| [ADR-0008](0008-gmail-read-only-mailbox-trust-boundary.md) | Gmail read-only mailbox trust boundary | Proposed; drafted for v1.1 Owner review |
+| [ADR-0009](0009-external-job-provider-trust-boundary.md) | External job-provider trust boundary | Proposed; drafted for v1.1 Owner review |
