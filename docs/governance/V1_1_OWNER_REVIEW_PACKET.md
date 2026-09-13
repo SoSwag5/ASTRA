@@ -1,9 +1,18 @@
 # Owner review packet — v1.1 Discovery & Application Intelligence
 
 This packet is the governed handoff requested after v1.1 planning approval
-with amendments (OD-011 through OD-017). It bundles the three drafted ADRs,
-the threat-model delta, and the registered risk entries for Owner review.
-**No implementation begins until this packet is approved.**
+with amendments (OD-011 through OD-017). It bundles the three ADRs, the
+threat-model delta, and the registered risk entries for Owner review.
+
+**CLOSED — Owner approved 2026-09-13 (OD-018).** ADR-0007, ADR-0008, and
+ADR-0009 are **Accepted** as architecture decisions. The threat-model delta
+is **Approved**. R-16 (2/3=6, HIGH), R-17 (2/2), and R-18 (2/2) are
+**registered as OPEN, treatment planned for v1.1** — registration, not
+residual-risk acceptance. **Implementation evidence for all three ADRs
+remains Pending** until built and independently reviewed (issue #48);
+`Accepted` reflects architecture approval only, never proof of an
+implemented control. This approval authorizes v1.1 implementation to begin,
+starting with issue #37 (Discovery Query Planner).
 
 **Revision 2 (2026-09-13):** amended per the Owner's security review to add
 explicit OAuth scope/flow requirements, resolve retention/disconnect
@@ -13,11 +22,10 @@ LLM prompt-injection controls, add an OAuth-callback abuse case, correct
 ADR status semantics (`Accepted` = architecture approved, not
 implementation proof), and change R-16/R-17/R-18 from "proposed for
 acceptance" to **registered as OPEN, with residual-risk acceptance
-explicitly deferred**. ADR-0007/0008/0009 remain `Proposed`. R-16/R-17/R-18
-remain unaccepted. No implementation has started.
+explicitly deferred**.
 
 Full context: `docs/planning/V1_1_DISCOVERY_AND_APPLICATION_INTELLIGENCE.md`;
-decision records `docs/governance/OWNER_DECISIONS.md` OD-011 through OD-017.
+decision records `docs/governance/OWNER_DECISIONS.md` OD-011 through OD-018.
 
 ## ADR status semantics (governs how to read every ADR below)
 
@@ -305,25 +313,28 @@ new external-credential and external-data paths. No SLSA/CycloneDX impact
 beyond a routine SBOM/lockfile update for the Gmail API client dependency
 (R-04 applies).
 
-## Owner decisions required to close this packet
+## Owner decisions to close this packet — ALL APPROVED 2026-09-13 (OD-018)
 
-- [ ] Approve ADR-0007 (Gmail OAuth and credential storage) as an
-      architecture decision — or request changes. Approval does not certify
-      implementation (see "ADR status semantics").
-- [ ] Approve ADR-0008 (Gmail read-only mailbox trust boundary) as an
-      architecture decision — or request changes.
-- [ ] Approve ADR-0009 (external job-provider trust boundary) as an
-      architecture decision — or request changes.
-- [ ] Approve the threat-model delta
+- [x] Approve ADR-0007 (Gmail OAuth and credential storage) as an
+      architecture decision. **Status: Accepted.** Approval does not certify
+      implementation — implementation evidence remains Pending (see "ADR
+      status semantics").
+- [x] Approve ADR-0008 (Gmail read-only mailbox trust boundary) as an
+      architecture decision. **Status: Accepted.** Implementation evidence
+      Pending.
+- [x] Approve ADR-0009 (external job-provider trust boundary) as an
+      architecture decision. **Status: Accepted.** Implementation evidence
+      Pending.
+- [x] Approve the threat-model delta
       (`THREAT_MODEL_CHANGE_V1_1_DISCOVERY_GMAIL.md`), including the new
-      OAuth-callback abuse case.
-- [ ] Approve **registering** R-16 (2/3=6 HIGH), R-17 (2/2), and R-18 (2/2)
-      as OPEN risks with treatment planned for v1.1 — this is registration,
-      not residual-risk acceptance. Residual-risk acceptance is a separate,
-      later decision made only after the controls above and their negative
-      tests exist.
+      OAuth-callback abuse case. **Status: Approved.**
+- [x] Approve **registering** R-16 (2/3=6 HIGH), R-17 (2/2), and R-18 (2/2)
+      as OPEN risks with treatment planned for v1.1. **Status: Registered —
+      this is registration, not residual-risk acceptance.** Residual-risk
+      acceptance is a separate, later decision made only after the controls
+      above and their negative tests exist and are independently reviewed.
 
-Once all five are approved, the three ADRs move from `Proposed` to
-`Accepted` (architecture approval only — implementation evidence stays
-`Pending` until built and verified per issue #48), and the first
-implementation branch is the Discovery Query Planner (Phase A, issue #37).
+All five are approved. The three ADRs are `Accepted` (architecture approval
+only — implementation evidence stays `Pending` until built and verified per
+issue #48). Implementation authorized to begin: the first branch is the
+Discovery Query Planner (Phase A, issue #37).

@@ -1,6 +1,9 @@
 # ADR-0009: External job-provider trust boundary
 
-- **Status:** Proposed
+- **Status:** Accepted (architecture decision only; Owner approved
+  2026-09-13, OD-018). Implementation evidence remains **Pending** — see
+  "Evidence and validation" below; do not treat this status as proof any
+  control is implemented.
 - **Date:** 2026-09-13
 - **Owner:** Ayham
 - **Issue / pull request:** v1.1 planning packet; see `docs/planning/V1_1_DISCOVERY_AND_APPLICATION_INTELLIGENCE.md` §3
