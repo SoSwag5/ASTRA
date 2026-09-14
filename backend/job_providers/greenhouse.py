@@ -30,6 +30,9 @@ _HEALTH_FOR_ERROR = {
     'CONNECT_TIMEOUT': SourceHealth.UNAVAILABLE,
     'READ_TIMEOUT': SourceHealth.UNAVAILABLE,
     'READ_FAILED': SourceHealth.UNAVAILABLE,
+    'WRITE_FAILED': SourceHealth.UNAVAILABLE,
+    'WRITE_TIMEOUT': SourceHealth.UNAVAILABLE,
+    'INVALID_EXTERNAL_URL': SourceHealth.MALFORMED,
     'REMOTE_PROTOCOL_ERROR': SourceHealth.MALFORMED,
     'DEADLINE_EXCEEDED': SourceHealth.UNAVAILABLE,
     'RATE_LIMITED': SourceHealth.RATE_LIMITED,
@@ -223,6 +226,7 @@ class GreenhouseProvider(Provider):
         metrics = SourceMetrics()
         started = time.monotonic()
         if not source_board or not BOARD_RE.fullmatch(source_board):
+            metrics.errors_count = 1
             metrics.elapsed_seconds = time.monotonic() - started
             return FetchBatch('greenhouse', source_board, FetchCompletion.FAILED, SourceHealth.MALFORMED, [], metrics,
                                error=ProviderError('INVALID_BOARD', 'Invalid board identifier'))
@@ -231,6 +235,7 @@ class GreenhouseProvider(Provider):
         try:
             payload = fetch_json(base + '?content=true', budget)
         except TransportError as error:
+            budget.record_error(error)
             if error.code == 'RESPONSE_TOO_LARGE':
                 return self._fetch_with_detail_fallback(context, source_board, base, budget, metrics, started)
             return self._failed(source_board, budget, metrics, started, error)
@@ -238,13 +243,18 @@ class GreenhouseProvider(Provider):
             rows = _validate_top_level(payload)
         except ValueError as error:
             return self._malformed(source_board, budget, metrics, started, error)
-        records, rejected = _to_records(rows, source_board)
+        try:
+            records, rejected = self._transform(rows, source_board, budget, metrics)
+        except TransportError as error:
+            return self._failed(source_board, budget, metrics, started, error)
         self._copy_budget(metrics, budget)
         metrics.records_received = len(rows)
         metrics.records_accepted = len(records)
         metrics.records_rejected = rejected
         metrics.elapsed_seconds = time.monotonic() - started
         completion, health, error, reason = _outcome_for(rows, records, rejected)
+        if budget.remaining() <= 0:
+            return self._deadline_failed(source_board, budget, metrics, started)
         return FetchBatch('greenhouse', source_board, completion, health, records, metrics,
                            error=error, completion_reason=reason)
 
@@ -287,6 +297,7 @@ class GreenhouseProvider(Provider):
         capped = len(prioritized) > context.detail_budget
         detail_attempted = 0
         detail_succeeded = 0
+        deadline_error = None
         for row in selected:
             raw_id = row.get('id')
             if not _valid_job_id(raw_id) or not ID_RE.fullmatch(str(raw_id)):
@@ -295,22 +306,31 @@ class GreenhouseProvider(Provider):
             try:
                 detail = fetch_json(f'{base}/{raw_id}', budget)
             except TransportError as error:
+                budget.record_error(error)
                 if error.code == 'DEADLINE_EXCEEDED':
+                    deadline_error = error
                     break  # the source deadline is spent; further attempts would only fail identically
                 continue  # one posting's detail failure never voids the rest of the board
             if not _valid_detail(detail):
+                budget.errors_count += 1
                 continue
             candidate = _merge_candidate(row, detail, source_board)
             if candidate is None:
+                budget.errors_count += 1
                 continue  # merging would have destroyed an otherwise-usable summary; keep the original
             row.clear()
             row.update(candidate)
             detail_succeeded += 1
 
-        records, rejected = _to_records(rows, source_board)
-        self._copy_budget(metrics, budget)
         metrics.detail_requests_attempted = detail_attempted
         metrics.detail_requests_succeeded = detail_succeeded
+        if deadline_error is not None:
+            return self._failed(source_board, budget, metrics, started, deadline_error)
+        try:
+            records, rejected = self._transform(rows, source_board, budget, metrics)
+        except TransportError as error:
+            return self._failed(source_board, budget, metrics, started, error)
+        self._copy_budget(metrics, budget)
         metrics.records_received = len(rows)
         metrics.records_accepted = len(records)
         metrics.records_rejected = rejected
@@ -320,8 +340,24 @@ class GreenhouseProvider(Provider):
         reason = (CompletionReason.DETAIL_BUDGET_EXHAUSTED.value if capped
                   else CompletionReason.DETAIL_FETCH_INCOMPLETE.value if incomplete else None)
         completion, health, error, reason = _outcome_for(rows, records, rejected, completion_reason=reason)
+        if budget.remaining() <= 0:
+            return self._deadline_failed(source_board, budget, metrics, started)
         return FetchBatch('greenhouse', source_board, completion, health, records, metrics,
                            error=error, completion_reason=reason)
+
+    def _transform(self, rows, source_board, budget, metrics):
+        budget.check()
+        records, rejected = _to_records(rows, source_board)
+        metrics.records_received = len(rows)
+        metrics.records_accepted = len(records)
+        metrics.records_rejected = rejected
+        budget.errors_count += rejected
+        budget.check()
+        return records, rejected
+
+    def _deadline_failed(self, source_board, budget, metrics, started):
+        return self._failed(source_board, budget, metrics, started,
+                            TransportError('DEADLINE_EXCEEDED', 'Source deadline exceeded'))
 
     def _copy_budget(self, metrics, budget):
         metrics.requests_attempted = budget.requests_attempted
@@ -332,6 +368,7 @@ class GreenhouseProvider(Provider):
         metrics.errors_count = budget.errors_count
 
     def _failed(self, source_board, budget, metrics, started, error):
+        budget.record_error(error)
         self._copy_budget(metrics, budget)
         metrics.elapsed_seconds = time.monotonic() - started
         completion = FetchCompletion.CANCELLED if error.code == 'CANCELLED' else FetchCompletion.FAILED
@@ -340,6 +377,7 @@ class GreenhouseProvider(Provider):
                            completion_reason=CompletionReason.TRANSPORT_ERROR.value)
 
     def _malformed(self, source_board, budget, metrics, started, error):
+        budget.errors_count += 1
         self._copy_budget(metrics, budget)
         metrics.elapsed_seconds = time.monotonic() - started
         return FetchBatch('greenhouse', source_board, FetchCompletion.FAILED, SourceHealth.MALFORMED, [], metrics,

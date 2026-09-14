@@ -19,13 +19,10 @@ class FetchCompletion(str, Enum):
     roles is a COMPLETE fetch that happens to have zero records, never
     treated the same as a failure. See SourceHealth.EMPTY for that case.
 
-    PARTIAL is about CONTENT completeness, not ENUMERATION completeness:
-    every posting summary the source actually returned is still present
-    in `FetchBatch.records` (a provider never silently drops a posting it
-    successfully enumerated). PARTIAL means some of those records may be
-    missing optional detail/content fields a bounded detail-fetch budget
-    could not cover -- never that a subset of postings was dropped from
-    the count. See `FetchBatch.completion_reason` for why.
+    PARTIAL describes incomplete content/details in the accepted records.
+    Enumerated rows are accounted for either as accepted records or as
+    validation rejections; malformed rows need not appear in records.
+    See completion_reason and records_rejected for the distinction.
 
     These are three independent axes, not one scale -- COMPLETE does not
     imply perfect source fidelity:
@@ -124,7 +121,11 @@ class SourceMetrics:
     """`requests_*` count every HTTP request the transport made for this
     fetch -- list and detail calls combined, including a redirect hop or a
     retried attempt as a separate request. `detail_requests_*` are the
-    subset of those specifically spent on a per-posting detail fetch.
+    logical per-posting detail operations (success requires a valid merge),
+    not physical HTTP requests. Retries and redirects belong to the general
+    request/retry counters. Each failed transport operation, rejected source
+    row or malformed detail counts once in errors_count; an aggregate
+    all-rejected outcome does not count the same row errors again.
     `encoded_bytes_read` is wire (possibly compressed) bytes;
     `decoded_bytes_read` is usable content bytes after decompression --
     they differ only when the response was compressed.

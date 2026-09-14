@@ -23,6 +23,22 @@ from .access import sessions
 
 from .reliability import ProcessLock
 scheduler=BackgroundScheduler(timezone='Asia/Dubai'); task_lock=ProcessLock()
+def _source_outcome(source, report, outcome):
+    """Replace current telemetry; preserve the legacy human-readable error."""
+    error = outcome.get('error')
+    report.update(completion=outcome['completion'],
+                  completion_reason=outcome.get('completion_reason'),
+                  health=outcome['health'], metrics=outcome.get('metrics'),
+                  structured_error=error, error_code=error['code'] if error else None)
+    source.details = {**source.details,
+                      'last_completion':report['completion'],
+                      'last_completion_reason':report['completion_reason'],
+                      'last_health':report['health'],
+                      'last_metrics':report['metrics'],
+                      'last_structured_error':error,
+                      'last_error_code':report['error_code']}
+
+
 def task(name, source_id=None, scheduled_run=False, trigger=None):
     if not task_lock.acquire(blocking=False): return {'busy':True}
     try:
@@ -49,14 +65,9 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                                 raise ValueError('Generic page scanning is disabled pending destination and platform review; use a public board API or paste the description')
                             items=discover(source.adapter,source.board,source.url,cfg)
                             health=getattr(items,'health',None)
-                            if health:
-                                # Truthful provider completion/metrics (issue #38); legacy
-                                # adapters carry no .health and stay implicitly COMPLETE
-                                # here (they already raise on any failure).
-                                source_report['completion']=health['completion']
-                                source_report['completion_reason']=health.get('completion_reason')
-                                source_report['metrics']=health['metrics']
-                                source.details={**source.details,'last_completion':health['completion'],'last_metrics':health['metrics']}
+                            _source_outcome(source, source_report, health or {
+                                'completion':'COMPLETE', 'health':'HEALTHY' if items else 'EMPTY',
+                                'completion_reason':None, 'metrics':None, 'error':None})
                             for item in items:
                                 report['scanned']+=1; source_report['scanned']+=1
                                 item['company']=source.name
@@ -92,10 +103,15 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                             # the default set at the top of this loop. Either way, this attempt's
                             # telemetry always REPLACES whatever a prior successful run recorded
                             # -- a fresh failure must never leave stale success metrics in place.
-                            source_report['completion']=getattr(e,'completion','FAILED')
-                            source_report['completion_reason']=getattr(e,'completion_reason',None)
-                            source_report['metrics']=getattr(e,'metrics',None)
-                            source.details={**source.details,'last_attempted':now(),'last_error':'Request failed; retry or review source configuration','last_completion':source_report['completion'],'last_metrics':source_report['metrics']}
+                            code=getattr(e,'error_code',None)
+                            _source_outcome(source, source_report, {
+                                'completion':getattr(e,'completion','FAILED'),
+                                'completion_reason':getattr(e,'completion_reason',None),
+                                'health':getattr(e,'health','UNAVAILABLE'),
+                                'metrics':getattr(e,'metrics',None),
+                                'error':{'code':code or 'SOURCE_REQUEST_FAILED',
+                                         'message':str(e) if code else 'Source request failed'}})
+                            source.details={**source.details,'last_attempted':now(),'last_error':'Request failed; retry or review source configuration'}
                             report['failures']+=1; source_report['error']='Source request failed ('+type(e).__name__+'). Check the source URL or retry later.'; log(db,source_report['error'],level='ERROR'); db.commit()
                         report['sources'].append(source_report)
                 elif name in ('analyze','prepare','process'):

@@ -3,7 +3,7 @@
 These test the actual enforced security/resource property at the point it
 is enforced (the real socket target, the real peak decompression memory,
 the real clamped timeout, the real deadline check between chunks, the
-real admission-semaphore state) rather than merely asserting that
+real physical resolver queue) rather than merely asserting that
 validate_url() was called or that some cap constant exists.
 """
 import gzip
@@ -68,7 +68,7 @@ def _validate_stub(url, resolve=True):
 
 
 def _install(monkeypatch, script):
-    monkeypatch.setattr(t, '_PinnedTransport', lambda: None)
+    monkeypatch.setattr(t, '_PinnedTransport', lambda budget: None)
     monkeypatch.setattr(t, 'validate_url', _validate_stub)
     client = FakeClient(script)
     monkeypatch.setattr(httpx, 'Client', client)
@@ -100,7 +100,7 @@ def test_structural_validation_never_resolves_dns_itself(monkeypatch):
         seen['resolve'] = resolve
         return url
 
-    monkeypatch.setattr(t, '_PinnedTransport', lambda: None)
+    monkeypatch.setattr(t, '_PinnedTransport', lambda budget: None)
     monkeypatch.setattr(t, 'validate_url', spy_validate)
     monkeypatch.setattr(httpx, 'Client', lambda **kw: (_ for _ in ()).throw(AssertionError('should not connect further')))
     with pytest.raises(AssertionError):
@@ -154,7 +154,7 @@ def test_dns_resolution_failure_is_a_sanitized_transport_error(monkeypatch):
 
 def test_dns_resolution_bounded_to_remaining_timeout(monkeypatch):
     """A real (short) sleep is unavoidable here: this is testing the actual
-    timeout-based concurrency primitive (_DNS_EXECUTOR + future.result
+    timeout-based concurrency primitive (fixed resolver + future.result
     timeout), which cannot be simulated through Budget's own fake-clock
     bookkeeping the way transport-level deadline tests below are.
     """
@@ -172,79 +172,68 @@ def test_dns_resolution_bounded_to_remaining_timeout(monkeypatch):
 
 # ---- B3: DNS admission is bounded (workers AND pending queue) ----
 
-def _await_full_dns_admission(timeout=3.0):
-    """A background lookup abandoned by an earlier test (e.g. the bounded-
-    timeout test above) may still legitimately hold its admission slot
-    for a little while after that test returns -- wait for it to finish
-    so a saturation test starts from a known, fully-available state
-    instead of being flaky depending on run order/timing.
-    """
-    deadline = real_time.monotonic() + timeout
-    while t._DNS_ADMISSION._value < t.DNS_MAX_PENDING and real_time.monotonic() < deadline:
-        real_time.sleep(0.01)
+def test_dns_queue_is_physically_bounded_across_timeout_cycles(monkeypatch):
+    resolver = t._DNSResolver()
+    monkeypatch.setattr(t, '_DNS_RESOLVER', resolver)
+    release = threading.Event()
+    entered = threading.Barrier(t.DNS_MAX_WORKERS + 1)
 
+    def blocked(*args, **kwargs):
+        entered.wait(timeout=3)
+        assert release.wait(timeout=3)
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('93.184.216.34', 443))]
 
-def test_dns_admission_bound_is_fixed():
-    assert t._DNS_EXECUTOR._max_workers == t.DNS_MAX_WORKERS
-
-
-def test_dns_queue_saturation_fails_fast_and_typed():
-    _await_full_dns_admission()
-    acquired = 0
     try:
-        for _ in range(t.DNS_MAX_PENDING):
-            assert t._DNS_ADMISSION.acquire(blocking=False)
-            acquired += 1
-        with pytest.raises(t.TransportError) as exc:
-            t._resolve_and_pin('example.com', 443, timeout=1.0)
-        assert exc.value.code == 'DNS_QUEUE_SATURATED'
+        for cycle in range(3):
+            release.clear()
+            running = [resolver.submit(blocked) for _ in range(t.DNS_MAX_WORKERS)]
+            entered.wait(timeout=3)
+            # No worker can dequeue cancelled jobs while held. Physical
+            # queue capacity, not Future/semaphore state, must be bounded.
+            with monkeypatch.context() as local:
+                local.setattr(socket, 'getaddrinfo', lambda *a, **kw: [])
+                for _ in range(100):
+                    with pytest.raises(t.TransportError) as exc:
+                        t._resolve_and_pin('fixture.invalid', 443, timeout=0.001)
+                    assert exc.value.code in ('DEADLINE_EXCEEDED', 'DNS_QUEUE_SATURATED')
+                    assert resolver.queue.qsize() <= t.DNS_MAX_PENDING - t.DNS_MAX_WORKERS
+                assert resolver.queue.full()
+                started = real_time.monotonic()
+                with pytest.raises(t.TransportError, match='pending') as exc:
+                    t._resolve_and_pin('fixture.invalid', 443, timeout=2)
+                assert exc.value.code == 'DNS_QUEUE_SATURATED'
+                assert real_time.monotonic() - started < 0.5
+            release.set()
+            for future in running:
+                future.result(timeout=3)
+            # A marker waits behind cancelled items and proves physical drain.
+            deadline = real_time.monotonic() + 3
+            while resolver.queue.full() and real_time.monotonic() < deadline:
+                real_time.sleep(0.005)
+            assert resolver.submit(lambda: 'recovered').result(timeout=3) == 'recovered'
+            assert resolver.queue.qsize() == 0
     finally:
-        for _ in range(acquired):
-            t._DNS_ADMISSION.release()
+        release.set()
+        resolver.close()
+    assert all(not worker.is_alive() for worker in resolver.workers)
 
 
-def test_dns_queue_saturation_does_not_hang_the_caller():
-    _await_full_dns_admission()
-    acquired = 0
+def test_resolver_submission_failure_does_not_consume_capacity(monkeypatch):
+    resolver = t._DNSResolver()
     try:
-        for _ in range(t.DNS_MAX_PENDING):
-            t._DNS_ADMISSION.acquire(blocking=False)
-            acquired += 1
-        started = real_time.monotonic()
-        with pytest.raises(t.TransportError):
-            t._resolve_and_pin('example.com', 443, timeout=5.0)
-        assert real_time.monotonic() - started < 0.5  # failed immediately, never waited on the 5s timeout
+        with monkeypatch.context() as local:
+            local.setattr(resolver.queue, 'put_nowait', lambda job: (_ for _ in ()).throw(RuntimeError('injected')))
+            with pytest.raises(RuntimeError, match='injected'):
+                resolver.submit(lambda: None)
+        assert resolver.queue.qsize() == 0
+        assert resolver.submit(lambda: 42).result(timeout=3) == 42
+        def broken():
+            raise TypeError('programmer error')
+        with pytest.raises(TypeError):
+            resolver.submit(broken).result(timeout=3)
+        assert resolver.submit(lambda: 43).result(timeout=3) == 43
     finally:
-        for _ in range(acquired):
-            t._DNS_ADMISSION.release()
-
-
-def test_dns_admission_recovers_once_abandoned_lookups_actually_finish(monkeypatch):
-    """An admission slot is released only when the background task
-    actually completes (via add_done_callback), not merely when the
-    caller stops waiting -- so repeated give-ups over a stalled resolver
-    do not grow pending work indefinitely, and capacity genuinely frees
-    up once the stalled work finishes.
-    """
-    _await_full_dns_admission()
-    release_event = threading.Event()
-
-    def blocking_getaddrinfo(host, port, type=None):
-        release_event.wait(timeout=5)
-        return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('93.184.216.34', port))]
-
-    monkeypatch.setattr(t.socket, 'getaddrinfo', blocking_getaddrinfo)
-    try:
-        with pytest.raises(t.TransportError) as exc:
-            t._resolve_and_pin('slow.example.com', 443, timeout=0.05)
-        assert exc.value.code == 'DEADLINE_EXCEEDED'
-        assert t._DNS_ADMISSION._value < t.DNS_MAX_PENDING  # slot still held by the abandoned-but-running task
-    finally:
-        release_event.set()
-    deadline = real_time.monotonic() + 3.0
-    while t._DNS_ADMISSION._value < t.DNS_MAX_PENDING and real_time.monotonic() < deadline:
-        real_time.sleep(0.01)
-    assert t._DNS_ADMISSION._value == t.DNS_MAX_PENDING  # fully recovered, no leaked admission
+        resolver.close()
 
 
 # ---- response handling ----
@@ -304,7 +293,7 @@ def test_redirect_target_is_revalidated_and_a_blocked_target_is_typed(monkeypatc
 
 
 def test_initial_policy_block_is_typed_not_a_raw_valueerror_escaping(monkeypatch):
-    monkeypatch.setattr(t, '_PinnedTransport', lambda: None)
+    monkeypatch.setattr(t, '_PinnedTransport', lambda budget: None)
 
     def fake_validate(url, resolve=True):
         raise ValueError('LinkedIn is manual-only. Paste the job description instead.')
@@ -321,7 +310,7 @@ def test_malformed_external_url_does_not_escape_as_a_raw_exception(monkeypatch):
     IPv6 literal) must still come out as a typed TransportError, not a
     raw ValueError from deep inside urlsplit.
     """
-    monkeypatch.setattr(t, '_PinnedTransport', lambda: None)
+    monkeypatch.setattr(t, '_PinnedTransport', lambda budget: None)
     monkeypatch.setattr(httpx, 'Client', lambda **kw: (_ for _ in ()).throw(AssertionError('should not connect')))
     with pytest.raises(t.TransportError):
         t.fetch_json('https://[', _budget())
@@ -410,18 +399,16 @@ def test_deadline_exceeded_before_any_request_is_attempted(monkeypatch):
     assert exc.value.code == 'DEADLINE_EXCEEDED'
 
 
-def test_connect_and_read_timeouts_together_cannot_exceed_the_remaining_budget(monkeypatch):
-    """Codex B1.B: connect and read are independent per-phase httpx
-    timeouts, not one combined deadline for the request -- each must be
-    clamped so that even if BOTH phases individually used their full
-    allotted timeout, their sum still would not exceed what was left on
-    the budget when the request began.
+def test_request_phase_caps_do_not_exceed_remaining_budget(monkeypatch):
+    """Request caps are bounded; _DeadlineStream additionally refreshes
+    the shrinking budget within each phase (tested through HTTPcore).
     """
     client = _install(monkeypatch, [FakeStream()])
     budget = t.Budget(2.0)
     t.fetch_json('https://example.com/jobs', budget)
     used_timeout = client.calls[0]['timeout']
-    assert used_timeout.connect + used_timeout.read <= 2.0 + 0.05
+    assert used_timeout.connect <= 2.0
+    assert used_timeout.read <= 2.0
 
 
 def test_deadline_expiring_mid_stream_aborts_before_returning_success(monkeypatch):
@@ -554,38 +541,55 @@ def test_trailing_garbage_after_valid_member_is_rejected():
     assert exc.value.code == 'DECODE_FAILED'
 
 
+def _bounded_decoder_child(script):
+    import subprocess
+    import sys
+    # subprocess.run kills and reaps its child on timeout. This bound is
+    # independent of the production decoder and its Budget implementation.
+    try:
+        result = subprocess.run([sys.executable, '-c', script],
+                                capture_output=True, text=True, timeout=5)
+    except subprocess.TimeoutExpired:
+        pytest.fail('Decoder child exceeded its hard 5-second bound and was killed')
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip() == 'DECODE_FAILED'
+
+
 def test_concatenated_gzip_members_rejected_not_looped_forever():
-    """Codex B2's exact reproduction shape: two concatenated gzip
-    members. Must reject cleanly (Option A) rather than spin forever on
-    stale unconsumed_tail/eof state -- this test itself hangs pytest if
-    the regression reappears, which is the point.
-    """
-    concatenated = gzip.compress(b'member one') + gzip.compress(b'member two')
-    decoder = _decoder()
-    with pytest.raises(t.TransportError) as exc:
-        decoder.feed(concatenated)
-    assert exc.value.code == 'DECODE_FAILED'
+    _bounded_decoder_child(r"""
+import gzip
+from backend.job_providers.transport import _BoundedDecoder, Budget, TransportError
+payload = gzip.compress(b'{"x":"' + b'a' * 200000 + b'"}') + gzip.compress(b' ')
+try:
+    decoder = _BoundedDecoder(31, 5000000, Budget(60))
+    decoder.feed(payload)
+except TransportError as error:
+    assert error.code == 'DECODE_FAILED'
+    print(error.code)
+else:
+    raise AssertionError('Concatenated members were accepted')
+""")
 
 
-def test_zero_progress_iteration_is_detected_not_looped(monkeypatch):
-    """White-box test of the zero-progress guard: a decompressobj stand-in
-    that reports no output and a non-shrinking unconsumed_tail must be
-    rejected rather than spun on forever.
-    """
-    decoder = _decoder()
-
-    class StuckZ:
-        eof = False
-        unconsumed_tail = b'stuck'
-        unused_data = b''
-
-        def decompress(self, data, max_length):
-            return b''  # no progress, ever
-
-    decoder._z = StuckZ()
-    with pytest.raises(t.TransportError) as exc:
-        decoder.feed(b'anything')
-    assert exc.value.code == 'DECODE_FAILED'
+def test_zero_progress_iteration_is_detected_not_looped():
+    _bounded_decoder_child(r"""
+from backend.job_providers.transport import _BoundedDecoder, Budget, TransportError
+class StuckZ:
+    eof = False
+    unconsumed_tail = b'stuck'
+    unused_data = b''
+    def decompress(self, data, max_length):
+        return b''
+decoder = _BoundedDecoder(31, 5000000, Budget(60))
+decoder._z = StuckZ()
+try:
+    decoder.feed(b'anything')
+except TransportError as error:
+    assert error.code == 'DECODE_FAILED'
+    print(error.code)
+else:
+    raise AssertionError('Zero-progress decoder was accepted')
+""")
 
 
 def test_deadline_checked_inside_the_decode_loop(monkeypatch):

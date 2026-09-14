@@ -36,6 +36,7 @@ re-verified together rather than silently drifting).
 import concurrent.futures
 import ipaddress
 import json as json_module
+import queue
 import socket
 import ssl
 import threading
@@ -65,17 +66,72 @@ USER_AGENT = 'ASTRA/1.0 personal-career-assistant'
 DNS_MAX_WORKERS = 4
 DNS_MAX_PENDING = 16  # workers + a bounded backlog; never an unbounded queue
 
-_DNS_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=DNS_MAX_WORKERS, thread_name_prefix='job-provider-dns')
-_DNS_ADMISSION = threading.Semaphore(DNS_MAX_PENDING)
+class _DNSResolver:
+    """Fixed daemon workers and a physically bounded backlog.
+
+    Cancelled jobs remain in this bounded queue until a worker discards
+    them. No cancellation callback grants extra queue capacity. Active OS
+    lookups cannot be interrupted; at most four can remain stuck. Daemon
+    workers do not prevent process exit. close() is for bounded fixture
+    cleanup, not an attempt to cancel running OS calls.
+    """
+    def __init__(self):
+        self.queue = queue.Queue(maxsize=DNS_MAX_PENDING - DNS_MAX_WORKERS)
+        self._closed = threading.Event()
+        self._submit_lock = threading.Lock()
+        self.workers = [threading.Thread(target=self._worker, daemon=True,
+                        name=f'job-provider-dns-{i}') for i in range(DNS_MAX_WORKERS)]
+        for worker in self.workers:
+            worker.start()
+
+    def submit(self, function, *args, **kwargs):
+        future = concurrent.futures.Future()
+        with self._submit_lock:
+            if self._closed.is_set():
+                raise RuntimeError('DNS resolver is closed')
+            try:
+                self.queue.put_nowait((future, function, args, kwargs))
+            except queue.Full:
+                raise TransportError('DNS_QUEUE_SATURATED', 'Too many DNS resolutions are already pending') from None
+        return future
+
+    def _worker(self):
+        while not self._closed.is_set() or not self.queue.empty():
+            try:
+                future, function, args, kwargs = self.queue.get(timeout=0.1)
+            except queue.Empty:
+                continue
+            try:
+                if future.set_running_or_notify_cancel():
+                    try:
+                        result = function(*args, **kwargs)
+                    except BaseException as error:
+                        # Preserve worker exceptions for the caller, including
+                        # programmer bugs; do not classify them as network errors.
+                        future.set_exception(error)
+                    else:
+                        future.set_result(result)
+            finally:
+                self.queue.task_done()
+
+    def close(self):
+        with self._submit_lock:
+            self._closed.set()
+        for worker in self.workers:
+            worker.join(timeout=0.2)
+
+
+_DNS_RESOLVER = _DNSResolver()
 
 
 class TransportError(ValueError):
     """Sanitized transport failure. `code` is safe to log/report; `message`
     never embeds raw upstream payloads, headers, or URLs with query data.
     """
-    def __init__(self, code, message):
+    def __init__(self, code, message, *, counted=False):
         super().__init__(message)
         self.code = code
+        self.counted = counted
 
 
 class Budget:
@@ -105,7 +161,7 @@ class Budget:
 
     def check(self):
         if self.remaining() <= 0:
-            raise TransportError('DEADLINE_EXCEEDED', 'Source deadline exceeded')
+            self.fail('DEADLINE_EXCEEDED', 'Source deadline exceeded')
 
     def clamped_timeout(self, cap):
         """Raises if the deadline has already passed; otherwise returns a
@@ -114,8 +170,14 @@ class Budget:
         """
         remaining = self.remaining()
         if remaining <= 0:
-            raise TransportError('DEADLINE_EXCEEDED', 'Source deadline exceeded')
+            self.fail('DEADLINE_EXCEEDED', 'Source deadline exceeded')
         return min(cap, remaining)
+
+    def record_error(self, error):
+        """Count an external failure once as it crosses nested boundaries."""
+        if not error.counted:
+            self.errors_count += 1
+            error.counted = True
 
     def fail(self, code, message, cause=None):
         """The single point every typed failure raises through, so
@@ -123,7 +185,7 @@ class Budget:
         matter which layer (transport, decoder) detects it.
         """
         self.errors_count += 1
-        raise TransportError(code, message) from cause
+        raise TransportError(code, message, counted=True) from cause
 
 
 def _resolve_and_pin(host, port, timeout=None):
@@ -134,18 +196,12 @@ def _resolve_and_pin(host, port, timeout=None):
     fails fast and typed instead of piling up more pending work or
     blocking the caller indefinitely trying to submit it.
 
-    Python's socket.getaddrinfo() has no native cancellation, so an
-    already-hung OS-level resolution is not forcibly killed when the
-    timeout fires -- the waiting caller gives up, but the admission slot
-    is only released when the background task actually finishes (via
-    add_done_callback), not when the caller stops waiting, so an
-    abandoned lookup still correctly counts against the pending bound
-    until it truly completes.
+    Python's socket.getaddrinfo() cannot be force-cancelled. Running
+    lookups occupy one of four workers until they finish. Cancelled queued
+    jobs stay in the fixed-capacity physical queue until discarded; they
+    never grant capacity while still retaining queue memory.
     """
-    if not _DNS_ADMISSION.acquire(blocking=False):
-        raise TransportError('DNS_QUEUE_SATURATED', 'Too many DNS resolutions are already pending')
-    future = _DNS_EXECUTOR.submit(socket.getaddrinfo, host, port, type=socket.SOCK_STREAM)
-    future.add_done_callback(lambda f: _DNS_ADMISSION.release())
+    future = _DNS_RESOLVER.submit(socket.getaddrinfo, host, port, type=socket.SOCK_STREAM)
     try:
         infos = future.result(timeout=timeout)
     except concurrent.futures.TimeoutError:
@@ -162,11 +218,76 @@ def _resolve_and_pin(host, port, timeout=None):
     return addresses[0]
 
 
+class _DeadlineStream(httpcore.NetworkStream):
+    """Refresh the absolute budget at each actual read, write and TLS step.
+
+    This includes HTTPcore's repeated reads while assembling response
+    headers. HTTPX inactivity timeouts alone cannot bound those reads.
+    """
+    def __init__(self, inner, budget):
+        self._inner = inner
+        self._budget = budget
+
+    def _timeout(self, timeout):
+        return self._budget.clamped_timeout(timeout if timeout is not None else float('inf'))
+
+    def read(self, max_bytes, timeout=None):
+        try:
+            result = self._inner.read(max_bytes, timeout=self._timeout(timeout))
+        except httpcore.ReadTimeout:
+            self._budget.check()
+            raise
+        self._budget.check()
+        return result
+
+    def write(self, buffer, timeout=None):
+        # Both HTTPcore SyncStream.write and Python SSLSocket.sendall can
+        # loop over partial sends with one unchanged timeout. Refresh it
+        # ourselves before every actual socket/SSL write.
+        sock = self._inner.get_extra_info('socket')
+        try:
+            with memoryview(buffer) as view:
+                sent = 0
+                while sent < len(view):
+                    sock.settimeout(self._timeout(timeout))
+                    count = sock.send(view[sent:])
+                    if count == 0:
+                        raise httpcore.WriteError('Connection made no write progress')
+                    sent += count
+        except socket.timeout as error:
+            self._budget.check()
+            raise httpcore.WriteTimeout('Write timed out') from error
+        except OSError as error:
+            raise httpcore.WriteError('Write failed') from error
+        self._budget.check()
+
+    def start_tls(self, ssl_context, server_hostname=None, timeout=None):
+        try:
+            inner = self._inner.start_tls(ssl_context, server_hostname=server_hostname,
+                                          timeout=self._timeout(timeout))
+        except httpcore.ConnectTimeout:
+            self._budget.check()
+            raise
+        if self._budget.remaining() <= 0:
+            inner.close()
+            self._budget.check()
+        return _DeadlineStream(inner, self._budget)
+
+    def close(self):
+        self._inner.close()
+
+    def get_extra_info(self, info):
+        return self._inner.get_extra_info(info)
+
+
 class _ValidatedNetworkBackend(httpcore.NetworkBackend):
-    def __init__(self):
+    def __init__(self, budget=None):
         self._inner = httpcore.SyncBackend()
+        self._budget = budget
 
     def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
+        if self._budget is not None:
+            timeout = self._budget.clamped_timeout(timeout if timeout is not None else CONNECT_TIMEOUT)
         started = time.monotonic()
         pinned = _resolve_and_pin(host, port, timeout=timeout)
         if timeout is not None:
@@ -174,7 +295,13 @@ class _ValidatedNetworkBackend(httpcore.NetworkBackend):
             if remaining <= 0:
                 raise TransportError('DEADLINE_EXCEEDED', 'Source deadline exceeded during DNS resolution')
             timeout = remaining
-        return self._inner.connect_tcp(pinned, port, timeout=timeout, local_address=local_address, socket_options=socket_options)
+        stream = self._inner.connect_tcp(pinned, port, timeout=timeout, local_address=local_address, socket_options=socket_options)
+        if self._budget is None:
+            return stream
+        if self._budget.remaining() <= 0:
+            stream.close()
+            self._budget.check()
+        return _DeadlineStream(stream, self._budget)
 
     def connect_unix_socket(self, path, timeout=None, socket_options=None):
         raise TransportError('UNSUPPORTED_TRANSPORT', 'Unix sockets are never used for provider fetches')
@@ -184,10 +311,10 @@ class _ValidatedNetworkBackend(httpcore.NetworkBackend):
 
 
 class _PinnedTransport(httpx.HTTPTransport):
-    def __init__(self):
+    def __init__(self, budget):
         self._pool = httpcore.ConnectionPool(
             ssl_context=ssl.create_default_context(),
-            network_backend=_ValidatedNetworkBackend(),
+            network_backend=_ValidatedNetworkBackend(budget),
             retries=0,
             max_connections=10,
         )
@@ -318,25 +445,25 @@ def _resolve_redirect(url, location, budget):
 
 
 def fetch_json(url, budget, accept_types=('application/json',)):
+    """Fetch JSON, counting each typed external failure exactly once."""
+    try:
+        return _fetch_json(url, budget, accept_types)
+    except TransportError as error:
+        budget.record_error(error)
+        raise
+
+
+def _fetch_json(url, budget, accept_types):
     """Fetch one URL under `budget`, following bounded redirects
     (revalidated against policy.py on every hop), enforcing a decoded-size
     cap via bounded incremental decompression (never decompressing a full
     payload before checking its size), and retrying transient failures a
     bounded number of times with a capped Retry-After wait.
 
-    Deadline handling (Codex B1): every blocking step -- DNS resolution,
-    connect, the Retry-After wait, the streaming loop itself -- is clamped
-    to whatever time remains on `budget`. httpx's connect and read
-    timeouts are independent per-phase budgets (not a single combined
-    deadline for one request), so each is clamped to at most HALF of what
-    remains rather than the full remaining amount -- otherwise a slow
-    connect could consume nearly all of the remaining time and a
-    subsequent slow read could still add that same amount again, together
-    exceeding the deadline within a single request. Explicit expiry
-    checks also run immediately before parsing, immediately after
-    parsing, and before any COMPLETE/PARTIAL result is returned, so an
-    already-expired budget can never produce a successful return value
-    even if the underlying I/O happened to finish just past the deadline.
+    The pinned network stream refreshes remaining absolute time on each
+    read/write/TLS operation, including reads of partial response headers.
+    DNS and TCP consume the same source Budget. Parsing is checked before
+    and after, and retries/details never reset the deadline.
 
     Returns parsed JSON or raises TransportError -- this never lets an
     un-typed exception (DNS failure, connection refused, TLS failure, a
@@ -347,7 +474,7 @@ def fetch_json(url, budget, accept_types=('application/json',)):
     _validate_structural(url, budget)
     attempt = 0
     with httpx.Client(
-        transport=_PinnedTransport(),
+        transport=_PinnedTransport(budget),
         trust_env=False,
         follow_redirects=False,
         # Prefer uncooperative servers to simply not compress (Codex F2
@@ -360,13 +487,10 @@ def fetch_json(url, budget, accept_types=('application/json',)):
     ) as client:
         for _ in range(MAX_REDIRECTS + 1):
             budget.check()
-            # Connect and read are independent per-phase timeouts, not one
-            # combined deadline for the request -- split the remaining
-            # budget between them so the two phases together cannot exceed
-            # it (see the deadline-handling note in this function's
-            # docstring).
-            connect_timeout = min(CONNECT_TIMEOUT, budget.remaining() / 2)
-            read_timeout = min(READ_TIMEOUT, budget.remaining() / 2)
+            # Phase caps remain useful, but the network stream enforces
+            # the shrinking absolute deadline within each phase.
+            connect_timeout = budget.clamped_timeout(CONNECT_TIMEOUT)
+            read_timeout = budget.clamped_timeout(READ_TIMEOUT)
             if connect_timeout <= 0 or read_timeout <= 0:
                 budget.fail('DEADLINE_EXCEEDED', 'Source deadline exceeded')
             timeout = httpx.Timeout(connect=connect_timeout, read=read_timeout, write=read_timeout, pool=connect_timeout)
@@ -400,10 +524,12 @@ def fetch_json(url, budget, accept_types=('application/json',)):
                     request_encoded_size = 0
                     decoded_chunks = []
                     for raw_chunk in stream.iter_raw():
-                        if budget.remaining() <= 0:
-                            budget.fail('DEADLINE_EXCEEDED', 'Source deadline exceeded mid-stream')
                         request_encoded_size += len(raw_chunk)
                         budget.encoded_bytes_read += len(raw_chunk)
+                        if decoder is None:
+                            budget.decoded_bytes_read += len(raw_chunk)
+                        if budget.remaining() <= 0:
+                            budget.fail('DEADLINE_EXCEEDED', 'Source deadline exceeded mid-stream')
                         if request_encoded_size > MAX_ENCODED_BYTES:
                             budget.fail('RESPONSE_TOO_LARGE', 'Response exceeded the size cap')
                         if decoder:
@@ -416,7 +542,6 @@ def fetch_json(url, budget, accept_types=('application/json',)):
                             piece = decoder.feed(raw_chunk)
                         else:
                             piece = raw_chunk
-                            budget.decoded_bytes_read += len(piece)
                         decoded_chunks.append(piece)
                     if decoder:
                         decoded_chunks.append(decoder.flush())
@@ -425,12 +550,18 @@ def fetch_json(url, budget, accept_types=('application/json',)):
                 budget.fail('CONNECT_TIMEOUT', 'Connection timed out', cause=error)
             except httpx.ReadTimeout as error:
                 budget.fail('READ_TIMEOUT', 'Read timed out', cause=error)
+            except httpx.WriteTimeout as error:
+                budget.fail('WRITE_TIMEOUT', 'Write timed out', cause=error)
             except httpx.TimeoutException as error:
                 budget.fail('READ_TIMEOUT', 'Request timed out', cause=error)
             except httpx.ConnectError as error:
                 budget.fail('CONNECT_FAILED', 'Could not connect to the destination', cause=error)
             except httpx.ReadError as error:
                 budget.fail('READ_FAILED', 'Connection failed while reading the response', cause=error)
+            except httpx.WriteError as error:
+                budget.fail('WRITE_FAILED', 'Connection failed while writing the request', cause=error)
+            except (httpx.InvalidURL, UnicodeError) as error:
+                budget.fail('INVALID_EXTERNAL_URL', 'External URL could not be parsed', cause=error)
             except httpx.RemoteProtocolError as error:
                 budget.fail('REMOTE_PROTOCOL_ERROR', 'The server violated the HTTP protocol', cause=error)
             except httpx.DecodingError as error:

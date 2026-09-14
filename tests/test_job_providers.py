@@ -346,13 +346,15 @@ def test_deadline_expiring_mid_detail_loop_stops_further_detail_attempts(monkeyp
         calls.append(url)
         if url.endswith('/1'):
             return {'content': 'Detail 1'}
-        raise t.TransportError('DEADLINE_EXCEEDED', 'Source deadline exceeded')
+        budget.deadline = 0
+        budget.check()
 
     monkeypatch.setattr('backend.job_providers.greenhouse.fetch_json', fake)
     batch = GreenhouseProvider().fetch(FetchContext(), 'acme')
     assert len(calls) == 2  # stopped after the deadline hit on item 2 -- never attempted item 3
-    assert len(batch.records) == 3  # every summary row is still present
-    assert batch.completion == FetchCompletion.PARTIAL
+    assert batch.completion == FetchCompletion.FAILED
+    assert batch.error.code == 'DEADLINE_EXCEEDED'
+    assert batch.metrics.errors_count == 2  # content cap and one source deadline
 
 
 def test_result_arriving_after_deadline_expired_is_not_reported_as_complete(monkeypatch):
