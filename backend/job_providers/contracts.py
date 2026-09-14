@@ -26,6 +26,18 @@ class FetchCompletion(str, Enum):
     missing optional detail/content fields a bounded detail-fetch budget
     could not cover -- never that a subset of postings was dropped from
     the count. See `FetchBatch.completion_reason` for why.
+
+    These are three independent axes, not one scale -- COMPLETE does not
+    imply perfect source fidelity:
+    - enumeration completeness: did every posting the source listed end
+      up counted (in `records` or as a validation rejection)? Always yes.
+    - content/detail completeness: PARTIAL + completion_reason
+      DETAIL_BUDGET_EXHAUSTED/DETAIL_FETCH_INCOMPLETE.
+    - record validity: some/all listed rows failed native-shape
+      validation -- see SourceHealth.PARTIAL (some rejected, still
+      COMPLETE + completion_reason SOME_RECORDS_REJECTED) versus FAILED +
+      SourceHealth.MALFORMED (all rejected, completion_reason
+      ALL_RECORDS_REJECTED).
     """
     COMPLETE = 'COMPLETE'
     PARTIAL = 'PARTIAL'
@@ -34,12 +46,16 @@ class FetchCompletion(str, Enum):
 
 
 class CompletionReason(str, Enum):
-    """Why `FetchBatch.completion` is not COMPLETE. Only set for
-    PARTIAL/FAILED/CANCELLED; None for COMPLETE.
+    """Why `FetchBatch.completion`/`health` is not a plain
+    COMPLETE+HEALTHY. None when there is nothing to explain. Can
+    accompany COMPLETE (SOME_RECORDS_REJECTED: enumeration and detail
+    fetching both finished normally, but some listed rows were invalid)
+    as well as PARTIAL/FAILED/CANCELLED.
     """
     DETAIL_BUDGET_EXHAUSTED = 'DETAIL_BUDGET_EXHAUSTED'
     DETAIL_FETCH_INCOMPLETE = 'DETAIL_FETCH_INCOMPLETE'
     ALL_RECORDS_REJECTED = 'ALL_RECORDS_REJECTED'
+    SOME_RECORDS_REJECTED = 'SOME_RECORDS_REJECTED'
     TRANSPORT_ERROR = 'TRANSPORT_ERROR'
 
 

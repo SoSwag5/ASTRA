@@ -87,11 +87,15 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                                 if audit['source_id']==source.id and audit['disposition'] in ('NEW','DUPLICATE','PENDING'):audit['disposition']='SOURCE_ERROR';audit.pop('job_id',None)
                             source_report['funnel']=funnel(source_decisions)
                             # A provider-framework exception (issue #38) carries the batch's own
-                            # truthful completion/health; a legacy adapter's plain exception has
-                            # none, so it is truthfully FAILED here regardless of the default set
-                            # at the top of this loop.
+                            # truthful completion/health/metrics; a legacy adapter's plain
+                            # exception has none, so it is truthfully FAILED here regardless of
+                            # the default set at the top of this loop. Either way, this attempt's
+                            # telemetry always REPLACES whatever a prior successful run recorded
+                            # -- a fresh failure must never leave stale success metrics in place.
                             source_report['completion']=getattr(e,'completion','FAILED')
-                            source.details={**source.details,'last_attempted':now(),'last_error':'Request failed; retry or review source configuration','last_completion':source_report['completion']}
+                            source_report['completion_reason']=getattr(e,'completion_reason',None)
+                            source_report['metrics']=getattr(e,'metrics',None)
+                            source.details={**source.details,'last_attempted':now(),'last_error':'Request failed; retry or review source configuration','last_completion':source_report['completion'],'last_metrics':source_report['metrics']}
                             report['failures']+=1; source_report['error']='Source request failed ('+type(e).__name__+'). Check the source URL or retry later.'; log(db,source_report['error'],level='ERROR'); db.commit()
                         report['sources'].append(source_report)
                 elif name in ('analyze','prepare','process'):

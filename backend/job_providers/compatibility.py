@@ -55,5 +55,7 @@ def to_legacy_items(batch):
     if batch.completion in (FetchCompletion.FAILED, FetchCompletion.CANCELLED):
         message = batch.error.message if batch.error else 'Provider fetch failed'
         raise ProviderFetchFailed(message, batch.completion, batch.health,
-                                   error_code=batch.error.code if batch.error else None)
+                                   completion_reason=batch.completion_reason,
+                                   error_code=batch.error.code if batch.error else None,
+                                   metrics=items.health['metrics'])
     return items

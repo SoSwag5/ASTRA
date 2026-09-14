@@ -24,32 +24,41 @@ LOCATION_HINT_RE = re.compile(r'(?:Available Locations?|Work Location|Location)\
 _HEALTH_FOR_ERROR = {
     'POLICY_BLOCKED': SourceHealth.POLICY_BLOCKED,
     'DESTINATION_BLOCKED': SourceHealth.POLICY_BLOCKED,
-    'DNS_RESOLUTION_FAILED': SourceHealth.UNAVAILABLE,
+    'DNS_FAILURE': SourceHealth.UNAVAILABLE,
+    'DNS_QUEUE_SATURATED': SourceHealth.UNAVAILABLE,
     'CONNECT_FAILED': SourceHealth.UNAVAILABLE,
-    'TIMEOUT': SourceHealth.UNAVAILABLE,
+    'CONNECT_TIMEOUT': SourceHealth.UNAVAILABLE,
+    'READ_TIMEOUT': SourceHealth.UNAVAILABLE,
+    'READ_FAILED': SourceHealth.UNAVAILABLE,
+    'REMOTE_PROTOCOL_ERROR': SourceHealth.MALFORMED,
     'DEADLINE_EXCEEDED': SourceHealth.UNAVAILABLE,
     'RATE_LIMITED': SourceHealth.RATE_LIMITED,
     'UPSTREAM_UNAVAILABLE': SourceHealth.UNAVAILABLE,
     'UPSTREAM_ERROR': SourceHealth.UNAVAILABLE,
     'TOO_MANY_REDIRECTS': SourceHealth.UNAVAILABLE,
-    'MALFORMED_RESPONSE': SourceHealth.MALFORMED,
+    'INVALID_REDIRECT': SourceHealth.MALFORMED,
+    'INVALID_JSON': SourceHealth.MALFORMED,
     'UNEXPECTED_CONTENT_TYPE': SourceHealth.MALFORMED,
-    'UNSUPPORTED_ENCODING': SourceHealth.MALFORMED,
+    'UNSUPPORTED_CONTENT_ENCODING': SourceHealth.MALFORMED,
+    'DECODE_FAILED': SourceHealth.MALFORMED,
     'RESPONSE_TOO_LARGE': SourceHealth.PARTIAL,
 }
 
 
 class ProviderFetchFailed(ValueError):
     """Raised by the compatibility layer for a FAILED/CANCELLED batch.
-    Carries the batch's own completion/health so callers (backend.main's
-    per-source exception handler) can report the true outcome instead of
-    guessing or falling back to a stale/default value.
+    Carries the batch's own bounded completion/health/error/metrics so
+    callers (backend.main's per-source exception handler) can report the
+    true outcome instead of guessing or falling back to a stale/default
+    value.
     """
-    def __init__(self, message, completion, health, error_code=None):
+    def __init__(self, message, completion, health, completion_reason=None, error_code=None, metrics=None):
         super().__init__(message)
         self.completion = completion.value if hasattr(completion, 'value') else completion
         self.health = health.value if hasattr(health, 'value') else health
+        self.completion_reason = completion_reason
         self.error_code = error_code
+        self.metrics = metrics
 
 
 def _health_for(error: TransportError) -> SourceHealth:
@@ -65,19 +74,44 @@ def _validate_top_level(payload):
 def _valid_url(value):
     if not isinstance(value, str) or not value.strip():
         return False
-    parts = urlsplit(value)
+    try:
+        parts = urlsplit(value)
+    except ValueError:
+        return False
     return parts.scheme in ('http', 'https') and bool(parts.hostname)
 
 
 def _valid_job_id(raw_id):
-    return isinstance(raw_id, (str, int)) and not isinstance(raw_id, bool)
+    if isinstance(raw_id, bool):
+        return False
+    if isinstance(raw_id, str):
+        return bool(raw_id.strip())
+    return isinstance(raw_id, int)
+
+
+def _string_field(row, key, raw_fields):
+    """Distinguishes an absent/None optional field (stays '') from one
+    that is present but the wrong type (also stays '' -- Greenhouse
+    optional fields are never made mandatory merely for strictness -- but
+    flagged in raw_fields so absent and malformed are not silently
+    identical to an observer who cares).
+    """
+    value = row.get(key)
+    if value is None:
+        return ''
+    if isinstance(value, str):
+        return value
+    raw_fields[f'{key}_malformed'] = True
+    return ''
 
 
 def _to_record(row, source_board, retrieved_at):
     """Rejects (returns None for) any row that does not satisfy Greenhouse's
-    documented native shape -- never coerces a malformed structured value
-    (e.g. a dict id, a non-string title) into a string so it merely looks
-    successful.
+    documented native shape for its REQUIRED identity fields (id, title,
+    url, location) -- never coerces a malformed structured value (e.g. a
+    dict id, a non-string title) into a string so it merely looks
+    successful. Optional fields (timestamps) degrade gracefully instead
+    of failing the whole record.
     """
     if not isinstance(row, dict):
         return None
@@ -105,16 +139,15 @@ def _to_record(row, source_board, retrieved_at):
         match = LOCATION_HINT_RE.search(description)
         if match:
             location_name = match[1].strip() + ' / ' + location_name
-    posted_at = row.get('first_published')
-    closing_at = row.get('application_deadline')
+    raw_fields = {}
+    posted_at = _string_field(row, 'first_published', raw_fields)
+    closing_at = _string_field(row, 'application_deadline', raw_fields)
     return ProviderRecord(
         provider='greenhouse', source_board=source_board, provider_job_id=str(raw_id),
         title=title, location=location_name, description=description,
-        apply_url=url, source_url=url,
-        posted_at=posted_at if isinstance(posted_at, str) else '',
-        closing_at=closing_at if isinstance(closing_at, str) else '',
+        apply_url=url, source_url=url, posted_at=posted_at, closing_at=closing_at,
         remote_status='UNKNOWN', retrieved_at=retrieved_at, provider_version=PROVIDER_VERSION,
-        raw_fields={},
+        raw_fields=raw_fields,
     )
 
 
@@ -132,24 +165,42 @@ def _to_records(rows, source_board):
 
 
 def _valid_detail(detail):
-    """A detail response is only usable if it is a non-empty dict whose
-    optional `content` field, when present, is actually a string. An
-    empty dict or a wrong-shaped `content` must never be merged in and
-    counted as a successful detail fetch -- that would silently discard
-    real board data behind a description that looks empty but was never
-    actually fetched.
+    """A detail response is only usable if it is a dict that actually
+    contains a `content` field of the right type. A dict with unrelated
+    keys (e.g. {'foo': 'bar'}) or no keys at all is not a genuine
+    Greenhouse detail payload and must not be counted as a successful
+    detail fetch merely for being a non-empty dict.
     """
-    if not isinstance(detail, dict) or not detail:
+    if not isinstance(detail, dict):
         return False
-    content = detail.get('content')
-    return content is None or isinstance(content, str)
+    if 'content' not in detail:
+        return False
+    return isinstance(detail['content'], str)
 
 
-def _outcome_for(rows, records, completion_reason=None):
-    """Distinguishes a genuinely empty board from a response that produced
-    rows but none of them were usable -- the latter is a real failure
-    (MALFORMED health, FAILED completion, an explicit error), never a
-    disguised EMPTY.
+def _merge_candidate(row, detail, source_board):
+    """Validates a summary+detail merge BEFORE committing it (Codex B4):
+    a malformed detail field (e.g. a detail response that also carries a
+    garbage `title`) must never be allowed to silently overwrite and
+    destroy an already-usable summary row. Returns the merged dict if it
+    is still a valid record, else None -- in which case the caller must
+    keep the original, unmerged row.
+    """
+    candidate = {**row, **detail}
+    if _to_record(candidate, source_board, '') is None:
+        return None
+    return candidate
+
+
+def _outcome_for(rows, records, rejected, completion_reason=None):
+    """Distinguishes three independent axes (Codex F8 follow-up):
+    enumeration completeness (every row Greenhouse listed is reflected in
+    `records` or counted as rejected -- never silently dropped), content/
+    detail completeness (some accepted records may lack full detail --
+    completion_reason names why), and malformed/rejected source records
+    (some or all rows failed native-shape validation). A genuinely empty
+    board is never confused with a response that produced rows none of
+    which were usable.
     """
     if rows and not records:
         return (FetchCompletion.FAILED, SourceHealth.MALFORMED,
@@ -159,6 +210,8 @@ def _outcome_for(rows, records, completion_reason=None):
         return FetchCompletion.COMPLETE, SourceHealth.EMPTY, None, None
     if completion_reason:
         return FetchCompletion.PARTIAL, SourceHealth.PARTIAL, None, completion_reason
+    if rejected:
+        return FetchCompletion.COMPLETE, SourceHealth.PARTIAL, None, CompletionReason.SOME_RECORDS_REJECTED.value
     return FetchCompletion.COMPLETE, SourceHealth.HEALTHY, None, None
 
 
@@ -191,7 +244,7 @@ class GreenhouseProvider(Provider):
         metrics.records_accepted = len(records)
         metrics.records_rejected = rejected
         metrics.elapsed_seconds = time.monotonic() - started
-        completion, health, error, reason = _outcome_for(rows, records)
+        completion, health, error, reason = _outcome_for(rows, records, rejected)
         return FetchBatch('greenhouse', source_board, completion, health, records, metrics,
                            error=error, completion_reason=reason)
 
@@ -200,10 +253,18 @@ class GreenhouseProvider(Provider):
         list instead, then spend a bounded detail-fetch budget on the
         items most likely to matter (context.title_hints, a plain keyword
         list -- never a ranking decision) before the rest. Every summary
-        row is still returned; only description completeness for
-        non-detailed or invalid-detail rows is partial, reported
-        truthfully as PARTIAL with an explicit completion_reason instead
-        of being silently dropped or raised away.
+        row is still returned; a detail merge is only committed if the
+        merged candidate is itself still valid (Codex B4) -- a malformed
+        detail response never overwrites/destroys a usable summary, and
+        is instead counted as a failed detail attempt.
+
+        detail_requests_attempted/succeeded count LOGICAL per-posting
+        detail-fetch operations, not the physical HTTP requests/retries
+        fetch_json() may internally perform for one of them (those are
+        already reflected in the shared Budget's requests_*/retries
+        counters). detail_requests_succeeded specifically means the
+        detail payload validated AND the merged candidate remained valid
+        -- not merely that an HTTP response was received.
         """
         try:
             payload = fetch_json(base, budget)
@@ -239,7 +300,11 @@ class GreenhouseProvider(Provider):
                 continue  # one posting's detail failure never voids the rest of the board
             if not _valid_detail(detail):
                 continue
-            row.update(detail)
+            candidate = _merge_candidate(row, detail, source_board)
+            if candidate is None:
+                continue  # merging would have destroyed an otherwise-usable summary; keep the original
+            row.clear()
+            row.update(candidate)
             detail_succeeded += 1
 
         records, rejected = _to_records(rows, source_board)
@@ -254,7 +319,7 @@ class GreenhouseProvider(Provider):
         incomplete = capped or detail_succeeded < len(selected)
         reason = (CompletionReason.DETAIL_BUDGET_EXHAUSTED.value if capped
                   else CompletionReason.DETAIL_FETCH_INCOMPLETE.value if incomplete else None)
-        completion, health, error, reason = _outcome_for(rows, records, completion_reason=reason)
+        completion, health, error, reason = _outcome_for(rows, records, rejected, completion_reason=reason)
         return FetchBatch('greenhouse', source_board, completion, health, records, metrics,
                            error=error, completion_reason=reason)
 
@@ -278,5 +343,5 @@ class GreenhouseProvider(Provider):
         self._copy_budget(metrics, budget)
         metrics.elapsed_seconds = time.monotonic() - started
         return FetchBatch('greenhouse', source_board, FetchCompletion.FAILED, SourceHealth.MALFORMED, [], metrics,
-                           error=ProviderError('MALFORMED_RESPONSE', str(error)),
+                           error=ProviderError('INVALID_JSON', str(error)),
                            completion_reason=CompletionReason.TRANSPORT_ERROR.value)

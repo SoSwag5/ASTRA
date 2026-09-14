@@ -2,12 +2,14 @@
 
 These test the actual enforced security/resource property at the point it
 is enforced (the real socket target, the real peak decompression memory,
-the real clamped timeout, the real deadline check between chunks) rather
-than merely asserting that validate_url() was called or that some cap
-constant exists.
+the real clamped timeout, the real deadline check between chunks, the
+real admission-semaphore state) rather than merely asserting that
+validate_url() was called or that some cap constant exists.
 """
 import gzip
 import socket
+import threading
+import time as real_time
 import tracemalloc
 import zlib
 
@@ -61,9 +63,13 @@ class FakeClient:
         return item
 
 
+def _validate_stub(url, resolve=True):
+    return url
+
+
 def _install(monkeypatch, script):
     monkeypatch.setattr(t, '_PinnedTransport', lambda: None)
-    monkeypatch.setattr(t, 'validate_url', lambda url: url)
+    monkeypatch.setattr(t, 'validate_url', _validate_stub)
     client = FakeClient(script)
     monkeypatch.setattr(httpx, 'Client', client)
     return client
@@ -71,10 +77,35 @@ def _install(monkeypatch, script):
 
 # ---- SSRF / DNS ----
 
-def test_loopback_destination_rejected_before_any_request(monkeypatch):
-    monkeypatch.setattr(httpx, 'Client', lambda **kw: (_ for _ in ()).throw(AssertionError('should not connect')))
-    with pytest.raises(ValueError):
+def test_loopback_destination_rejected_at_connect_time():
+    """Codex B1.A: loopback/private-IP rejection now happens exactly
+    once, in the bounded connect-time resolver, not via a separate
+    unbounded pre-flight validate_url(resolve=True) call -- exercised
+    here through the real (unmocked) _ValidatedNetworkBackend, since
+    127.0.0.1 needs no real network round-trip to resolve.
+    """
+    with pytest.raises(t.TransportError) as exc:
         t.fetch_json('https://127.0.0.1/jobs', _budget())
+    assert exc.value.code == 'DESTINATION_BLOCKED'
+
+
+def test_structural_validation_never_resolves_dns_itself(monkeypatch):
+    """Codex B1.A: policy.validate_url must be called with resolve=False
+    here -- DNS resolution happens exactly once, in the bounded
+    _resolve_and_pin, not as a second unbounded pre-flight lookup.
+    """
+    seen = {}
+
+    def spy_validate(url, resolve=True):
+        seen['resolve'] = resolve
+        return url
+
+    monkeypatch.setattr(t, '_PinnedTransport', lambda: None)
+    monkeypatch.setattr(t, 'validate_url', spy_validate)
+    monkeypatch.setattr(httpx, 'Client', lambda **kw: (_ for _ in ()).throw(AssertionError('should not connect further')))
+    with pytest.raises(AssertionError):
+        t.fetch_json('https://example.com/jobs', _budget())
+    assert seen['resolve'] is False
 
 
 def test_connect_tcp_dials_the_pinned_resolved_ip_not_the_hostname(monkeypatch):
@@ -118,7 +149,7 @@ def test_dns_resolution_failure_is_a_sanitized_transport_error(monkeypatch):
     monkeypatch.setattr(t.socket, 'getaddrinfo', fake_getaddrinfo)
     with pytest.raises(t.TransportError) as exc:
         t._resolve_and_pin('nxdomain.invalid', 443)
-    assert exc.value.code == 'DNS_RESOLUTION_FAILED'
+    assert exc.value.code == 'DNS_FAILURE'
 
 
 def test_dns_resolution_bounded_to_remaining_timeout(monkeypatch):
@@ -127,8 +158,6 @@ def test_dns_resolution_bounded_to_remaining_timeout(monkeypatch):
     timeout), which cannot be simulated through Budget's own fake-clock
     bookkeeping the way transport-level deadline tests below are.
     """
-    import time as real_time
-
     def slow_getaddrinfo(host, port, type=None):
         real_time.sleep(0.3)
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('93.184.216.34', port))]
@@ -141,6 +170,83 @@ def test_dns_resolution_bounded_to_remaining_timeout(monkeypatch):
     assert real_time.monotonic() - started < 0.25  # returned promptly, did not wait for the full slow resolution
 
 
+# ---- B3: DNS admission is bounded (workers AND pending queue) ----
+
+def _await_full_dns_admission(timeout=3.0):
+    """A background lookup abandoned by an earlier test (e.g. the bounded-
+    timeout test above) may still legitimately hold its admission slot
+    for a little while after that test returns -- wait for it to finish
+    so a saturation test starts from a known, fully-available state
+    instead of being flaky depending on run order/timing.
+    """
+    deadline = real_time.monotonic() + timeout
+    while t._DNS_ADMISSION._value < t.DNS_MAX_PENDING and real_time.monotonic() < deadline:
+        real_time.sleep(0.01)
+
+
+def test_dns_admission_bound_is_fixed():
+    assert t._DNS_EXECUTOR._max_workers == t.DNS_MAX_WORKERS
+
+
+def test_dns_queue_saturation_fails_fast_and_typed():
+    _await_full_dns_admission()
+    acquired = 0
+    try:
+        for _ in range(t.DNS_MAX_PENDING):
+            assert t._DNS_ADMISSION.acquire(blocking=False)
+            acquired += 1
+        with pytest.raises(t.TransportError) as exc:
+            t._resolve_and_pin('example.com', 443, timeout=1.0)
+        assert exc.value.code == 'DNS_QUEUE_SATURATED'
+    finally:
+        for _ in range(acquired):
+            t._DNS_ADMISSION.release()
+
+
+def test_dns_queue_saturation_does_not_hang_the_caller():
+    _await_full_dns_admission()
+    acquired = 0
+    try:
+        for _ in range(t.DNS_MAX_PENDING):
+            t._DNS_ADMISSION.acquire(blocking=False)
+            acquired += 1
+        started = real_time.monotonic()
+        with pytest.raises(t.TransportError):
+            t._resolve_and_pin('example.com', 443, timeout=5.0)
+        assert real_time.monotonic() - started < 0.5  # failed immediately, never waited on the 5s timeout
+    finally:
+        for _ in range(acquired):
+            t._DNS_ADMISSION.release()
+
+
+def test_dns_admission_recovers_once_abandoned_lookups_actually_finish(monkeypatch):
+    """An admission slot is released only when the background task
+    actually completes (via add_done_callback), not merely when the
+    caller stops waiting -- so repeated give-ups over a stalled resolver
+    do not grow pending work indefinitely, and capacity genuinely frees
+    up once the stalled work finishes.
+    """
+    _await_full_dns_admission()
+    release_event = threading.Event()
+
+    def blocking_getaddrinfo(host, port, type=None):
+        release_event.wait(timeout=5)
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('93.184.216.34', port))]
+
+    monkeypatch.setattr(t.socket, 'getaddrinfo', blocking_getaddrinfo)
+    try:
+        with pytest.raises(t.TransportError) as exc:
+            t._resolve_and_pin('slow.example.com', 443, timeout=0.05)
+        assert exc.value.code == 'DEADLINE_EXCEEDED'
+        assert t._DNS_ADMISSION._value < t.DNS_MAX_PENDING  # slot still held by the abandoned-but-running task
+    finally:
+        release_event.set()
+    deadline = real_time.monotonic() + 3.0
+    while t._DNS_ADMISSION._value < t.DNS_MAX_PENDING and real_time.monotonic() < deadline:
+        real_time.sleep(0.01)
+    assert t._DNS_ADMISSION._value == t.DNS_MAX_PENDING  # fully recovered, no leaked admission
+
+
 # ---- response handling ----
 
 def test_oversized_streamed_response_is_rejected(monkeypatch):
@@ -150,11 +256,11 @@ def test_oversized_streamed_response_is_rejected(monkeypatch):
     assert exc.value.code == 'RESPONSE_TOO_LARGE'
 
 
-def test_malformed_json_body_rejected(monkeypatch):
+def test_invalid_json_body_rejected(monkeypatch):
     _install(monkeypatch, [FakeStream(chunks=[b'not json'])])
     with pytest.raises(t.TransportError) as exc:
         t.fetch_json('https://example.com/jobs', _budget())
-    assert exc.value.code == 'MALFORMED_RESPONSE'
+    assert exc.value.code == 'INVALID_JSON'
 
 
 def test_unexpected_content_type_rejected_even_if_body_parses(monkeypatch):
@@ -165,8 +271,6 @@ def test_unexpected_content_type_rejected_even_if_body_parses(monkeypatch):
 
 
 def test_misleading_content_length_does_not_bypass_the_real_byte_count(monkeypatch):
-    """The cap is enforced on actual streamed bytes, never on a
-    Content-Length header we do not trust."""
     headers = {'content-type': 'application/json', 'content-length': '2'}
     _install(monkeypatch, [FakeStream(chunks=[b'x' * (t.MAX_ENCODED_BYTES + 1)], headers=headers)])
     with pytest.raises(t.TransportError) as exc:
@@ -186,7 +290,7 @@ def test_redirect_target_is_revalidated_and_a_blocked_target_is_typed(monkeypatc
     _install(monkeypatch, [RedirectStream('https://169.254.169.254/latest/meta-data')])
     validated = []
 
-    def fake_validate(url):
+    def fake_validate(url, resolve=True):
         validated.append(url)
         if 'meta-data' in url:
             raise ValueError('Private network addresses are blocked')
@@ -202,7 +306,7 @@ def test_redirect_target_is_revalidated_and_a_blocked_target_is_typed(monkeypatc
 def test_initial_policy_block_is_typed_not_a_raw_valueerror_escaping(monkeypatch):
     monkeypatch.setattr(t, '_PinnedTransport', lambda: None)
 
-    def fake_validate(url):
+    def fake_validate(url, resolve=True):
         raise ValueError('LinkedIn is manual-only. Paste the job description instead.')
 
     monkeypatch.setattr(t, 'validate_url', fake_validate)
@@ -210,6 +314,17 @@ def test_initial_policy_block_is_typed_not_a_raw_valueerror_escaping(monkeypatch
     with pytest.raises(t.TransportError) as exc:
         t.fetch_json('https://www.linkedin.com/jobs/1', _budget())
     assert exc.value.code == 'POLICY_BLOCKED'
+
+
+def test_malformed_external_url_does_not_escape_as_a_raw_exception(monkeypatch):
+    """Codex B4/B5: a URL urlsplit itself chokes on (e.g. an unterminated
+    IPv6 literal) must still come out as a typed TransportError, not a
+    raw ValueError from deep inside urlsplit.
+    """
+    monkeypatch.setattr(t, '_PinnedTransport', lambda: None)
+    monkeypatch.setattr(httpx, 'Client', lambda **kw: (_ for _ in ()).throw(AssertionError('should not connect')))
+    with pytest.raises(t.TransportError):
+        t.fetch_json('https://[', _budget())
 
 
 def test_bounded_redirect_cycle_gives_up_with_too_many_redirects(monkeypatch):
@@ -220,20 +335,39 @@ def test_bounded_redirect_cycle_gives_up_with_too_many_redirects(monkeypatch):
     assert exc.value.code == 'TOO_MANY_REDIRECTS'
 
 
-def test_timeout_raises_sanitized_transport_error(monkeypatch):
+def test_connect_timeout_raises_sanitized_transport_error(monkeypatch):
+    _install(monkeypatch, [httpx.ConnectTimeout('timed out')])
+    with pytest.raises(t.TransportError) as exc:
+        t.fetch_json('https://example.com/jobs', _budget())
+    assert exc.value.code == 'CONNECT_TIMEOUT'
+
+
+def test_read_timeout_raises_sanitized_transport_error(monkeypatch):
     _install(monkeypatch, [httpx.ReadTimeout('timed out')])
     with pytest.raises(t.TransportError) as exc:
         t.fetch_json('https://example.com/jobs', _budget())
-    assert exc.value.code == 'TIMEOUT'
+    assert exc.value.code == 'READ_TIMEOUT'
 
 
 def test_connect_error_raises_sanitized_transport_error_not_raw_httpx_exception(monkeypatch):
-    """Codex F4: httpx.ConnectError (connection refused, TLS handshake
-    failure) must not escape the provider/transport contract."""
     _install(monkeypatch, [httpx.ConnectError('connection refused')])
     with pytest.raises(t.TransportError) as exc:
         t.fetch_json('https://example.com/jobs', _budget())
     assert exc.value.code == 'CONNECT_FAILED'
+
+
+def test_read_error_raises_sanitized_transport_error(monkeypatch):
+    _install(monkeypatch, [httpx.ReadError('connection reset')])
+    with pytest.raises(t.TransportError) as exc:
+        t.fetch_json('https://example.com/jobs', _budget())
+    assert exc.value.code == 'READ_FAILED'
+
+
+def test_remote_protocol_error_raises_sanitized_transport_error(monkeypatch):
+    _install(monkeypatch, [httpx.RemoteProtocolError('server closed connection')])
+    with pytest.raises(t.TransportError) as exc:
+        t.fetch_json('https://example.com/jobs', _budget())
+    assert exc.value.code == 'REMOTE_PROTOCOL_ERROR'
 
 
 def test_429_retried_within_budget_then_succeeds(monkeypatch):
@@ -266,7 +400,7 @@ def test_transient_5xx_exhausts_retries_then_fails(monkeypatch):
     assert exc.value.code == 'UPSTREAM_UNAVAILABLE'
 
 
-# ---- F1: the source deadline is a real upper bound ----
+# ---- B1: the source deadline is a real upper bound ----
 
 def test_deadline_exceeded_before_any_request_is_attempted(monkeypatch):
     monkeypatch.setattr(httpx, 'Client', lambda **kw: (_ for _ in ()).throw(AssertionError))
@@ -276,13 +410,18 @@ def test_deadline_exceeded_before_any_request_is_attempted(monkeypatch):
     assert exc.value.code == 'DEADLINE_EXCEEDED'
 
 
-def test_request_timeout_is_clamped_to_remaining_budget_not_the_full_default(monkeypatch):
+def test_connect_and_read_timeouts_together_cannot_exceed_the_remaining_budget(monkeypatch):
+    """Codex B1.B: connect and read are independent per-phase httpx
+    timeouts, not one combined deadline for the request -- each must be
+    clamped so that even if BOTH phases individually used their full
+    allotted timeout, their sum still would not exceed what was left on
+    the budget when the request began.
+    """
     client = _install(monkeypatch, [FakeStream()])
-    budget = t.Budget(2.0)  # far below CONNECT_TIMEOUT/READ_TIMEOUT defaults
+    budget = t.Budget(2.0)
     t.fetch_json('https://example.com/jobs', budget)
     used_timeout = client.calls[0]['timeout']
-    assert used_timeout.connect <= 2.0
-    assert used_timeout.read <= 2.0
+    assert used_timeout.connect + used_timeout.read <= 2.0 + 0.05
 
 
 def test_deadline_expiring_mid_stream_aborts_before_returning_success(monkeypatch):
@@ -293,9 +432,6 @@ def test_deadline_expiring_mid_stream_aborts_before_returning_success(monkeypatc
     than only before the request starts.
     """
     class SlowStream(FakeStream):
-        def __init__(self):
-            super().__init__()
-
         def iter_raw(self):
             yield b'{"partial":'
             budget.deadline = 0  # simulate the deadline having passed mid-stream
@@ -308,13 +444,34 @@ def test_deadline_expiring_mid_stream_aborts_before_returning_success(monkeypatc
     assert exc.value.code == 'DEADLINE_EXCEEDED'
 
 
-def test_result_is_not_returned_as_success_if_deadline_passed_during_final_parse(monkeypatch):
+def test_result_is_not_returned_as_success_if_deadline_passed_during_json_parse(monkeypatch):
+    """Codex B1.C: an explicit check immediately before/after parsing,
+    not only before the stream starts."""
     class SlowStream(FakeStream):
         def iter_raw(self):
             yield b'{"ok":true}'
             budget.deadline = 0  # expires after the last chunk, before parsing completes
 
     _install(monkeypatch, [SlowStream()])
+    budget = _budget()
+    with pytest.raises(t.TransportError) as exc:
+        t.fetch_json('https://example.com/jobs', budget)
+    assert exc.value.code == 'DEADLINE_EXCEEDED'
+
+
+def test_result_is_not_returned_as_success_if_deadline_passes_exactly_during_json_loads(monkeypatch):
+    """Codex reproduced expiring the Budget from *inside* json.loads
+    itself. We cannot interrupt json.loads mid-call, but the explicit
+    post-parse check must still catch it before any result is returned.
+    """
+    real_loads = t.json_module.loads
+
+    def loads_that_expires_the_budget(data):
+        budget.deadline = 0
+        return real_loads(data)
+
+    _install(monkeypatch, [FakeStream(chunks=[b'{"ok":true}'])])
+    monkeypatch.setattr(t.json_module, 'loads', loads_that_expires_the_budget)
     budget = _budget()
     with pytest.raises(t.TransportError) as exc:
         t.fetch_json('https://example.com/jobs', budget)
@@ -338,7 +495,124 @@ def test_retry_sequence_cannot_extend_past_the_deadline(monkeypatch):
     assert len(client.calls) == 1  # never attempted a second request past the deadline
 
 
-# ---- F2: bounded incremental decompression through the real transport path ----
+# ---- B2: bounded, explicit gzip decoder state machine ----
+
+def _decoder(cap=t.MAX_DECODED_BYTES, budget=None):
+    return t._BoundedDecoder(zlib.MAX_WBITS | 16, cap, budget or _budget())
+
+
+def test_valid_single_member_gzip_decodes():
+    decoder = _decoder()
+    compressed = gzip.compress(b'hello world')
+    out = decoder.feed(compressed) + decoder.flush()
+    assert out == b'hello world'
+
+
+def test_exact_decoded_cap_is_accepted_not_rejected():
+    payload = b'x' * 1000
+    decoder = _decoder(cap=1000)
+    compressed = gzip.compress(payload)
+    out = decoder.feed(compressed) + decoder.flush()
+    assert out == payload
+
+
+def test_one_byte_over_cap_is_rejected():
+    payload = b'x' * 1001
+    decoder = _decoder(cap=1000)
+    compressed = gzip.compress(payload)
+    with pytest.raises(t.TransportError) as exc:
+        decoder.feed(compressed) + decoder.flush()
+    assert exc.value.code == 'RESPONSE_TOO_LARGE'
+
+
+def test_tiny_chunks_reassemble_correctly():
+    payload = b'{"jobs": [' + b','.join(b'{"id":%d}' % i for i in range(30)) + b']}'
+    compressed = gzip.compress(payload)
+    decoder = _decoder()
+    out = bytearray()
+    for i in range(0, len(compressed), 3):  # 3-byte chunks
+        out.extend(decoder.feed(compressed[i:i + 3]))
+    out.extend(decoder.flush())
+    assert bytes(out) == payload
+
+
+def test_truncated_trailer_is_rejected():
+    compressed = gzip.compress(b'a real payload of some length')
+    truncated = compressed[:-4]  # drop the final CRC32/size trailer
+    decoder = _decoder()
+    with pytest.raises(t.TransportError) as exc:
+        decoder.feed(truncated)
+        decoder.flush()
+    assert exc.value.code == 'DECODE_FAILED'
+
+
+def test_trailing_garbage_after_valid_member_is_rejected():
+    compressed = gzip.compress(b'payload') + b'garbage-not-a-gzip-member'
+    decoder = _decoder()
+    with pytest.raises(t.TransportError) as exc:
+        decoder.feed(compressed)
+    assert exc.value.code == 'DECODE_FAILED'
+
+
+def test_concatenated_gzip_members_rejected_not_looped_forever():
+    """Codex B2's exact reproduction shape: two concatenated gzip
+    members. Must reject cleanly (Option A) rather than spin forever on
+    stale unconsumed_tail/eof state -- this test itself hangs pytest if
+    the regression reappears, which is the point.
+    """
+    concatenated = gzip.compress(b'member one') + gzip.compress(b'member two')
+    decoder = _decoder()
+    with pytest.raises(t.TransportError) as exc:
+        decoder.feed(concatenated)
+    assert exc.value.code == 'DECODE_FAILED'
+
+
+def test_zero_progress_iteration_is_detected_not_looped(monkeypatch):
+    """White-box test of the zero-progress guard: a decompressobj stand-in
+    that reports no output and a non-shrinking unconsumed_tail must be
+    rejected rather than spun on forever.
+    """
+    decoder = _decoder()
+
+    class StuckZ:
+        eof = False
+        unconsumed_tail = b'stuck'
+        unused_data = b''
+
+        def decompress(self, data, max_length):
+            return b''  # no progress, ever
+
+    decoder._z = StuckZ()
+    with pytest.raises(t.TransportError) as exc:
+        decoder.feed(b'anything')
+    assert exc.value.code == 'DECODE_FAILED'
+
+
+def test_deadline_checked_inside_the_decode_loop(monkeypatch):
+    budget = _budget()
+    decoder = _decoder(budget=budget)
+    budget.deadline = 0
+    compressed = gzip.compress(b'x' * 10_000)
+    with pytest.raises(t.TransportError) as exc:
+        decoder.feed(compressed)
+    assert exc.value.code == 'DEADLINE_EXCEEDED'
+
+
+def test_invalid_compressed_body_is_rejected(monkeypatch):
+    headers = {'content-type': 'application/json', 'content-encoding': 'gzip'}
+    _install(monkeypatch, [FakeStream(chunks=[b'this is not gzip data at all'], headers=headers)])
+    with pytest.raises(t.TransportError) as exc:
+        t.fetch_json('https://example.com/jobs', _budget())
+    assert exc.value.code == 'DECODE_FAILED'
+
+
+def test_unsupported_content_encoding_is_rejected(monkeypatch):
+    headers = {'content-type': 'application/json', 'content-encoding': 'br'}
+    _install(monkeypatch, [FakeStream(chunks=[b'anything'], headers=headers)])
+    with pytest.raises(t.TransportError) as exc:
+        t.fetch_json('https://example.com/jobs', _budget())
+    assert exc.value.code == 'UNSUPPORTED_CONTENT_ENCODING'
+
 
 def test_small_valid_gzip_decodes_correctly(monkeypatch):
     body = gzip.compress(b'{"jobs": []}')
@@ -355,22 +629,6 @@ def test_chunked_compressed_response_reassembles_correctly(monkeypatch):
     _install(monkeypatch, [FakeStream(chunks=[compressed[:mid], compressed[mid:]], headers=headers)])
     result = t.fetch_json('https://example.com/jobs', _budget())
     assert len(result['jobs']) == 50
-
-
-def test_invalid_compressed_body_is_rejected(monkeypatch):
-    headers = {'content-type': 'application/json', 'content-encoding': 'gzip'}
-    _install(monkeypatch, [FakeStream(chunks=[b'this is not gzip data at all'], headers=headers)])
-    with pytest.raises(t.TransportError) as exc:
-        t.fetch_json('https://example.com/jobs', _budget())
-    assert exc.value.code == 'MALFORMED_RESPONSE'
-
-
-def test_unsupported_content_encoding_is_rejected(monkeypatch):
-    headers = {'content-type': 'application/json', 'content-encoding': 'br'}
-    _install(monkeypatch, [FakeStream(chunks=[b'anything'], headers=headers)])
-    with pytest.raises(t.TransportError) as exc:
-        t.fetch_json('https://example.com/jobs', _budget())
-    assert exc.value.code == 'UNSUPPORTED_ENCODING'
 
 
 def test_compression_bomb_rejected_without_materializing_the_full_expansion(monkeypatch):
@@ -394,21 +652,10 @@ def test_compression_bomb_rejected_without_materializing_the_full_expansion(monk
     finally:
         tracemalloc.stop()
     assert exc.value.code == 'RESPONSE_TOO_LARGE'
-    # Peak stays within a small multiple of the cap, nowhere near the ~4x-cap
-    # decoded size the bomb would expand to if fully materialized first.
     assert peak < t.MAX_DECODED_BYTES * 2
 
 
-def test_bounded_decoder_rejects_output_exceeding_cap_incrementally():
-    decoder = t._BoundedDecoder(zlib.MAX_WBITS | 16, cap=100)
-    compressed = gzip.compress(b'x' * 1000)
-    with pytest.raises(t.TransportError) as exc:
-        for i in range(0, len(compressed), 16):
-            decoder.feed(compressed[i:i + 16])
-    assert exc.value.code == 'RESPONSE_TOO_LARGE'
-
-
-# ---- F6: request/retry/byte counters ----
+# ---- B6: request/retry/byte counters ----
 
 def test_metrics_count_attempts_and_successes_separately(monkeypatch):
     _install(monkeypatch, [FakeStream(chunks=[b'{"ok":true}'])])
@@ -438,6 +685,42 @@ def test_metrics_distinguish_encoded_from_decoded_bytes(monkeypatch):
     assert budget.encoded_bytes_read == len(compressed)
     assert budget.decoded_bytes_read == len(payload)
     assert budget.encoded_bytes_read != budget.decoded_bytes_read
+
+
+def test_byte_counters_retain_partial_progress_when_rejected_mid_stream(monkeypatch):
+    """Codex B6.1: a response rejected partway through streaming must not
+    show zero bytes -- whatever was actually read before rejection stays
+    on the budget.
+    """
+    big_first_chunk = b'x' * 1000
+    oversized_second_chunk = b'y' * (t.MAX_ENCODED_BYTES + 1)
+    _install(monkeypatch, [FakeStream(chunks=[big_first_chunk, oversized_second_chunk])])
+    budget = _budget()
+    with pytest.raises(t.TransportError) as exc:
+        t.fetch_json('https://example.com/jobs', budget)
+    assert exc.value.code == 'RESPONSE_TOO_LARGE'
+    assert budget.encoded_bytes_read >= len(big_first_chunk)
+
+
+def test_byte_counters_retain_partial_progress_on_decode_rejection(monkeypatch):
+    decoded_size = t.MAX_DECODED_BYTES * 4
+    compressed = gzip.compress(b'0' * decoded_size)
+    headers = {'content-type': 'application/json', 'content-encoding': 'gzip'}
+    _install(monkeypatch, [FakeStream(chunks=[compressed], headers=headers)])
+    budget = _budget()
+    with pytest.raises(t.TransportError):
+        t.fetch_json('https://example.com/jobs', budget)
+    assert budget.encoded_bytes_read == len(compressed)
+    assert budget.decoded_bytes_read > 0  # some decoded output was produced before the cap tripped
+
+
+def test_errors_count_increments_exactly_once_per_failure(monkeypatch):
+    headers = {'content-type': 'application/json', 'content-encoding': 'gzip'}
+    _install(monkeypatch, [FakeStream(chunks=[b'not gzip at all'], headers=headers)])
+    budget = _budget()
+    with pytest.raises(t.TransportError):
+        t.fetch_json('https://example.com/jobs', budget)
+    assert budget.errors_count == 1
 
 
 # ---- transport dependency pin (Codex note) ----
