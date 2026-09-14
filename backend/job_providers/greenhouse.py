@@ -6,12 +6,12 @@ eligibility, or ASTRA's canonical job schema (issue #40).
 import re
 import time
 from datetime import datetime, timezone
-from urllib.parse import urlsplit
 
 from ..adapters import clean
 from .contracts import (
     CompletionReason, FetchBatch, FetchCompletion, FetchContext, Provider,
-    ProviderCapabilities, ProviderError, ProviderRecord, SourceHealth, SourceMetrics,
+    ProviderCapabilities, ProviderError, ProviderFetchFailed, ProviderRecord,
+    SourceHealth, SourceMetrics, health_for_error_code, outcome_for, valid_downstream_url,
     VERSION as PROVIDER_VERSION,
 )
 from .transport import Budget, TransportError, fetch_json
@@ -21,67 +21,15 @@ ID_RE = re.compile(r'\d+')
 HYBRID_WORDS = ('hybrid', 'remote', 'distributed', 'in-office', 'on-site', 'onsite')
 LOCATION_HINT_RE = re.compile(r'(?:Available Locations?|Work Location|Location)\s*:\s*([^\n]{1,220})', re.I)
 
-_HEALTH_FOR_ERROR = {
-    'POLICY_BLOCKED': SourceHealth.POLICY_BLOCKED,
-    'DESTINATION_BLOCKED': SourceHealth.POLICY_BLOCKED,
-    'DNS_FAILURE': SourceHealth.UNAVAILABLE,
-    'DNS_QUEUE_SATURATED': SourceHealth.UNAVAILABLE,
-    'CONNECT_FAILED': SourceHealth.UNAVAILABLE,
-    'CONNECT_TIMEOUT': SourceHealth.UNAVAILABLE,
-    'READ_TIMEOUT': SourceHealth.UNAVAILABLE,
-    'READ_FAILED': SourceHealth.UNAVAILABLE,
-    'WRITE_FAILED': SourceHealth.UNAVAILABLE,
-    'WRITE_TIMEOUT': SourceHealth.UNAVAILABLE,
-    'INVALID_EXTERNAL_URL': SourceHealth.MALFORMED,
-    'REMOTE_PROTOCOL_ERROR': SourceHealth.MALFORMED,
-    'DEADLINE_EXCEEDED': SourceHealth.UNAVAILABLE,
-    'RATE_LIMITED': SourceHealth.RATE_LIMITED,
-    'UPSTREAM_UNAVAILABLE': SourceHealth.UNAVAILABLE,
-    'UPSTREAM_ERROR': SourceHealth.UNAVAILABLE,
-    'TOO_MANY_REDIRECTS': SourceHealth.UNAVAILABLE,
-    'INVALID_REDIRECT': SourceHealth.MALFORMED,
-    'INVALID_JSON': SourceHealth.MALFORMED,
-    'UNEXPECTED_CONTENT_TYPE': SourceHealth.MALFORMED,
-    'UNSUPPORTED_CONTENT_ENCODING': SourceHealth.MALFORMED,
-    'DECODE_FAILED': SourceHealth.MALFORMED,
-    'RESPONSE_TOO_LARGE': SourceHealth.PARTIAL,
-}
-
-
-class ProviderFetchFailed(ValueError):
-    """Raised by the compatibility layer for a FAILED/CANCELLED batch.
-    Carries the batch's own bounded completion/health/error/metrics so
-    callers (backend.main's per-source exception handler) can report the
-    true outcome instead of guessing or falling back to a stale/default
-    value.
-    """
-    def __init__(self, message, completion, health, completion_reason=None, error_code=None, metrics=None):
-        super().__init__(message)
-        self.completion = completion.value if hasattr(completion, 'value') else completion
-        self.health = health.value if hasattr(health, 'value') else health
-        self.completion_reason = completion_reason
-        self.error_code = error_code
-        self.metrics = metrics
-
 
 def _health_for(error: TransportError) -> SourceHealth:
-    return _HEALTH_FOR_ERROR.get(error.code, SourceHealth.UNAVAILABLE)
+    return health_for_error_code(error.code)
 
 
 def _validate_top_level(payload):
     if not isinstance(payload, dict) or not isinstance(payload.get('jobs'), list):
         raise ValueError('Expected a JSON object with a "jobs" list')
     return payload['jobs']
-
-
-def _valid_url(value):
-    if not isinstance(value, str) or not value.strip():
-        return False
-    try:
-        parts = urlsplit(value)
-    except ValueError:
-        return False
-    return parts.scheme in ('http', 'https') and bool(parts.hostname)
 
 
 def _valid_job_id(raw_id):
@@ -126,7 +74,7 @@ def _to_record(row, source_board, retrieved_at):
         return None
     if not isinstance(title, str) or not title.strip():
         return None
-    if not _valid_url(url):
+    if not valid_downstream_url(url):
         return None
     if not isinstance(location, dict):
         return None
@@ -195,29 +143,6 @@ def _merge_candidate(row, detail, source_board):
     return candidate
 
 
-def _outcome_for(rows, records, rejected, completion_reason=None):
-    """Distinguishes three independent axes (Codex F8 follow-up):
-    enumeration completeness (every row Greenhouse listed is reflected in
-    `records` or counted as rejected -- never silently dropped), content/
-    detail completeness (some accepted records may lack full detail --
-    completion_reason names why), and malformed/rejected source records
-    (some or all rows failed native-shape validation). A genuinely empty
-    board is never confused with a response that produced rows none of
-    which were usable.
-    """
-    if rows and not records:
-        return (FetchCompletion.FAILED, SourceHealth.MALFORMED,
-                ProviderError('ALL_RECORDS_REJECTED', 'Every posting in the response failed validation'),
-                CompletionReason.ALL_RECORDS_REJECTED.value)
-    if not records:
-        return FetchCompletion.COMPLETE, SourceHealth.EMPTY, None, None
-    if completion_reason:
-        return FetchCompletion.PARTIAL, SourceHealth.PARTIAL, None, completion_reason
-    if rejected:
-        return FetchCompletion.COMPLETE, SourceHealth.PARTIAL, None, CompletionReason.SOME_RECORDS_REJECTED.value
-    return FetchCompletion.COMPLETE, SourceHealth.HEALTHY, None, None
-
-
 class GreenhouseProvider(Provider):
     def capabilities(self):
         return ProviderCapabilities(provider='greenhouse', supports_cursor=False, supports_detail_fetch=True)
@@ -252,7 +177,7 @@ class GreenhouseProvider(Provider):
         metrics.records_accepted = len(records)
         metrics.records_rejected = rejected
         metrics.elapsed_seconds = time.monotonic() - started
-        completion, health, error, reason = _outcome_for(rows, records, rejected)
+        completion, health, error, reason = outcome_for(rows, records, rejected)
         if budget.remaining() <= 0:
             return self._deadline_failed(source_board, budget, metrics, started)
         return FetchBatch('greenhouse', source_board, completion, health, records, metrics,
@@ -339,7 +264,7 @@ class GreenhouseProvider(Provider):
         incomplete = capped or detail_succeeded < len(selected)
         reason = (CompletionReason.DETAIL_BUDGET_EXHAUSTED.value if capped
                   else CompletionReason.DETAIL_FETCH_INCOMPLETE.value if incomplete else None)
-        completion, health, error, reason = _outcome_for(rows, records, rejected, completion_reason=reason)
+        completion, health, error, reason = outcome_for(rows, records, rejected, completion_reason=reason)
         if budget.remaining() <= 0:
             return self._deadline_failed(source_board, budget, metrics, started)
         return FetchBatch('greenhouse', source_board, completion, health, records, metrics,

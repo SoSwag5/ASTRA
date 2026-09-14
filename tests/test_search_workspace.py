@@ -52,9 +52,14 @@ def test_lever_multiple_locations(monkeypatch):
     from backend import adapters
     from backend.discovery import discovery_reason
     from backend.models import DEFAULTS
-    class Response:
-        def json(self): return [{'id':'1','text':'SOC Analyst','hostedUrl':'https://jobs.lever.co/example/1','categories':{'location':'Singapore','allLocations':['Singapore','UAE, Dubai']},'createdAt':1700000000000,'workplaceType':'remote'}]
-    monkeypatch.setattr(adapters,'fetch',lambda url:Response())
+    import backend.job_providers.lever as lever_mod
+    # Issue #39: Lever discovery moved from adapters.fetch to the shared
+    # job-provider transport (transport.fetch_json via lever.py), same as
+    # Greenhouse's own migration required updating its equivalent test.
+    payload = [{'id':'1','text':'SOC Analyst','hostedUrl':'https://jobs.lever.co/example/1','categories':{'location':'Singapore','allLocations':['Singapore','UAE, Dubai']},'createdAt':1700000000000,'workplaceType':'remote'}]
+    monkeypatch.setattr(lever_mod,'fetch_json',lambda url,budget,**kw:payload)
     job=adapters.discover('lever','example')[0]
     assert 'Dubai' in job['location'] and discovery_reason(job,DEFAULTS) is None
-    assert job['date_posted'] and job['remote_status']=='remote'
+    # Codex remediation round, finding 5: createdAt is undocumented by
+    # Lever, so it is never promoted to the authoritative date_posted.
+    assert job['date_posted']=='' and job['remote_status']=='remote'

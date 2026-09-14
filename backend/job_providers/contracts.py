@@ -8,6 +8,7 @@ extend this contract when that provider is actually being migrated.
 """
 from dataclasses import dataclass, field
 from enum import Enum
+from urllib.parse import urlsplit
 
 VERSION = 'job-providers-2'
 
@@ -54,6 +55,7 @@ class CompletionReason(str, Enum):
     ALL_RECORDS_REJECTED = 'ALL_RECORDS_REJECTED'
     SOME_RECORDS_REJECTED = 'SOME_RECORDS_REJECTED'
     TRANSPORT_ERROR = 'TRANSPORT_ERROR'
+    PAGINATION_LIMIT_REACHED = 'PAGINATION_LIMIT_REACHED'
 
 
 class SourceHealth(str, Enum):
@@ -168,3 +170,115 @@ class Provider:
 
     def fetch(self, context: FetchContext, source_board: str, cursor=None) -> FetchBatch:
         raise NotImplementedError
+
+
+class ProviderFetchFailed(ValueError):
+    """Raised by the compatibility layer for a FAILED/CANCELLED batch.
+    Carries the batch's own bounded completion/health/error/metrics so
+    callers (backend.main's per-source exception handler) can report the
+    true outcome instead of guessing or falling back to a stale/default
+    value. Provider-agnostic (issue #39): originally lived in
+    greenhouse.py, moved here once Lever/Ashby needed the same type
+    without importing it from an unrelated provider module.
+    """
+    def __init__(self, message, completion, health, completion_reason=None, error_code=None, metrics=None):
+        super().__init__(message)
+        self.completion = completion.value if hasattr(completion, 'value') else completion
+        self.health = health.value if hasattr(health, 'value') else health
+        self.completion_reason = completion_reason
+        self.error_code = error_code
+        self.metrics = metrics
+
+
+# Transport failure code -> SourceHealth. Provider-agnostic (issue #39):
+# every provider maps the same fixed set of backend.job_providers.transport
+# TransportError codes to a health value the same way, so this lives here
+# once instead of being copy-pasted into every provider module.
+_HEALTH_FOR_ERROR = {
+    'POLICY_BLOCKED': SourceHealth.POLICY_BLOCKED,
+    'DESTINATION_BLOCKED': SourceHealth.POLICY_BLOCKED,
+    'DNS_FAILURE': SourceHealth.UNAVAILABLE,
+    'DNS_QUEUE_SATURATED': SourceHealth.UNAVAILABLE,
+    'CONNECT_FAILED': SourceHealth.UNAVAILABLE,
+    'CONNECT_TIMEOUT': SourceHealth.UNAVAILABLE,
+    'READ_TIMEOUT': SourceHealth.UNAVAILABLE,
+    'READ_FAILED': SourceHealth.UNAVAILABLE,
+    'WRITE_FAILED': SourceHealth.UNAVAILABLE,
+    'WRITE_TIMEOUT': SourceHealth.UNAVAILABLE,
+    'INVALID_EXTERNAL_URL': SourceHealth.MALFORMED,
+    'REMOTE_PROTOCOL_ERROR': SourceHealth.MALFORMED,
+    'DEADLINE_EXCEEDED': SourceHealth.UNAVAILABLE,
+    'RATE_LIMITED': SourceHealth.RATE_LIMITED,
+    'UPSTREAM_UNAVAILABLE': SourceHealth.UNAVAILABLE,
+    'UPSTREAM_ERROR': SourceHealth.UNAVAILABLE,
+    'TOO_MANY_REDIRECTS': SourceHealth.UNAVAILABLE,
+    'INVALID_REDIRECT': SourceHealth.MALFORMED,
+    'INVALID_JSON': SourceHealth.MALFORMED,
+    'UNEXPECTED_CONTENT_TYPE': SourceHealth.MALFORMED,
+    'UNSUPPORTED_CONTENT_ENCODING': SourceHealth.MALFORMED,
+    'DECODE_FAILED': SourceHealth.MALFORMED,
+    'RESPONSE_TOO_LARGE': SourceHealth.PARTIAL,
+}
+
+
+def health_for_error_code(code: str) -> SourceHealth:
+    return _HEALTH_FOR_ERROR.get(code, SourceHealth.UNAVAILABLE)
+
+
+MAX_DOWNSTREAM_URL_LENGTH = 2000
+
+
+def valid_downstream_url(value) -> bool:
+    """A URL usable by backend.services.add_job() -- scheme http/https, a
+    real hostname, no embedded userinfo credentials, and within the
+    length ingestion accepts (matching add_job's own check exactly:
+    `url.scheme not in ('http','https') or not url.hostname or
+    url.username or url.password or len(...)>2000`).
+
+    Provider-agnostic (issue #39 Codex finding 1): every provider must
+    reject a record whose URL fails this BEFORE accepting it as a valid
+    record. A record that passes provider-native validation but fails
+    this check used to reach backend.services.add_job() inside
+    backend.main's per-source transaction, raise a plain ValueError, and
+    roll back every other valid job already committed in that same
+    source's run -- a malformed/hostile external URL must never be able
+    to do that. This is intentionally the same check every provider
+    applies, since it is ingestion's requirement, not a provider-specific
+    one -- providers must not each invent their own version of it.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return False
+    if len(value) > MAX_DOWNSTREAM_URL_LENGTH:
+        return False
+    try:
+        parts = urlsplit(value)
+    except ValueError:
+        return False
+    return (parts.scheme in ('http', 'https') and bool(parts.hostname)
+            and not parts.username and not parts.password)
+
+
+def outcome_for(rows, records, rejected, completion_reason=None):
+    """Shared COMPLETE/EMPTY/FAILED/PARTIAL classification (issue #39,
+    moved here from greenhouse.py which had no provider-specific logic in
+    it). `rows` is every row the source enumerated (pre-validation),
+    `records` the accepted subset, `rejected` the count that failed
+    native-shape validation. `completion_reason` lets a caller force a
+    PARTIAL outcome for a reason with no bearing on row validity (e.g. a
+    detail-fetch or pagination budget being exhausted).
+
+    A genuinely empty board (`rows` was empty to begin with) is never
+    confused with a response that produced rows none of which were
+    usable (`rows` non-empty, `records` empty -> FAILED/ALL_RECORDS_REJECTED).
+    """
+    if rows and not records:
+        return (FetchCompletion.FAILED, SourceHealth.MALFORMED,
+                ProviderError('ALL_RECORDS_REJECTED', 'Every posting in the response failed validation'),
+                CompletionReason.ALL_RECORDS_REJECTED.value)
+    if not records:
+        return FetchCompletion.COMPLETE, SourceHealth.EMPTY, None, None
+    if completion_reason:
+        return FetchCompletion.PARTIAL, SourceHealth.PARTIAL, None, completion_reason
+    if rejected:
+        return FetchCompletion.COMPLETE, SourceHealth.PARTIAL, None, CompletionReason.SOME_RECORDS_REJECTED.value
+    return FetchCompletion.COMPLETE, SourceHealth.HEALTHY, None, None
