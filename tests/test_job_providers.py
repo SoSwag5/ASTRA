@@ -229,6 +229,7 @@ def test_compatibility_preserves_legacy_dict_shape_and_carries_health(monkeypatc
     assert items[0] == {
         'company': 'acme', 'title': 'SOC Analyst', 'location': 'Dubai', 'job_url': 'https://x/1',
         'description': 'Duties', 'source': 'Greenhouse', 'source_job_id': '1', 'date_posted': '', 'closing_date': '',
+        'remote_status': 'UNKNOWN',
     }
     assert items.health['completion'] == 'COMPLETE'
     assert items.health['health'] == 'HEALTHY'

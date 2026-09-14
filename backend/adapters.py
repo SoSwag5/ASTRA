@@ -1,5 +1,4 @@
 import re,json
-from datetime import datetime,timezone
 import httpx
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
@@ -59,26 +58,22 @@ def discover(kind,board,url='',cfg=None):
             description='\n'.join(clean(v.get('text','')) for v in sections.values() if isinstance(v,dict))
             output.append(dict(company=board,title=detail.get('name',item['name']),location=', '.join(filter(None,[loc.get('city'),loc.get('region'),'United Arab Emirates'])),job_url=detail.get('postingUrl') or f'https://jobs.smartrecruiters.com/{board}/{ident}',description=description,source='SmartRecruiters',source_job_id=ident,date_posted=detail.get('releasedDate',item.get('releasedDate','')),remote_status='Remote' if loc.get('remote') else 'UNKNOWN'))
         return output
-    if kind=='greenhouse':
-        # Delegates to the common job-provider framework (issue #38);
-        # backend/job_providers/greenhouse.py owns Greenhouse's own
-        # endpoint/schema/budget rules. title_hints is a plain configured
-        # keyword list (never recall.py's role classifier) used only to
-        # prioritize a bounded detail-fetch budget when the full board is
-        # too large to fetch with content inline.
+    if kind in ('greenhouse','lever','ashby'):
+        # Delegates to the common job-provider framework (issue #38;
+        # Lever/Ashby migrated in issue #39); backend/job_providers/<kind>.py
+        # owns that provider's own endpoint/schema/pagination rules.
+        # title_hints is a plain configured keyword list (never recall.py's
+        # role classifier); only Greenhouse currently uses it to prioritize
+        # a bounded detail-fetch budget -- Lever/Ashby ignore it (neither
+        # has a separate detail endpoint), which FetchContext already
+        # allows since it is a hint a provider MAY use, never a required input.
         from .job_providers.compatibility import to_legacy_items
         from .job_providers.contracts import FetchContext
         from .job_providers.registry import get_provider
         cfg=cfg or {}
         hints=tuple(cfg.get('target_roles',[]))+tuple(cfg.get('campaign',{}).get('adjacent_roles',[]))
-        batch=get_provider('greenhouse').fetch(FetchContext(title_hints=hints),board)
+        batch=get_provider(kind).fetch(FetchContext(title_hints=hints),board)
         return to_legacy_items(batch)
-    if kind=='lever':
-        rows=fetch(f'https://api.lever.co/v0/postings/{board}?mode=json').json()
-        return [dict(company=board,title=x['text'],location=' / '.join(x.get('categories',{}).get('allLocations') or [x.get('categories',{}).get('location','UNKNOWN')]),job_url=x['hostedUrl'],description=clean(x.get('description','')+' '.join(y.get('content','') for y in x.get('lists',[]))),source='Lever',source_job_id=x['id'],remote_status=x.get('workplaceType','UNKNOWN'),date_posted=datetime.fromtimestamp(x['createdAt']/1000,timezone.utc).isoformat() if x.get('createdAt') else '') for x in rows]
-    if kind=='ashby':
-        rows=fetch(f'https://api.ashbyhq.com/posting-api/job-board/{board}?includeCompensation=true').json()['jobs']
-        return [dict(company=board,title=x['title'],location=x.get('location','UNKNOWN'),job_url=x['jobUrl'],description=x.get('descriptionPlain',''),source='Ashby',source_job_id=x['id'],date_posted=x.get('publishedAt',''),remote_status='Remote' if x.get('isRemote') else 'On-site') for x in rows if x.get('isListed',True)]
     return [parse_url(url)]
 def parse_url(url):
     soup=BeautifulSoup(fetch(url).text,'html.parser')

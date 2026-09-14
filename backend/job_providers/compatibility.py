@@ -6,8 +6,17 @@ ingestion (backend.services.add_job) needs no change.
 """
 from dataclasses import asdict
 
-from .contracts import FetchCompletion
-from .greenhouse import ProviderFetchFailed
+from .contracts import FetchCompletion, ProviderFetchFailed
+
+# Provider-native identity -> the legacy display string backend.adapters.discover()
+# has always returned in the 'source' field (issue #39: this was hardcoded to
+# 'Greenhouse' when that was the only migrated provider; now that Lever/Ashby
+# share this seam too, each provider must report its own true source).
+_DISPLAY_NAME = {
+    'greenhouse': 'Greenhouse',
+    'lever': 'Lever',
+    'ashby': 'Ashby',
+}
 
 
 class ProviderItems(list):
@@ -26,10 +35,17 @@ def _record_to_dict(record):
         'location': record.location,
         'job_url': record.apply_url,
         'description': record.description,
-        'source': 'Greenhouse',
+        'source': _DISPLAY_NAME.get(record.provider, record.provider.capitalize()),
         'source_job_id': record.provider_job_id,
         'date_posted': record.posted_at,
         'closing_date': record.closing_at,
+        # issue #39: previously missing here entirely, which was invisible
+        # for Greenhouse (always 'UNKNOWN') but silently dropped Lever's
+        # and Ashby's real remote/workplace data once they routed through
+        # this same seam -- backend.services.add_job() only keeps columns
+        # present in the dict, so an absent key defaults to the Job
+        # model's own 'UNKNOWN', not the provider's actual value.
+        'remote_status': record.remote_status,
     }
 
 
