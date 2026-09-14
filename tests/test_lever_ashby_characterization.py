@@ -6,13 +6,18 @@ rather than the retired backend.adapters.fetch.
 
 Fields that were already correct in the legacy adapters.py path (title,
 location, hostedUrl/jobUrl, single-request Ashby retrieval) are asserted
-unchanged here. Two fields are DELIBERATELY different from the legacy
-output, both confirmed bugs from the #39 audit:
+unchanged here. Several fields are DELIBERATELY different from the
+legacy output, all confirmed bugs/gaps from the #39 audit or the
+subsequent Codex remediation round:
 - Ashby's remote_status now distinguishes Hybrid from On-site instead of
   collapsing every non-remote job to 'On-site'.
 - The dict now always carries 'remote_status' at all (previously silently
   dropped for every provider routed through backend.job_providers.compatibility,
   defaulting to the Job model's own 'UNKNOWN' column default).
+- job_url is always the original/canonical posting URL (Lever's
+  hostedUrl, Ashby's jobUrl) -- never an application URL (Codex finding 4).
+- Lever's date_posted always stays '' -- createdAt is undocumented and is
+  never promoted to this authoritative legacy field (Codex finding 5).
 """
 import pytest
 
@@ -48,7 +53,10 @@ def test_lever_normal_board_returns_expected_dict_shape(monkeypatch):
     assert j['source'] == 'Lever'
     assert j['source_job_id'] == '501'
     assert j['remote_status'] == 'remote'
-    assert j['date_posted']
+    # Deliberately different from legacy (Codex remediation round, finding 5):
+    # createdAt is undocumented by Lever, so it is never promoted to the
+    # authoritative date_posted -- it stays blank even when present/valid.
+    assert j['date_posted'] == ''
 
 
 def test_lever_zero_jobs_is_an_empty_list(monkeypatch):
@@ -100,7 +108,9 @@ def test_ashby_normal_board_returns_expected_dict_shape(monkeypatch):
     assert j['title'] == 'Backend Engineer'
     assert j['company'] == 'acme'
     assert j['location'] == 'Dubai'
-    assert j['job_url'] == 'https://jobs.ashbyhq.com/acme/b52d240f/application'
+    # Codex remediation round, finding 4: job_url is the original jobUrl,
+    # not the applyUrl.
+    assert j['job_url'] == 'https://jobs.ashbyhq.com/acme/b52d240f'
     assert j['description'] == 'Do the work'
     assert j['source'] == 'Ashby'
     assert j['source_job_id'] == 'b52d240f'

@@ -8,6 +8,7 @@ extend this contract when that provider is actually being migrated.
 """
 from dataclasses import dataclass, field
 from enum import Enum
+from urllib.parse import urlsplit
 
 VERSION = 'job-providers-2'
 
@@ -222,6 +223,39 @@ _HEALTH_FOR_ERROR = {
 
 def health_for_error_code(code: str) -> SourceHealth:
     return _HEALTH_FOR_ERROR.get(code, SourceHealth.UNAVAILABLE)
+
+
+MAX_DOWNSTREAM_URL_LENGTH = 2000
+
+
+def valid_downstream_url(value) -> bool:
+    """A URL usable by backend.services.add_job() -- scheme http/https, a
+    real hostname, no embedded userinfo credentials, and within the
+    length ingestion accepts (matching add_job's own check exactly:
+    `url.scheme not in ('http','https') or not url.hostname or
+    url.username or url.password or len(...)>2000`).
+
+    Provider-agnostic (issue #39 Codex finding 1): every provider must
+    reject a record whose URL fails this BEFORE accepting it as a valid
+    record. A record that passes provider-native validation but fails
+    this check used to reach backend.services.add_job() inside
+    backend.main's per-source transaction, raise a plain ValueError, and
+    roll back every other valid job already committed in that same
+    source's run -- a malformed/hostile external URL must never be able
+    to do that. This is intentionally the same check every provider
+    applies, since it is ingestion's requirement, not a provider-specific
+    one -- providers must not each invent their own version of it.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return False
+    if len(value) > MAX_DOWNSTREAM_URL_LENGTH:
+        return False
+    try:
+        parts = urlsplit(value)
+    except ValueError:
+        return False
+    return (parts.scheme in ('http', 'https') and bool(parts.hostname)
+            and not parts.username and not parts.password)
 
 
 def outcome_for(rows, records, rejected, completion_reason=None):

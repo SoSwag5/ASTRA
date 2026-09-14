@@ -225,13 +225,18 @@ def test_mixed_valid_and_malformed_rows(monkeypatch):
 
 
 # ---- createdAt provenance (the confirmed undocumented-field finding) ----
+# Codex remediation round, finding 5: createdAt must never be promoted to
+# the authoritative posted_at/date_posted field -- posted_at stays ''
+# for Lever unconditionally; a valid value is kept only as a labelled
+# observation in raw_fields.
 
-def test_valid_created_at_is_preserved_with_provenance_flag(monkeypatch):
+def test_valid_created_at_is_never_promoted_to_posted_at(monkeypatch):
     _paged(monkeypatch, {0: [_posting(1, createdAt=1700000000000)]})
     batch = LeverProvider().fetch(FetchContext(), 'acme')
     r = batch.records[0]
-    assert r.posted_at != ''
-    assert r.raw_fields.get('posted_at_provenance') == 'undocumented_createdAt_field'
+    assert r.posted_at == ''
+    assert r.raw_fields.get('createdAt_observed') == '2023-11-14T22:13:20+00:00'
+    assert r.raw_fields.get('posted_at_provenance') == 'undocumented_createdAt_field_not_promoted_to_date_posted'
 
 
 def test_absent_created_at_is_neutral_empty_string(monkeypatch):
@@ -241,6 +246,7 @@ def test_absent_created_at_is_neutral_empty_string(monkeypatch):
     batch = LeverProvider().fetch(FetchContext(), 'acme')
     r = batch.records[0]
     assert r.posted_at == ''
+    assert 'createdAt_observed' not in r.raw_fields
     assert 'posted_at_provenance' not in r.raw_fields
     assert 'createdAt_malformed' not in r.raw_fields
 
@@ -257,6 +263,15 @@ def test_negative_created_at_is_treated_as_malformed(monkeypatch):
     _paged(monkeypatch, {0: [_posting(1, createdAt=-5)]})
     batch = LeverProvider().fetch(FetchContext(), 'acme')
     assert batch.records[0].posted_at == ''
+
+
+def test_compatibility_never_exposes_created_at_as_date_posted(monkeypatch):
+    """End-to-end for finding 5: even with a valid, parseable createdAt,
+    the legacy dict's date_posted must stay blank."""
+    _paged(monkeypatch, {0: [_posting(1, createdAt=1700000000000)]})
+    batch = LeverProvider().fetch(FetchContext(), 'acme')
+    items = to_legacy_items(batch)
+    assert items[0]['date_posted'] == ''
 
 
 def test_created_at_never_fabricated_from_fetch_time(monkeypatch):
@@ -296,6 +311,18 @@ def test_compatibility_preserves_workplace_type_and_source_label(monkeypatch):
     items = to_legacy_items(batch)
     assert items[0]['source'] == 'Lever'
     assert items[0]['remote_status'] == 'remote'
+
+
+def test_compatibility_job_url_is_source_url_not_apply_url(monkeypatch):
+    """Codex remediation round, finding 4: legacy job_url must be the
+    original/canonical posting URL (hostedUrl), not the application URL."""
+    posting = _posting(1)
+    assert posting['hostedUrl'] != posting['applyUrl']
+    _paged(monkeypatch, {0: [posting]})
+    batch = LeverProvider().fetch(FetchContext(), 'acme')
+    items = to_legacy_items(batch)
+    assert items[0]['job_url'] == posting['hostedUrl']
+    assert batch.records[0].apply_url == posting['applyUrl']  # provider-native apply_url still available internally
 
 
 def test_compatibility_raises_on_failed_batch(monkeypatch):

@@ -33,7 +33,17 @@ def _record_to_dict(record):
         'company': record.source_board,
         'title': record.title,
         'location': record.location,
-        'job_url': record.apply_url,
+        # Codex remediation round, finding 4: legacy discover() always
+        # returned the ORIGINAL/canonical posting URL in job_url (Lever's
+        # hostedUrl, Ashby's jobUrl), not an application URL. This seam
+        # briefly mapped job_url from apply_url instead, which changed
+        # "open original posting" / canonical-URL / export / domain-policy
+        # behavior for Lever and Ashby. apply_url remains available on
+        # the provider-native record for #40 to model separately; legacy
+        # job_url stays source_url, matching pre-#39 behavior exactly for
+        # every provider (Greenhouse already set apply_url == source_url,
+        # so this is a no-op for it).
+        'job_url': record.source_url,
         'description': record.description,
         'source': _DISPLAY_NAME.get(record.provider, record.provider.capitalize()),
         'source_job_id': record.provider_job_id,

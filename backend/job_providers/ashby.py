@@ -8,9 +8,10 @@ listed posting in one response -- there is no pagination/cursor for this
 endpoint (verified against Ashby's own public API documentation), unlike
 Lever.
 
-Identity (audit finding, issue #38 legacy code): Ashby's own public
-documentation for this endpoint does not document or guarantee an `id`
-field on a posting object at all -- the example response in
+Identity (audit finding, issue #38 legacy code; canonicalization added in
+the Codex remediation round, finding 6): Ashby's own public documentation
+for this endpoint does not document or guarantee an `id` field on a
+posting object at all -- the example response in
 https://developers.ashbyhq.com/docs/public-job-posting-api has no `id`
 field. In practice, real boards do return a stable-looking UUID `id`
 (verified live against a real public board), so it is used as the
@@ -18,8 +19,16 @@ primary identity when present, but never assumed present the way legacy
 `backend/adapters.py` did (`x['id']`, a hard KeyError on absence). When
 `id` is missing or malformed, `jobUrl` -- which the documentation DOES
 show -- is used as a documented, stable fallback identity instead of
-inventing one from unstable text like the title. If neither exists, the
-row is rejected rather than assigned a synthetic identity.
+inventing one from unstable text like the title. That fallback identity
+is derived from a CANONICALIZED form of the URL (lowercased scheme/host,
+path kept, query string and fragment stripped) so the same posting
+reached through two different tracking query parameters or a fragment
+never gets treated as two different jobs; the ORIGINAL, uncanonicalized
+URL is still what is stored as source_url/apply_url for navigation and
+provenance -- canonicalization only ever affects the derived identity,
+never the link a user would actually follow. If neither a native id nor
+a usable URL exists, the row is rejected rather than assigned a
+synthetic identity.
 
 Workplace semantics (audit finding, issue #38 legacy code): legacy code
 mapped every posting to 'Remote' if `isRemote` was true and 'On-site'
@@ -29,16 +38,25 @@ Hybrid value into On-site. This provider prefers the documented
 never infers On-site merely from `isRemote` being false or absent --
 an unrecognized/missing workplaceType with no remote evidence stays
 'UNKNOWN' rather than becoming a false On-site claim.
+
+Source-deadline coverage over transformation (Codex remediation round,
+finding 3): see backend/job_providers/lever.py's module docstring for
+the full rationale -- the shared Budget bounds transport requests, but
+per-record transformation is CPU work the transport layer never checks
+against the deadline on its own. `_to_records` here checks the budget
+before and after each record's transformation and once more after the
+whole page is transformed, preserving already-built records as PARTIAL
+rather than silently returning a late COMPLETE/HEALTHY.
 """
 import re
 import time
 from datetime import datetime, timezone
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 from .contracts import (
     CompletionReason, FetchBatch, FetchCompletion, FetchContext, Provider, ProviderCapabilities,
     ProviderError, ProviderRecord, SourceHealth, SourceMetrics, health_for_error_code,
-    outcome_for, VERSION as PROVIDER_VERSION,
+    outcome_for, valid_downstream_url, VERSION as PROVIDER_VERSION,
 )
 from .transport import Budget, TransportError, fetch_json
 
@@ -56,14 +74,17 @@ def _validate_top_level(payload):
     return payload['jobs']
 
 
-def _valid_url(value):
-    if not isinstance(value, str) or not value.strip():
-        return False
-    try:
-        parts = urlsplit(value)
-    except ValueError:
-        return False
-    return parts.scheme in ('http', 'https') and bool(parts.hostname)
+def _canonicalize_for_identity(url):
+    """Deterministic provider-local identity from a documented, stable
+    URL when no native id exists (Codex finding 6): lowercases the
+    scheme and host, keeps the path, and strips the query string and
+    fragment -- so tracking query params or a fragment never change the
+    derived identity. Never touches the ORIGINAL url used for
+    navigation/provenance; only the caller's separately-stored
+    provider_job_id is affected.
+    """
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), parts.path, '', ''))
 
 
 def _identity(row, raw_fields):
@@ -73,12 +94,12 @@ def _identity(row, raw_fields):
     """
     raw_id = row.get('id')
     job_url = row.get('jobUrl')
-    valid_url = job_url if _valid_url(job_url) else None
+    valid_url = job_url if valid_downstream_url(job_url) else None
     if isinstance(raw_id, str) and raw_id.strip():
         return raw_id.strip(), valid_url
     if valid_url is not None:
         raw_fields['identity_fallback'] = 'jobUrl'
-        return valid_url, valid_url
+        return _canonicalize_for_identity(valid_url), valid_url
     return None, None
 
 
@@ -117,7 +138,7 @@ def _to_record(row, source_board, retrieved_at):
     if provider_job_id is None:
         return None
     apply_url = row.get('applyUrl')
-    apply_url = apply_url if _valid_url(apply_url) else source_url
+    apply_url = apply_url if valid_downstream_url(apply_url) else source_url
     if apply_url is None:
         return None
     location = row.get('location')
@@ -133,24 +154,41 @@ def _to_record(row, source_board, retrieved_at):
     )
 
 
-def _to_records(rows, source_board):
+def _filter_listed(rows):
     """Filters out explicitly-unlisted rows (`isListed: false`) before
     validation/counting -- these are a legitimate documented signal from
     the source that a posting should not be shown, not malformed data,
     so they are excluded the same way Greenhouse's API never returns a
     draft/closed posting at all, rather than counted as rejected.
     """
-    listed = [r for r in rows if isinstance(r, dict) and r.get('isListed', True)]
+    return [r for r in rows if isinstance(r, dict) and r.get('isListed', True)]
+
+
+def _to_records(listed, source_board, budget):
+    """Transforms every listed row, bounded by `budget` (Codex finding
+    3). Returns (records, rejected, deadline_error) -- deadline_error is
+    None unless the budget expired during transformation, in which case
+    whatever was already built is still returned rather than discarded.
+    """
     records = []
     rejected = 0
     retrieved_at = datetime.now(timezone.utc).isoformat()
     for row in listed:
-        record = _to_record(row, source_board, retrieved_at)
+        try:
+            budget.check()
+            record = _to_record(row, source_board, retrieved_at)
+            budget.check()
+        except TransportError as error:
+            return records, rejected, error
         if record is None:
             rejected += 1
         else:
             records.append(record)
-    return listed, records, rejected
+    try:
+        budget.check()
+    except TransportError as error:
+        return records, rejected, error
+    return records, rejected, None
 
 
 class AshbyProvider(Provider):
@@ -175,13 +213,20 @@ class AshbyProvider(Provider):
             rows = _validate_top_level(payload)
         except ValueError as error:
             return self._malformed(source_board, budget, metrics, started, error)
-        listed, records, rejected = _to_records(rows, source_board)
+        listed = _filter_listed(rows)
+        records, rejected, deadline_error = _to_records(listed, source_board, budget)
         self._copy_budget(metrics, budget)
         metrics.records_received = len(listed)
         metrics.records_accepted = len(records)
         metrics.records_rejected = rejected
         metrics.errors_count = budget.errors_count + rejected
         metrics.elapsed_seconds = time.monotonic() - started
+        if deadline_error is not None:
+            if not records:
+                return self._failed(source_board, budget, metrics, started, deadline_error)
+            return FetchBatch('ashby', source_board, FetchCompletion.PARTIAL, SourceHealth.PARTIAL, records, metrics,
+                               error=ProviderError(deadline_error.code, str(deadline_error)),
+                               completion_reason=CompletionReason.TRANSPORT_ERROR.value)
         completion, health, error, reason = outcome_for(listed, records, rejected)
         return FetchBatch('ashby', source_board, completion, health, records, metrics,
                            error=error, completion_reason=reason)

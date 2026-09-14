@@ -60,4 +60,6 @@ def test_lever_multiple_locations(monkeypatch):
     monkeypatch.setattr(lever_mod,'fetch_json',lambda url,budget,**kw:payload)
     job=adapters.discover('lever','example')[0]
     assert 'Dubai' in job['location'] and discovery_reason(job,DEFAULTS) is None
-    assert job['date_posted'] and job['remote_status']=='remote'
+    # Codex remediation round, finding 5: createdAt is undocumented by
+    # Lever, so it is never promoted to the authoritative date_posted.
+    assert job['date_posted']=='' and job['remote_status']=='remote'

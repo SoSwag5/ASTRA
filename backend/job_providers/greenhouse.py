@@ -6,13 +6,12 @@ eligibility, or ASTRA's canonical job schema (issue #40).
 import re
 import time
 from datetime import datetime, timezone
-from urllib.parse import urlsplit
 
 from ..adapters import clean
 from .contracts import (
     CompletionReason, FetchBatch, FetchCompletion, FetchContext, Provider,
     ProviderCapabilities, ProviderError, ProviderFetchFailed, ProviderRecord,
-    SourceHealth, SourceMetrics, health_for_error_code, outcome_for,
+    SourceHealth, SourceMetrics, health_for_error_code, outcome_for, valid_downstream_url,
     VERSION as PROVIDER_VERSION,
 )
 from .transport import Budget, TransportError, fetch_json
@@ -31,16 +30,6 @@ def _validate_top_level(payload):
     if not isinstance(payload, dict) or not isinstance(payload.get('jobs'), list):
         raise ValueError('Expected a JSON object with a "jobs" list')
     return payload['jobs']
-
-
-def _valid_url(value):
-    if not isinstance(value, str) or not value.strip():
-        return False
-    try:
-        parts = urlsplit(value)
-    except ValueError:
-        return False
-    return parts.scheme in ('http', 'https') and bool(parts.hostname)
 
 
 def _valid_job_id(raw_id):
@@ -85,7 +74,7 @@ def _to_record(row, source_board, retrieved_at):
         return None
     if not isinstance(title, str) or not title.strip():
         return None
-    if not _valid_url(url):
+    if not valid_downstream_url(url):
         return None
     if not isinstance(location, dict):
         return None
