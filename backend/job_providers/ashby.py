@@ -26,9 +26,18 @@ reached through two different tracking query parameters or a fragment
 never gets treated as two different jobs; the ORIGINAL, uncanonicalized
 URL is still what is stored as source_url/apply_url for navigation and
 provenance -- canonicalization only ever affects the derived identity,
-never the link a user would actually follow. If neither a native id nor
-a usable URL exists, the row is rejected rather than assigned a
-synthetic identity.
+never the link a user would actually follow.
+
+jobUrl itself must always be valid (Codex remediation round 2, Blocker
+A): a valid native `id` or a valid `applyUrl` never excuses or replaces
+an invalid `jobUrl` -- the row is rejected outright if jobUrl fails
+downstream URL validation (credentials embedded, unsupported scheme,
+missing hostname, over the length limit), regardless of what else is
+present. `source_url` is always the row's own (validated) jobUrl; it is
+never silently substituted with `applyUrl`. `applyUrl` is a distinct
+fact, validated separately, and only ever falls back to the
+already-valid `source_url` when it is itself absent or invalid -- never
+the other direction.
 
 Workplace semantics (audit finding, issue #38 legacy code): legacy code
 mapped every posting to 'Remote' if `isRemote` was true and 'On-site'
@@ -87,20 +96,19 @@ def _canonicalize_for_identity(url):
     return urlunsplit((parts.scheme.lower(), parts.netloc.lower(), parts.path, '', ''))
 
 
-def _identity(row, raw_fields):
-    """Returns (provider_job_id, source_url) or (None, None) if neither a
-    native `id` nor a documented, stable fallback (`jobUrl`) is usable.
-    Never derives an identity from unstable text (title/description).
+def _identity(row, raw_fields, source_url):
+    """Returns the provider_job_id given an already-validated `source_url`
+    (see _to_record -- a row is rejected before this is ever called if
+    its jobUrl is not itself valid, so `source_url` here is always a
+    real, downstream-safe URL). A native `id` takes precedence; absent
+    that, a deterministic canonicalized identity is derived from
+    `source_url` -- never from unstable text (title/description).
     """
     raw_id = row.get('id')
-    job_url = row.get('jobUrl')
-    valid_url = job_url if valid_downstream_url(job_url) else None
     if isinstance(raw_id, str) and raw_id.strip():
-        return raw_id.strip(), valid_url
-    if valid_url is not None:
-        raw_fields['identity_fallback'] = 'jobUrl'
-        return _canonicalize_for_identity(valid_url), valid_url
-    return None, None
+        return raw_id.strip()
+    raw_fields['identity_fallback'] = 'jobUrl'
+    return _canonicalize_for_identity(source_url)
 
 
 def _workplace_status(row):
@@ -123,24 +131,31 @@ def _string_field(row, key, raw_fields):
 
 
 def _to_record(row, source_board, retrieved_at):
-    """Rejects (returns None for) any row missing a usable identity,
-    title, or apply URL -- never coerces a malformed value into looking
-    successful. Optional fields (timestamps, location) degrade
-    gracefully instead of failing the whole record.
+    """Rejects (returns None for) any row missing a usable title, or
+    whose jobUrl itself is not downstream-safe -- never coerces a
+    malformed value into looking successful. Optional fields
+    (timestamps, location) degrade gracefully instead of failing the
+    whole record.
+
+    Codex remediation round 2 (Blocker A): a valid native `id` or a
+    valid `applyUrl` never excuses/replaces an invalid `jobUrl`. jobUrl
+    IS source_url -- the row is rejected outright if it fails
+    valid_downstream_url, rather than silently substituting applyUrl as
+    the "original" posting URL.
     """
     if not isinstance(row, dict):
         return None
     title = row.get('title')
     if not isinstance(title, str) or not title.strip():
         return None
-    raw_fields = {}
-    provider_job_id, source_url = _identity(row, raw_fields)
-    if provider_job_id is None:
+    job_url = row.get('jobUrl')
+    if not valid_downstream_url(job_url):
         return None
+    source_url = job_url
+    raw_fields = {}
+    provider_job_id = _identity(row, raw_fields, source_url)
     apply_url = row.get('applyUrl')
     apply_url = apply_url if valid_downstream_url(apply_url) else source_url
-    if apply_url is None:
-        return None
     location = row.get('location')
     location = location if isinstance(location, str) and location.strip() else 'UNKNOWN'
     description = _string_field(row, 'descriptionPlain', raw_fields)
@@ -148,7 +163,7 @@ def _to_record(row, source_board, retrieved_at):
     return ProviderRecord(
         provider='ashby', source_board=source_board, provider_job_id=provider_job_id,
         title=title, location=location, description=description,
-        apply_url=apply_url, source_url=source_url or apply_url, posted_at=posted_at, closing_at='',
+        apply_url=apply_url, source_url=source_url, posted_at=posted_at, closing_at='',
         remote_status=_workplace_status(row), retrieved_at=retrieved_at, provider_version=PROVIDER_VERSION,
         raw_fields=raw_fields,
     )

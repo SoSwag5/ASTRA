@@ -83,12 +83,27 @@ def _health_for(error: TransportError) -> SourceHealth:
     return health_for_error_code(error.code)
 
 
-def _valid_job_id(raw_id):
+def _normalize_id(raw_id):
+    """Single normalization point for Lever's provider-native id (Codex
+    remediation round 2, Blocker B): the exact same normalized value
+    must be used for pagination dedup/cycle detection AND for the final
+    ProviderRecord.provider_job_id, or two representations Lever's own
+    API could return for what is really the same posting -- e.g. the
+    integer 1 and the string '1' -- pass dedup as if they were distinct
+    (int 1 != str '1' as raw values / set members) yet collide once
+    both are stringified for the final record, breaking provider-local
+    uniqueness. Returns None for anything that is not a valid scalar
+    Lever id (a non-empty stripped string, or a non-bool int) -- never
+    a composite/list/dict value, and never unsafely coerced.
+    """
     if isinstance(raw_id, bool):
-        return False
+        return None
     if isinstance(raw_id, str):
-        return bool(raw_id.strip())
-    return isinstance(raw_id, int)
+        stripped = raw_id.strip()
+        return stripped or None
+    if isinstance(raw_id, int):
+        return str(raw_id)
+    return None
 
 
 def _location(row):
@@ -142,10 +157,10 @@ def _observe_created_at(row, raw_fields):
 def _to_record(row, source_board, retrieved_at):
     if not isinstance(row, dict):
         return None
-    raw_id = row.get('id')
+    normalized_id = _normalize_id(row.get('id'))
     title = row.get('text')
     hosted_url = row.get('hostedUrl')
-    if not _valid_job_id(raw_id):
+    if normalized_id is None:
         return None
     if not isinstance(title, str) or not title.strip():
         return None
@@ -160,7 +175,7 @@ def _to_record(row, source_board, retrieved_at):
     return ProviderRecord(
         # posted_at is intentionally always '' for Lever -- see
         # _observe_created_at and the module docstring (Codex finding 5).
-        provider='lever', source_board=source_board, provider_job_id=str(raw_id),
+        provider='lever', source_board=source_board, provider_job_id=normalized_id,
         title=title, location=_location(row), description=_description(row),
         apply_url=apply_url, source_url=hosted_url, posted_at='', closing_at='',
         remote_status=remote_status, retrieved_at=retrieved_at, provider_version=PROVIDER_VERSION,
@@ -278,11 +293,17 @@ class LeverProvider(Provider):
             page_len = len(page)
             new_rows = []
             for item in page:
-                ident = item.get('id') if isinstance(item, dict) else None
-                if _valid_job_id(ident):
-                    if ident in seen_ids:
+                raw_ident = item.get('id') if isinstance(item, dict) else None
+                # Codex remediation round 2 (Blocker B): dedup on the SAME
+                # normalized id that will become provider_job_id, never on
+                # the raw value -- otherwise integer 1 and string '1' pass
+                # this check as if distinct, yet collide once _to_record
+                # stringifies both, breaking provider-local uniqueness.
+                normalized = _normalize_id(raw_ident)
+                if normalized is not None:
+                    if normalized in seen_ids:
                         continue
-                    seen_ids.add(ident)
+                    seen_ids.add(normalized)
                 new_rows.append(item)
             if not new_rows:
                 # Every identifiable posting in this page has already
