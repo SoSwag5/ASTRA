@@ -87,7 +87,8 @@ apply_url/posted_at/closing_at), provenance (`provider_facts`,
 (`normalization_version`, `fingerprint`, `match_method`, `match_version`,
 `match_evidence`). `Job` gains three additive columns only:
 `apply_url` (kept separate from `job_url`/`canonical_url`, the original
-posting URL), `normalization_version`, and an indexed `dedupe_fingerprint`.
+posting URL), `normalization_version`, an indexed `dedupe_fingerprint`,
+and an indexed `normalized_employer_key`.
 
 **Identity scope.** Provider family alone is never a uniqueness key.
 `JobObservation`'s unique constraint is
@@ -105,50 +106,54 @@ strongest evidence first:**
    identity kind + normalized provider-native id.
 2. *Exact job-specific source URL* -- `backend.normalization.
    is_job_specific_url()` rejects generic careers roots, login/portal
-   pages, and search/listing pages (a bare host, an empty path, or a path
-   whose only segments are generic words) before a URL is ever eligible as
-   identity evidence.
+   pages, and search/listing pages before a URL is eligible as identity
+   evidence. Hosted Greenhouse, Lever, Ashby, and SmartRecruiters URLs use
+   provider-aware posting-path rules, so a tenant/board slug alone is never
+   mistaken for one posting.
 3. *Documented employer-wide requisition id* -- only when explicitly
    flagged `requisition_id_authority == 'documented_employer_wide'`; no
    current provider supplies this, so this rule is a hook, not yet live.
-4. *Exact conservative cross-provider fingerprint* -- requires employer
-   key + title key + exact content fingerprint ALL simultaneously known
-   and equal, **and** at least one of location or workplace positively
-   known and equal on both sides (`_location_or_workplace_confirmed`) --
-   two `UNKNOWN` locations are never read as corroborating evidence, only
-   as an absence of conflict.
+An exact cross-provider fingerprint requires employer key + title key +
+the complete accepted normalized description simultaneously known and
+equal. It is retained for indexed candidate retrieval and reviewable
+evidence, but fingerprint-only evidence is always `CANDIDATE`, never a
+destructive automatic `MATCH`. A merge requires one of the independently
+strong identity rules above. Two `UNKNOWN` locations remain no evidence of
+equality.
 
 A **hard conflict** against the specific candidate a rule found (a
 different native id from the same source instance, a different documented
-requisition id, a known-and-incompatible location, or a known-and-
-incompatible workplace) always downgrades that rule's result to
+requisition id, incompatible known employer/title/content, a known-and-
+incompatible location, or a known-and-incompatible workplace) always downgrades that rule's result to
 `CANDIDATE`, overriding the rule's own positive evidence. Everything below
 this hierarchy (employer+title alone, title/description similarity alone,
 same provider family on a different board, same application domain,
 `UNKNOWN`+`UNKNOWN` geography) is `CANDIDATE` evidence at best, never an
 automatic merge.
 
-**Non-transitive clusters.** `resolve()` only ever compares a *new*
-observation against an *already-persisted* `Job`'s own current canonical
-fields -- it never merges two existing `Job` rows with each other, and a
-merge never overwrites an already-known canonical field (gap-fill only,
-`backend.services.apply_canonical_updates`). So a chain A~B, B~C with A
-conflicting with C cannot silently collapse into one cluster: C is always
-checked against `Job_A`'s real, unmutated facts, not against B's
-individual observation
-(`tests/test_job_deduplication.py::test_three_record_transitive_bridge_never_collapses`).
+**Non-transitive clusters.** `resolve()` compares a new observation against
+an already-persisted `Job`; it never merges two existing Jobs. Every stored
+`Job.dedupe_fingerprint` is recomputed from that Job's selected canonical
+employer/title/content fields after gap-fill, never copied from an arbitrary
+matched observation. Strong URL/requisition candidates are revalidated
+against the canonical Job's known employer, title, content, location, and
+workplace. Fingerprint-only evidence cannot merge. Therefore an A/B/C bridge
+cannot install B's identity onto A and later pull C into A; required insertion
+orders are covered by `tests/test_issue40_remediation.py`.
 
 **Indexed candidate lookup.** Rules 1/2/3/4 are all indexed equality
 lookups (`JobObservation`'s unique-constraint columns, `Job.canonical_url`,
-`Job.dedupe_fingerprint`); only the non-authoritative `CANDIDATE`-only
-weak-evidence path does a bounded employer-keyed lookup. No all-`Job` scan
-regardless of table size
-(`tests/test_job_deduplication.py::test_resolve_does_not_scan_every_job`).
+`Job.dedupe_fingerprint`). The non-authoritative weak-evidence path uses the
+persisted indexed `Job.normalized_employer_key`; it never loads distinct
+display-company values and normalizes them in Python. SQLite query-plan tests
+at 200, 1,000, and 5,000 unrelated Jobs require the employer lookup index and
+reject `SCAN jobs`.
 
 **Migration (Owner Decision 2, forward-safe only).** `backend/models.py`'s
 existing additive-migration pattern (`ALTER TABLE ... ADD COLUMN` guarded
 by a column-existence check, already used for `applications.tracking` etc.)
-gains the three new `jobs` columns plus an index; `JobObservation` is a
+gains the original three `jobs` columns plus the indexed
+`normalized_employer_key`; `JobObservation` is a
 brand-new table `create_all()` creates directly. Every pre-#40 `Job` gets
 **exactly one** `JobObservation` explicitly marked
 `identity_kind='legacy_incomplete'`, populated only from facts the old
@@ -218,19 +223,26 @@ oversight.
 
 ## Evidence and validation
 
-- `tests/fixtures/job_dedupe_corpus.json`: 8 MUST_COLLAPSE groups (each run
-  in both input orders), 15 MUST_NOT_COLLAPSE pairs (14 generic + the
-  three-record transitive-bridge case as a dedicated test), 5
-  CANDIDATE_ONLY pairs.
+- `tests/fixtures/job_dedupe_corpus.json`: 6 MUST_COLLAPSE groups (each run
+  in both input orders), 15 MUST_NOT_COLLAPSE pairs, 7 CANDIDATE_ONLY pairs,
+  plus generated attack parameters for four ATS roots, the 50,000-character
+  common-prefix collision, and required A/B/C bridge insertion orders.
 - `tests/test_job_normalization.py`: determinism/idempotence, Unicode
   (NFC/NFD) equivalence, seniority-word preservation, URL tracking-param/
-  fragment stripping, generic-root/login/portal rejection, content
-  fingerprint whitespace-insensitivity, unknown-value handling.
+  fragment stripping, provider-aware generic-root/login/portal rejection,
+  complete accepted-description hashing, whitespace-insensitivity, and
+  unknown-value handling.
 - `tests/test_job_deduplication.py`: corpus-driven MATCH/CANDIDATE/DISTINCT
-  assertions, the non-transitive-bridge regression, and an indexed-lookup
-  (bounded SQL statement count) regression against 200 unrelated `Job` rows.
+  assertions, the original non-transitive-bridge regression, and a bounded
+  SQL-statement regression.
+- `tests/test_issue40_remediation.py`: the six independent-review attacks,
+  including destructive imports at all four ATS roots, copied evergreen
+  cross-provider content, canonical-fingerprint contamination, required
+  bridge orders, URL authority, and SQLite index-plan checks at 200/1,000/5,000
+  rows.
 - `tests/test_job_observation_integration.py`: migration/backfill
-  (including idempotency across a second `initialize()`), privacy export/
+  (including pre-#40 and pre-remediation upgrades, normalized-key backfill,
+  historical ID/FK preservation, and idempotency), privacy export/
   delete scope behavior, and per-provider provenance mapping (Lever
   `createdAt` non-authority, Ashby URL-fallback `identity_kind`, source/
   apply URL separation, SmartRecruiters legacy-wrapper observation, manual
@@ -241,10 +253,10 @@ oversight.
   `test_weak_evidence_alone_does_not_auto_merge` proving that exact old
   behavior is now `CANDIDATE`/`DISTINCT`, per this issue's explicit,
   Owner-sanctioned scope (Core Product Rule; MUST_NOT_COLLAPSE #5).
-- Full regression: BASE (`master`, `dc0ea5b`) 668 passed / 7 failed; CANDIDATE
-  (this branch) 737 passed / 1 skipped / 7 failed -- the 7 failures are the
-  identical pre-existing Playwright browser-binary-missing failures in
-  both (not a #40 regression); 0 test regressions.
+- Remediation regression on the implementation worktree: 766 passed, 1
+  skipped, 0 failed, 0 errors with isolated storage and a fresh pytest base;
+  the frontend checks and production build also passed. These implementation
+  results require a fresh independent retest before Owner-authorized merge.
 
 ## Framework impact
 

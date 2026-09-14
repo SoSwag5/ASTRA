@@ -5,15 +5,15 @@ never eligibility, ranking, or relevance (issue #41's job entirely). See
 docs/architecture/adr/0010-job-observation-and-conservative-deduplication.md
 for the full rule hierarchy and rationale.
 
-Evaluates the strongest evidence first (Rules 1-4). A hard conflict against
+Evaluates the strongest evidence first (Rules 1-3). A hard conflict against
 the specific candidate a rule found always overrides that rule's own
 evidence and downgrades the result to CANDIDATE -- weak similarity never
 wins over a known incompatibility. Only ONE existing Job is ever touched per
 resolve() call (the new observation is compared against, and merges into at
 most one already-persisted Job) -- two existing Jobs are never merged with
-each other here, which is what keeps a three-record A~B, B~C, A-conflicts-C
-chain from silently collapsing into one cluster (see
-tests/test_job_deduplication.py's non-transitive-bridge regression).
+each other here. Canonical lookup keys are derived only from the selected
+Job fields, and fingerprint evidence alone is never destructive, preventing
+an observation from becoming a transitive bridge between incompatible Jobs.
 """
 import hashlib
 from dataclasses import dataclass, field
@@ -22,11 +22,12 @@ from sqlalchemy import select
 
 from .models import Job, JobObservation
 from .normalization import (
-    JobObservationInput, NormalizedObservation, normalize, workplace_key as _workplace_key_of,
-    location_key as _location_key_of, NORMALIZATION_VERSION,
+    JobObservationInput, NormalizedObservation, content_fingerprint as _content_fingerprint_of,
+    employer_key as _employer_key_of, location_key as _location_key_of, normalize,
+    title_key as _title_key_of, workplace_key as _workplace_key_of, NORMALIZATION_VERSION,
 )
 
-DEDUPE_VERSION = 'dedupe-1'
+DEDUPE_VERSION = 'dedupe-2'
 
 MATCH = 'MATCH'
 DISTINCT = 'DISTINCT'
@@ -45,12 +46,11 @@ class DedupeDecision:
 
 
 def _composite_fingerprint(norm: NormalizedObservation) -> str:
-    """Rule 4's cross-provider identity: requires ALL of employer/title/
+    """Cross-provider candidate evidence: requires ALL of employer/title/
     content evidence to be simultaneously known and exact -- a fingerprint
     is never computed (so never matches anything) from partial evidence.
-    Workplace/location compatibility is checked separately as a hard
-    conflict at match time, not folded into the fingerprint itself, so a
-    genuine location conflict always overrides a fingerprint coincidence.
+    Workplace/location compatibility is checked separately so conflicts are
+    preserved in the reviewable candidate evidence.
     """
     if not (norm.employer_key and norm.title_key and norm.content_fingerprint):
         return ''
@@ -60,6 +60,15 @@ def _composite_fingerprint(norm: NormalizedObservation) -> str:
 
 def composite_fingerprint(observation: JobObservationInput) -> str:
     return _composite_fingerprint(normalize(observation))
+
+
+def canonical_fingerprint(job: Job) -> str:
+    """Fingerprint only the fields currently selected on canonical Job."""
+    return composite_fingerprint(JobObservationInput(
+        employer_name=job.company, title=job.title, location=job.location,
+        workplace=job.remote_status, description=job.description,
+        source_url=job.job_url,
+    ))
 
 
 def _same_source_different_native_id(db, observation: JobObservationInput, job: Job):
@@ -101,6 +110,15 @@ def hard_conflict(db, observation: JobObservationInput, norm: NormalizedObservat
         return 'same_source_instance_different_native_id'
     if _different_documented_requisition(db, observation, job):
         return 'different_documented_requisition_id'
+    job_employer = _employer_key_of(job.company)
+    if norm.employer_key and job_employer and norm.employer_key != job_employer:
+        return 'employer_conflict'
+    job_title = _title_key_of(job.title)
+    if norm.title_key and job_title and norm.title_key != job_title:
+        return 'title_conflict'
+    job_content = _content_fingerprint_of(job.description)
+    if norm.content_fingerprint and job_content and norm.content_fingerprint != job_content:
+        return 'content_conflict'
     job_location = _location_key_of(job.location)
     if norm.location_key and job_location and norm.location_key != job_location:
         return 'location_conflict'
@@ -152,13 +170,11 @@ def _fingerprint_match(db, fingerprint: str):
 
 
 def _location_or_workplace_confirmed(norm: NormalizedObservation, job: Job):
-    """Rule 4 requires 'compatible KNOWN location/workplace', not merely
-    the absence of a conflict -- two UNKNOWN locations must never be read
-    as corroborating evidence for a cross-provider merge (Core Product
-    Rule: "UNKNOWN + UNKNOWN geography is not evidence of equality"). At
-    least one of location or workplace must be positively known and equal
-    on both sides before Rule 4 may fire; hard_conflict() separately still
-    blocks the match outright if the other one actively disagrees.
+    """Positive corroboration flag for fingerprint candidate evidence.
+
+    Two UNKNOWN locations must never be read as corroborating evidence
+    (Core Product Rule: "UNKNOWN + UNKNOWN geography is not evidence of
+    equality").
     """
     job_location = _location_key_of(job.location)
     job_workplace = _workplace_key_of(job.remote_status)
@@ -171,24 +187,14 @@ def _weak_candidates(db, norm: NormalizedObservation, exclude_job_id=None, limit
     """Best-effort CANDIDATE evidence only -- deliberately not exhaustive.
     Under-detecting a weak-similarity pair is safe (conservative); the
     correctness property #40 must uphold is that nothing here ever becomes
-    an automatic MATCH. Uses an indexed equality lookup (Job.company), not
-    an all-Job fuzzy scan (Phase 14).
+    an automatic MATCH. Uses an indexed equality lookup on the persisted
+    Job.normalized_employer_key, not an all-Job fuzzy scan (Phase 14).
     """
     if not norm.employer_key:
         return []
     candidates = list(db.scalars(
-        select(Job).where(Job.company == norm.employer_key).limit(limit)
+        select(Job).where(Job.normalized_employer_key == norm.employer_key).limit(limit)
     ))
-    # Job.company stores the original DISPLAY string, not the normalized
-    # key, so also try a direct equality against every distinct company
-    # value sharing the same normalized key via a bounded scan of distinct
-    # companies -- still not a per-row fuzzy scan of all Jobs.
-    if not candidates:
-        from .normalization import employer_key as _employer_key_of
-        companies = db.scalars(select(Job.company).distinct().limit(500))
-        matching = [c for c in companies if _employer_key_of(c) == norm.employer_key]
-        if matching:
-            candidates = list(db.scalars(select(Job).where(Job.company.in_(matching)).limit(limit)))
     return [c for c in candidates if c.id != exclude_job_id]
 
 
@@ -235,11 +241,13 @@ def resolve(db, observation: JobObservationInput) -> DedupeDecision:
         conflict = hard_conflict(db, observation, norm, fingerprint_job)
         if not conflict and not _location_or_workplace_confirmed(norm, fingerprint_job):
             conflict = 'insufficient_location_or_workplace_evidence'
-        if conflict:
-            return DedupeDecision(CANDIDATE, 'cross_provider_fingerprint_conflict', evidence=evidence_base,
-                                   hard_conflicts=(conflict,), candidate_job_ids=(fingerprint_job.id,))
-        return DedupeDecision(MATCH, 'cross_provider_fingerprint', evidence={**evidence_base, 'fingerprint': fingerprint},
-                               selected_job_id=fingerprint_job.id)
+        return DedupeDecision(
+            CANDIDATE,
+            'cross_provider_fingerprint_conflict' if conflict else 'cross_provider_fingerprint_candidate',
+            evidence={**evidence_base, 'fingerprint': fingerprint},
+            hard_conflicts=(conflict,) if conflict else (),
+            candidate_job_ids=(fingerprint_job.id,),
+        )
 
     weak = _weak_candidates(db, norm)
     if weak:

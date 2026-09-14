@@ -75,6 +75,37 @@ def test_url_with_identifying_segment_is_job_specific():
     assert n.is_job_specific_url('https://jobs.lever.co/acme/some-uuid-here') is True
 
 
+def test_generic_ats_tenant_roots_are_not_job_specific():
+    roots = (
+        'https://boards.greenhouse.io/acme',
+        'https://jobs.lever.co/acme',
+        'https://jobs.ashbyhq.com/acme',
+        'https://jobs.smartrecruiters.com/acme',
+    )
+    assert all(n.is_job_specific_url(url) is False for url in roots)
+
+
+def test_ats_non_posting_pages_are_not_job_specific():
+    pages = (
+        'https://boards.greenhouse.io/acme/jobs',
+        'https://jobs.lever.co/acme/search',
+        'https://jobs.ashbyhq.com/acme/careers',
+        'https://jobs.smartrecruiters.com/acme/login',
+        'https://jobs.smartrecruiters.com/shared/portal',
+    )
+    assert all(n.is_job_specific_url(url) is False for url in pages)
+
+
+def test_provider_specific_posting_shapes_remain_job_specific():
+    postings = (
+        'https://boards.greenhouse.io/acme/jobs/123456',
+        'https://jobs.lever.co/acme/12345678-abcd-4321-abcd-123456789abc',
+        'https://jobs.ashbyhq.com/acme/12345678-abcd-4321-abcd-123456789abc',
+        'https://jobs.smartrecruiters.com/Acme/123456-security-analyst',
+    )
+    assert all(n.is_job_specific_url(url) is True for url in postings)
+
+
 def test_non_specific_url_never_becomes_identity():
     assert n.normalize_url_for_identity('https://acme.example.com/careers') is None
     assert n.normalize_url_for_identity('') is None
@@ -96,6 +127,17 @@ def test_content_fingerprint_differs_for_different_content():
     a = n.content_fingerprint('Monitor SIEM alerts, triage incidents, and escalate confirmed threats during business hours today.')
     b = n.content_fingerprint('Prepare payroll runs, reconcile timesheets, and file statutory reports every month end cycle.')
     assert a != b
+
+
+def test_content_fingerprint_includes_identity_significant_tail_after_50k():
+    prefix = 'a' * 50_000
+    assert n.content_fingerprint(prefix + ' tail alpha') != n.content_fingerprint(prefix + ' tail beta')
+
+
+def test_content_fingerprint_hashes_long_accepted_description_deterministically():
+    description = ('security operations monitoring and incident response ' * 1900)[:100_000]
+    assert len(description) == 100_000
+    assert n.content_fingerprint(description) == n.content_fingerprint(description)
 
 
 def test_normalize_bundles_every_key():

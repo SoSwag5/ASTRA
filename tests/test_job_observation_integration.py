@@ -75,6 +75,75 @@ with Session() as db:
 ''')
 
 
+def test_current_pr_schema_adds_and_idempotently_backfills_employer_index(tmp_path):
+    isolated(tmp_path, r'''
+from sqlalchemy import inspect, select, text
+from backend.models import Base, engine, Session, Job, initialize
+from backend.deduplication import canonical_fingerprint
+Base.metadata.create_all(engine)
+with Session.begin() as db:
+    db.add(Job(id=41, company='Fictional  Corp', title='SOC Analyst', location='Dubai',
+               description='Canonical description for a fictional security operations role.' * 2,
+               dedupe_fingerprint='contaminated-observation-fingerprint'))
+with engine.begin() as connection:
+    connection.execute(text('DROP INDEX ix_jobs_normalized_employer_key'))
+    connection.execute(text('ALTER TABLE jobs DROP COLUMN normalized_employer_key'))
+initialize()
+with Session() as db:
+    job=db.get(Job, 41)
+    assert job.id == 41
+    assert job.normalized_employer_key == 'fictional corp'
+    assert job.dedupe_fingerprint == canonical_fingerprint(job)
+    first=(job.normalized_employer_key, job.dedupe_fingerprint)
+assert 'ix_jobs_normalized_employer_key' in {row['name'] for row in inspect(engine).get_indexes('jobs')}
+initialize()
+with Session() as db:
+    job=db.get(Job, 41)
+    assert (job.normalized_employer_key, job.dedupe_fingerprint) == first
+''')
+
+
+def test_pre_issue40_upgrade_preserves_historical_ids_and_foreign_keys(tmp_path):
+    isolated(tmp_path, r'''
+from sqlalchemy import inspect, select, text
+from backend.models import (Base, engine, Session, Job, JobObservation, Application,
+                            ApplicationEvent, ResumeVersion, initialize)
+Base.metadata.create_all(engine)
+with Session.begin() as db:
+    db.add_all([
+        Job(id=51, company='Alpha Fictional', title='Analyst'),
+        Job(id=52, company='Beta Fictional', title='Engineer'),
+    ])
+    db.flush()
+    app=Application(id=61, job_id=52)
+    db.add(app)
+    db.add(ApplicationEvent(id=71, job_id=52, application_id=61, message='Synthetic event'))
+    db.add(ResumeVersion(id=81, job_id=52, pdf_path='synthetic.pdf', docx_path='synthetic.docx',
+                         master='synthetic', tailored='synthetic', diff='', fact_ids=[]))
+with engine.begin() as connection:
+    connection.execute(text('DROP TABLE job_observations'))
+    connection.execute(text('DROP INDEX ix_jobs_normalized_employer_key'))
+    connection.execute(text('DROP INDEX ix_jobs_dedupe_fingerprint'))
+    connection.execute(text('ALTER TABLE jobs DROP COLUMN normalized_employer_key'))
+    connection.execute(text('ALTER TABLE jobs DROP COLUMN dedupe_fingerprint'))
+    connection.execute(text('ALTER TABLE jobs DROP COLUMN normalization_version'))
+    connection.execute(text('ALTER TABLE jobs DROP COLUMN apply_url'))
+initialize()
+with Session() as db:
+    assert [job.id for job in db.scalars(select(Job).order_by(Job.id))] == [51, 52]
+    assert db.get(Application, 61).job_id == 52
+    assert db.get(ApplicationEvent, 71).job_id == 52
+    assert db.get(ResumeVersion, 81).job_id == 52
+    assert {job.normalized_employer_key for job in db.scalars(select(Job))} == {'alpha fictional', 'beta fictional'}
+    assert len(list(db.scalars(select(JobObservation)))) == 2
+assert 'ix_jobs_normalized_employer_key' in {row['name'] for row in inspect(engine).get_indexes('jobs')}
+initialize()
+with Session() as db:
+    assert len(list(db.scalars(select(JobObservation)))) == 2
+    assert db.get(Application, 61).job_id == 52
+''')
+
+
 # ---- privacy: JobObservation shares Job's export/delete lifecycle ----
 
 def test_privacy_counts_include_job_observations(tmp_path):

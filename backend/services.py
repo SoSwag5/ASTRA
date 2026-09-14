@@ -176,8 +176,21 @@ def apply_canonical_updates(job,observation):
     if not job.description and view.description: job.description=view.description
     if not job.date_posted and observation.posted_at_authority=='documented_provider_field' and view.date_posted: job.date_posted=view.date_posted
     if not job.closing_date and view.closing_date: job.closing_date=view.closing_date
-    if not job.apply_url and view.apply_url: job.apply_url=view.apply_url
-    if not job.canonical_url and view.canonical_url: job.canonical_url=view.canonical_url
+    from .job_providers.contracts import valid_downstream_url
+    stronger_source=(observation.provider_family not in ('manual','legacy') and
+                     observation.identity_kind in ('native','url_fallback'))
+    if not job.apply_url and view.apply_url and valid_downstream_url(view.apply_url): job.apply_url=view.apply_url
+    if not job.job_url and stronger_source and valid_downstream_url(view.job_url):
+        job.job_url=view.job_url
+        job.canonical_url=view.canonical_url
+    elif not job.canonical_url and job.job_url:
+        job.canonical_url=canonical(job.job_url)
+
+def _refresh_canonical_matching_keys(job):
+    """Persist keys derived from canonical Job fields, never an observation."""
+    job.normalized_employer_key=normalization.employer_key(job.company) or ''
+    job.dedupe_fingerprint=deduplication.canonical_fingerprint(job)
+    job.normalization_version=normalization.NORMALIZATION_VERSION
 
 def _persist_observation(db,job,observation,decision):
     fingerprint=deduplication.composite_fingerprint(observation)
@@ -256,17 +269,17 @@ def add_job(db,data,job_source=None):
         if data.get('notes') and data['notes'] not in j.notes: j.notes=(j.notes+'\n'+data['notes']).strip()
         if linkedin(j.job_url) and data.get('job_url') and not linkedin(data['job_url']): j.job_url=data['job_url']; j.canonical_url=data['canonical_url']; j.source=data.get('source','Company')
         apply_canonical_updates(j,observation)
-        _,fingerprint=_persist_observation(db,j,observation,decision)
-        if not j.dedupe_fingerprint and fingerprint: j.dedupe_fingerprint=fingerprint
-        if not j.normalization_version: j.normalization_version=normalization.NORMALIZATION_VERSION
+        _persist_observation(db,j,observation,decision)
+        _refresh_canonical_matching_keys(j)
         log(db,'Duplicate import merged into existing job',j.id)
         app=db.scalar(select(Application).where(Application.job_id==j.id))
         return j, {'duplicate_of':j.id,'application_id':app.id if app else None}
 
-    fingerprint=deduplication.composite_fingerprint(observation)
-    data['dedupe_fingerprint']=fingerprint; data['normalization_version']=normalization.NORMALIZATION_VERSION
+    data['normalized_employer_key']=normalization.employer_key(data.get('company')) or ''
+    data['dedupe_fingerprint']=''; data['normalization_version']=normalization.NORMALIZATION_VERSION
     data.setdefault('apply_url',canonical_view(observation).apply_url)
     j=Job(**data); db.add(j); db.flush()
+    _refresh_canonical_matching_keys(j)
     _persist_observation(db,j,observation,decision)
     log(db,'Job discovered',j.id); return j, None
 

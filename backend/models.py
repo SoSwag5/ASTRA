@@ -86,13 +86,13 @@ class Job(Record, Base):
     notes: Mapped[str] = mapped_column(Text, default='')
     # Issue #40: additive-only. apply_url is the application URL kept
     # separate from job_url/canonical_url (the original posting URL);
-    # normalization_version/dedupe_fingerprint support the conservative
-    # cross-provider match rule (backend/deduplication.py Rule 4) without a
-    # quadratic all-Job scan. A pre-#40 Job keeps these at their defaults
-    # until a new observation resolves onto it.
+    # normalization_version/dedupe_fingerprint support conservative candidate
+    # evidence; normalized_employer_key provides indexed weak-candidate lookup
+    # without a quadratic all-Job scan.
     apply_url: Mapped[str] = mapped_column(default='')
     normalization_version: Mapped[str] = mapped_column(default='')
     dedupe_fingerprint: Mapped[str] = mapped_column(default='', index=True)
+    normalized_employer_key: Mapped[str] = mapped_column(default='', index=True)
 class JobObservation(Record, Base):
     """One provider/manual OBSERVATION of a posting (issue #40). Job stays
     the stable, compatibility-facing canonical row (Owner Decision 1) --
@@ -290,7 +290,7 @@ def initialize():
     additions={'applications':{'tracking':"JSON NOT NULL DEFAULT '{}'"},'job_sources':{'details':"JSON NOT NULL DEFAULT '{}'"},'application_events':{'application_id':'INTEGER REFERENCES applications(id)','event_type':"VARCHAR NOT NULL DEFAULT 'LOG'",'occurred_at':"VARCHAR NOT NULL DEFAULT ''",'source':"VARCHAR NOT NULL DEFAULT 'SYSTEM'",'stage':"VARCHAR NOT NULL DEFAULT ''"},
         # Issue #40: additive Job fields. A pre-#40 database gets these at
         # their neutral defaults; nothing existing is renamed or removed.
-        'jobs':{'apply_url':"VARCHAR NOT NULL DEFAULT ''",'normalization_version':"VARCHAR NOT NULL DEFAULT ''",'dedupe_fingerprint':"VARCHAR NOT NULL DEFAULT ''"}}
+        'jobs':{'apply_url':"VARCHAR NOT NULL DEFAULT ''",'normalization_version':"VARCHAR NOT NULL DEFAULT ''",'dedupe_fingerprint':"VARCHAR NOT NULL DEFAULT ''",'normalized_employer_key':"VARCHAR NOT NULL DEFAULT ''"}}
     with engine.begin() as connection:
         for table,fields in additions.items():
             existing={c['name'] for c in inspect(connection).get_columns(table)}
@@ -300,9 +300,27 @@ def initialize():
         # table for the first time; jobs.dedupe_fingerprint may have just
         # been added by ALTER TABLE above to a table that already existed.
         connection.execute(text('CREATE INDEX IF NOT EXISTS ix_jobs_dedupe_fingerprint ON jobs (dedupe_fingerprint)'))
+        connection.execute(text('CREATE INDEX IF NOT EXISTS ix_jobs_normalized_employer_key ON jobs (normalized_employer_key)'))
     with Session.begin() as db:
         if not db.get(WorkbookSync,1): db.add(WorkbookSync(id=1))
+    _backfill_job_normalization_keys()
     _backfill_legacy_observations()
+
+def _backfill_job_normalization_keys():
+    """Deterministically populate the indexed canonical matching keys.
+
+    This is safe to repeat and never changes a Job id or relationship.  It
+    also repairs fingerprints written by the pre-remediation #40 candidate,
+    which could reflect a matched observation rather than canonical fields.
+    """
+    from sqlalchemy import select
+    from .deduplication import canonical_fingerprint
+    from .normalization import NORMALIZATION_VERSION, employer_key
+    with Session.begin() as db:
+        for job in db.scalars(select(Job)):
+            job.normalized_employer_key=employer_key(job.company) or ''
+            job.dedupe_fingerprint=canonical_fingerprint(job)
+            job.normalization_version=NORMALIZATION_VERSION
 
 def _backfill_legacy_observations():
     """Issue #40, forward-safe migration only (Owner Decision 2): every

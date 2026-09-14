@@ -28,7 +28,7 @@ from urllib.parse import urlsplit
 from .policy import canonical as _canonical_url
 from .policy import norm as _word_norm
 
-NORMALIZATION_VERSION = 'normalization-1'
+NORMALIZATION_VERSION = 'normalization-2'
 
 UNKNOWN = 'UNKNOWN'
 
@@ -39,14 +39,14 @@ IDENTITY_KINDS = ('native', 'url_fallback', 'manual', 'legacy_incomplete')
 
 # A URL whose last path segment is one of these generic words is a careers
 # root, a login/portal page, or a listing/search page -- never a single
-# job-specific posting -- so it must never be treated as identity evidence
-# (Rule 2 / Rule 4 both require a job-specific URL).
+# job-specific posting -- so it must never be treated as Rule 2 identity
+# evidence.
 _GENERIC_LAST_SEGMENTS = {
     '', 'jobs', 'job', 'careers', 'career', 'opening', 'openings', 'position',
     'positions', 'apply', 'application', 'applications', 'login', 'signin',
     'sign-in', 'log-in', 'search', 'index', 'home', 'board', 'boards',
     'postings', 'posting', 'vacancies', 'vacancy', 'listing', 'listings',
-    'current-openings', 'current-vacancies',
+    'current-openings', 'current-vacancies', 'portal', 'shared',
 }
 
 _WORKPLACE_CANON = {
@@ -58,7 +58,30 @@ _WORKPLACE_CANON = {
 }
 
 _CONTENT_FINGERPRINT_MIN_LENGTH = 40
-_CONTENT_FINGERPRINT_MAX_INPUT = 50_000
+
+_ATS_POSTING_HOSTS = {
+    'jobs.lever.co': 'tenant_and_posting',
+    'jobs.ashbyhq.com': 'tenant_and_posting',
+    'jobs.smartrecruiters.com': 'tenant_and_posting',
+}
+
+
+def _known_ats_posting_path(hostname, segments):
+    """Return a decision for a recognized hosted ATS URL, otherwise None.
+
+    Hosted ATS tenant roots look superficially job-specific because their
+    final path component is a company slug.  Their documented public URL
+    shapes give us a safer syntactic boundary: Greenhouse needs a board,
+    ``jobs`` and a posting id; Lever, Ashby and SmartRecruiters need both a
+    tenant and a non-generic posting component.
+    """
+    host = hostname.lower().rstrip('.')
+    if host in ('boards.greenhouse.io', 'job-boards.greenhouse.io', 'boards.eu.greenhouse.io'):
+        lowered = [segment.lower() for segment in segments]
+        return len(segments) >= 3 and lowered[-2] == 'jobs' and lowered[-1] not in _GENERIC_LAST_SEGMENTS
+    if host in _ATS_POSTING_HOSTS:
+        return len(segments) >= 2 and segments[-1].lower() not in _GENERIC_LAST_SEGMENTS
+    return None
 
 
 def is_job_specific_url(url):
@@ -77,6 +100,9 @@ def is_job_specific_url(url):
     segments = [s for s in parts.path.rstrip('/').split('/') if s]
     if not segments:
         return False
+    ats_decision = _known_ats_posting_path(parts.hostname, segments)
+    if ats_decision is not None:
+        return ats_decision
     return segments[-1].lower() not in _GENERIC_LAST_SEGMENTS
 
 
@@ -139,7 +165,7 @@ def workplace_key(value):
 
 
 def content_fingerprint(description):
-    """A bounded, deterministic exact-content fingerprint. Harmless
+    """A deterministic exact-content fingerprint. Harmless
     whitespace/HTML-formatting differences collapse to the same
     fingerprint (the caller is expected to have already stripped markup --
     see backend.adapters.clean() -- this only normalizes remaining
@@ -155,8 +181,10 @@ def content_fingerprint(description):
     collapsed = ' '.join(text.split()).strip().lower()
     if len(collapsed) < _CONTENT_FINGERPRINT_MIN_LENGTH:
         return None
-    bounded = collapsed[:_CONTENT_FINGERPRINT_MAX_INPUT]
-    return hashlib.sha256(bounded.encode('utf-8')).hexdigest()
+    # add_job() already enforces ASTRA's 100,000-character input bound.  The
+    # complete accepted normalized value is identity-significant; discarding
+    # its tail would create deterministic collisions.
+    return hashlib.sha256(collapsed.encode('utf-8')).hexdigest()
 
 
 @dataclass(frozen=True)
