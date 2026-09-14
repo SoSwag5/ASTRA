@@ -38,18 +38,17 @@ def test_funnel_partition():
 
 def test_greenhouse_escaped_location_and_bounded_fallback(monkeypatch):
  import backend.adapters as a
+ import backend.job_providers.greenhouse as gh
+ from backend.job_providers.transport import TransportError
  import html
  calls=[]
- class Response:
-  def __init__(self,value):self.value=value
-  def json(self):return self.value
  row={'id':123,'title':'Network Security Engineer','location':{'name':'Hybrid'},'absolute_url':'https://job-boards.greenhouse.io/example/jobs/123','updated_at':'2026-09-11'}
- def fetch(url):
+ def fetch_json(url,budget,**kw):
   calls.append(url)
-  if url.endswith('?content=true'):raise ValueError('Response too large')
-  if url.endswith('/123'):return Response({**row,'content':html.escape('<p>Available Locations: Lisbon, Portugal</p><p>SIEM security monitoring</p>')})
-  return Response({'jobs':[row]})
- monkeypatch.setattr(a,'fetch',fetch)
+  if url.endswith('?content=true'):raise TransportError('RESPONSE_TOO_LARGE','Response exceeded the size cap')
+  if url.endswith('/123'):return {**row,'content':html.escape('<p>Available Locations: Lisbon, Portugal</p><p>SIEM security monitoring</p>')}
+  return {'jobs':[row]}
+ monkeypatch.setattr(gh,'fetch_json',fetch_json)
  result=a.discover('greenhouse','example')[0]
  assert result['location']=='Lisbon, Portugal / Hybrid'
  assert '<p>' not in result['description'] and not result['date_posted']
