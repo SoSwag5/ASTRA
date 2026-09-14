@@ -61,11 +61,36 @@ evidence chain and run URLs.
   Contract Gate" and "First Real Jobs Gate" for this evidence; neither term
   exists elsewhere in ASTRA's governance vocabulary, so this snapshot records
   the actual named checks above instead of adopting undefined gate names.)
-  Next authorized implementation target is **issue #39** (Lever + Ashby
-  providers, with Workable evaluated inside that issue); #39 implementation
-  has not started. Issues beyond #39 remain not started under the approved
-  12-issue backlog ("v1.1 — Discovery & Application Intelligence" milestone,
-  issues #37-#48).
+  **Issue #39 (Lever + Ashby provider migration) is now also COMPLETE**,
+  merged to `master` via
+  [PR #55](https://github.com/SoSwag5/ASTRA/pull/55) (squash commit
+  `6a23397028c679f9ac51a0cba9909addc826edd4`) after three rounds of
+  independent Codex review (initial review: findings 1-6 remediated; final
+  retest: two remaining HIGH blockers — Ashby invalid-jobUrl fallback and
+  Lever normalized-ID collision — remediated) and a final independent
+  APPROVE, with Owner-authorized merge. `master` now carries
+  `backend/job_providers/lever.py` and `backend/job_providers/ashby.py`
+  migrated onto the #38 framework, with `contracts.py` gaining shared
+  `valid_downstream_url()` validation and a `PAGINATION_LIMIT_REACHED`
+  completion reason, and `compatibility.py` fixed to stop hardcoding the
+  Greenhouse source label and dropping `remote_status` for other providers.
+  Verified evidence for #39: candidate regression 675 passed / 0 failed / 0
+  errors, all hosted required/informational checks green at the merged head
+  (Security Verification, Python 3.13/3.14, SCA, dependency review, CodeQL
+  python/javascript-typescript/actions), `python scripts/publication_gate.py`
+  → PASS, and live-verified fetches against Lever's own `leverdemo` public
+  board and real Ashby boards already in ASTRA's source list (Ziina, Lean
+  Technologies). Workable was evaluated per #39's acceptance criteria: a
+  public `apply.workable.com` widget endpoint is technically accessible but
+  lacks official Workable documentation establishing it as a supported
+  integration surface, so it is classified **NEEDS OWNER/PERMISSION
+  DECISION** and was not implemented. SmartRecruiters remains on its legacy,
+  unmigrated path; `FormAdapter`/`LeverAdapter`/`AshbyAdapter` (the separate
+  application-form seam) were untouched.
+  Next authorized implementation target is **issue #40** (Normalization +
+  cross-provider deduplication); #40 implementation has not started. Issues
+  beyond #40 remain not started under the approved 12-issue backlog
+  ("v1.1 — Discovery & Application Intelligence" milestone, issues #37-#48).
 - Governance integration advances `master` from the frozen release commit without
   moving or modifying the immutable v1.0.0 tag, source, or artifacts.
 
@@ -112,6 +137,7 @@ or merged.
 |---|---|---|
 | [#37](https://github.com/SoSwag5/ASTRA/issues/37) | Closed. Discovery query planner merged via [PR #51](https://github.com/SoSwag5/ASTRA/pull/51) (squash commit `a1e6373356b59e379f1b33910f3b678ddf4211fd`). | Deterministic, rule-based query expansion (`backend/query_planner.py`); 123 tests; three rounds of independent Codex review, final Codex APPROVE, Owner-authorized merge. |
 | [#38](https://github.com/SoSwag5/ASTRA/issues/38) | Closed. Common job-provider framework + Greenhouse migration merged via [PR #53](https://github.com/SoSwag5/ASTRA/pull/53) (squash commit `c6c8f8bc58c6171d67017d2e8d52761d67a18bd7`). | `backend/job_providers/` contract, transport, registry, compatibility seam; Greenhouse migrated off `recall.py`; 40 new tests; three rounds of independent Codex review, final APPROVE, Owner-authorized merge; live-verified against GitLab's real Greenhouse board. Lever/Ashby/SmartRecruiters/`FormAdapter` untouched. |
+| [#39](https://github.com/SoSwag5/ASTRA/issues/39) | Closed. Lever + Ashby provider migration merged via [PR #55](https://github.com/SoSwag5/ASTRA/pull/55) (squash commit `6a23397028c679f9ac51a0cba9909addc826edd4`). | `backend/job_providers/lever.py` (bounded pagination, normalized identity) and `backend/job_providers/ashby.py` (validated jobUrl-first identity, Hybrid/Remote/OnSite/Unknown semantics) migrated onto the #38 framework; shared `valid_downstream_url()` added to `contracts.py`; `compatibility.py` source-label/remote_status bug fixed. Three rounds of independent Codex review, final APPROVE, Owner-authorized merge; live-verified against Lever's `leverdemo` board and real Ashby boards (Ziina, Lean Technologies). Workable: **NEEDS OWNER/PERMISSION DECISION**, not implemented. SmartRecruiters/`FormAdapter` untouched. |
 
 ## Git and collaboration snapshot
 
@@ -151,14 +177,16 @@ or merged.
 Governance v1 is merged; the four post-release documentation corrections
 (#24-#27) are complete; the v1.1 mission, architecture, backlog, three ADRs,
 and threat-model delta are all Owner-approved (OD-011 through OD-018).
-Issue #37 (Discovery Query Planner) and issue #38 (common job-provider
-framework + Greenhouse migration) are both complete and merged to `master`
-(PR #51, PR #53). The next authorized implementation target is issue #39
-(Lever + Ashby providers, migrated onto the #38 framework, with Workable
-evaluated inside that issue per its acceptance criteria — not assumed);
-it has not been started. Governance v1 rules apply to #39 as they did to
-#37/#38 (dedicated feature branch, no direct push to `master`, focused
-scope, tests, independent review before Owner-authorized merge). The
-rebased `hardening/l2-r13-r14` branch (issue #33) remains parked for v1.2
-and awaits independent review before a PR is opened — not touched by v1.1
-implementation.
+Issue #37 (Discovery Query Planner), issue #38 (common job-provider
+framework + Greenhouse migration), and issue #39 (Lever + Ashby provider
+migration) are all complete and merged to `master` (PR #51, PR #53, PR #55).
+The next authorized implementation target is issue #40 (Normalization +
+cross-provider deduplication); it has not been started. Governance v1 rules
+apply to #40 as they did to #37/#38/#39 (dedicated feature branch, no direct
+push to `master`, focused scope, tests, independent review before
+Owner-authorized merge). Workable remains **NEEDS OWNER/PERMISSION
+DECISION** (a technically accessible public widget endpoint, but no official
+Workable documentation establishing it as a supported integration surface)
+and is not registered as a provider. The rebased `hardening/l2-r13-r14`
+branch (issue #33) remains parked for v1.2 and awaits independent review
+before a PR is opened — not touched by v1.1 implementation.
