@@ -116,7 +116,11 @@ def delete_data(request:DeleteRequest):
         removed_models={ResumeVersion,CoverLetter,ApplicationQuestion,BrowserRun,ApplicationEvent,AutomationRun,WorkbookSync}
         if request.scope in ('cv','all'): removed_models|={Skill,Employment,Education,Certification,Project,ApprovedAnswer,CandidateProfile}
         if request.scope in ('history','all'): removed_models|={Recruiter,FollowUp,Interview,Application}
-        if request.scope=='all': removed_models|={Job,JobSource,SiteAdapter,AutomationRun}
+        # JobObservation (issue #40) shares Job's lifecycle -- it is
+        # job-posting provenance, not candidate data, so it is kept for
+        # 'cv'/'history' scope exactly like Job itself, and only removed
+        # alongside Job for scope 'all'.
+        if request.scope=='all': removed_models|={Job,JobSource,JobObservation,SiteAdapter,AutomationRun}
         with Session.begin() as db:
             tables={model.__table__ for model in removed_models}
             for table in reversed(Base.metadata.sorted_tables):

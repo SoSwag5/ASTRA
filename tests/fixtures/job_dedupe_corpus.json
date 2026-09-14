@@ -1,0 +1,218 @@
+{
+  "_readme": "Issue #40 labelled deduplication corpus. Each observation object maps directly onto backend.normalization.JobObservationInput's fields. MUST_COLLAPSE groups list observations that must all resolve onto the SAME Job (tested in both input orders -- order-independence). MUST_NOT_COLLAPSE and CANDIDATE_ONLY groups list exactly two observations: the first is seeded as its own Job, the second must never resolve as MATCH against it. All data here is synthetic/fictional -- no real employer, posting, or personal data.",
+
+  "must_collapse": [
+    {
+      "id": "MC1_repeated_native_identity_same_source_instance",
+      "note": "Same provider + same JobSource instance + same identity_kind + same normalized native id.",
+      "observations": [
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "5551", "job_source_id": 1, "board_key": "acme", "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "workplace": "On-site", "source_url": "https://boards.greenhouse.io/acme/jobs/5551", "apply_url": "https://boards.greenhouse.io/acme/jobs/5551"},
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "5551", "job_source_id": 1, "board_key": "acme", "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "workplace": "On-site", "source_url": "https://boards.greenhouse.io/acme/jobs/5551", "apply_url": "https://boards.greenhouse.io/acme/jobs/5551", "retrieved_at": "2026-09-15T00:00:00Z"}
+      ]
+    },
+    {
+      "id": "MC2_same_official_url_differing_by_tracking_query_or_fragment",
+      "note": "identity_kind manual on both sides so Rule 2 (URL) is what actually fires, not Rule 1.",
+      "observations": [
+        {"provider_family": "manual", "identity_kind": "manual", "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "source_url": "https://boards.greenhouse.io/acme/jobs/6001?utm_source=linkedin&utm_campaign=x"},
+        {"provider_family": "manual", "identity_kind": "manual", "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "source_url": "https://boards.greenhouse.io/acme/jobs/6001#apply-now"}
+      ]
+    },
+    {
+      "id": "MC3_manual_paste_of_same_trustworthy_url",
+      "observations": [
+        {"provider_family": "manual", "identity_kind": "manual", "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "source_url": "https://boards.greenhouse.io/acme/jobs/6100"},
+        {"provider_family": "manual", "identity_kind": "manual", "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "source_url": "https://boards.greenhouse.io/acme/jobs/6100"}
+      ]
+    },
+    {
+      "id": "MC4_same_job_two_sources_conservative_cross_provider_fingerprint",
+      "note": "Different provider/source, same employer+title+location+exact content -> Rule 4.",
+      "observations": [
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "7001", "job_source_id": 1, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai, UAE", "workplace": "On-site", "description": "Monitor SIEM alerts, triage incidents, and escalate confirmed threats to the response team during business hours.", "source_url": "https://boards.greenhouse.io/acme/jobs/7001"},
+        {"provider_family": "lever", "identity_kind": "native", "provider_job_id": "7002", "job_source_id": 2, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai, UAE", "workplace": "On-site", "description": "Monitor SIEM alerts, triage incidents, and escalate confirmed threats to the response team during business hours.", "source_url": "https://jobs.lever.co/acme/7002"}
+      ]
+    },
+    {
+      "id": "MC5_ashby_url_fallback_identity_stable_across_observations",
+      "note": "No native id; identity is the canonicalized jobUrl, stable across two observations of the same posting.",
+      "observations": [
+        {"provider_family": "ashby", "identity_kind": "url_fallback", "provider_job_id": "https://jobs.ashbyhq.com/acme/soc-analyst", "job_source_id": 3, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "source_url": "https://jobs.ashbyhq.com/acme/soc-analyst?ref=li", "apply_url": "https://jobs.ashbyhq.com/acme/soc-analyst/apply"},
+        {"provider_family": "ashby", "identity_kind": "url_fallback", "provider_job_id": "https://jobs.ashbyhq.com/acme/soc-analyst", "job_source_id": 3, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "source_url": "https://jobs.ashbyhq.com/acme/soc-analyst?ref=twitter", "apply_url": "https://jobs.ashbyhq.com/acme/soc-analyst/apply"}
+      ]
+    },
+    {
+      "id": "MC6_source_and_apply_url_differ_identity_unchanged",
+      "observations": [
+        {"provider_family": "lever", "identity_kind": "native", "provider_job_id": "8001", "job_source_id": 2, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "source_url": "https://jobs.lever.co/acme/8001", "apply_url": "https://jobs.lever.co/acme/8001/apply"},
+        {"provider_family": "lever", "identity_kind": "native", "provider_job_id": "8001", "job_source_id": 2, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "source_url": "https://jobs.lever.co/acme/8001", "apply_url": "https://boards.eu.greenhouse.io/embed/job_app?token=8001"}
+      ]
+    },
+    {
+      "id": "MC7_same_job_different_input_order",
+      "note": "Identical pairing to MC1 in spirit; the test harness additionally runs every MUST_COLLAPSE pair in both orders, so this entry only documents intent.",
+      "observations": [
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "9001", "job_source_id": 1, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "source_url": "https://boards.greenhouse.io/acme/jobs/9001"},
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "9001", "job_source_id": 1, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "source_url": "https://boards.greenhouse.io/acme/jobs/9001"}
+      ]
+    },
+    {
+      "id": "MC8_harmless_whitespace_and_html_format_differences",
+      "observations": [
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "9101", "job_source_id": 1, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "workplace": "Remote", "description": "Monitor SIEM alerts,   triage incidents,\nand escalate confirmed threats to the response team during business hours."},
+        {"provider_family": "lever", "identity_kind": "native", "provider_job_id": "9102", "job_source_id": 2, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "workplace": "Remote", "description": "Monitor SIEM alerts, triage incidents, and escalate confirmed threats to the response team during business hours."}
+      ]
+    }
+  ],
+
+  "must_not_collapse": [
+    {
+      "id": "MN1_same_employer_title_location_different_native_ids_same_source_instance",
+      "note": "Forces a Rule 4 fingerprint match attempt (identical description) so the same-source-different-native-id hard conflict is actually exercised, not just avoided by having no other evidence.",
+      "observations": [
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "1001", "job_source_id": 1, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "description": "Monitor SIEM alerts, triage incidents, and escalate confirmed threats to the response team during business hours."},
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "1002", "job_source_id": 1, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "description": "Monitor SIEM alerts, triage incidents, and escalate confirmed threats to the response team during business hours."}
+      ]
+    },
+    {
+      "id": "MN2_same_native_id_different_source_instance",
+      "observations": [
+        {"provider_family": "lever", "identity_kind": "native", "provider_job_id": "2001", "job_source_id": 2, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai"},
+        {"provider_family": "lever", "identity_kind": "native", "provider_job_id": "2001", "job_source_id": 4, "employer_name": "Acme Corp Europe", "title": "SOC Analyst II", "location": "Berlin"}
+      ]
+    },
+    {
+      "id": "MN3_repeated_evergreen_job_copied_description",
+      "observations": [
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "3001", "job_source_id": 1, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "description": "We are always looking for talented SOC analysts to join our growing security team across our global offices."},
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "3002", "job_source_id": 5, "employer_name": "Globex Inc", "title": "SOC Analyst", "location": "Abu Dhabi", "description": "We are always looking for talented SOC analysts to join our growing security team across our global offices."}
+      ]
+    },
+    {
+      "id": "MN4_same_title_different_cities",
+      "note": "Identical description forces a Rule 4 attempt so the location hard conflict is actually exercised.",
+      "observations": [
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "4001", "job_source_id": 1, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "description": "Monitor SIEM alerts, triage incidents, and escalate confirmed threats to the response team during business hours."},
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "4002", "job_source_id": 1, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Abu Dhabi", "description": "Monitor SIEM alerts, triage incidents, and escalate confirmed threats to the response team during business hours."}
+      ]
+    },
+    {
+      "id": "MN5_unknown_location_vs_unknown_location",
+      "note": "Identical description forces a Rule 4 attempt; both locations UNKNOWN must not count as compatible evidence (Rule 4 requires a POSITIVELY known+equal location or workplace).",
+      "observations": [
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "5001", "job_source_id": 1, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "UNKNOWN", "workplace": "UNKNOWN", "description": "Monitor SIEM alerts, triage incidents, and escalate confirmed threats to the response team during business hours."},
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "5002", "job_source_id": 1, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "UNKNOWN", "workplace": "UNKNOWN", "description": "Monitor SIEM alerts, triage incidents, and escalate confirmed threats to the response team during business hours."}
+      ]
+    },
+    {
+      "id": "MN6_remote_vs_explicit_onsite_without_stronger_identity",
+      "observations": [
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "6001", "job_source_id": 1, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "workplace": "Remote", "description": "Monitor SIEM alerts, triage incidents, and escalate confirmed threats to the response team during business hours."},
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "6002", "job_source_id": 1, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "workplace": "On-site", "description": "Monitor SIEM alerts, triage incidents, and escalate confirmed threats to the response team during business hours."}
+      ]
+    },
+    {
+      "id": "MN7_junior_vs_senior_title_variants",
+      "observations": [
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "7101", "job_source_id": 1, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "description": "Monitor SIEM alerts, triage incidents, and escalate confirmed threats to the response team during business hours."},
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "7102", "job_source_id": 1, "employer_name": "Acme Corp", "title": "Senior SOC Analyst", "location": "Dubai", "description": "Monitor SIEM alerts, triage incidents, and escalate confirmed threats to the response team during business hours."}
+      ]
+    },
+    {
+      "id": "MN8_staffing_agency_listing_vs_direct_employer_listing",
+      "observations": [
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "8101", "job_source_id": 1, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "description": "Monitor SIEM alerts, triage incidents, and escalate confirmed threats to the response team during business hours."},
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "8102", "job_source_id": 6, "employer_name": "Guildhall Recruitment (for Acme Corp)", "title": "SOC Analyst", "location": "Dubai", "description": "Monitor SIEM alerts, triage incidents, and escalate confirmed threats to the response team during business hours."}
+      ]
+    },
+    {
+      "id": "MN9_generic_careers_root_url",
+      "observations": [
+        {"provider_family": "manual", "identity_kind": "manual", "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "source_url": "https://acme.example.com/careers"},
+        {"provider_family": "manual", "identity_kind": "manual", "employer_name": "Globex Inc", "title": "Payroll Clerk", "location": "Berlin", "source_url": "https://acme.example.com/careers"}
+      ]
+    },
+    {
+      "id": "MN10_login_or_shared_portal_url",
+      "observations": [
+        {"provider_family": "manual", "identity_kind": "manual", "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "source_url": "https://portal.example.com/login"},
+        {"provider_family": "manual", "identity_kind": "manual", "employer_name": "Globex Inc", "title": "Payroll Clerk", "location": "Berlin", "source_url": "https://portal.example.com/login"}
+      ]
+    },
+    {
+      "id": "MN11_different_documented_requisition_ids",
+      "observations": [
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "1101", "job_source_id": 1, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "description": "Monitor SIEM alerts, triage incidents, and escalate confirmed threats to the response team during business hours.", "requisition_id": "REQ-1001", "requisition_id_authority": "documented_employer_wide"},
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "1102", "job_source_id": 1, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "description": "Monitor SIEM alerts, triage incidents, and escalate confirmed threats to the response team during business hours.", "requisition_id": "REQ-1002", "requisition_id_authority": "documented_employer_wide"}
+      ]
+    },
+    {
+      "id": "MN12_repost_reused_url_materially_different_content",
+      "observations": [
+        {"provider_family": "manual", "identity_kind": "manual", "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "source_url": "https://acme.example.com/careers/req-1200"},
+        {"provider_family": "manual", "identity_kind": "manual", "employer_name": "Acme Corp", "title": "Payroll Clerk", "location": "Dubai", "source_url": "https://acme.example.com/careers/req-1200-repost"}
+      ]
+    },
+    {
+      "id": "MN13_similar_employer_title_different_source_identity",
+      "observations": [
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "1301", "job_source_id": 1, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai"},
+        {"provider_family": "lever", "identity_kind": "native", "provider_job_id": "1302", "job_source_id": 2, "employer_name": "Acme Corporation", "title": "SOC Analyst I", "location": "Dubai"}
+      ]
+    },
+    {
+      "id": "MN14_same_application_domain_only",
+      "observations": [
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "1401", "job_source_id": 1, "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "apply_url": "https://apply.example.com/portal"},
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "1402", "job_source_id": 7, "employer_name": "Globex Inc", "title": "Payroll Clerk", "location": "Berlin", "apply_url": "https://apply.example.com/portal"}
+      ]
+    },
+    {
+      "id": "MN15_three_record_transitive_bridge",
+      "note": "A~B, B~C, A conflicts with C. Handled by the dedicated test test_three_record_transitive_bridge_never_collapses (needs three inserts in sequence, not a simple pair), not by the generic pair harness -- documented here for corpus completeness only.",
+      "observations": [
+        {"provider_family": "manual", "identity_kind": "manual", "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "UNKNOWN", "source_url": "https://acme.example.com/jobs/a"},
+        {"provider_family": "manual", "identity_kind": "manual", "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai", "source_url": "https://acme.example.com/jobs/c"}
+      ]
+    }
+  ],
+
+  "candidate_only": [
+    {
+      "id": "CO1_employer_title_location_weak_match",
+      "observations": [
+        {"provider_family": "manual", "identity_kind": "manual", "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai"},
+        {"provider_family": "manual", "identity_kind": "manual", "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "Dubai"}
+      ]
+    },
+    {
+      "id": "CO2_title_similarity_alone",
+      "observations": [
+        {"provider_family": "manual", "identity_kind": "manual", "employer_name": "Acme Corp", "title": "SOC Analyst"},
+        {"provider_family": "manual", "identity_kind": "manual", "employer_name": "Acme Corp", "title": "SOC Analyst II"}
+      ]
+    },
+    {
+      "id": "CO3_description_similarity_alone_different_employer",
+      "note": "DISTINCT is an acceptable conservative outcome here -- under-detection of weak evidence across different employers is safe; the correctness property under test is that it never becomes MATCH.",
+      "observations": [
+        {"provider_family": "manual", "identity_kind": "manual", "employer_name": "Acme Corp", "title": "SOC Analyst", "description": "Monitor SIEM alerts, triage incidents, and escalate confirmed threats to the response team during business hours."},
+        {"provider_family": "manual", "identity_kind": "manual", "employer_name": "Globex Inc", "title": "Security Operations Associate", "description": "Monitor SIEM alerts, triage incidents, and escalate confirmed threats to the response team during business hours."}
+      ]
+    },
+    {
+      "id": "CO4_same_provider_family_different_boards",
+      "observations": [
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "9501", "job_source_id": 1, "employer_name": "Acme Corp", "title": "SOC Analyst"},
+        {"provider_family": "greenhouse", "identity_kind": "native", "provider_job_id": "9601", "job_source_id": 8, "employer_name": "Acme Corp", "title": "SOC Analyst"}
+      ]
+    },
+    {
+      "id": "CO5_unknown_plus_unknown_geography_as_weak_evidence_only",
+      "observations": [
+        {"provider_family": "manual", "identity_kind": "manual", "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "UNKNOWN"},
+        {"provider_family": "manual", "identity_kind": "manual", "employer_name": "Acme Corp", "title": "SOC Analyst", "location": "UNKNOWN"}
+      ]
+    }
+  ]
+}

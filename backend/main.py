@@ -81,7 +81,7 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                                 decision=audit['decision']
                                 if decision['excluded']:
                                     continue
-                                j,d=add_job(db,item)
+                                j,d=add_job(db,item,job_source=source)
                                 if not d and profile:analyze(db,j)
                                 # Rescoring a discovery never changes historical application fields or stages.
                                 j.analysis={**j.analysis,'recall':decision,'first_seen':j.analysis.get('first_seen',j.date_found),'last_seen':now(),'discovery':{**j.analysis.get('discovery',{}),'source_id':source.id,'last_seen':now()}}
