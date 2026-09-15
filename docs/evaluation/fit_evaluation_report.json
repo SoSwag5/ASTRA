@@ -294,14 +294,14 @@
   },
   "candidate_policy": null,
   "caveats": [
-    "Seed labels are Owner-adjudicated reference labels (reference_status OWNER_ADJUDICATED); this is the repository Owner's individual review and rationale recorded per case (see docs/evaluation/FIT_LABEL_REVIEW.md), not a multi-human consensus or independently human-labelled benchmark.",
+    "Reference labels are Owner-adjudicated (reference_status OWNER_ADJUDICATED); this is the repository Owner's individual review and rationale recorded per case (see docs/evaluation/FIT_LABEL_REVIEW.md), not a multi-human consensus or independently human-labelled benchmark.",
     "Score means ranking priority, never a probability. score_kind is always RANKING_PRIORITY.",
     "Results measure this corpus only, not global web recall; provider coverage in the corpus is metadata, never a quality signal.",
     "Thresholds/bucket boundaries and component weights remain provisional (issue #41); no production default is changed by running this harness."
   ],
-  "corpus_content_version": "2026-09-15.3",
+  "corpus_content_version": "2026-09-15.4",
   "corpus_schema_version": "fit-eval-corpus-1",
-  "corpus_sha256": "4e8382f50b832c097822957efe2d028d96192c03d92177686f7cf247c0cff028",
+  "corpus_sha256": "19d420c06d4b2dff24428713d4b0997bdf95c26ac8247395c0067019a445b612",
   "coverage": {
     "query_sets": 12,
     "reference_label_distribution": {
@@ -336,7 +336,7 @@
   },
   "engine": "compare",
   "evaluation_view": "BASELINE",
-  "git_commit": "97e888f218ff02ed63ee2d591f06e94f76968870",
+  "git_commit": "913dca6d0729730a4c774c2f2f75ac978fc930a1",
   "hard_reason_precision": {
     "CONFIRMED_ELIGIBILITY_CONFLICT": {
       "denominator": 1,
@@ -349,14 +349,12 @@
     },
     "DOMAIN_INCOMPATIBLE": {
       "denominator": 8,
-      "failing_case_ids": [
-        "unrelated_professions-08"
-      ],
-      "human_allowed_count": 7,
-      "numerator": 7,
+      "failing_case_ids": [],
+      "human_allowed_count": 8,
+      "numerator": 8,
       "predicted_count": 8,
       "status": "OK",
-      "value": 0.875
+      "value": 1.0
     },
     "EXTREME_LEADERSHIP_MISMATCH": {
       "denominator": 3,
@@ -2417,8 +2415,8 @@
     }
   },
   "provenance": {
-    "evaluated_commit": "97e888f218ff02ed63ee2d591f06e94f76968870",
-    "evaluated_tree_hash": "5ecece5c14ac767bc296c40dd009b59e867b16d3",
+    "evaluated_commit": "913dca6d0729730a4c774c2f2f75ac978fc930a1",
+    "evaluated_tree_hash": "3dd364d618e6a6274f1f5cd56fb333ed9a804940",
     "report_snapshot_note": "Committed reports are generated from this clean evaluated commit and may be stored in a later report-only commit."
   },
   "quality_gate": {
@@ -2473,7 +2471,7 @@
         "metric": "hard_reason_precision.DOMAIN_INCOMPATIBLE",
         "min_denominator": 3,
         "name": "domain-hard-reason-sample",
-        "observed": 0.875,
+        "observed": 1.0,
         "operator": ">=",
         "required": true,
         "status": "PASS",

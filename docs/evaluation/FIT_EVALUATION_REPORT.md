@@ -2,14 +2,14 @@
 
 _Generated from `backend.evaluation`'s canonical machine-readable output -- not hand-maintained._
 
-- Corpus: `2026-09-15.3` (80 cases, 12 query sets, 3 UNCLEAR)
+- Corpus: `2026-09-15.4` (80 cases, 12 query sets, 3 UNCLEAR)
 - Code: assessment schema `fit-assessment-2`, ruleset `fit-rules-2`, taxonomy `career-tracks-1`, experience parser `experience-2`
-- Evaluated commit: `97e888f218ff02ed63ee2d591f06e94f76968870`
-- Evaluated tree: `5ecece5c14ac767bc296c40dd009b59e867b16d3`
+- Evaluated commit: `913dca6d0729730a4c774c2f2f75ac978fc930a1`
+- Evaluated tree: `3dd364d618e6a6274f1f5cd56fb333ed9a804940`
 - Report snapshot: Committed reports are generated from this clean evaluated commit and may be stored in a later report-only commit.
 - Engine/view: `compare` / `BASELINE`
 
-> **Seed labels are Owner-adjudicated reference labels (reference_status OWNER_ADJUDICATED); this is the repository Owner's individual review and rationale recorded per case (see docs/evaluation/FIT_LABEL_REVIEW.md), not a multi-human consensus or independently human-labelled benchmark.** Score means ranking priority, never a probability or hiring likelihood. These results measure this corpus only -- not global web recall -- and provider coverage in the corpus is metadata, never a quality signal. Bucket thresholds and component weights remain provisional (issue #41); running this harness changes no production default.
+> **Reference labels are Owner-adjudicated (reference_status OWNER_ADJUDICATED); this is the repository Owner's individual review and rationale recorded per case (see docs/evaluation/FIT_LABEL_REVIEW.md), not a multi-human consensus or independently human-labelled benchmark.** Score means ranking priority, never a probability or hiring likelihood. These results measure this corpus only -- not global web recall -- and provider coverage in the corpus is metadata, never a quality signal. Bucket thresholds and component weights remain provisional (issue #41); running this harness changes no production default.
 
 ## Coverage
 
@@ -35,7 +35,7 @@ _Generated from `backend.evaluation`'s canonical machine-readable output -- not 
 
 | Reason | Precision | Predicted |
 |---|---|---|
-| DOMAIN_INCOMPATIBLE | **0.8750** (7/8) | 8 |
+| DOMAIN_INCOMPATIBLE | **1.0000** (8/8) | 8 |
 | GEO_INCOMPATIBLE | **1.0000** (5/5) | 5 |
 | EXTREME_LEADERSHIP_MISMATCH | **1.0000** (3/3) | 3 |
 | CONFIRMED_ELIGIBILITY_CONFLICT | **1.0000** (1/1) | 1 |
@@ -85,7 +85,7 @@ Overall: **INSUFFICIENT_DATA**
 | useful-false-rejection | PASS | <= 0.05 | 0.0 |
 | high-priority-leakage | PASS | <= 0.02 | 0.0 |
 | new-useful-regression | PASS | <= 0.0 | 0.0 |
-| domain-hard-reason-sample | PASS | >= 0.0 | 0.875 |
+| domain-hard-reason-sample | PASS | >= 0.0 | 1.0 |
 | geography-hard-reason-sample | PASS | >= 0.0 | 1.0 |
 | leadership-hard-reason-sample | PASS | >= 0.0 | 1.0 |
 | eligibility-hard-reason-sample | INSUFFICIENT_DATA | >= 0.0 | 1.0 (DENOMINATOR_BELOW_MINIMUM; denominator=1, minimum=3) |
@@ -96,4 +96,4 @@ Overall: **INSUFFICIENT_DATA**
 
 ---
 
-Report schema `fit-eval-report-2`, metric definitions `metrics-v2`, corpus SHA-256 `4e8382f50b832c09...`
+Report schema `fit-eval-report-2`, metric definitions `metrics-v2`, corpus SHA-256 `19d420c06d4b2dff...`
