@@ -1090,8 +1090,8 @@ def render_markdown(report, calibration=None, gate_result=None):
              f"- Report snapshot: {report['provenance']['report_snapshot_note']}",
              f"- Engine/view: `{report['engine']}` / `{report['evaluation_view']}`",
              '',
-             '> **Reference labels in this corpus carry `reference_status: PROPOSED` and are NOT yet '
-             'Owner-approved ground truth.** Score means ranking priority, never a probability or hiring '
+             '> **Seed labels are Claude-authored proposals, carry `reference_status: PROPOSED`, and are '
+             'not independent human or Owner-approved ground truth.** Score means ranking priority, never a probability or hiring '
              'likelihood. These results measure this corpus only -- not global web recall -- and provider '
              'coverage in the corpus is metadata, never a quality signal. Bucket thresholds and component '
              'weights remain provisional (issue #41); running this harness changes no production default.',
