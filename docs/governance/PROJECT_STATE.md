@@ -1,6 +1,6 @@
 # ASTRA project state
 
-**Snapshot date:** 2026-09-15 (Asia/Dubai)
+**Snapshot date:** 2026-09-15 (Asia/Dubai), refreshed after #41 merged
 **Rule:** This is a handoff snapshot, not a substitute for live verification.
 Refresh it at session end when repository or release state changes.
 
@@ -106,9 +106,38 @@ evidence chain and run URLs.
   test suites for normalization, deduplication, and `JobObservation`
   integration. Historical duplicate `Job` rows from before #40 are not
   consolidated (deliberate scope boundary, Owner Decision 2).
-  Next authorized implementation target is **issue #41** (Eligibility +
-  Explainable Ranking); #41 implementation has not started. Issues beyond
-  #41 remain not started under the approved 12-issue backlog
+  **Issue #41 (Eligibility + Explainable Ranking) is now also COMPLETE**,
+  merged to `master` via [PR #59](https://github.com/SoSwag5/ASTRA/pull/59)
+  (squash commit `3faebd370a5e4566cb5e02f1a0eabdb38622b60b`) after a
+  remediation commit (`5d59978`) fixed six independently-found issues
+  (US/UK-only geography over-matching, workflow-state preservation gaps,
+  reassessment not running for duplicate/no-profile jobs, an unbounded
+  eligibility/work-authorization model, experience-scope attribution, and
+  bounded legacy-vs-new shadow comparison) and a final independent review
+  returned APPROVE, with Owner-authorized merge. `master` now carries
+  `backend/assessment.py` (deterministic domain/seniority/geography
+  assessment, a six-code hard-reject taxonomy, and the provisional
+  seven-component scoring model) and `backend/experience.py` (scoped
+  experience-clause parsing); no schema/migration change — the
+  authoritative derived assessment persists at `Job.analysis['fit_assessment']`
+  (`Settings.assessment_mode`, default `NEW`; `evaluate_legacy()` retained
+  for `SHADOW`/`LEGACY` rollback and #42 comparison evidence). The
+  pre-#41 pipeline hard-rejected relevant postings (on experience gaps,
+  seniority words, or an out-of-track title) *before* #40's persistence
+  seam ever saw them; discovery now persists every structurally valid
+  posting first and only hides a genuinely hard-incompatible one via the
+  existing `SKIP` status, never by skipping persistence (Owner Decision 1).
+  Verified evidence for #41: all hosted required/informational checks green
+  at the merged head (Security Verification, Python 3.13/3.14, SCA,
+  dependency review, CodeQL python/javascript-typescript/actions), and a
+  full local regression (864 passed / 1 skipped, same 7 pre-existing
+  Playwright browser-binary failures as `master`, 0 unexplained
+  regressions). `backend/normalization.py`, `backend/deduplication.py`,
+  provider transport, and the frontend are untouched.
+  Next authorized implementation target is **issue #42** (Evaluation +
+  Calibration); #42 implementation has not started. Issue #43 (Discovery
+  Telemetry) remains PLANNED immediately after #42. Issues beyond #42
+  remain not started under the approved 12-issue backlog
   ("v1.1 — Discovery & Application Intelligence" milestone, issues #37-#48).
 - Governance integration advances `master` from the frozen release commit without
   moving or modifying the immutable v1.0.0 tag, source, or artifacts.
@@ -158,6 +187,7 @@ or merged.
 | [#38](https://github.com/SoSwag5/ASTRA/issues/38) | Closed. Common job-provider framework + Greenhouse migration merged via [PR #53](https://github.com/SoSwag5/ASTRA/pull/53) (squash commit `c6c8f8bc58c6171d67017d2e8d52761d67a18bd7`). | `backend/job_providers/` contract, transport, registry, compatibility seam; Greenhouse migrated off `recall.py`; 40 new tests; three rounds of independent Codex review, final APPROVE, Owner-authorized merge; live-verified against GitLab's real Greenhouse board. Lever/Ashby/SmartRecruiters/`FormAdapter` untouched. |
 | [#39](https://github.com/SoSwag5/ASTRA/issues/39) | Closed. Lever + Ashby provider migration merged via [PR #55](https://github.com/SoSwag5/ASTRA/pull/55) (squash commit `6a23397028c679f9ac51a0cba9909addc826edd4`). | `backend/job_providers/lever.py` (bounded pagination, normalized identity) and `backend/job_providers/ashby.py` (validated jobUrl-first identity, Hybrid/Remote/OnSite/Unknown semantics) migrated onto the #38 framework; shared `valid_downstream_url()` added to `contracts.py`; `compatibility.py` source-label/remote_status bug fixed. Three rounds of independent Codex review, final APPROVE, Owner-authorized merge; live-verified against Lever's `leverdemo` board and real Ashby boards (Ziina, Lean Technologies). Workable: **NEEDS OWNER/PERMISSION DECISION**, not implemented. SmartRecruiters/`FormAdapter` untouched. |
 | [#40](https://github.com/SoSwag5/ASTRA/issues/40) | Closed. Normalization + conservative cross-provider deduplication merged via [PR #57](https://github.com/SoSwag5/ASTRA/pull/57) (squash commit `b1f754997afe84798f0ab19ee552a89a03de2098`). | Additive `JobObservation` provenance table (`backend/models.py`); `Job` remains the stable canonical row; versioned normalization (`backend/normalization.py`) and conservative dedupe hierarchy (`backend/deduplication.py`) with fingerprint-only evidence always `CANDIDATE`, never a destructive `MATCH`; indexed candidate lookup; non-transitive-bridge protection; forward-safe additive migration with `legacy_incomplete` backfill (no historical consolidation); ADR-0010 Accepted. Independent review confirmed six remediation findings fixed, Owner-authorized merge. |
+| [#41](https://github.com/SoSwag5/ASTRA/issues/41) | Closed. Eligibility + explainable ranking merged via [PR #59](https://github.com/SoSwag5/ASTRA/pull/59) (squash commit `3faebd370a5e4566cb5e02f1a0eabdb38622b60b`). | `backend/assessment.py` (domain/seniority/geography assessment, six-code hard-reject taxonomy, seven-component provisional scoring, score means ranking priority not probability) and `backend/experience.py` (scoped experience-clause parsing); discovery now persists every structurally valid posting through #40 before assessing it, hiding a hard reject via the existing `SKIP` status rather than skipping persistence; `evaluate_legacy()` retained for `SHADOW`/`LEGACY` rollback and #42 shadow-comparison evidence; no schema/migration change (`Job.analysis['fit_assessment']`). A remediation commit fixed six independently-found issues before a final independent APPROVE and Owner-authorized merge. `backend/normalization.py`/`backend/deduplication.py`/provider transport/frontend untouched. |
 
 ## Git and collaboration snapshot
 
@@ -199,13 +229,15 @@ Governance v1 is merged; the four post-release documentation corrections
 and threat-model delta are all Owner-approved (OD-011 through OD-018).
 Issue #37 (Discovery Query Planner), issue #38 (common job-provider
 framework + Greenhouse migration), issue #39 (Lever + Ashby provider
-migration), and issue #40 (Normalization + conservative cross-provider
-deduplication) are all complete and merged to `master` (PR #51, PR #53,
-PR #55, PR #57). ADR-0010 is Accepted.
-The next authorized implementation target is issue #41 (Eligibility +
-Explainable Ranking); it has not been started. Governance v1 rules apply to
-#41 as they did to #37/#38/#39/#40 (dedicated feature branch, no direct push
-to `master`, focused scope, tests, independent review before Owner-authorized
+migration), issue #40 (Normalization + conservative cross-provider
+deduplication), and issue #41 (Eligibility + Explainable Ranking) are all
+complete and merged to `master` (PR #51, PR #53, PR #55, PR #57, PR #59).
+ADR-0010 is Accepted.
+The next authorized implementation target is issue #42 (Evaluation +
+Calibration); it has not been started. Issue #43 (Discovery Telemetry)
+remains PLANNED immediately after #42. Governance v1 rules apply to #42 as
+they did to #37/#38/#39/#40/#41 (dedicated feature branch, no direct push to
+`master`, focused scope, tests, independent review before Owner-authorized
 merge). Workable remains **NEEDS OWNER/PERMISSION DECISION** (a technically
 accessible public widget endpoint, but no official Workable documentation
 establishing it as a supported integration surface) and is not registered as
