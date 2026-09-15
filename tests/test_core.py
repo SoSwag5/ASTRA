@@ -21,9 +21,23 @@ def test_duplicates():
     assert duplicate({'company':'ACME','title':'SOC Analyst','location':'Dubai'},{'company':'Acme','title':'SOC Analyst','location':'Dubai'})
     assert not duplicate({'company':'Acme','title':'SOC Analyst','location':'Dubai'},{'company':'Other','title':'SOC Analyst','location':'Dubai'})
 def test_duplicate_import(db):
-    j,_=add_job(db,{'company':'A','title':'SOC','job_url':'https://linkedin.com/jobs/1'})
-    j2,d=add_job(db,{'company':'A','title':'SOC','job_url':'https://example.com/jobs/1'})
+    # issue #40: a shared source_job_id under the same source label is a
+    # genuine identity signal (the old fuzzy company+title+UNKNOWN-location
+    # match this test used to rely on is exactly what #40's conservative
+    # matcher intentionally stops auto-merging -- see test_weak_evidence_
+    # alone_does_not_auto_merge below).
+    j,_=add_job(db,{'company':'A','title':'SOC','job_url':'https://linkedin.com/jobs/1','source_job_id':'42'})
+    j2,d=add_job(db,{'company':'A','title':'SOC','job_url':'https://example.com/jobs/1','source':'LinkedIn','source_job_id':'42'})
     assert j.id==j2.id and d and urlsplit(j.job_url).netloc=='example.com'
+def test_weak_evidence_alone_does_not_auto_merge(db):
+    """issue #40: same company + same title + both UNKNOWN location is
+    listed as a MUST_NOT_COLLAPSE case (see tests/fixtures/job_dedupe_
+    corpus.json) -- it must surface as a candidate at most, never an
+    automatic merge, unlike the pre-#40 fuzzy matcher.
+    """
+    j,_=add_job(db,{'company':'A','title':'SOC'})
+    j2,d=add_job(db,{'company':'A','title':'SOC'})
+    assert j.id!=j2.id and d is None
 def test_scoring():
     result=score(job(),profile(),DEFAULTS); assert result['score']>=80; assert result['recommendation']=='HIGH_PRIORITY'
 @pytest.mark.parametrize('requirement',['UAE National only','Active security clearance required','Arabic mandatory','CCNA required','5 years minimum required'])
@@ -65,7 +79,7 @@ def test_cv_preserves_facts(db,tmp_path):
     assert 'Splunk' not in r.tailored and 'CISSP' not in r.tailored and 'Academic project only.' in r.tailored
     assert (tmp_path/r.pdf_path).exists() and (tmp_path/r.docx_path).exists()
 def test_excel_roundtrip(db,tmp_path):
-    j,_=add_job(db,{'company':'Example','title':'SOC','job_url':'https://example.com/job'});db.commit();sync_tracker(db)
+    j,_=add_job(db,{'company':'Example','title':'SOC','job_url':'https://example.com/jobs/1'});db.commit();sync_tracker(db)
     from openpyxl import load_workbook
     w=load_workbook(tmp_path/'tracker.xlsx');w.create_sheet('Keep me')['A1']='=1+2';w['Applications']['C2'].font=__import__('openpyxl').styles.Font(bold=True);w.save(tmp_path/'tracker.xlsx');w.close()
     sync_tracker(db);w=load_workbook(tmp_path/'tracker.xlsx');assert w['Keep me']['A1'].value=='=1+2';w.close()

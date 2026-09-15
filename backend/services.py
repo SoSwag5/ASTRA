@@ -13,6 +13,8 @@ from openpyxl import load_workbook, Workbook
 from .models import *
 from .policy import *
 from .discovery import discovery_reason
+from . import normalization, deduplication
+from .normalization import JobObservationInput, canonical_view
 
 def experience_years(description):
     from .recall import experience
@@ -115,7 +117,134 @@ def analyze(db,j):
     if j.status not in TERMINAL and not db.scalar(select(Application.id).where(Application.job_id==j.id)): j.status=result['recommendation'] if result['recommendation'] in STATUSES else 'ANALYZED'
     log(db,f'Analyzed: {j.match_score}/100, {j.recommendation}',j.id); return result
 
-def add_job(db,data):
+_PROVIDER_FAMILY_FOR_SOURCE={'Greenhouse':'greenhouse','Lever':'lever','Ashby':'ashby','SmartRecruiters':'smartrecruiters','LinkedIn':'linkedin'}
+
+def _observation_from_record(record,data,job_source):
+    """Rich provenance path (issue #40): `record` is the provider-native
+    ProviderRecord backend.job_providers.compatibility.LegacyJobDict
+    carried alongside the legacy ingestion dict, so Greenhouse/Lever/Ashby
+    observations keep apply_url, identity kind, and provider facts that the
+    legacy dict shape alone cannot express. Ashby is the only current
+    provider whose identity can be a canonicalized URL fallback rather than
+    a native id (issue #39 finding 6) -- raw_fields['identity_fallback']
+    says so.
+    """
+    identity_kind='url_fallback' if record.raw_fields.get('identity_fallback')=='jobUrl' else 'native'
+    return JobObservationInput(
+        provider_family=record.provider,identity_kind=identity_kind,provider_job_id=record.provider_job_id,
+        job_source_id=job_source.id if job_source else None,board_key=record.source_board,
+        employer_name=data.get('company') or record.source_board or normalization.UNKNOWN,
+        title=record.title,location=record.location,workplace=record.remote_status,description=record.description,
+        source_url=record.source_url,apply_url=record.apply_url,posted_at=record.posted_at,
+        posted_at_authority='documented_provider_field' if record.posted_at else 'none',
+        closing_at=record.closing_at,retrieved_at=record.retrieved_at,provider_version=record.provider_version,
+        provider_facts=dict(record.raw_fields),
+    )
+
+def _observation_from_data(data,job_source):
+    """Fallback path for every discovery route with no rich ProviderRecord:
+    SmartRecruiters (still legacy adapters.py transport -- issue #40 does
+    not migrate it, only bridges its output into an observation), manual
+    job entry, and tracker import. Never infers a fact `data` does not
+    already carry.
+    """
+    source_label=data.get('source','Manual')
+    provider_family=_PROVIDER_FAMILY_FOR_SOURCE.get(source_label,'manual')
+    source_job_id=data.get('source_job_id','')
+    identity_kind='native' if (provider_family!='manual' and source_job_id) else 'manual'
+    posted_at=data.get('date_posted','')
+    return JobObservationInput(
+        provider_family=provider_family,identity_kind=identity_kind,provider_job_id=source_job_id,
+        job_source_id=job_source.id if job_source else None,board_key=job_source.board if job_source else '',
+        employer_name=data.get('company',normalization.UNKNOWN),title=data.get('title',''),
+        location=data.get('location',normalization.UNKNOWN),workplace=data.get('remote_status',normalization.UNKNOWN),
+        description=data.get('description',''),source_url=data.get('job_url',''),apply_url='',
+        posted_at=posted_at,posted_at_authority='documented_provider_field' if (posted_at and provider_family!='manual') else 'none',
+        closing_at=data.get('closing_date',''),retrieved_at=now(),provider_version='',provider_facts={},
+    )
+
+def apply_canonical_updates(job,observation):
+    """Phase 9's canonical-field policy: a new observation may only FILL an
+    UNKNOWN/empty canonical field, never overwrite an already-known value
+    -- a field conflict stays evidence on the observation, never becomes an
+    invented consensus on the Job.
+    """
+    view=canonical_view(observation)
+    if job.company in ('',normalization.UNKNOWN) and view.company not in ('',normalization.UNKNOWN): job.company=view.company
+    if job.location in ('',normalization.UNKNOWN) and view.location not in ('',normalization.UNKNOWN): job.location=view.location
+    if job.remote_status in ('',normalization.UNKNOWN) and view.remote_status not in ('',normalization.UNKNOWN): job.remote_status=view.remote_status
+    if not job.description and view.description: job.description=view.description
+    if not job.date_posted and observation.posted_at_authority=='documented_provider_field' and view.date_posted: job.date_posted=view.date_posted
+    if not job.closing_date and view.closing_date: job.closing_date=view.closing_date
+    from .job_providers.contracts import valid_downstream_url
+    stronger_source=(observation.provider_family not in ('manual','legacy') and
+                     observation.identity_kind in ('native','url_fallback'))
+    if not job.apply_url and view.apply_url and valid_downstream_url(view.apply_url): job.apply_url=view.apply_url
+    if not job.job_url and stronger_source and valid_downstream_url(view.job_url):
+        job.job_url=view.job_url
+        job.canonical_url=view.canonical_url
+    elif not job.canonical_url and job.job_url:
+        job.canonical_url=canonical(job.job_url)
+
+def _refresh_canonical_matching_keys(job):
+    """Persist keys derived from canonical Job fields, never an observation."""
+    job.normalized_employer_key=normalization.employer_key(job.company) or ''
+    job.dedupe_fingerprint=deduplication.canonical_fingerprint(job)
+    job.normalization_version=normalization.NORMALIZATION_VERSION
+
+def _persist_observation(db,job,observation,decision):
+    fingerprint=deduplication.composite_fingerprint(observation)
+    ts=now()
+    existing=None
+    if observation.identity_kind in ('native','url_fallback') and observation.provider_job_id:
+        existing=db.scalar(select(JobObservation).where(
+            JobObservation.provider_family==observation.provider_family,
+            JobObservation.job_source_id==observation.job_source_id,
+            JobObservation.identity_kind==observation.identity_kind,
+            JobObservation.provider_job_id==observation.provider_job_id))
+    if existing is not None:
+        existing.job_id=job.id; existing.employer_name_observed=observation.employer_name
+        existing.title_observed=observation.title; existing.location_observed=observation.location
+        existing.workplace_observed=observation.workplace; existing.description_observed=observation.description
+        existing.source_url=observation.source_url; existing.apply_url=observation.apply_url
+        existing.posted_at=observation.posted_at; existing.posted_at_authority=observation.posted_at_authority
+        existing.closing_at=observation.closing_at; existing.retrieved_at=observation.retrieved_at or ts
+        existing.provider_facts=dict(observation.provider_facts); existing.last_seen_at=ts
+        existing.normalization_version=normalization.NORMALIZATION_VERSION
+        existing.fingerprint=fingerprint; existing.match_method=decision.method
+        existing.match_version=decision.version; existing.match_evidence=dict(decision.evidence)
+        row=existing
+    else:
+        row=JobObservation(
+            job_id=job.id,job_source_id=observation.job_source_id,provider_family=observation.provider_family,
+            provider_version=observation.provider_version,board_key=observation.board_key,
+            identity_kind=observation.identity_kind,provider_job_id=observation.provider_job_id,
+            requisition_id=observation.requisition_id,requisition_id_authority=observation.requisition_id_authority,
+            employer_name_observed=observation.employer_name,title_observed=observation.title,
+            location_observed=observation.location,workplace_observed=observation.workplace,
+            description_observed=observation.description,source_url=observation.source_url,
+            apply_url=observation.apply_url,posted_at=observation.posted_at,
+            posted_at_authority=observation.posted_at_authority,closing_at=observation.closing_at,
+            retrieved_at=observation.retrieved_at or ts,provider_facts=dict(observation.provider_facts),
+            anomaly_flags=list(observation.anomaly_flags),first_seen_at=ts,last_seen_at=ts,
+            normalization_version=normalization.NORMALIZATION_VERSION,fingerprint=fingerprint,
+            match_method=decision.method,match_version=decision.version,match_evidence=dict(decision.evidence))
+        db.add(row)
+    return row,fingerprint
+
+def add_job(db,data,job_source=None):
+    """Every discovery path -- Greenhouse/Lever/Ashby (rich ProviderRecord
+    via backend.job_providers.compatibility.LegacyJobDict), SmartRecruiters
+    (still its legacy adapters.py transport), manual job entry, and tracker
+    import -- funnels through this one function (issue #40), so it is the
+    single seam that builds a JobObservation and runs the conservative
+    matcher (backend.deduplication) instead of the old O(n) all-Job
+    fuzzy scan. `job_source` is the JobSource instance driving this
+    discovery run, when there is one, so observation identity can be
+    scoped to that source instance rather than provider family alone
+    (backend.normalization: provider family != source instance).
+    """
+    provider_record=getattr(data,'provider_record',None)
     data={k:v for k,v in data.items() if k in Job.__table__.columns.keys() and k not in ('id','created_at','updated_at')}
     data.setdefault('company','UNKNOWN'); data.setdefault('title','Untitled role'); data.setdefault('location','UNKNOWN')
     for key in ('company','title','location','source','salary','remote_status'):
@@ -127,18 +256,32 @@ def add_job(db,data):
         if url.scheme not in ('http','https') or not url.hostname or url.username or url.password or len(data['job_url'])>2000: raise ValueError('Use a public HTTP(S) job link without credentials')
     if linkedin(data.get('job_url','')): data['source']='LinkedIn'
     data['canonical_url']=canonical(data.get('job_url',''))
-    for j in db.scalars(select(Job)):
-        if duplicate(data,serialize(j)):
-            occurrences=list(j.analysis.get('occurrences',[]))
-            for occurrence in [{'source':j.source,'url':j.job_url,'external_id':j.source_job_id},{'source':data.get('source','Manual'),'url':data.get('job_url',''),'external_id':data.get('source_job_id','')}]:
-                if not any(o['source']==occurrence['source'] and o['url']==occurrence['url'] for o in occurrences): occurrences.append({**occurrence,'seen_at':now()})
-            j.analysis={**j.analysis,'occurrences':occurrences}
-            if data.get('notes') and data['notes'] not in j.notes: j.notes=(j.notes+'\n'+data['notes']).strip()
-            if linkedin(j.job_url) and data.get('job_url') and not linkedin(data['job_url']): j.job_url=data['job_url']; j.canonical_url=data['canonical_url']; j.source=data.get('source','Company')
-            log(db,'Duplicate import merged into existing job',j.id)
-            app=db.scalar(select(Application).where(Application.job_id==j.id))
-            return j, {'duplicate_of':j.id,'application_id':app.id if app else None}
-    j=Job(**data); db.add(j); db.flush(); log(db,'Job discovered',j.id); return j, None
+
+    observation=_observation_from_record(provider_record,data,job_source) if provider_record is not None else _observation_from_data(data,job_source)
+    decision=deduplication.resolve(db,observation)
+
+    if decision.decision==deduplication.MATCH:
+        j=db.get(Job,decision.selected_job_id)
+        occurrences=list(j.analysis.get('occurrences',[]))
+        for occurrence in [{'source':j.source,'url':j.job_url,'external_id':j.source_job_id},{'source':data.get('source','Manual'),'url':data.get('job_url',''),'external_id':data.get('source_job_id','')}]:
+            if not any(o['source']==occurrence['source'] and o['url']==occurrence['url'] for o in occurrences): occurrences.append({**occurrence,'seen_at':now()})
+        j.analysis={**j.analysis,'occurrences':occurrences}
+        if data.get('notes') and data['notes'] not in j.notes: j.notes=(j.notes+'\n'+data['notes']).strip()
+        if linkedin(j.job_url) and data.get('job_url') and not linkedin(data['job_url']): j.job_url=data['job_url']; j.canonical_url=data['canonical_url']; j.source=data.get('source','Company')
+        apply_canonical_updates(j,observation)
+        _persist_observation(db,j,observation,decision)
+        _refresh_canonical_matching_keys(j)
+        log(db,'Duplicate import merged into existing job',j.id)
+        app=db.scalar(select(Application).where(Application.job_id==j.id))
+        return j, {'duplicate_of':j.id,'application_id':app.id if app else None}
+
+    data['normalized_employer_key']=normalization.employer_key(data.get('company')) or ''
+    data['dedupe_fingerprint']=''; data['normalization_version']=normalization.NORMALIZATION_VERSION
+    data.setdefault('apply_url',canonical_view(observation).apply_url)
+    j=Job(**data); db.add(j); db.flush()
+    _refresh_canonical_matching_keys(j)
+    _persist_observation(db,j,observation,decision)
+    log(db,'Job discovered',j.id); return j, None
 
 def answer_for(db,q,p):
     if demographic(q) or live_assessment(q): return None

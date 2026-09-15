@@ -84,6 +84,65 @@ class Job(Record, Base):
     status: Mapped[str] = mapped_column(default='FOUND')
     duplicate_of: Mapped[int | None] = mapped_column(ForeignKey('jobs.id'), nullable=True)
     notes: Mapped[str] = mapped_column(Text, default='')
+    # Issue #40: additive-only. apply_url is the application URL kept
+    # separate from job_url/canonical_url (the original posting URL);
+    # normalization_version/dedupe_fingerprint support conservative candidate
+    # evidence; normalized_employer_key provides indexed weak-candidate lookup
+    # without a quadratic all-Job scan.
+    apply_url: Mapped[str] = mapped_column(default='')
+    normalization_version: Mapped[str] = mapped_column(default='')
+    dedupe_fingerprint: Mapped[str] = mapped_column(default='', index=True)
+    normalized_employer_key: Mapped[str] = mapped_column(default='', index=True)
+class JobObservation(Record, Base):
+    """One provider/manual OBSERVATION of a posting (issue #40). Job stays
+    the stable, compatibility-facing canonical row (Owner Decision 1) --
+    this table is purely additive provenance/evidence, never a second
+    canonical job model. See docs/architecture/adr/0010-job-observation-
+    and-conservative-deduplication.md.
+    """
+    __tablename__='job_observations'
+    job_id: Mapped[int] = mapped_column(ForeignKey('jobs.id'))
+    job_source_id: Mapped[int | None] = mapped_column(ForeignKey('job_sources.id'), nullable=True)
+    provider_family: Mapped[str] = mapped_column(default='manual')
+    provider_version: Mapped[str] = mapped_column(default='')
+    board_key: Mapped[str] = mapped_column(default='')
+    # 'native' | 'url_fallback' | 'manual' | 'legacy_incomplete' -- see
+    # backend/normalization.py IDENTITY_KINDS.
+    identity_kind: Mapped[str] = mapped_column(default='manual')
+    provider_job_id: Mapped[str] = mapped_column(default='')
+    requisition_id: Mapped[str] = mapped_column(default='', index=True)
+    requisition_id_authority: Mapped[str] = mapped_column(default='')
+    employer_name_observed: Mapped[str] = mapped_column(default='UNKNOWN')
+    title_observed: Mapped[str] = mapped_column(default='')
+    location_observed: Mapped[str] = mapped_column(default='UNKNOWN')
+    workplace_observed: Mapped[str] = mapped_column(default='UNKNOWN')
+    description_observed: Mapped[str] = mapped_column(Text, default='')
+    source_url: Mapped[str] = mapped_column(default='')
+    apply_url: Mapped[str] = mapped_column(default='')
+    posted_at: Mapped[str] = mapped_column(default='')
+    # 'documented_provider_field' | 'legacy_carried_forward' | 'none' -- only
+    # 'documented_provider_field' may ever populate authoritative Job.date_posted.
+    posted_at_authority: Mapped[str] = mapped_column(default='none')
+    closing_at: Mapped[str] = mapped_column(default='')
+    retrieved_at: Mapped[str] = mapped_column(default='')
+    provider_facts: Mapped[dict] = mapped_column(JSON, default=dict)
+    anomaly_flags: Mapped[list] = mapped_column(JSON, default=list)
+    first_seen_at: Mapped[str] = mapped_column(default=now)
+    last_seen_at: Mapped[str] = mapped_column(default=now)
+    normalization_version: Mapped[str] = mapped_column(default='')
+    fingerprint: Mapped[str] = mapped_column(default='', index=True)
+    match_method: Mapped[str] = mapped_column(default='')
+    match_version: Mapped[str] = mapped_column(default='')
+    match_evidence: Mapped[dict] = mapped_column(JSON, default=dict)
+    __table_args__=(
+        # SQLite/standard SQL treat NULL as distinct from any other NULL for
+        # a UNIQUE constraint, so multiple 'manual'/'legacy_incomplete' rows
+        # (job_source_id always NULL for those) never collide here -- this
+        # only actually constrains real provider identity, which always
+        # carries a concrete job_source_id (Phase 6: never scope uniqueness
+        # by provider_family + provider_job_id alone).
+        UniqueConstraint('provider_family','job_source_id','identity_kind','provider_job_id',name='uq_job_observation_identity'),
+    )
 class Application(Record, Base):
     __tablename__='applications'
     job_id: Mapped[int] = mapped_column(ForeignKey('jobs.id'), unique=True)
@@ -228,11 +287,73 @@ def initialize():
             conn.execute(text("ALTER TABLE applications ADD COLUMN submission_started_at VARCHAR NOT NULL DEFAULT ''"))
     with Session.begin() as db:
         if not db.get(Settings,1): db.add(Settings(id=1,value=FRESH_DEFAULTS))
-    additions={'applications':{'tracking':"JSON NOT NULL DEFAULT '{}'"},'job_sources':{'details':"JSON NOT NULL DEFAULT '{}'"},'application_events':{'application_id':'INTEGER REFERENCES applications(id)','event_type':"VARCHAR NOT NULL DEFAULT 'LOG'",'occurred_at':"VARCHAR NOT NULL DEFAULT ''",'source':"VARCHAR NOT NULL DEFAULT 'SYSTEM'",'stage':"VARCHAR NOT NULL DEFAULT ''"}}
+    additions={'applications':{'tracking':"JSON NOT NULL DEFAULT '{}'"},'job_sources':{'details':"JSON NOT NULL DEFAULT '{}'"},'application_events':{'application_id':'INTEGER REFERENCES applications(id)','event_type':"VARCHAR NOT NULL DEFAULT 'LOG'",'occurred_at':"VARCHAR NOT NULL DEFAULT ''",'source':"VARCHAR NOT NULL DEFAULT 'SYSTEM'",'stage':"VARCHAR NOT NULL DEFAULT ''"},
+        # Issue #40: additive Job fields. A pre-#40 database gets these at
+        # their neutral defaults; nothing existing is renamed or removed.
+        'jobs':{'apply_url':"VARCHAR NOT NULL DEFAULT ''",'normalization_version':"VARCHAR NOT NULL DEFAULT ''",'dedupe_fingerprint':"VARCHAR NOT NULL DEFAULT ''",'normalized_employer_key':"VARCHAR NOT NULL DEFAULT ''"}}
     with engine.begin() as connection:
         for table,fields in additions.items():
             existing={c['name'] for c in inspect(connection).get_columns(table)}
             for field,definition in fields.items():
                 if field not in existing: connection.execute(text(f'ALTER TABLE {table} ADD COLUMN {field} {definition}'))
+        # create_all() only creates an index when it creates the column's
+        # table for the first time; jobs.dedupe_fingerprint may have just
+        # been added by ALTER TABLE above to a table that already existed.
+        connection.execute(text('CREATE INDEX IF NOT EXISTS ix_jobs_dedupe_fingerprint ON jobs (dedupe_fingerprint)'))
+        connection.execute(text('CREATE INDEX IF NOT EXISTS ix_jobs_normalized_employer_key ON jobs (normalized_employer_key)'))
     with Session.begin() as db:
         if not db.get(WorkbookSync,1): db.add(WorkbookSync(id=1))
+    _backfill_job_normalization_keys()
+    _backfill_legacy_observations()
+
+def _backfill_job_normalization_keys():
+    """Deterministically populate the indexed canonical matching keys.
+
+    This is safe to repeat and never changes a Job id or relationship.  It
+    also repairs fingerprints written by the pre-remediation #40 candidate,
+    which could reflect a matched observation rather than canonical fields.
+    """
+    from sqlalchemy import select
+    from .deduplication import canonical_fingerprint
+    from .normalization import NORMALIZATION_VERSION, employer_key
+    with Session.begin() as db:
+        for job in db.scalars(select(Job)):
+            job.normalized_employer_key=employer_key(job.company) or ''
+            job.dedupe_fingerprint=canonical_fingerprint(job)
+            job.normalization_version=NORMALIZATION_VERSION
+
+def _backfill_legacy_observations():
+    """Issue #40, forward-safe migration only (Owner Decision 2): every
+    pre-#40 Job gets EXACTLY ONE JobObservation explicitly marked
+    identity_kind='legacy_incomplete', populated only from facts the old
+    Job row already had -- never inferring a board/source instance,
+    provider identity, or a posted timestamp that was not already trusted.
+    Idempotent: a Job that already has at least one observation (this
+    backfill having already run, or a real post-#40 discovery having
+    already produced one) is never touched again, so repeated startups
+    never create duplicate backfill rows. Never consolidates, deletes, or
+    reparents anything -- see docs/architecture/adr/0010-job-observation-
+    and-conservative-deduplication.md.
+    """
+    from sqlalchemy import select
+    from .normalization import NORMALIZATION_VERSION
+    provider_family_for_source={'Greenhouse':'greenhouse','Lever':'lever','Ashby':'ashby','SmartRecruiters':'smartrecruiters'}
+    with Session.begin() as db:
+        observed_job_ids={row[0] for row in db.execute(select(JobObservation.job_id).distinct())}
+        for job in db.scalars(select(Job)):
+            if job.id in observed_job_ids: continue
+            db.add(JobObservation(
+                job_id=job.id, job_source_id=None,
+                provider_family=provider_family_for_source.get(job.source,'legacy'),
+                provider_version='', board_key='', identity_kind='legacy_incomplete',
+                provider_job_id=job.source_job_id or '',
+                employer_name_observed=job.company, title_observed=job.title,
+                location_observed=job.location, workplace_observed=job.remote_status,
+                description_observed=job.description, source_url=job.job_url, apply_url='',
+                posted_at=job.date_posted, posted_at_authority='legacy_carried_forward' if job.date_posted else 'none',
+                closing_at=job.closing_date, retrieved_at=job.date_found,
+                provider_facts={}, anomaly_flags=['legacy_incomplete_backfill'],
+                first_seen_at=job.date_found, last_seen_at=job.date_found,
+                normalization_version=NORMALIZATION_VERSION, fingerprint='',
+                match_method='legacy_backfill', match_version=NORMALIZATION_VERSION, match_evidence={},
+            ))

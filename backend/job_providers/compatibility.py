@@ -28,6 +28,23 @@ class ProviderItems(list):
     health = None
 
 
+class LegacyJobDict(dict):
+    """Exactly a plain dict as far as equality/iteration/serialization is
+    concerned (dict.__eq__ only ever compares items, never subclass
+    identity or extra attributes) -- every existing caller/test that treats
+    a discover() item as a plain dict keeps working unchanged. Additionally
+    carries the source ProviderRecord (issue #40) so backend.services.
+    add_job() can build a full-provenance JobObservation instead of the
+    field-poor legacy ingestion dict alone, WITHOUT widening this seam's
+    own dict shape. `item['company']=source.name` (backend/main.py's
+    discover loop) still works exactly as before -- only the extra
+    `.provider_record` attribute is new.
+    """
+    def __init__(self, data, record):
+        super().__init__(data)
+        self.provider_record = record
+
+
 def _record_to_dict(record):
     return {
         'company': record.source_board,
@@ -70,7 +87,7 @@ def to_legacy_items(batch):
     actually happened instead of falling back to a stale or default
     'COMPLETE' value.
     """
-    items = ProviderItems(_record_to_dict(r) for r in batch.records)
+    items = ProviderItems(LegacyJobDict(_record_to_dict(r), r) for r in batch.records)
     items.health = {
         'completion': batch.completion.value,
         'health': batch.health.value,
