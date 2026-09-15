@@ -4,10 +4,12 @@ Network-free, deterministic. Uses the shipped corpus
 (tests/fixtures/fit_evaluation_v1.json) plus small inline fixtures for
 corpus-validation edge cases.
 """
-import json
 import copy
+import hashlib
+import json
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -64,6 +66,29 @@ def test_shipped_corpus_loads(corpus):
 def test_shipped_corpus_covers_every_reference_label(corpus):
     labels = {c['reference_label'] for c in corpus['cases']}
     assert labels == set(ev.LABELS)
+
+
+def test_shipped_corpus_owner_adjudication_is_complete(corpus):
+    cases = corpus['cases']
+    assert len(cases) == 80
+    assert {c['reference_status'] for c in cases} == {'OWNER_ADJUDICATED'}
+    assert Counter(c['owner_adjudication']['decision_method'] for c in cases) == {
+        'OWNER_BULK_APPROVAL': 50,
+        'OWNER_INDIVIDUAL': 30,
+    }
+    assert Counter(c['owner_adjudication']['group_id'] for c in cases
+                   if c['owner_adjudication']['decision_method'] == 'OWNER_BULK_APPROVAL') == {
+        'A': 2, 'B': 2, 'C': 2, 'D': 5, 'E': 3, 'F': 9,
+        'G': 4, 'H': 4, 'I': 6, 'J': 3, 'K': 6, 'L': 4,
+    }
+    changed = {c['id']: (c['owner_adjudication']['original_reference_label'], c['reference_label'])
+               for c in cases if c['owner_adjudication']['changed']}
+    assert changed == {
+        'unrelated_professions-08': ('LOW_BUT_USEFUL', 'GENUINE_REJECTION'),
+        'systems_infra_cloud_platform_devops-04': ('LOW_BUT_USEFUL', 'REASONABLE_STRETCH'),
+    }
+    legal = next(c for c in cases if c['id'] == 'unrelated_professions-08')
+    assert legal['allowed_hard_reasons'] == ['DOMAIN_INCOMPATIBLE']
 
 
 def test_rejects_bad_json(tmp_path):
@@ -355,6 +380,14 @@ def test_report_json_has_no_absolute_paths(corpus, results):
     assert str(ROOT).replace('\\', '/') not in text.replace('\\', '/')
 
 
+def test_mixed_reference_provenance_is_reported_truthfully(corpus, results):
+    mixed = copy.deepcopy(results[:2])
+    mixed[0].reference_status = 'PROPOSED'
+    report = ev.build_report(corpus, CORPUS_PATH, mixed)
+    assert report['caveats'][0].startswith(
+        'Reference-label provenance is mixed: 1 OWNER_ADJUDICATED and 1 PROPOSED')
+
+
 # ---------------------------------------------------------------------------
 # Edge cases
 # ---------------------------------------------------------------------------
@@ -424,7 +457,9 @@ def test_corpus_fixture_has_no_disallowed_pii_markers():
 
 
 def test_corpus_fixture_is_bounded_size():
-    assert Path(CORPUS_PATH).stat().st_size < 200_000
+    # read_text normalizes CRLF on Windows, so the same logical corpus is not
+    # rejected solely because actions/checkout used the platform line ending.
+    assert len(Path(CORPUS_PATH).read_text(encoding='utf-8')) < 200_000
 
 
 def test_evaluation_module_makes_no_network_calls(monkeypatch, corpus):
@@ -487,10 +522,70 @@ def test_rejects_unknown_corpus_governance_versions(tmp_path, field, value, mess
         ev.load_corpus(_write(tmp_path, data))
 
 
-def test_rejects_non_proposed_reference_status(tmp_path):
+def test_rejects_unknown_reference_status(tmp_path):
     data = _minimal_corpus()
     data['cases'][0]['reference_status'] = 'OWNER_APPROVED'
     with pytest.raises(ev.CorpusError, match='invalid reference_status'):
+        ev.load_corpus(_write(tmp_path, data))
+
+
+def _owner_adjudicated_minimal():
+    data = _minimal_corpus()
+    case = data['cases'][0]
+    case['reference_status'] = 'OWNER_ADJUDICATED'
+    case['owner_adjudication'] = {
+        'original_reference_label': 'MUST_SHOW',
+        'decision_method': 'OWNER_INDIVIDUAL',
+        'group_id': None,
+        'changed': False,
+        'owner_rationale': None,
+    }
+    return data
+
+
+@pytest.mark.parametrize(('mutation', 'message'), [
+    (lambda c: c.pop('owner_adjudication'), 'requires an owner_adjudication object'),
+    (lambda c: c['owner_adjudication'].update(decision_method='AI_APPROVED'), 'invalid owner decision_method'),
+    (lambda c: c['owner_adjudication'].update(group_id='A'), 'OWNER_INDIVIDUAL requires group_id null'),
+    (lambda c: c['owner_adjudication'].update(changed=True), 'changed must equal'),
+    (lambda c: c['owner_adjudication'].update(owner_rationale=''), 'owner_rationale must be null or non-empty'),
+    (lambda c: c['owner_adjudication'].update(unexpected='x'), 'fields must be exactly'),
+])
+def test_rejects_malformed_owner_adjudication(tmp_path, mutation, message):
+    data = _owner_adjudicated_minimal()
+    mutation(data['cases'][0])
+    with pytest.raises(ev.CorpusError, match=message):
+        ev.load_corpus(_write(tmp_path, data))
+
+
+def test_rejects_changed_owner_decision_without_rationale(tmp_path):
+    data = _owner_adjudicated_minimal()
+    case = data['cases'][0]
+    case['reference_label'] = 'REASONABLE_STRETCH'
+    case['owner_adjudication']['changed'] = True
+    with pytest.raises(ev.CorpusError, match='changed Owner decisions require owner_rationale'):
+        ev.load_corpus(_write(tmp_path, data))
+
+
+def test_rejects_owner_metadata_on_proposed_case(tmp_path):
+    data = _minimal_corpus()
+    data['cases'][0]['owner_adjudication'] = {
+        'original_reference_label': 'MUST_SHOW', 'decision_method': 'OWNER_INDIVIDUAL',
+        'group_id': None, 'changed': False, 'owner_rationale': None,
+    }
+    with pytest.raises(ev.CorpusError, match='PROPOSED cases must not carry owner_adjudication'):
+        ev.load_corpus(_write(tmp_path, data))
+
+
+def test_rejects_bulk_group_with_mixed_label_decisions(tmp_path):
+    data = _owner_adjudicated_minimal()
+    first = data['cases'][0]
+    first['owner_adjudication'].update(decision_method='OWNER_BULK_APPROVAL', group_id='A')
+    second = copy.deepcopy(first)
+    second.update(id='case-2', reference_opportunity_id='opp-2', reference_label='REASONABLE_STRETCH')
+    second['owner_adjudication']['original_reference_label'] = 'REASONABLE_STRETCH'
+    data['cases'].append(second)
+    with pytest.raises(ev.CorpusError, match='mixes label decisions'):
         ev.load_corpus(_write(tmp_path, data))
 
 
@@ -639,6 +734,37 @@ def test_report_provenance_identifies_exact_commit_and_tree(corpus, results):
     assert report['provenance']['evaluated_commit'] == expected_commit
     assert report['provenance']['evaluated_tree_hash'] == expected_tree
     assert report['git_commit'] == expected_commit
+
+
+def test_committed_report_provenance_binds_current_corpus_and_evaluated_commit(corpus):
+    report_path = ROOT / 'docs/evaluation/fit_evaluation_report.json'
+    committed = json.loads(report_path.read_text(encoding='utf-8'))
+    evaluated_commit = committed['provenance']['evaluated_commit']
+    expected_tree = subprocess.run(['git', 'rev-parse', f'{evaluated_commit}^{{tree}}'], cwd=ROOT,
+                                   capture_output=True, text=True, check=True).stdout.strip()
+    assert committed['provenance']['evaluated_tree_hash'] == expected_tree
+    subprocess.run(['git', 'merge-base', '--is-ancestor', evaluated_commit, 'HEAD'], cwd=ROOT, check=True)
+    evaluated_corpus = subprocess.run(['git', 'show', f'{evaluated_commit}:{CORPUS_PATH}'], cwd=ROOT,
+                                      capture_output=True, check=True).stdout
+    current_corpus = Path(CORPUS_PATH).read_bytes()
+    assert hashlib.sha256(evaluated_corpus).hexdigest() == committed['corpus_sha256']
+    assert hashlib.sha256(current_corpus).hexdigest() == committed['corpus_sha256']
+
+    results = ev.run_corpus(corpus, engine='compare')
+    current = ev.build_report(corpus, CORPUS_PATH, results)
+    current['duplicate_rate'] = ev.duplicate_rate()
+    current['stale_link_rate'] = ev.stale_link_rate(results)
+    policies = [ev.load_candidate_policy('tests/fixtures/candidate_policies/domain_heavier.json'),
+                ev.load_candidate_policy('tests/fixtures/candidate_policies/geography_heavier.json')]
+    current['calibration'] = ev.evaluate_candidate_policies(corpus, policies, engine='compare')
+    gate = ev.load_quality_gate('tests/fixtures/quality_gate_proposed_v1.json')
+    current['quality_gate'] = ev.evaluate_quality_gate(current, gate)
+    current['git_commit'] = committed['git_commit']
+    current['provenance'] = committed['provenance']
+    assert current == committed
+    assert ev.render_markdown(current, calibration=current['calibration'],
+                              gate_result=current['quality_gate']) == \
+        (ROOT / 'docs/evaluation/FIT_EVALUATION_REPORT.md').read_text(encoding='utf-8')
 
 
 def test_cli_text_includes_requested_extended_sections():

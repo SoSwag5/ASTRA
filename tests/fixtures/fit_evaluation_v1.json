@@ -5187,7 +5187,9 @@
       }
     },
     {
-      "allowed_hard_reasons": [],
+      "allowed_hard_reasons": [
+        "DOMAIN_INCOMPATIBLE"
+      ],
       "candidate_profile_fixture": {
         "declarations": {},
         "raw_text": "Computer Science graduate. SOC, SIEM, Splunk, Linux, Python, network security, incident response, vulnerability assessment, cloud security, IAM fundamentals.",
@@ -6001,7 +6003,7 @@
       }
     }
   ],
-  "corpus_content_version": "2026-09-15.3",
+  "corpus_content_version": "2026-09-15.4",
   "corpus_schema_version": "fit-eval-corpus-1",
   "fixed_assessment_clock": "2026-09-15T00:00:00+00:00",
   "holdout_query_sets": [

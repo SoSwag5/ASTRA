@@ -53,6 +53,10 @@ UNAVAILABLE = 'UNAVAILABLE'
 OK = 'OK'
 
 REFERENCE_STATUSES = ('PROPOSED', 'OWNER_ADJUDICATED')
+OWNER_DECISION_METHODS = ('OWNER_BULK_APPROVAL', 'OWNER_INDIVIDUAL')
+OWNER_ADJUDICATION_FIELDS = frozenset({
+    'original_reference_label', 'decision_method', 'group_id', 'changed', 'owner_rationale',
+})
 SPLITS = ('development', 'holdout')
 STABLE_ID = re.compile(r'[a-z0-9][a-z0-9_-]{1,80}')
 ALLOWED_HARD_REASONS = frozenset(HARD_REASONS_EVALUATED + ('USER_BLOCKED',))
@@ -121,6 +125,7 @@ def load_corpus(path):
     seen_ids = set()
     seen_opportunity_ids = {}
     query_ids = {}
+    bulk_groups = {}
     for i, case in enumerate(cases):
         where = f'case[{i}]'
         for key in ('id', 'query_id', 'source_kind', 'reference_opportunity_id', 'split', 'job',
@@ -153,6 +158,47 @@ def load_corpus(path):
         if case['reference_status'] not in REFERENCE_STATUSES:
             raise CorpusError(f'{where} ({cid}): invalid reference_status {case["reference_status"]!r}; '
                               f'this foundation accepts only {REFERENCE_STATUSES}')
+        owner = case.get('owner_adjudication')
+        if case['reference_status'] == 'PROPOSED':
+            if 'owner_adjudication' in case:
+                raise CorpusError(f'{where} ({cid}): PROPOSED cases must not carry owner_adjudication')
+        else:
+            if not isinstance(owner, dict):
+                raise CorpusError(f'{where} ({cid}): OWNER_ADJUDICATED requires an owner_adjudication object')
+            if set(owner) != OWNER_ADJUDICATION_FIELDS:
+                missing = sorted(OWNER_ADJUDICATION_FIELDS - set(owner))
+                extra = sorted(set(owner) - OWNER_ADJUDICATION_FIELDS)
+                raise CorpusError(f'{where} ({cid}): owner_adjudication fields must be exactly '
+                                  f'{sorted(OWNER_ADJUDICATION_FIELDS)}; missing={missing}, extra={extra}')
+            original = owner['original_reference_label']
+            if original not in LABELS:
+                raise CorpusError(f'{where} ({cid}): invalid original_reference_label {original!r}')
+            method = owner['decision_method']
+            if method not in OWNER_DECISION_METHODS:
+                raise CorpusError(f'{where} ({cid}): invalid owner decision_method {method!r}; '
+                                  f'must be one of {OWNER_DECISION_METHODS}')
+            changed = owner['changed']
+            if not isinstance(changed, bool):
+                raise CorpusError(f'{where} ({cid}): owner_adjudication.changed must be boolean')
+            expected_changed = original != case['reference_label']
+            if changed != expected_changed:
+                raise CorpusError(f'{where} ({cid}): owner_adjudication.changed must equal whether the '
+                                  'final reference_label differs from original_reference_label')
+            rationale = owner['owner_rationale']
+            if rationale is not None and (not isinstance(rationale, str) or not rationale.strip()):
+                raise CorpusError(f'{where} ({cid}): owner_rationale must be null or non-empty text')
+            if changed and rationale is None:
+                raise CorpusError(f'{where} ({cid}): changed Owner decisions require owner_rationale')
+            group_id = owner['group_id']
+            if method == 'OWNER_INDIVIDUAL':
+                if group_id is not None:
+                    raise CorpusError(f'{where} ({cid}): OWNER_INDIVIDUAL requires group_id null')
+            else:
+                if not isinstance(group_id, str) or not re.fullmatch(r'[A-Z][A-Z0-9_-]{0,39}', group_id):
+                    raise CorpusError(f'{where} ({cid}): OWNER_BULK_APPROVAL requires a stable group_id')
+                if changed:
+                    raise CorpusError(f'{where} ({cid}): OWNER_BULK_APPROVAL cannot silently change a proposal')
+                bulk_groups.setdefault(group_id, []).append((cid, original, case['reference_label']))
         if not isinstance(case['allowed_hard_reasons'], list):
             raise CorpusError(f'{where} ({cid}): allowed_hard_reasons must be a list')
         if len(case['allowed_hard_reasons']) != len(set(case['allowed_hard_reasons'])):
@@ -182,6 +228,12 @@ def load_corpus(path):
 
     if len(query_ids) < 1:
         raise CorpusError('Corpus has no query sets')
+    for group_id, members in bulk_groups.items():
+        if len(members) < 2:
+            raise CorpusError(f'Owner bulk-approval group {group_id!r} must contain at least two cases')
+        label_pairs = {(original, final) for _, original, final in members}
+        if len(label_pairs) != 1:
+            raise CorpusError(f'Owner bulk-approval group {group_id!r} mixes label decisions')
     if 'query_sets' in data:
         if not isinstance(data['query_sets'], list) or len(data['query_sets']) != len(set(data['query_sets'])):
             raise CorpusError('query_sets must be a unique list')
@@ -787,14 +839,22 @@ def build_report(corpus, corpus_path, results, *, split_filter=None, slice_filte
         pairwise_metric = pairwise_ordering_agreement(by_query)
         bucket_distribution = bucket_distribution_by_label(metric_results)
 
-    if filtered and all(r.reference_status == 'OWNER_ADJUDICATED' for r in filtered):
-        label_caveat = ('Seed labels are Owner-adjudicated reference labels (reference_status '
+    owner_count = sum(1 for r in filtered if r.reference_status == 'OWNER_ADJUDICATED')
+    proposed_count = sum(1 for r in filtered if r.reference_status == 'PROPOSED')
+    if filtered and owner_count == len(filtered):
+        label_caveat = ('Reference labels are Owner-adjudicated (reference_status '
                         'OWNER_ADJUDICATED); this is the repository Owner\'s individual review and '
                         'rationale recorded per case (see docs/evaluation/FIT_LABEL_REVIEW.md), not a '
                         'multi-human consensus or independently human-labelled benchmark.')
-    else:
-        label_caveat = ('Seed labels are Claude-authored proposals, carry reference_status PROPOSED, '
+    elif filtered and proposed_count == len(filtered):
+        label_caveat = ('Reference labels are Claude-authored proposals, carry reference_status PROPOSED, '
                         'and are not independent human or Owner-approved ground truth.')
+    elif filtered:
+        label_caveat = (f'Reference-label provenance is mixed: {owner_count} OWNER_ADJUDICATED and '
+                        f'{proposed_count} PROPOSED. Metrics are not a fully Owner-adjudicated benchmark; '
+                        'inspect each per-case reference_status before interpreting results.')
+    else:
+        label_caveat = 'No reference-labelled cases are included in this report.'
 
     evaluated_commit = _git_commit()
     evaluated_tree_hash = _git_tree_hash()

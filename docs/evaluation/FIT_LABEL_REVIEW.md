@@ -10,6 +10,12 @@ Decision methods:
 
 Two cases were changed by Owner adjudication (see the CHANGED rows and `docs/evaluation/FIT_EVALUATION_REPORT.md` for the resulting before/after metric impact); all others were approved as originally proposed.
 
+For `unrelated_professions-08`, the Owner additionally authorized
+`DOMAIN_INCOMPATIBLE` in `allowed_hard_reasons`, matching the rationale that a
+Legal Counsel / Data Privacy role is a materially different professional path.
+This is evaluation/reference metadata only; it does not alter #41 production
+hard-reject behavior.
+
 | Decision | ID | Query group | Split | Short transformed context | Original proposed label | Final Owner label | Changed? | Decision method | Owner rationale (if separately supplied) |
 |---|---|---|---|---|---|---|---|---|---|
 | APPROVED | cyber_soc_security_engineering-01 | cyber_soc_security_engineering | development | SOC Analyst L1 — Dubai [greenhouse] | MUST_SHOW | MUST_SHOW | no | OWNER_BULK_APPROVAL (group F) | — |
