@@ -135,9 +135,10 @@ evidence chain and run URLs.
   regressions). `backend/normalization.py`, `backend/deduplication.py`,
   provider transport, and the frontend are untouched.
   Issue **#42** (Evaluation + Calibration) is **IN PROGRESS**: its deterministic
-  offline harness foundation merged via PR #61, while the 80-case reference
-  labels and quality gate remain PROPOSED pending Owner adjudication and corpus
-  expansion. No production calibration was adopted. Issue #43 (Discovery
+  offline harness foundation merged via PR #61, and PR #63 carries the
+  Owner-adjudicated 80-case reference snapshot. The quality gate remains
+  PROPOSED and `INSUFFICIENT_DATA` pending expansion and approval. No
+  production calibration was adopted. Issue #43 (Discovery
   Telemetry) remains PLANNED immediately after #42. Issues beyond #42
   remain not started under the approved 12-issue backlog
   ("v1.1 — Discovery & Application Intelligence" milestone, issues #37-#48).
@@ -236,10 +237,10 @@ migration), issue #40 (Normalization + conservative cross-provider
 deduplication), and issue #41 (Eligibility + Explainable Ranking) are all
 complete and merged to `master` (PR #51, PR #53, PR #55, PR #57, PR #59).
 ADR-0010 is Accepted. Issue #42 (Evaluation + Calibration) is **IN PROGRESS**:
-the deterministic offline harness foundation is merged via PR #61, but its
-80-case reference labels and quality gate remain PROPOSED pending Owner
-adjudication and corpus expansion; the current gate is `INSUFFICIENT_DATA`,
-and no production calibration was adopted. Keep #42 open. Issue #43
+the deterministic offline harness foundation is merged via PR #61, and PR #63
+carries the Owner-adjudicated 80-case reference snapshot. The quality gate
+remains PROPOSED and `INSUFFICIENT_DATA` pending corpus expansion and approval;
+no production calibration was adopted. Keep #42 open. Issue #43
 (Discovery Telemetry) remains PLANNED immediately after #42 and has not
 started. Governance v1 rules continue to apply (dedicated feature branch, no
 direct push to `master`, focused scope, tests, independent review before

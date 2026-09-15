@@ -5,10 +5,10 @@ ASTRA think about this job?" This harness answers **"is that judgment
 actually useful?"** -- with the primary product risk being **false rejection
 of a useful opportunity**, not one headline accuracy number.
 
-This PR supplies the **foundation** for issue #42. The seed corpus and quality
-gate remain proposed; issue #42 stays open for independent human/Owner label
-adjudication, corpus expansion, gate approval, and any separately approved
-production calibration.
+This PR supplies the evaluation foundation and the first Owner-adjudicated
+reference snapshot for issue #42. The quality gate remains proposed and
+insufficient-data; issue #42 stays open for gate approval, corpus expansion,
+and any separately approved production calibration.
 
 This harness is pure, offline, and deterministic: no network, no browser, no
 provider API, no LLM, no live/production database. It always calls the real
@@ -44,35 +44,37 @@ metric explicitly says otherwise -- they must never silently become negative
 The 80 seed scenarios, rationales, and proposed labels were Claude-authored.
 They were written from the scenario descriptions rather than mechanically
 copied from system buckets, and they deliberately contain label/system
-disagreements. That is useful exploratory input, but it is **not independent
-human-labelled ground truth** and does not yet satisfy issue #42's final label
-adjudication requirement.
+disagreements. The Owner subsequently reviewed all 80 cases; this is still
+**not independent human-labelled ground truth** and makes no claim of
+multi-human consensus.
 
-`docs/evaluation/FIT_LABEL_REVIEW.md` presents every case for later Owner or
-independent-human adjudication. Reviewers may APPROVE the proposal, CHANGE the
-label, or MARK UNCLEAR. Any material adjudication requires a new
-`human_label_version` and `corpus_content_version`; this foundation does not
-record those decisions on the Owner's behalf.
+`docs/evaluation/FIT_LABEL_REVIEW.md` records the completed Owner review for
+every case. Future reviewers may APPROVE a proposal, CHANGE the label, or MARK
+UNCLEAR, but any material adjudication requires a new `human_label_version`
+and `corpus_content_version`; this harness never records decisions on a
+reviewer's behalf.
 
-**`reference_status` is `"PROPOSED"` for every case in this corpus.** No
-label here is Owner-approved ground truth. Nothing in `backend/evaluation.py`
-or `scripts/evaluate_fit.py` may treat a proposed label as approved, and
-production defaults are never changed by running this harness.
+**`reference_status` is `"OWNER_ADJUDICATED"` for all 80 current cases.**
+Each case records its original proposal, Owner decision method, and final
+label in `owner_adjudication`; future additions may remain `"PROPOSED"` until
+reviewed. Nothing in `backend/evaluation.py` or `scripts/evaluate_fit.py` may
+treat this snapshot as a multi-human benchmark, and production defaults are
+never changed by running this harness.
 
 ## Corpus
 
-`tests/fixtures/fit_evaluation_v1.json`: **80 proposed seed cases across 12 query sets**
+`tests/fixtures/fit_evaluation_v1.json`: **80 Owner-adjudicated reference cases across 12 query sets**
 (a representative subset of the ~120-case target discussed during planning
 -- deliberately scoped down so this PR stays reviewable; the corpus is
-versioned and designed to grow before gate approval or production calibration). Actual proposed-label
-distribution:
+versioned and designed to grow before gate approval or production calibration). Actual
+Owner-reference-label distribution:
 
 | Label | Count |
 |---|---|
 | MUST_SHOW | 25 |
-| REASONABLE_STRETCH | 15 |
-| LOW_BUT_USEFUL | 17 |
-| GENUINE_REJECTION | 20 |
+| REASONABLE_STRETCH | 16 |
+| LOW_BUT_USEFUL | 15 |
+| GENUINE_REJECTION | 21 |
 | UNCLEAR | 3 |
 
 Coverage spans domain (cyber/SOC/IAM/AppSec/DevSecOps/cloud security/
@@ -229,7 +231,8 @@ PASS. Optional checks may be explicitly skipped. The
 shipped gate file's specific threshold values are a **starting proposal
 only**, derived from this baseline's own evidence; see the Owner Review
 section of the PR for the reasoning. **No gate in this repository is
-Owner-approved.**
+Owner-approved.** The current evidence therefore reports
+`INSUFFICIENT_DATA`, not a passing quality decision.
 
 ## Determinism and report provenance
 
@@ -268,7 +271,8 @@ and quality-gate JSON files carry explicit schema versions.
 
 1. Write the job/candidate/config scenario first.
 2. Propose the `reference_label` and write `human_reason` **before** running
-   the classifier against it; record it as `PROPOSED`.
+   the classifier against it; record it as `PROPOSED`. Only an explicit Owner
+   review may later add the `owner_adjudication` block and change the status.
 3. Pick a stable, never-reused `id` (`kebab-case`, prefixed with its
    `query_id`).
 4. If the label is `GENUINE_REJECTION`, declare `allowed_hard_reasons`.
@@ -327,9 +331,10 @@ not the classifier's fault either -- genuine harness bugs):
   `K = min(10, pool size)` and should be read as directional, not a fully
   powered top-10 evaluation. The corpus is versioned so it can grow without
   breaking existing case IDs.
-- Labels are Claude-authored proposals, not independent human labelling;
-  `reference_status: PROPOSED` reflects this throughout. Issue #42 remains
-  open for adjudication, gate approval, and any later production calibration.
+- The current labels are Owner-adjudicated, but the scenarios and original
+  proposals were Claude-authored; this is not independent human labelling or
+  multi-human consensus. Issue #42 remains open for gate approval and any
+  later production calibration.
 - `stale_link_rate` is a labelled-snapshot proxy; it says nothing about
   whether a link is *actually* dead today.
 - `CONFIRMED_ELIGIBILITY_CONFLICT` has only 1 corpus example; its precision

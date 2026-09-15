@@ -9,10 +9,12 @@ reimplements domain/seniority/geography classification.
 Reference labels (MUST_SHOW / REASONABLE_STRETCH / LOW_BUT_USEFUL /
 GENUINE_REJECTION / UNCLEAR) use an evaluation-only vocabulary distinct from
 system buckets (STRONG/GOOD/STRETCH/LOW/REJECTED) -- see
-docs/evaluation/FIT_EVALUATION.md. The shipped seed labels are Claude-authored
-proposals, not independent human ground truth. Every case carries
-`reference_status: "PROPOSED"`; strict corpus validation rejects any other
-status in this foundation.
+docs/evaluation/FIT_EVALUATION.md. A case's `reference_status` is either
+`PROPOSED` (a Claude-authored seed label, not yet reviewed) or
+`OWNER_ADJUDICATED` (the repository Owner has personally reviewed the case
+and recorded a final label plus decision method/rationale under
+`owner_adjudication` -- see docs/evaluation/FIT_LABEL_REVIEW.md); strict
+corpus validation rejects any other status.
 """
 import hashlib
 import json
@@ -32,7 +34,7 @@ from .models import DEFAULTS
 REPORT_SCHEMA_VERSION = 'fit-eval-report-2'
 METRIC_DEFINITION_VERSION = 'metrics-v2'
 CORPUS_SCHEMA_VERSION = 'fit-eval-corpus-1'
-HUMAN_LABEL_VERSION = 'labels-v1'
+HUMAN_LABEL_VERSION = 'labels-v2'
 CANDIDATE_POLICY_SCHEMA_VERSION = 'fit-candidate-policy-1'
 QUALITY_GATE_SCHEMA_VERSION = 'fit-quality-gate-1'
 
@@ -50,7 +52,11 @@ INSUFFICIENT_DATA = 'INSUFFICIENT_DATA'
 UNAVAILABLE = 'UNAVAILABLE'
 OK = 'OK'
 
-REFERENCE_STATUSES = ('PROPOSED',)
+REFERENCE_STATUSES = ('PROPOSED', 'OWNER_ADJUDICATED')
+OWNER_DECISION_METHODS = ('OWNER_BULK_APPROVAL', 'OWNER_INDIVIDUAL')
+OWNER_ADJUDICATION_FIELDS = frozenset({
+    'original_reference_label', 'decision_method', 'group_id', 'changed', 'owner_rationale',
+})
 SPLITS = ('development', 'holdout')
 STABLE_ID = re.compile(r'[a-z0-9][a-z0-9_-]{1,80}')
 ALLOWED_HARD_REASONS = frozenset(HARD_REASONS_EVALUATED + ('USER_BLOCKED',))
@@ -59,6 +65,20 @@ ALLOWED_BUCKETS = frozenset(BUCKET_ORDER)
 
 class CorpusError(ValueError):
     """A structural problem with an evaluation corpus file."""
+
+
+def _canonical_bytes(path):
+    """Read a text file's content normalized to LF line endings.
+
+    Git always stores this repository's tracked text files with LF; a
+    checkout with `core.autocrlf=true` (the common Windows default) rewrites
+    them to CRLF on disk. Hashing raw `read_bytes()` output is therefore
+    platform-dependent even when the file's logical content -- and its Git
+    blob -- have not changed. Normalizing before hashing makes the result
+    match `git show <rev>:<path>` (and therefore `corpus_sha256`) on every
+    platform and checkout configuration.
+    """
+    return Path(path).read_bytes().replace(b'\r\n', b'\n').replace(b'\r', b'\n')
 
 
 def _read_json_object(path, kind):
@@ -119,6 +139,7 @@ def load_corpus(path):
     seen_ids = set()
     seen_opportunity_ids = {}
     query_ids = {}
+    bulk_groups = {}
     for i, case in enumerate(cases):
         where = f'case[{i}]'
         for key in ('id', 'query_id', 'source_kind', 'reference_opportunity_id', 'split', 'job',
@@ -151,6 +172,47 @@ def load_corpus(path):
         if case['reference_status'] not in REFERENCE_STATUSES:
             raise CorpusError(f'{where} ({cid}): invalid reference_status {case["reference_status"]!r}; '
                               f'this foundation accepts only {REFERENCE_STATUSES}')
+        owner = case.get('owner_adjudication')
+        if case['reference_status'] == 'PROPOSED':
+            if 'owner_adjudication' in case:
+                raise CorpusError(f'{where} ({cid}): PROPOSED cases must not carry owner_adjudication')
+        else:
+            if not isinstance(owner, dict):
+                raise CorpusError(f'{where} ({cid}): OWNER_ADJUDICATED requires an owner_adjudication object')
+            if set(owner) != OWNER_ADJUDICATION_FIELDS:
+                missing = sorted(OWNER_ADJUDICATION_FIELDS - set(owner))
+                extra = sorted(set(owner) - OWNER_ADJUDICATION_FIELDS)
+                raise CorpusError(f'{where} ({cid}): owner_adjudication fields must be exactly '
+                                  f'{sorted(OWNER_ADJUDICATION_FIELDS)}; missing={missing}, extra={extra}')
+            original = owner['original_reference_label']
+            if original not in LABELS:
+                raise CorpusError(f'{where} ({cid}): invalid original_reference_label {original!r}')
+            method = owner['decision_method']
+            if method not in OWNER_DECISION_METHODS:
+                raise CorpusError(f'{where} ({cid}): invalid owner decision_method {method!r}; '
+                                  f'must be one of {OWNER_DECISION_METHODS}')
+            changed = owner['changed']
+            if not isinstance(changed, bool):
+                raise CorpusError(f'{where} ({cid}): owner_adjudication.changed must be boolean')
+            expected_changed = original != case['reference_label']
+            if changed != expected_changed:
+                raise CorpusError(f'{where} ({cid}): owner_adjudication.changed must equal whether the '
+                                  'final reference_label differs from original_reference_label')
+            rationale = owner['owner_rationale']
+            if rationale is not None and (not isinstance(rationale, str) or not rationale.strip()):
+                raise CorpusError(f'{where} ({cid}): owner_rationale must be null or non-empty text')
+            if changed and rationale is None:
+                raise CorpusError(f'{where} ({cid}): changed Owner decisions require owner_rationale')
+            group_id = owner['group_id']
+            if method == 'OWNER_INDIVIDUAL':
+                if group_id is not None:
+                    raise CorpusError(f'{where} ({cid}): OWNER_INDIVIDUAL requires group_id null')
+            else:
+                if not isinstance(group_id, str) or not re.fullmatch(r'[A-Z][A-Z0-9_-]{0,39}', group_id):
+                    raise CorpusError(f'{where} ({cid}): OWNER_BULK_APPROVAL requires a stable group_id')
+                if changed:
+                    raise CorpusError(f'{where} ({cid}): OWNER_BULK_APPROVAL cannot silently change a proposal')
+                bulk_groups.setdefault(group_id, []).append((cid, original, case['reference_label']))
         if not isinstance(case['allowed_hard_reasons'], list):
             raise CorpusError(f'{where} ({cid}): allowed_hard_reasons must be a list')
         if len(case['allowed_hard_reasons']) != len(set(case['allowed_hard_reasons'])):
@@ -180,6 +242,12 @@ def load_corpus(path):
 
     if len(query_ids) < 1:
         raise CorpusError('Corpus has no query sets')
+    for group_id, members in bulk_groups.items():
+        if len(members) < 2:
+            raise CorpusError(f'Owner bulk-approval group {group_id!r} must contain at least two cases')
+        label_pairs = {(original, final) for _, original, final in members}
+        if len(label_pairs) != 1:
+            raise CorpusError(f'Owner bulk-approval group {group_id!r} mixes label decisions')
     if 'query_sets' in data:
         if not isinstance(data['query_sets'], list) or len(data['query_sets']) != len(set(data['query_sets'])):
             raise CorpusError('query_sets must be a unique list')
@@ -785,6 +853,23 @@ def build_report(corpus, corpus_path, results, *, split_filter=None, slice_filte
         pairwise_metric = pairwise_ordering_agreement(by_query)
         bucket_distribution = bucket_distribution_by_label(metric_results)
 
+    owner_count = sum(1 for r in filtered if r.reference_status == 'OWNER_ADJUDICATED')
+    proposed_count = sum(1 for r in filtered if r.reference_status == 'PROPOSED')
+    if filtered and owner_count == len(filtered):
+        label_caveat = ('Reference labels are Owner-adjudicated (reference_status '
+                        'OWNER_ADJUDICATED); this is the repository Owner\'s individual review and '
+                        'rationale recorded per case (see docs/evaluation/FIT_LABEL_REVIEW.md), not a '
+                        'multi-human consensus or independently human-labelled benchmark.')
+    elif filtered and proposed_count == len(filtered):
+        label_caveat = ('Reference labels are Claude-authored proposals, carry reference_status PROPOSED, '
+                        'and are not independent human or Owner-approved ground truth.')
+    elif filtered:
+        label_caveat = (f'Reference-label provenance is mixed: {owner_count} OWNER_ADJUDICATED and '
+                        f'{proposed_count} PROPOSED. Metrics are not a fully Owner-adjudicated benchmark; '
+                        'inspect each per-case reference_status before interpreting results.')
+    else:
+        label_caveat = 'No reference-labelled cases are included in this report.'
+
     evaluated_commit = _git_commit()
     evaluated_tree_hash = _git_tree_hash()
     report = {
@@ -793,7 +878,7 @@ def build_report(corpus, corpus_path, results, *, split_filter=None, slice_filte
         'corpus_content_version': corpus['corpus_content_version'],
         'human_label_version': corpus['human_label_version'],
         'metric_definition_version': corpus['metric_definition_version'],
-        'corpus_sha256': hashlib.sha256(Path(corpus_path).read_bytes()).hexdigest(),
+        'corpus_sha256': hashlib.sha256(_canonical_bytes(corpus_path)).hexdigest(),
         'git_commit': evaluated_commit,
         'provenance': {
             'evaluated_commit': evaluated_commit,
@@ -819,7 +904,7 @@ def build_report(corpus, corpus_path, results, *, split_filter=None, slice_filte
         'per_case': [r.to_public_dict() for r in sorted(filtered, key=lambda r: r.id)],
         'determinism': {'wall_clock_excluded': True, 'assessment_clock': corpus['fixed_assessment_clock']},
         'caveats': [
-            'Seed labels are Claude-authored proposals, carry reference_status PROPOSED, and are not independent human or Owner-approved ground truth.',
+            label_caveat,
             'Score means ranking priority, never a probability. score_kind is always RANKING_PRIORITY.',
             'Results measure this corpus only, not global web recall; provider coverage in the corpus is '
             'metadata, never a quality signal.',
@@ -1090,8 +1175,7 @@ def render_markdown(report, calibration=None, gate_result=None):
              f"- Report snapshot: {report['provenance']['report_snapshot_note']}",
              f"- Engine/view: `{report['engine']}` / `{report['evaluation_view']}`",
              '',
-             '> **Seed labels are Claude-authored proposals, carry `reference_status: PROPOSED`, and are '
-             'not independent human or Owner-approved ground truth.** Score means ranking priority, never a probability or hiring '
+             f"> **{report['caveats'][0]}** Score means ranking priority, never a probability or hiring "
              'likelihood. These results measure this corpus only -- not global web recall -- and provider '
              'coverage in the corpus is metadata, never a quality signal. Bucket thresholds and component '
              'weights remain provisional (issue #41); running this harness changes no production default.',

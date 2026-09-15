@@ -58,7 +58,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-cyber_soc_security_engineering-01",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -67,6 +67,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "F",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -127,7 +134,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-cyber_soc_security_engineering-02",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -136,6 +143,13 @@
         "experience": "2-3",
         "geography": "uae_onsite",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "F",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -196,7 +210,7 @@
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-cyber_soc_security_engineering-03",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -205,6 +219,13 @@
         "experience": "4-5",
         "geography": "uae_onsite",
         "seniority": "senior_ic"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "REASONABLE_STRETCH",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "D",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -265,7 +286,7 @@
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-cyber_soc_security_engineering-04",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -274,6 +295,13 @@
         "experience": "6-7",
         "geography": "uae_onsite",
         "seniority": "senior_ic"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "REASONABLE_STRETCH",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "E",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -334,7 +362,7 @@
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-cyber_soc_security_engineering-05",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -343,6 +371,13 @@
         "experience": "8+",
         "geography": "uae_onsite",
         "seniority": "manager"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "LOW_BUT_USEFUL",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": "Still within cybersecurity/GRC. The substantial experience gap and weaker profile overlap should lower priority rather than make the opportunity categorically irrelevant."
       }
     },
     {
@@ -403,7 +438,7 @@
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_STALE",
       "reference_opportunity_id": "opp-cyber_soc_security_engineering-05b",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -412,6 +447,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "LOW_BUT_USEFUL",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": "Reference relevance should be judged from job content. Link staleness is a separate stale-link evaluation concern and should not define the relevance label."
       }
     },
     {
@@ -474,7 +516,7 @@
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-cyber_soc_security_engineering-06",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -483,6 +525,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "GENUINE_REJECTION",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -543,7 +592,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-iam_pam_appsec_devsecops-01",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -552,6 +601,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "F",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -612,7 +668,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-iam_pam_appsec_devsecops-02",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -621,6 +677,13 @@
         "experience": "2-3",
         "geography": "uae_remote",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "F",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -681,7 +744,7 @@
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-iam_pam_appsec_devsecops-03",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "lever",
       "split": "development",
       "tags": {
@@ -690,6 +753,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "lead"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "REASONABLE_STRETCH",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "L",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -718,7 +788,7 @@
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-iam_pam_appsec_devsecops-04",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -727,6 +797,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "LOW_BUT_USEFUL",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "J",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -787,7 +864,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "UNKNOWN",
       "reference_opportunity_id": "opp-iam_pam_appsec_devsecops-04b",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -796,6 +873,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": "Strong content fit. Unknown link freshness must remain a separate evaluation dimension rather than lowering relevance."
       }
     },
     {
@@ -858,7 +942,7 @@
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-iam_pam_appsec_devsecops-05",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -867,6 +951,13 @@
         "experience": "8+",
         "geography": "uae_onsite",
         "seniority": "director"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "GENUINE_REJECTION",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "C",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -927,7 +1018,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-cloud_security-01",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -936,6 +1027,13 @@
         "experience": "2-3",
         "geography": "uae_onsite",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "F",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -996,7 +1094,7 @@
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-cloud_security-02",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "ashby",
       "split": "development",
       "tags": {
@@ -1005,6 +1103,13 @@
         "experience": "4-5",
         "geography": "uae_onsite",
         "seniority": "senior_ic"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "REASONABLE_STRETCH",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "D",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -1033,7 +1138,7 @@
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-cloud_security-03",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1042,6 +1147,13 @@
         "experience": "8+",
         "geography": "uae_onsite",
         "seniority": "lead"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "LOW_BUT_USEFUL",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": "Core domain but large experience/seniority gap. Missing candidate evidence should increase uncertainty, not turn the opportunity into a hard rejection."
       }
     },
     {
@@ -1104,7 +1216,7 @@
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-cloud_security-04",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1113,6 +1225,13 @@
         "experience": "missing",
         "geography": "us_only_remote",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "GENUINE_REJECTION",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "A",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -1173,7 +1292,7 @@
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-cloud_security-05",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1182,6 +1301,13 @@
         "experience": "missing",
         "geography": "foreign_onsite_relocation",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "LOW_BUT_USEFUL",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "B",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -1242,7 +1368,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-network_engineering_noc-01",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1251,6 +1377,13 @@
         "experience": "2-3",
         "geography": "uae_onsite",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "F",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -1311,7 +1444,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-network_engineering_noc-02",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "smartrecruiters",
       "split": "development",
       "tags": {
@@ -1320,6 +1453,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "F",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -1380,7 +1520,7 @@
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-network_engineering_noc-03",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1389,6 +1529,13 @@
         "experience": "6-7",
         "geography": "uae_onsite",
         "seniority": "senior_ic"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "REASONABLE_STRETCH",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "E",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -1449,7 +1596,7 @@
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-network_engineering_noc-04",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1458,6 +1605,13 @@
         "experience": "missing",
         "geography": "generic_remote",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "LOW_BUT_USEFUL",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -1520,7 +1674,7 @@
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-network_engineering_noc-05",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1529,6 +1683,13 @@
         "experience": "missing",
         "geography": "uk_only_remote",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "GENUINE_REJECTION",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "A",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -1589,7 +1750,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-systems_infra_cloud_platform_devops-01",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1598,6 +1759,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "F",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -1658,7 +1826,7 @@
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-systems_infra_cloud_platform_devops-02",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1667,6 +1835,13 @@
         "experience": "4-5",
         "geography": "uae_remote",
         "seniority": "senior_ic"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "REASONABLE_STRETCH",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "D",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -1695,7 +1870,7 @@
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-systems_infra_cloud_platform_devops-03",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1704,6 +1879,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "LOW_BUT_USEFUL",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "J",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -1761,10 +1943,10 @@
         "title": "Systems Administrator"
       },
       "query_id": "systems_infra_cloud_platform_devops",
-      "reference_label": "LOW_BUT_USEFUL",
+      "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-systems_infra_cloud_platform_devops-04",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1773,6 +1955,13 @@
         "experience": "missing",
         "geography": "global_remote",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "LOW_BUT_USEFUL",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": true,
+        "owner_rationale": "Systems/infrastructure is an intended ASTRA technical domain and directly adjacent to the candidate's broader network/cloud/security path. It should be more visible than LOW_BUT_USEFUL."
       }
     },
     {
@@ -1833,7 +2022,7 @@
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-systems_infra_cloud_platform_devops-05",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1842,6 +2031,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "GENUINE_REJECTION",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": "No enabled software target and no meaningful cybersecurity/network/cloud/infrastructure adjacency."
       }
     },
     {
@@ -1902,7 +2098,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-software_engineering-01",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1911,6 +2107,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "F",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -1971,7 +2174,7 @@
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-software_engineering-02",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1980,6 +2183,13 @@
         "experience": "4-5",
         "geography": "uae_onsite",
         "seniority": "senior_ic"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "REASONABLE_STRETCH",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "D",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -2040,7 +2250,7 @@
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-software_engineering-03",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2049,6 +2259,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "LOW_BUT_USEFUL",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": "The Software track is disabled, but authentication/authorization work provides real security adjacency. Keep visible at low priority rather than reject."
       }
     },
     {
@@ -2109,7 +2326,7 @@
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-software_engineering-04",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2118,6 +2335,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "GENUINE_REJECTION",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": "The configuration explicitly contains only a custom Purple Team target and this posting matches neither that target nor an enabled track."
       }
     },
     {
@@ -2178,7 +2402,7 @@
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-technical_support_solutions_engineering-01",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2187,6 +2411,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "REASONABLE_STRETCH",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": "Hands-on network connectivity, VPN and firewall troubleshooting is a meaningful entry route into the candidate's broader technical/security direction."
       }
     },
     {
@@ -2247,7 +2478,7 @@
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-technical_support_solutions_engineering-02",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2256,6 +2487,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "REASONABLE_STRETCH",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": "Customer-facing implementation is not the candidate's primary track, but hands-on work with a cloud-security product is materially adjacent and useful."
       }
     },
     {
@@ -2316,7 +2554,7 @@
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-technical_support_solutions_engineering-03",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2325,6 +2563,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "LOW_BUT_USEFUL",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": "Not a strong target role, but some infrastructure/network exposure makes it plausibly useful as a low-priority technical entry route."
       }
     },
     {
@@ -2385,7 +2630,7 @@
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-technical_support_solutions_engineering-04",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2394,6 +2639,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "GENUINE_REJECTION",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": "Solutions Engineering is only adjacent when the underlying technical domain is relevant. Payroll/HR implementation has no meaningful security/network/cloud overlap here."
       }
     },
     {
@@ -2454,7 +2706,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-seniority_spectrum-01",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2463,6 +2715,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "senior_ic"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": "Core SOC role with no substantive evidence that \"Senior\" represents an incompatible organizational level. Title alone should not suppress it."
       }
     },
     {
@@ -2523,7 +2782,7 @@
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-seniority_spectrum-02",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2532,6 +2791,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "lead"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "REASONABLE_STRETCH",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "L",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -2592,7 +2858,7 @@
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-seniority_spectrum-03",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2601,6 +2867,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "architect"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "REASONABLE_STRETCH",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "L",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -2661,7 +2934,7 @@
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-seniority_spectrum-04",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2670,6 +2943,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "manager"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "REASONABLE_STRETCH",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "L",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -2730,7 +3010,7 @@
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-seniority_spectrum-05",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2739,6 +3019,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "principal"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "LOW_BUT_USEFUL",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": "Technical relevance remains genuine, but Principal is meaningfully further from the target early-career profile than Lead/Architect/Manager technical-only cases. Keep visible at low priority."
       }
     },
     {
@@ -2801,7 +3088,7 @@
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-seniority_spectrum-06",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2810,6 +3097,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "director"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "GENUINE_REJECTION",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "C",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -2872,7 +3166,7 @@
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-seniority_spectrum-07",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2881,6 +3175,13 @@
         "experience": "8+",
         "geography": "uae_onsite",
         "seniority": "principal"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "GENUINE_REJECTION",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": "This is more than a senior title or experience gap. Twelve years plus confirmed enterprise-wide architecture authority represents a fundamentally different level of organizational responsibility."
       }
     },
     {
@@ -2941,7 +3242,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-experience_spectrum-01",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2950,6 +3251,13 @@
         "experience": "0-1",
         "geography": "uae_onsite",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "H",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -3010,7 +3318,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-experience_spectrum-02",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -3019,6 +3327,13 @@
         "experience": "2-3",
         "geography": "uae_onsite",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "H",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -3079,7 +3394,7 @@
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-experience_spectrum-03",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -3088,6 +3403,13 @@
         "experience": "4-5",
         "geography": "uae_onsite",
         "seniority": "senior_ic"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "REASONABLE_STRETCH",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "D",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -3148,7 +3470,7 @@
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-experience_spectrum-04",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -3157,6 +3479,13 @@
         "experience": "6-7",
         "geography": "uae_onsite",
         "seniority": "senior_ic"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "REASONABLE_STRETCH",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "E",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -3217,7 +3546,7 @@
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-experience_spectrum-05",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -3226,6 +3555,13 @@
         "experience": "8+",
         "geography": "uae_onsite",
         "seniority": "senior_ic"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "LOW_BUT_USEFUL",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": "Large experience gap alone should not hard-reject a technically relevant role, but it should be clearly deprioritized."
       }
     },
     {
@@ -3286,7 +3622,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-experience_spectrum-06",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -3295,6 +3631,13 @@
         "experience": "preferred_only",
         "geography": "uae_onsite",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "H",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -3355,7 +3698,7 @@
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-experience_spectrum-07",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -3364,6 +3707,13 @@
         "experience": "multi_clause",
         "geography": "uae_onsite",
         "seniority": "senior_ic"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "REASONABLE_STRETCH",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": "The requirements are scoped rather than additive. Strong domain relevance and the 2+ cloud-specific requirement make this worth reviewing despite the larger overall-experience ask."
       }
     },
     {
@@ -3424,7 +3774,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-experience_spectrum-08",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -3433,6 +3783,13 @@
         "experience": "no_requirement",
         "geography": "uae_onsite",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "H",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -3493,7 +3850,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-geography_spectrum-01",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -3502,6 +3859,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "G",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -3562,7 +3926,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-geography_spectrum-02",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -3571,6 +3935,13 @@
         "experience": "missing",
         "geography": "uae_remote",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "G",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -3631,7 +4002,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-geography_spectrum-03",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -3640,6 +4011,13 @@
         "experience": "missing",
         "geography": "global_remote",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "G",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -3700,7 +4078,7 @@
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-geography_spectrum-04",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -3709,6 +4087,13 @@
         "experience": "missing",
         "geography": "generic_remote",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "LOW_BUT_USEFUL",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -3769,7 +4154,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-geography_spectrum-05",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -3778,6 +4163,13 @@
         "experience": "missing",
         "geography": "emea_remote",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "G",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -3840,7 +4232,7 @@
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-geography_spectrum-06",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -3849,6 +4241,13 @@
         "experience": "missing",
         "geography": "us_only_remote",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "GENUINE_REJECTION",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -3911,7 +4310,7 @@
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-geography_spectrum-07",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -3920,6 +4319,13 @@
         "experience": "missing",
         "geography": "uk_only_remote",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "GENUINE_REJECTION",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -3982,7 +4388,7 @@
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-geography_spectrum-08",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -3991,6 +4397,13 @@
         "experience": "missing",
         "geography": "foreign_onsite",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "GENUINE_REJECTION",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -4051,7 +4464,7 @@
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-geography_spectrum-09",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -4060,6 +4473,13 @@
         "experience": "missing",
         "geography": "foreign_onsite_relocation",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "LOW_BUT_USEFUL",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "B",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -4120,7 +4540,7 @@
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-geography_spectrum-10",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -4129,6 +4549,13 @@
         "experience": "missing",
         "geography": "unknown",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "LOW_BUT_USEFUL",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": "Missing geography is uncertainty, not incompatibility. Keep the relevant role visible at reduced priority until location is known."
       }
     },
     {
@@ -4191,7 +4618,7 @@
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-unrelated_professions-01",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -4200,6 +4627,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "GENUINE_REJECTION",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "K",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -4262,7 +4696,7 @@
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-unrelated_professions-02",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -4271,6 +4705,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "GENUINE_REJECTION",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "K",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -4333,7 +4774,7 @@
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-unrelated_professions-03",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -4342,6 +4783,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "GENUINE_REJECTION",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "K",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -4404,7 +4852,7 @@
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-unrelated_professions-04",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -4413,6 +4861,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "GENUINE_REJECTION",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "K",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -4476,7 +4931,7 @@
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-unrelated_professions-05",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -4485,6 +4940,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "GENUINE_REJECTION",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "K",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -4550,7 +5012,7 @@
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-unrelated_professions-09",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -4559,6 +5021,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "GENUINE_REJECTION",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": "The role itself is highly relevant, but the explicit UAE-national requirement conflicts with a confirmed candidate declaration. This is a genuine eligibility conflict, not an inferred one."
       }
     },
     {
@@ -4621,7 +5090,7 @@
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-unrelated_professions-06",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -4630,6 +5099,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "GENUINE_REJECTION",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "K",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -4692,7 +5168,7 @@
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-unrelated_professions-07",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -4701,10 +5177,19 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "entry"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "GENUINE_REJECTION",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
-      "allowed_hard_reasons": [],
+      "allowed_hard_reasons": [
+        "DOMAIN_INCOMPATIBLE"
+      ],
       "candidate_profile_fixture": {
         "declarations": {},
         "raw_text": "Computer Science graduate. SOC, SIEM, Splunk, Linux, Python, network security, incident response, vulnerability assessment, cloud security, IAM fundamentals.",
@@ -4758,10 +5243,10 @@
         "title": "Legal Counsel, Data Privacy"
       },
       "query_id": "unrelated_professions",
-      "reference_label": "LOW_BUT_USEFUL",
+      "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-unrelated_professions-08",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -4770,6 +5255,13 @@
         "experience": "missing",
         "geography": "uae_onsite",
         "seniority": "associate"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "LOW_BUT_USEFUL",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": true,
+        "owner_rationale": "Privacy/GDPR/infosec-policy adjacency does not overcome the fact that this is fundamentally a legal-counsel profession requiring a materially different professional path."
       }
     },
     {
@@ -4830,7 +5322,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-data_quality_and_source_shape-01",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -4840,6 +5332,13 @@
         "geography": "uae_onsite",
         "seniority": "entry",
         "source_shape": "greenhouse"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "I",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -4900,7 +5399,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-data_quality_and_source_shape-02",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "lever",
       "split": "holdout",
       "tags": {
@@ -4910,6 +5409,13 @@
         "geography": "uae_onsite",
         "seniority": "entry",
         "source_shape": "lever"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "I",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -4970,7 +5476,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-data_quality_and_source_shape-03",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "ashby",
       "split": "holdout",
       "tags": {
@@ -4980,6 +5486,13 @@
         "geography": "uae_onsite",
         "seniority": "entry",
         "source_shape": "ashby"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "I",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -5040,7 +5553,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-data_quality_and_source_shape-04",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "smartrecruiters",
       "split": "holdout",
       "tags": {
@@ -5050,6 +5563,13 @@
         "geography": "uae_onsite",
         "seniority": "entry",
         "source_shape": "smartrecruiters"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "I",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -5110,7 +5630,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-data_quality_and_source_shape-05",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "manual",
       "split": "holdout",
       "tags": {
@@ -5120,6 +5640,13 @@
         "geography": "uae_onsite",
         "seniority": "entry",
         "source_shape": "manual"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "I",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -5180,7 +5707,7 @@
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-data_quality_and_source_shape-06",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -5190,6 +5717,13 @@
         "geography": "uae_onsite",
         "seniority": "entry",
         "source_shape": "greenhouse"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "LOW_BUT_USEFUL",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "J",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -5250,7 +5784,7 @@
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-data_quality_and_source_shape-07",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "lever",
       "split": "holdout",
       "tags": {
@@ -5260,6 +5794,13 @@
         "geography": "uae_onsite",
         "seniority": "entry",
         "source_shape": "lever"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "MUST_SHOW",
+        "decision_method": "OWNER_BULK_APPROVAL",
+        "group_id": "I",
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -5320,7 +5861,7 @@
       "reference_label": "UNCLEAR",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-data_quality_and_source_shape-08",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "ashby",
       "split": "holdout",
       "tags": {
@@ -5330,6 +5871,13 @@
         "geography": "conflicting",
         "seniority": "entry",
         "source_shape": "ashby"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "UNCLEAR",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -5358,7 +5906,7 @@
       "reference_label": "UNCLEAR",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-data_quality_and_source_shape-09",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "smartrecruiters",
       "split": "holdout",
       "tags": {
@@ -5368,6 +5916,13 @@
         "geography": "uae_onsite",
         "seniority": "associate",
         "source_shape": "smartrecruiters"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "UNCLEAR",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": null
       }
     },
     {
@@ -5428,7 +5983,7 @@
       "reference_label": "UNCLEAR",
       "reference_link_state": "LIKELY_LIVE",
       "reference_opportunity_id": "opp-data_quality_and_source_shape-10",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "manual",
       "split": "holdout",
       "tags": {
@@ -5438,10 +5993,17 @@
         "geography": "uae_onsite",
         "seniority": "associate",
         "source_shape": "manual"
+      },
+      "owner_adjudication": {
+        "original_reference_label": "UNCLEAR",
+        "decision_method": "OWNER_INDIVIDUAL",
+        "group_id": null,
+        "changed": false,
+        "owner_rationale": null
       }
     }
   ],
-  "corpus_content_version": "2026-09-15.2",
+  "corpus_content_version": "2026-09-15.4",
   "corpus_schema_version": "fit-eval-corpus-1",
   "fixed_assessment_clock": "2026-09-15T00:00:00+00:00",
   "holdout_query_sets": [
@@ -5449,7 +6011,7 @@
     "unrelated_professions",
     "data_quality_and_source_shape"
   ],
-  "human_label_version": "labels-v1",
+  "human_label_version": "labels-v2",
   "label_gains": {
     "GENUINE_REJECTION": 0,
     "LOW_BUT_USEFUL": 1,
@@ -5457,7 +6019,7 @@
     "REASONABLE_STRETCH": 2
   },
   "metric_definition_version": "metrics-v2",
-  "notes": "Synthetic, privacy-safe corpus. Employers use .example domains; no real names, CVs, emails, or phone numbers. reference_status is PROPOSED for every case until the Owner adjudicates. See docs/evaluation/FIT_EVALUATION.md for the labelling methodology and split rationale.",
+  "notes": "Synthetic, privacy-safe corpus. Employers use .example domains; no real names, CVs, emails, or phone numbers. All 80 cases were adjudicated by the repository Owner on 2026-09-15 (reference_status OWNER_ADJUDICATED); each case carries owner_adjudication {original_reference_label, decision_method, group_id, changed, owner_rationale}. This is the Owner's individual review and rationale, not a multi-human consensus or independently human-labelled benchmark. See docs/evaluation/FIT_LABEL_REVIEW.md for the full per-case record and docs/evaluation/FIT_EVALUATION.md for the labelling methodology and split rationale.",
   "query_sets": [
     "cloud_security",
     "cyber_soc_security_engineering",
