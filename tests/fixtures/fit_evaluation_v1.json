@@ -5441,7 +5441,7 @@
       }
     }
   ],
-  "corpus_content_version": "2026-09-15.1",
+  "corpus_content_version": "2026-09-15.2",
   "corpus_schema_version": "fit-eval-corpus-1",
   "fixed_assessment_clock": "2026-09-15T00:00:00+00:00",
   "holdout_query_sets": [
@@ -5456,7 +5456,7 @@
     "MUST_SHOW": 3,
     "REASONABLE_STRETCH": 2
   },
-  "metric_definition_version": "metrics-v1",
+  "metric_definition_version": "metrics-v2",
   "notes": "Synthetic, privacy-safe corpus. Employers use .example domains; no real names, CVs, emails, or phone numbers. reference_status is PROPOSED for every case until the Owner adjudicates. See docs/evaluation/FIT_EVALUATION.md for the labelling methodology and split rationale.",
   "query_sets": [
     "cloud_security",

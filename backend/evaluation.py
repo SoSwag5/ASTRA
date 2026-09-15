@@ -29,8 +29,8 @@ from . import experience as experience_module
 from . import recall
 from .models import DEFAULTS
 
-REPORT_SCHEMA_VERSION = 'fit-eval-report-1'
-METRIC_DEFINITION_VERSION = 'metrics-v1'
+REPORT_SCHEMA_VERSION = 'fit-eval-report-2'
+METRIC_DEFINITION_VERSION = 'metrics-v2'
 CORPUS_SCHEMA_VERSION = 'fit-eval-corpus-1'
 HUMAN_LABEL_VERSION = 'labels-v1'
 CANDIDATE_POLICY_SCHEMA_VERSION = 'fit-candidate-policy-1'
