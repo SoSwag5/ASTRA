@@ -1,0 +1,12 @@
+# Issue #42 evaluation harness: these files are hashed byte-for-byte
+# (docs/evaluation/fit_evaluation_report.json records tests/fixtures/fit_evaluation_v1.json's
+# corpus_sha256, and the provenance test in tests/test_fit_evaluation.py binds the
+# committed report to the corpus on disk) and are read directly by CI and by
+# contributors on Windows, where core.autocrlf=true otherwise checks them out as
+# CRLF. Force LF so every checkout matches the Git blob these hashes are computed
+# against. backend.evaluation._canonical_bytes() normalizes independently of this
+# rule as defense in depth -- this only prevents the divergence at the source.
+tests/fixtures/fit_evaluation_v1.json text eol=lf
+docs/evaluation/fit_evaluation_report.json text eol=lf
+docs/evaluation/FIT_EVALUATION_REPORT.md text eol=lf
+docs/evaluation/FIT_LABEL_REVIEW.md text eol=lf

@@ -67,6 +67,20 @@ class CorpusError(ValueError):
     """A structural problem with an evaluation corpus file."""
 
 
+def _canonical_bytes(path):
+    """Read a text file's content normalized to LF line endings.
+
+    Git always stores this repository's tracked text files with LF; a
+    checkout with `core.autocrlf=true` (the common Windows default) rewrites
+    them to CRLF on disk. Hashing raw `read_bytes()` output is therefore
+    platform-dependent even when the file's logical content -- and its Git
+    blob -- have not changed. Normalizing before hashing makes the result
+    match `git show <rev>:<path>` (and therefore `corpus_sha256`) on every
+    platform and checkout configuration.
+    """
+    return Path(path).read_bytes().replace(b'\r\n', b'\n').replace(b'\r', b'\n')
+
+
 def _read_json_object(path, kind):
     try:
         raw = Path(path).read_text(encoding='utf-8')
@@ -864,7 +878,7 @@ def build_report(corpus, corpus_path, results, *, split_filter=None, slice_filte
         'corpus_content_version': corpus['corpus_content_version'],
         'human_label_version': corpus['human_label_version'],
         'metric_definition_version': corpus['metric_definition_version'],
-        'corpus_sha256': hashlib.sha256(Path(corpus_path).read_bytes()).hexdigest(),
+        'corpus_sha256': hashlib.sha256(_canonical_bytes(corpus_path)).hexdigest(),
         'git_commit': evaluated_commit,
         'provenance': {
             'evaluated_commit': evaluated_commit,

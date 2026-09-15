@@ -746,7 +746,10 @@ def test_committed_report_provenance_binds_current_corpus_and_evaluated_commit(c
     subprocess.run(['git', 'merge-base', '--is-ancestor', evaluated_commit, 'HEAD'], cwd=ROOT, check=True)
     evaluated_corpus = subprocess.run(['git', 'show', f'{evaluated_commit}:{CORPUS_PATH}'], cwd=ROOT,
                                       capture_output=True, check=True).stdout
-    current_corpus = Path(CORPUS_PATH).read_bytes()
+    # Normalized to LF before hashing: a CRLF working-tree checkout
+    # (core.autocrlf=true, the common Windows default) must never desync this
+    # assertion from the LF bytes Git actually stores in the blob.
+    current_corpus = ev._canonical_bytes(CORPUS_PATH)
     assert hashlib.sha256(evaluated_corpus).hexdigest() == committed['corpus_sha256']
     assert hashlib.sha256(current_corpus).hexdigest() == committed['corpus_sha256']
 
@@ -765,6 +768,29 @@ def test_committed_report_provenance_binds_current_corpus_and_evaluated_commit(c
     assert ev.render_markdown(current, calibration=current['calibration'],
                               gate_result=current['quality_gate']) == \
         (ROOT / 'docs/evaluation/FIT_EVALUATION_REPORT.md').read_text(encoding='utf-8')
+
+
+def test_canonical_bytes_is_stable_across_crlf_checkouts(tmp_path):
+    """A `core.autocrlf=true` Windows checkout rewrites tracked text files to
+    CRLF on disk without changing their Git blob. Simulate exactly that --
+    independent of this machine's own checkout/autocrlf configuration -- and
+    prove `_canonical_bytes` (and therefore `corpus_sha256`) is unaffected.
+    """
+    lf_bytes = subprocess.run(['git', 'show', f'HEAD:{CORPUS_PATH}'], cwd=ROOT,
+                              capture_output=True, check=True).stdout
+    assert b'\r\n' not in lf_bytes, 'the committed blob is expected to be LF-only'
+
+    crlf_copy = tmp_path / 'fit_evaluation_v1_crlf.json'
+    crlf_copy.write_bytes(lf_bytes.replace(b'\n', b'\r\n'))
+    assert b'\r\n' in crlf_copy.read_bytes()
+
+    assert hashlib.sha256(ev._canonical_bytes(crlf_copy)).hexdigest() == \
+        hashlib.sha256(lf_bytes).hexdigest()
+    # A stray lone-CR checkout (older Mac-style) must normalize identically.
+    cr_copy = tmp_path / 'fit_evaluation_v1_cr.json'
+    cr_copy.write_bytes(lf_bytes.replace(b'\n', b'\r'))
+    assert hashlib.sha256(ev._canonical_bytes(cr_copy)).hexdigest() == \
+        hashlib.sha256(lf_bytes).hexdigest()
 
 
 def test_cli_text_includes_requested_extended_sections():
