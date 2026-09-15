@@ -2,12 +2,14 @@
 
 _Generated from `backend.evaluation`'s canonical machine-readable output -- not hand-maintained._
 
-- Corpus: `2026-09-15.1` (80 cases, 12 query sets, 3 UNCLEAR)
+- Corpus: `2026-09-15.2` (80 cases, 12 query sets, 3 UNCLEAR)
 - Code: assessment schema `fit-assessment-2`, ruleset `fit-rules-2`, taxonomy `career-tracks-1`, experience parser `experience-2`
-- Git commit: `0147719793a1583309ef7e99690857d48938ebd3`
-- Engine: `compare`
+- Evaluated commit: `9eaa7c3c56b5560513d3c17c5538be84d224cd2d`
+- Evaluated tree: `0780f89c0019ccabcc8ff0bfaf3f387b542a0ffc`
+- Report snapshot: Committed reports are generated from this clean evaluated commit and may be stored in a later report-only commit.
+- Engine/view: `compare` / `BASELINE`
 
-> **Reference labels in this corpus carry `reference_status: PROPOSED` and are NOT yet Owner-approved ground truth.** Score means ranking priority, never a probability or hiring likelihood. These results measure this corpus only -- not global web recall -- and provider coverage in the corpus is metadata, never a quality signal. Bucket thresholds and component weights remain provisional (issue #41); running this harness changes no production default.
+> **Seed labels are Claude-authored proposals, carry `reference_status: PROPOSED`, and are not independent human or Owner-approved ground truth.** Score means ranking priority, never a probability or hiring likelihood. These results measure this corpus only -- not global web recall -- and provider coverage in the corpus is metadata, never a quality signal. Bucket thresholds and component weights remain provisional (issue #41); running this harness changes no production default.
 
 ## Coverage
 
@@ -62,8 +64,8 @@ _Generated from `backend.evaluation`'s canonical machine-readable output -- not 
 
 | Policy | Split | MUST_SHOW FR | Useful FR | HP leakage | nDCG@10 |
 |---|---|---|---|---|---|
-| current-ruleset | development | **0.0000** (0/15) | **0.0000** (0/42) | **0.0000** (0/9) | **0.9932** |
-| current-ruleset | holdout | **0.0000** (0/10) | **0.0000** (0/15) | **0.0000** (0/11) | **0.7632** |
+| current-ruleset | development | **0.0000** (0/15) | **0.0000** (0/42) | **0.0000** (0/9) | **0.9800** |
+| current-ruleset | holdout | **0.0000** (0/10) | **0.0667** (1/15) | **0.0000** (0/11) | **0.7718** |
 | domain-heavier-v1 | development | **0.0000** (0/15) | **0.0000** (0/42) | **0.0000** (0/9) | **0.9779** |
 | domain-heavier-v1 | holdout | **0.0000** (0/10) | **0.0667** (1/15) | **0.0000** (0/11) | **0.7718** |
 | geography-heavier-v1 | development | **0.0000** (0/15) | **0.0000** (0/42) | **0.0000** (0/9) | **0.9825** |
@@ -75,18 +77,18 @@ PROPOSED comparison only. No candidate is adopted into production defaults by th
 
 ## PROPOSED quality gate (NOT Owner-approved)
 
-Overall: **FAIL**
+Overall: **INSUFFICIENT_DATA**
 
 | Check | Status | Threshold | Observed |
 |---|---|---|---|
-| max_must_show_false_rejection_rate | PASS | 0.0 | 0.0 |
-| max_useful_false_rejection_rate | PASS | 0.05 | 0.0175 |
-| max_high_priority_leakage | PASS | 0.02 | 0.0 |
-| forbid_useful_legacy_accepted_new_rejected | PASS |  | 0 |
-| min_hard_reason_sample_size[DOMAIN_INCOMPATIBLE] | PASS | 3 | 8 |
-| min_hard_reason_sample_size[GEO_INCOMPATIBLE] | PASS | 3 | 5 |
-| min_hard_reason_sample_size[EXTREME_LEADERSHIP_MISMATCH] | PASS | 3 | 3 |
-| min_hard_reason_sample_size[CONFIRMED_ELIGIBILITY_CONFLICT] | FAIL | 3 | 1 |
+| must-show-false-rejection | PASS | <= 0.0 | 0.0 |
+| useful-false-rejection | PASS | <= 0.05 | 0.0175 |
+| high-priority-leakage | PASS | <= 0.02 | 0.0 |
+| new-useful-regression | PASS | <= 0.0 | 0.0 |
+| domain-hard-reason-sample | PASS | >= 0.0 | 0.875 |
+| geography-hard-reason-sample | PASS | >= 0.0 | 1.0 |
+| leadership-hard-reason-sample | PASS | >= 0.0 | 1.0 |
+| eligibility-hard-reason-sample | INSUFFICIENT_DATA | >= 0.0 | 1.0 (DENOMINATOR_BELOW_MINIMUM; denominator=1, minimum=3) |
 
 ## Top failures
 
@@ -95,4 +97,4 @@ Overall: **FAIL**
 
 ---
 
-Report schema `fit-eval-report-1`, metric definitions `metrics-v1`, corpus SHA-256 `43db136456b761cf...`
+Report schema `fit-eval-report-2`, metric definitions `metrics-v2`, corpus SHA-256 `d1dee1965446cee4...`

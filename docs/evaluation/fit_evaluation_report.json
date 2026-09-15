@@ -46,7 +46,7 @@
           "ndcg_at_k": {
             "query_sets_scored": 9,
             "status": "OK",
-            "value": 0.9932
+            "value": 0.98
           },
           "new_useful_regression_rate": {
             "denominator": 20,
@@ -84,7 +84,7 @@
           "ndcg_at_k": {
             "query_sets_scored": 3,
             "status": "OK",
-            "value": 0.7632
+            "value": 0.7718
           },
           "new_useful_regression_rate": {
             "denominator": 13,
@@ -96,10 +96,12 @@
           "split": "holdout",
           "useful_false_rejection_rate": {
             "denominator": 15,
-            "failing_case_ids": [],
-            "numerator": 0,
+            "failing_case_ids": [
+              "unrelated_professions-08"
+            ],
+            "numerator": 1,
             "status": "OK",
-            "value": 0.0
+            "value": 0.0667
           }
         },
         "id": "current-ruleset",
@@ -152,7 +154,7 @@
             "value": 0.0
           }
         },
-        "hash": "eceed8bc9bf0e07b",
+        "hash": "b9054aafdb05cee8",
         "holdout": {
           "case_count": 29,
           "high_priority_irrelevant_leakage": {
@@ -242,7 +244,7 @@
             "value": 0.0
           }
         },
-        "hash": "87e2268d5f9291df",
+        "hash": "b6059dfe3ef00523",
         "holdout": {
           "case_count": 29,
           "high_priority_irrelevant_leakage": {
@@ -299,14 +301,14 @@
   },
   "candidate_policy": null,
   "caveats": [
-    "Reference labels carry reference_status PROPOSED and are not yet Owner-approved ground truth.",
+    "Seed labels are Claude-authored proposals, carry reference_status PROPOSED, and are not independent human or Owner-approved ground truth.",
     "Score means ranking priority, never a probability. score_kind is always RANKING_PRIORITY.",
     "Results measure this corpus only, not global web recall; provider coverage in the corpus is metadata, never a quality signal.",
     "Thresholds/bucket boundaries and component weights remain provisional (issue #41); no production default is changed by running this harness."
   ],
-  "corpus_content_version": "2026-09-15.1",
+  "corpus_content_version": "2026-09-15.2",
   "corpus_schema_version": "fit-eval-corpus-1",
-  "corpus_sha256": "43db136456b761cfb7ad401db2bd3d5a0887a7fb6267754eb4c75e90276df77d",
+  "corpus_sha256": "d1dee1965446cee498f41819b2dabef77b822d49fe4b394b5a78038e36c59fd2",
   "coverage": {
     "query_sets": 12,
     "reference_label_distribution": {
@@ -340,7 +342,8 @@
     }
   },
   "engine": "compare",
-  "git_commit": "0147719793a1583309ef7e99690857d48938ebd3",
+  "evaluation_view": "BASELINE",
+  "git_commit": "9eaa7c3c56b5560513d3c17c5538be84d224cd2d",
   "hard_reason_precision": {
     "CONFIRMED_ELIGIBILITY_CONFLICT": {
       "denominator": 1,
@@ -432,7 +435,7 @@
       "LEGACY_REJECTED_NEW_STRONG": 16
     }
   },
-  "metric_definition_version": "metrics-v1",
+  "metric_definition_version": "metrics-v2",
   "pairwise_ordering_agreement": {
     "denominator": 151,
     "failing_case_ids": [],
@@ -2422,58 +2425,109 @@
       "value": 0.0175
     }
   },
+  "provenance": {
+    "evaluated_commit": "9eaa7c3c56b5560513d3c17c5538be84d224cd2d",
+    "evaluated_tree_hash": "0780f89c0019ccabcc8ff0bfaf3f387b542a0ffc",
+    "report_snapshot_note": "Committed reports are generated from this clean evaluated commit and may be stored in a later report-only commit."
+  },
   "quality_gate": {
     "approval_state": "PROPOSED / NOT OWNER-APPROVED",
     "checks": [
       {
-        "name": "max_must_show_false_rejection_rate",
+        "denominator": 25,
+        "metric": "primary_metrics.must_show_false_rejection_rate",
+        "min_denominator": 1,
+        "name": "must-show-false-rejection",
         "observed": 0.0,
+        "operator": "<=",
+        "required": true,
         "status": "PASS",
         "threshold": 0.0
       },
       {
-        "name": "max_useful_false_rejection_rate",
+        "denominator": 57,
+        "metric": "primary_metrics.useful_false_rejection_rate",
+        "min_denominator": 1,
+        "name": "useful-false-rejection",
         "observed": 0.0175,
+        "operator": "<=",
+        "required": true,
         "status": "PASS",
         "threshold": 0.05
       },
       {
-        "name": "max_high_priority_leakage",
+        "denominator": 20,
+        "metric": "primary_metrics.high_priority_irrelevant_leakage",
+        "min_denominator": 1,
+        "name": "high-priority-leakage",
         "observed": 0.0,
+        "operator": "<=",
+        "required": true,
         "status": "PASS",
         "threshold": 0.02
       },
       {
-        "name": "forbid_useful_legacy_accepted_new_rejected",
-        "observed": 0,
-        "status": "PASS"
-      },
-      {
-        "name": "min_hard_reason_sample_size[DOMAIN_INCOMPATIBLE]",
-        "observed": 8,
+        "denominator": 33,
+        "metric": "primary_metrics.new_useful_regression_rate",
+        "min_denominator": 1,
+        "name": "new-useful-regression",
+        "observed": 0.0,
+        "operator": "<=",
+        "required": true,
         "status": "PASS",
-        "threshold": 3
+        "threshold": 0.0
       },
       {
-        "name": "min_hard_reason_sample_size[GEO_INCOMPATIBLE]",
-        "observed": 5,
+        "denominator": 8,
+        "metric": "hard_reason_precision.DOMAIN_INCOMPATIBLE",
+        "min_denominator": 3,
+        "name": "domain-hard-reason-sample",
+        "observed": 0.875,
+        "operator": ">=",
+        "required": true,
         "status": "PASS",
-        "threshold": 3
+        "threshold": 0.0
       },
       {
-        "name": "min_hard_reason_sample_size[EXTREME_LEADERSHIP_MISMATCH]",
-        "observed": 3,
+        "denominator": 5,
+        "metric": "hard_reason_precision.GEO_INCOMPATIBLE",
+        "min_denominator": 3,
+        "name": "geography-hard-reason-sample",
+        "observed": 1.0,
+        "operator": ">=",
+        "required": true,
         "status": "PASS",
-        "threshold": 3
+        "threshold": 0.0
       },
       {
-        "name": "min_hard_reason_sample_size[CONFIRMED_ELIGIBILITY_CONFLICT]",
-        "observed": 1,
-        "status": "FAIL",
-        "threshold": 3
+        "denominator": 3,
+        "metric": "hard_reason_precision.EXTREME_LEADERSHIP_MISMATCH",
+        "min_denominator": 3,
+        "name": "leadership-hard-reason-sample",
+        "observed": 1.0,
+        "operator": ">=",
+        "required": true,
+        "status": "PASS",
+        "threshold": 0.0
+      },
+      {
+        "denominator": 1,
+        "metric": "hard_reason_precision.CONFIRMED_ELIGIBILITY_CONFLICT",
+        "min_denominator": 3,
+        "name": "eligibility-hard-reason-sample",
+        "observed": 1.0,
+        "operator": ">=",
+        "reason": "DENOMINATOR_BELOW_MINIMUM",
+        "required": true,
+        "status": "INSUFFICIENT_DATA",
+        "threshold": 0.0
       }
     ],
-    "gate_status": "FAIL"
+    "gate_id": "quality-gate-proposed-v1",
+    "gate_schema_version": "fit-quality-gate-1",
+    "gate_status": "INSUFFICIENT_DATA",
+    "target_engine": "compare",
+    "target_view": "BASELINE"
   },
   "ranking_metrics": {
     "ndcg_at_k": {
@@ -2590,7 +2644,7 @@
       "value": 1.0
     }
   },
-  "report_schema_version": "fit-eval-report-1",
+  "report_schema_version": "fit-eval-report-2",
   "slice_filters": {},
   "split_filter": null,
   "stale_link_rate": {
@@ -2616,7 +2670,7 @@
     "assessment_ruleset": "fit-rules-2",
     "assessment_schema": "fit-assessment-2",
     "experience_parser": "experience-2",
-    "metric_definition_version": "metrics-v1",
+    "metric_definition_version": "metrics-v2",
     "taxonomy": "career-tracks-1"
   }
 }
