@@ -16,19 +16,28 @@ with TestClient(main.app) as c:
     assert source['enabled']
     assert c.post('/api/search/sources',json={'name':'Fixture','url':'https://jobs.lever.co/fixture'}).json()['exists']
     assert len(c.get('/api/search/overview').json()['sources'])==1
-    main.discover=lambda *args:[{'company':'Fixture','title':'SOC Analyst','location':'Dubai','description':'SOC SIEM Python','source':'Lever','source_job_id':'fixture1','job_url':'https://jobs.lever.co/fixture/one'}, {'company':'Fixture','title':'Accountant','location':'Dubai'}]
+    # Issue #41 Owner Decision 1: 'Accountant' is a structurally valid
+    # posting that is hard-rejected (DOMAIN_INCOMPATIBLE) but still
+    # persisted (hidden via the existing SKIP status), not silently
+    # filtered before persistence -- so both items are discovered here, and
+    # both carry a real native id (as any genuine Lever posting would) so
+    # they are correctly recognized as duplicates on the rescan below.
+    main.discover=lambda *args:[{'company':'Fixture','title':'SOC Analyst','location':'Dubai','description':'SOC SIEM Python','source':'Lever','source_job_id':'fixture1','job_url':'https://jobs.lever.co/fixture/one'}, {'company':'Fixture','title':'Accountant','location':'Dubai','source':'Lever','source_job_id':'fixture2','job_url':'https://jobs.lever.co/fixture/two'}]
     r=main.task('discover')
-    assert r['report']['discovered']==1 and r['report']['filtered']==1
-    job=c.get('/api/jobs').json()[0]
+    assert r['report']['discovered']==2 and r['report']['filtered']==0
+    jobs=c.get('/api/jobs').json()
+    job=next(j for j in jobs if j['title']=='SOC Analyst')
+    rejected=next(j for j in jobs if j['title']=='Accountant')
     assert job['match_score']>0 and job['analysis']['discovery']['source_id']==source['id']
+    assert rejected['status']=='SKIP' and rejected['analysis']['fit_assessment']['hard_reject']['code']=='DOMAIN_INCOMPATIBLE'
     assert c.post(f"/api/search/jobs/{job['id']}/save",json={'saved':True}).status_code==200
     assert c.post(f"/api/jobs/{job['id']}/analyze").status_code==200
-    assert c.get('/api/jobs').json()[0]['analysis']['saved']
+    assert next(j for j in c.get('/api/jobs').json() if j['id']==job['id'])['analysis']['saved']
     app=c.post(f"/api/jobs/{job['id']}/status",json={'status':'APPLIED'}).json()
     r=main.task('discover')
-    assert r['report']['duplicates']==1 and r['report']['discovered']==0
-    assert c.get('/api/jobs').json()[0]['status']=='APPLIED'
-    assert c.get('/api/search/overview').json()['sources'][0]['result']['duplicates']==1
+    assert r['report']['duplicates']==2 and r['report']['discovered']==0
+    assert next(j for j in c.get('/api/jobs').json() if j['id']==job['id'])['status']=='APPLIED'
+    assert c.get('/api/search/overview').json()['sources'][0]['result']['duplicates']==2
     assert c.post(f"/api/search/jobs/{job['id']}/notes",json={'notes':'Contact next week'}).status_code==200
     assert c.post(f"/api/search/tracking/{app['id']}/followup",json={'due_date':'2020-01-01T09:00:00+04:00'}).status_code==200
     tracked=c.get('/api/search/tracking').json()[0]
@@ -40,7 +49,7 @@ with TestClient(main.app) as c:
     main.discover=broken
     r=main.task('discover')
     assert r['status']=='PARTIAL' and r['report']['failures']==1
-    assert c.get('/api/jobs').json()[0]['status']=='APPLIED'
+    assert next(j for j in c.get('/api/jobs').json() if j['id']==job['id'])['status']=='APPLIED'
     assert c.put('/api/settings',json={'discovery_enabled':False}).status_code==200
     assert c.get('/api/search/overview').json()['next_scan'] is None
 '''

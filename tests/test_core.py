@@ -40,8 +40,11 @@ def test_weak_evidence_alone_does_not_auto_merge(db):
     assert j.id!=j2.id and d is None
 def test_scoring():
     result=score(job(),profile(),DEFAULTS); assert result['score']>=80; assert result['recommendation']=='HIGH_PRIORITY'
-@pytest.mark.parametrize('requirement',['UAE National only','Active security clearance required','Arabic mandatory','CCNA required','5 years minimum required'])
+@pytest.mark.parametrize('requirement',['UAE National only','Active security clearance required','Arabic mandatory','CCNA required'])
 def test_hard_requirement(requirement):
+    # Issue #41: a bare experience requirement ("5 years minimum required")
+    # is deliberately excluded here -- it is now a ranking signal, never a
+    # reason to withhold APPLY/force review on its own.
     j=job(); j.description=requirement; r=score(j,profile(),DEFAULTS); assert r['needs_review'] or r['hard_blockers']; assert r['recommendation']!='APPLY'
 def test_question_memory(db):
     db.add(ApprovedAnswer(question='Do you need sponsorship?',normalized_question=norm('Do you need sponsorship?'),answer='Yes',approved=True));db.flush()

@@ -273,6 +273,10 @@ def serialize(obj): return {c.name:getattr(obj,c.name) for c in obj.__table__.co
 DEFAULTS=dict(autopilot='PREPARE_ONLY',dry_run=True,daily_limit=10,max_retries=2,followup_days=7,minimum_score=70,high_priority=80,maybe_score=60,provider='rules',cover_letter='required',auto_sync=False,profile_confirmed=False,wizard_step=1,blocked_companies=[],blocked_domains=[],career_tracks=['CYBERSECURITY'],custom_target_roles=[],search_focus_confirmed=True,career_profile_version='career-tracks-1',target_roles=['SOC Analyst','Cybersecurity Analyst','Security Analyst','Security Operations Analyst','Information Security Analyst','Information Security Associate','Cybersecurity Associate','SOC Associate','Graduate Cybersecurity Analyst','Graduate Security Analyst','IT Security Analyst','Cyber Defense Analyst','Junior Blue Team Analyst','Security Monitoring Analyst','Vulnerability Management Analyst','Junior Vulnerability Analyst','GRC Analyst','Information Security GRC Associate','Network Security Analyst','Junior Incident Response Analyst'],excluded_roles=['senior','lead','principal','manager','director','head','architect','sales'],locations=['Abu Dhabi','Dubai','UAE','United Arab Emirates'],remote_uae=True,salary_minimum=0,cv_template='ATS',ats_preferences=['greenhouse','lever','ashby'],weights={'skills':30,'experience':25,'role':15,'education':10,'location':10,'seniority':5,'other':5},schedule={'discover':'01:00','analyze':'01:15','prepare':'01:30','process':'02:00','sync':'03:00','report':'07:30'})
 DEFAULTS.update(discovery_enabled=True, discovery_interval_hours=3)
 DEFAULTS.update(ai_daily_limit=20)
+# Issue #41: NEW is authoritative; SHADOW keeps the pre-#41 evaluator
+# authoritative while the new engine runs non-authoritatively for
+# comparison; LEGACY is the validated rollback path. See backend/recall.py.
+DEFAULTS.update(assessment_mode='NEW')
 FRESH_DEFAULTS={**DEFAULTS,'career_tracks':[],'custom_target_roles':[],'target_roles':[],'search_focus_confirmed':False}
 def settings(db):
     row=db.get(Settings,1)

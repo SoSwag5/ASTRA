@@ -18,6 +18,7 @@ def settings_input(cfg, defaults):
         raise ValueError('Invalid follow-up interval or salary preference')
     if not 1<=cfg['wizard_step']<=10:raise ValueError('Invalid setup step')
     if cfg['cover_letter'] not in ('required','always') or cfg['cv_template']!='ATS':raise ValueError('Unsupported document option')
+    if cfg['assessment_mode'] not in ('NEW','SHADOW','LEGACY'):raise ValueError('Unsupported assessment mode')
     if set(cfg['schedule'])!=set(defaults['schedule']):raise ValueError('Invalid scheduled task set')
     if any(type(v) not in (int,float) or not math.isfinite(v) or not 0<=v<=10000 for v in cfg['weights'].values()):
         raise ValueError('Weights must be finite nonnegative numbers no greater than 10,000')

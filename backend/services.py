@@ -68,52 +68,78 @@ def candidate(db):
 
 def contains(text,word): return bool(re.search(r'(?<!\w)'+re.escape(word.lower())+r'(?!\w)',text.lower()))
 def score(job,p,cfg):
-    from .career_tracks import matching_skills
-    known=matching_skills(cfg)
-    desc=job.description; lower=desc.lower(); full=(job.title+' '+desc).lower()
+    """One authoritative scoring formula (issue #41): `decision['priority']`
+    IS `decision['fit_assessment']['score']` (or evaluate_legacy()'s own
+    priority in assessment_mode LEGACY) -- never a second, independently
+    weighted total that gets silently discarded. `parts` (the legacy
+    per-column UI breakdown) is a PROJECTION of the same FitAssessment
+    components, never a second recomputation of fit.
+    """
+    from .recall import evaluate
+    desc=job.description
     fields=('skills','employments','projects','education','certifications')
-    evidence=(' '.join(str(f['text']) for key in fields for f in p.get(key,[])) if any(key in p for key in fields) else p['raw_text']).lower()
-    requested=[s for s in known if contains(full,s)]
-    matches=[s for s in requested if contains(evidence,s) and (s!='CCNA' or p.get('declarations',{}).get('ccna_certification_verified') is True)]
-    missing=[s for s in requested if s not in matches]
-    blockers=[]; review=[]; hard=[]
-    if discovery_reason({'title':job.title,'location':job.location},cfg) in ('Unrelated role','Physical security role'):
-        blockers.append('Outside your selected career-track focus')
+    evidence=(' '.join(str(f['text']) for key in fields for f in p.get(key,[])) if any(key in p for key in fields) else p.get('raw_text','')).lower()
+    review=[]
     if re.search(r'UAE nationals?|Emirati|United Arab Emirates citizens?',job.title+' '+desc,re.I):
         review.append('Confirm UAE citizenship eligibility; UAE residence does not establish nationality')
+    hard=[]
     for sentence in re.split(r'[\n.!?]',desc):
         if re.search(r'requir|must|mandatory|only|minimum',sentence,re.I): hard.append(sentence.strip())
     for h in hard:
         if re.search(r'national|citizen|clearance|sponsor|authoriz|visa',h,re.I): review.append('Confirm eligibility: '+h)
         if re.search(r'arabic',h,re.I): review.append('Confirm Arabic proficiency: '+h)
-        if re.search(r'\bCCNA\b',h,re.I) and 'CCNA' not in matches: review.append('Confirm the full CCNA certification; a course or keyword alone does not verify certification')
-        for s in missing:
-            if contains(h,s) and s!='CCNA': review.append('Required skill/credential not evidenced: '+s)
-    min_years=experience_years(desc)
-    if min_years: review.append(f'{min_years} years requested; relevant duration has not been verified. Review your experience against this requirement.')
-    if any(contains(job.title,x) for x in cfg['excluded_roles']): blockers.append('Excluded role or seniority')
-    if 'unpaid' in full or 'commission only' in full: blockers.append('Unpaid or commission-only role')
-    if job.company.lower() in [x.lower() for x in cfg['blocked_companies']]: blockers.append('Blocked company')
-    if host(job.job_url) in cfg['blocked_domains']: blockers.append('Blocked domain')
-    local=any(contains(job.location,x) for x in cfg['locations'])
-    if not local:
-        if 'remote' in (job.location+' '+job.remote_status).lower() and cfg.get('remote_uae',True): review.append('Confirm remote employment from your residence country is permitted')
-        else: blockers.append('Outside target locations')
+        if re.search(r'\bCCNA\b',h,re.I): review.append('Confirm the full CCNA certification; a course or keyword alone does not verify certification')
     if not desc.strip(): review.append('Job description is missing')
-    role=any(norm(x) in norm(job.title) for x in cfg['target_roles'])
-    if not role: review.append('Role alignment requires review')
-    parts={'skills':len(matches)/max(len(requested),1),'experience':1 if min_years==0 else (.6 if min_years==1 else .2),'role':1 if role else .2,'education':1 if 'computer science' in evidence else .3,'location':1 if local else .2,'seniority':0 if blockers else 1,'other':0 if review else 1}
-    weights=cfg['weights']; total=round(100*sum(parts[k]*weights[k] for k in parts)/max(sum(weights.values()),1))
-    from .recall import evaluate
+
     decision=evaluate({k:getattr(job,k,'') for k in ('title','description','location','remote_status','company','job_url','experience_requirement','date_posted','closing_date')},cfg,p)
+    fa=decision.get('fit_assessment')
     total=decision['priority'];blockers=[r['evidence'] for r in decision['hard']];review=list(dict.fromkeys(review+[r['evidence'] for r in decision['soft']]))
-    recommendation='SKIP' if blockers else 'NEEDS_REVIEW' if review else 'HIGH_PRIORITY' if total>=cfg['high_priority'] else 'APPLY' if total>=cfg['minimum_score'] else 'MAYBE' if total>=cfg['maybe_score'] else 'SKIP'
-    fit='Outside focus' if blockers else 'Stretch role' if min_years>=2 else 'Eligibility review' if review else 'Potential junior fit'
-    return dict(recall=decision,score=total,score_kind='Heuristic priority index — not a probability or eligibility decision',weights=weights,fit=fit,minimum_experience_years=min_years,parts={k:round(v*100) for k,v in parts.items()},matching_skills=matches,missing_skills=missing,hard_requirements=hard,hard_blockers=blockers,needs_review=review,recommendation=recommendation,why=fit+'. Heuristic keyword priority, not a percentage match or hiring prediction. Skills not found are unknown, not proven absent. Experience, language and work authorization need your review. Edit profile facts and search preferences to correct the inputs.')
+    matches=decision.get('matched_core_skills',[]);missing=decision.get('fit_assessment',{}).get('missing_skills',[])
+    min_years=decision['experience']['minimum']
+    if fa:
+        c=fa['components']
+        parts={'skills':c['profile_evidence']/20,'experience':c['experience']/15,'role':c['domain']/25,
+               'education':1 if 'computer science' in evidence else .3,'location':c['geography']/10,
+               'seniority':c['seniority']/10,'other':0 if review else 1}
+        fit={'STRONG':'Strong fit','GOOD':'Good fit','STRETCH':'Stretch role','LOW':'Low priority — review','REJECTED':'Outside focus'}[fa['bucket']]
+    else:
+        local=any(contains(job.location,x) for x in cfg['locations'])
+        role=any(norm(x) in norm(job.title) for x in cfg['target_roles'])
+        parts={'skills':len(matches)/max(len(matches)+len(missing),1),'experience':1 if min_years==0 else (.6 if min_years==1 else .2),
+               'role':1 if role else .2,'education':1 if 'computer science' in evidence else .3,'location':1 if local else .2,
+               'seniority':0 if blockers else 1,'other':0 if review else 1}
+        fit='Outside focus' if blockers else 'Stretch role' if min_years>=2 else 'Eligibility review' if review else 'Potential junior fit'
+    if fa:
+        # Issue #41 Phase 13: recommendation is a direct bucket projection,
+        # never the legacy minimum_score/maybe_score thresholds -- those
+        # don't align with the bucket boundaries and could otherwise map a
+        # merely-LOW (not hard-rejected) job onto SKIP, which must be
+        # reserved for an actual hard rejection (LOW stays NEEDS_REVIEW,
+        # a normal rankable/visible disposition).
+        recommendation='SKIP' if blockers else 'NEEDS_REVIEW' if review else {'STRONG':'HIGH_PRIORITY','GOOD':'APPLY','STRETCH':'MAYBE','LOW':'NEEDS_REVIEW','REJECTED':'SKIP'}[fa['bucket']]
+    else:
+        recommendation='SKIP' if blockers else 'NEEDS_REVIEW' if review else 'HIGH_PRIORITY' if total>=cfg['high_priority'] else 'APPLY' if total>=cfg['minimum_score'] else 'MAYBE' if total>=cfg['maybe_score'] else 'SKIP'
+    score_kind=fa['score_kind'] if fa else 'Heuristic priority index — not a probability or eligibility decision. Never an interview, hiring, or success probability.'
+    return dict(recall=decision,score=total,score_kind=score_kind,weights=cfg['weights'],fit=fit,minimum_experience_years=min_years,parts={k:round(v*100) for k,v in parts.items()},matching_skills=matches,missing_skills=missing,hard_requirements=hard,hard_blockers=blockers,needs_review=review,recommendation=recommendation,why=fit+'. Ranking priority, not a percentage match or hiring prediction. Skills not found are unknown, not proven absent. Experience, language and work authorization need your review. Edit profile facts and search preferences to correct the inputs.')
 
 def analyze(db,j):
-    result=score(j,candidate(db),settings(db)); j.analysis={**result,**{k:v for k,v in j.analysis.items() if k in ('discovery','saved','seen_at','occurrences','feedback','first_seen','last_seen','last_shown','last_reviewed','source_type','discovered_via','preferred_application_url')}}; j.match_score=result['score']; j.matching_skills=result['matching_skills']; j.missing_skills=result['missing_skills']; j.red_flags=result['hard_blockers']+result['needs_review']; j.requirements=result['hard_requirements']; j.recommendation=result['recommendation']; j.priority='HIGH' if result['recommendation']=='HIGH_PRIORITY' else 'NORMAL'; j.hard_requirement_score=0 if j.red_flags else 100
+    """Issue #41: `j.analysis['fit_assessment']` is the authoritative
+    derived assessment (Owner Decision 3 -- no new table/column). A hard
+    reject still gets a Job row and a JobObservation (#40 identity is
+    untouched); it is only ever hidden through the existing SKIP status,
+    never by skipping persistence, and existing saved/applied workflow
+    state on this job is never overwritten here (see the status guard
+    below, unchanged from before #41).
+    """
+    result=score(j,candidate(db),settings(db))
+    preserved={k:v for k,v in j.analysis.items() if k in ('discovery','saved','seen_at','occurrences','feedback','first_seen','last_seen','last_shown','last_reviewed','source_type','discovered_via','preferred_application_url')}
+    fa=result['recall'].get('fit_assessment')
+    j.analysis={**result,**preserved,**({'fit_assessment':fa} if fa else {})}
+    j.match_score=result['score']; j.matching_skills=result['matching_skills']; j.missing_skills=result['missing_skills']; j.red_flags=result['hard_blockers']+result['needs_review']; j.requirements=result['hard_requirements']; j.recommendation=result['recommendation']; j.priority='HIGH' if result['recommendation']=='HIGH_PRIORITY' else 'NORMAL'; j.hard_requirement_score=0 if j.red_flags else 100
     for field,key in [('skill_score','skills'),('experience_score','experience'),('education_score','education'),('location_score','location')]: setattr(j,field,result['parts'][key])
+    # Owner Decision 1: a hard-rejected job is still hidden via the existing
+    # SKIP status, but never by overwriting a job that already has saved/
+    # application/terminal workflow state -- unchanged guard from before #41.
     if j.status not in TERMINAL and not db.scalar(select(Application.id).where(Application.job_id==j.id)): j.status=result['recommendation'] if result['recommendation'] in STATUSES else 'ANALYZED'
     log(db,f'Analyzed: {j.match_score}/100, {j.recommendation}',j.id); return result
 

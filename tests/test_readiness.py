@@ -104,9 +104,17 @@ def test_global_docx_keeps_full_name(db,tmp_path,name):
 def test_equivalent_profiles_rank_equally(attribute,value):
     p={'raw_text':'Do not use personal header','skills':[{'text':'Python'}],'education':[{'text':'Computer Science'}],'name':'A','declarations':{}}
     j=NS(title='SOC Analyst',description='Python Java preferred',company='Example',location='Dubai',remote_status='On-site',job_url='')
+    def strip_clock(result):
+        # Issue #41's FitAssessment carries assessed_at (a wall-clock
+        # timestamp), which legitimately differs between two calls a few
+        # milliseconds apart -- strip it before the equivalence comparison,
+        # which is about personal attributes never affecting ranking, not
+        # about call-to-call timestamp stability.
+        fa=result.get('recall',{}).get('fit_assessment')
+        return {**result,'recall':{**result['recall'],'fit_assessment':{k:v for k,v in fa.items() if k!='assessed_at'}}} if fa else result
     original=score(j,p,DEFAULTS)
     changed={**p,attribute:value,'raw_text':value+' Python Java'}
-    assert score(j,changed,DEFAULTS)==original
+    assert strip_clock(score(j,changed,DEFAULTS))==strip_clock(original)
 
 @pytest.mark.parametrize('question',['What is your gender?','Do you have a disability?','What is your religion?','Veteran status','Personality assessment answer'])
 def test_demographics_never_reused_even_if_saved(db,question):

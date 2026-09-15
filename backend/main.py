@@ -43,7 +43,7 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
     if not task_lock.acquire(blocking=False): return {'busy':True}
     try:
         with Session() as db:
-            cfg=settings(db); run=AutomationRun(task=name); db.add(run); db.commit(); report={'discovered':0,'duplicates':0,'prepared':0,'submitted':0,'failures':0,'trigger':trigger or ('APP' if scheduled_run else 'MANUAL'),'started_at':now()}
+            cfg=settings(db); run=AutomationRun(task=name); db.add(run); db.commit(); report={'discovered':0,'duplicates':0,'prepared':0,'submitted':0,'failures':0,'trigger':trigger or ('APP' if scheduled_run else 'MANUAL'),'started_at':now(),'buckets':{}}
             try:
                 if name=='discover':
                     from .recall import evaluate,funnel
@@ -72,28 +72,42 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                                 report['scanned']+=1; source_report['scanned']+=1
                                 item['company']=source.name
                                 decision=evaluate(item,cfg,profile)
-                                audit={'source_id':source.id,'item':{k:str(item.get(k,''))[:(2200 if k=='description' else 2000)] for k in ('title','company','location','job_url','source_job_id','source','date_posted','closing_date','description')},'decision':decision,'disposition':'EXCLUDED' if decision['excluded'] else 'PENDING'}
+                                audit={'source_id':source.id,'item':{k:str(item.get(k,''))[:(2200 if k=='description' else 2000)] for k in ('title','company','location','job_url','source_job_id','source','date_posted','closing_date','description')},'decision':decision,'disposition':'PENDING'}
                                 source_decisions.append(audit)
                             report['decisions'].extend(source_decisions)
-                            source_report['filtered']=dict(Counter(a['decision']['hard'][0]['code'] for a in source_decisions if a['decision']['excluded']))
-                            report['filtered']+=sum(source_report['filtered'].values())
+                            # Issue #41 Owner Decision 1: a structurally valid posting is always
+                            # persisted through #40's normalize/dedupe seam, even when hard-rejected
+                            # -- rejection is expressed later as a hidden SKIP status, never as
+                            # skipped persistence. Only a record that cannot safely satisfy #40's
+                            # persistence contract (e.g. an unusable job_url) becomes a bounded
+                            # INVALID_JOB result instead of crashing the whole source.
                             for item,audit in zip(items,source_decisions):
-                                decision=audit['decision']
-                                if decision['excluded']:
+                                try:
+                                    j,d=add_job(db,item,job_source=source)
+                                except ValueError as invalid:
+                                    audit.update(disposition='INVALID_JOB',invalid_reason=str(invalid))
+                                    source_report['invalid']=source_report.get('invalid',0)+1
                                     continue
-                                j,d=add_job(db,item,job_source=source)
                                 if not d and profile:analyze(db,j)
                                 # Rescoring a discovery never changes historical application fields or stages.
-                                j.analysis={**j.analysis,'recall':decision,'first_seen':j.analysis.get('first_seen',j.date_found),'last_seen':now(),'discovery':{**j.analysis.get('discovery',{}),'source_id':source.id,'last_seen':now()}}
-                                audit.update(job_id=j.id,disposition='DUPLICATE' if d else 'NEW',already_seen=bool(j.analysis.get('seen_at')))
+                                j.analysis={**j.analysis,'first_seen':j.analysis.get('first_seen',j.date_found),'last_seen':now(),'discovery':{**j.analysis.get('discovery',{}),'source_id':source.id,'last_seen':now()}}
+                                bucket=j.analysis.get('fit_assessment',{}).get('bucket') or {'EXCLUDED':'REJECTED','STRONG':'STRONG'}.get(j.analysis.get('recall',{}).get('fit_band'),j.analysis.get('recall',{}).get('fit_band','LOW'))
+                                audit.update(job_id=j.id,disposition='DUPLICATE' if d else 'NEW',already_seen=bool(j.analysis.get('seen_at')),bucket=bucket)
                                 report['duplicates' if d else 'discovered']+=1
                                 source_report['duplicates' if d else 'imported']+=1
+                                if not d:
+                                    report['buckets'][bucket]=report['buckets'].get(bucket,0)+1
+                                    source_report.setdefault('buckets',{})[bucket]=source_report.setdefault('buckets',{}).get(bucket,0)+1
+                            source_report['filtered']=dict(Counter('INVALID_JOB' for a in source_decisions if a['disposition']=='INVALID_JOB'))
+                            report['filtered']+=sum(source_report['filtered'].values())
+                            source_report['rejected']=dict(Counter(a['decision']['hard'][0]['code'] for a in source_decisions if a['disposition']=='NEW' and a['decision']['excluded']))
                             source_report['funnel']=funnel(source_decisions)
                             source.details={**source.details,'last_success':now(),'last_verified':now()[:10],'jobs_fetched':source_report['scanned'],'new_jobs':source_report['imported'],'updated_jobs':source_report['duplicates'],'last_error':''}
                             db.commit()
                         except Exception as e:
                             db.rollback(); report['discovered']-=source_report['imported']; report['duplicates']-=source_report['duplicates']
-                            source_report['imported']=source_report['duplicates']=0
+                            for bucket,count in source_report.get('buckets',{}).items(): report['buckets'][bucket]=report['buckets'].get(bucket,0)-count
+                            source_report['imported']=source_report['duplicates']=0; source_report['buckets']={}
                             for audit in report.get('decisions',[]):
                                 if audit['source_id']==source.id and audit['disposition'] in ('NEW','DUPLICATE','PENDING'):audit['disposition']='SOURCE_ERROR';audit.pop('job_id',None)
                             source_report['funnel']=funnel(source_decisions)
