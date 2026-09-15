@@ -46,3 +46,4 @@ Create or update an ADR for changes to:
 | [ADR-0007](0007-gmail-oauth-credential-storage.md) | Gmail OAuth and credential storage | Accepted (architecture only); Owner approved 2026-09-13; implementation evidence Pending |
 | [ADR-0008](0008-gmail-read-only-mailbox-trust-boundary.md) | Gmail read-only mailbox trust boundary | Accepted (architecture only); Owner approved 2026-09-13; implementation evidence Pending |
 | [ADR-0009](0009-external-job-provider-trust-boundary.md) | External job-provider trust boundary | Accepted (architecture only); Owner approved 2026-09-13; implementation evidence Pending |
+| [ADR-0010](0010-job-observation-and-conservative-deduplication.md) | JobObservation persistence and conservative cross-provider deduplication | Accepted; implementation merged via PR #57 (squash commit `b1f754997afe84798f0ab19ee552a89a03de2098`), 2026-09-15 |

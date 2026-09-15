@@ -1,13 +1,16 @@
 # ADR-0010: JobObservation persistence and conservative cross-provider deduplication
 
-- **Status:** Proposed (implementation evidence attached below; awaits
-  independent review and Owner-authorized merge of PR #40 before this
-  record moves to Accepted, matching ADR-0009's precedent of keeping
-  Accepted reserved for an Owner-approved architecture decision).
+- **Status:** Accepted. Independent review verified the six findings
+  remediated in commit `17255d9` (generic ATS roots, fingerprint-only
+  matching, long-content hashing, the transitive bridge, indexed candidate
+  lookup, and canonical `job_url` enrichment); Owner-authorized merge to
+  `master` via PR #57 (squash commit
+  `b1f754997afe84798f0ab19ee552a89a03de2098`), 2026-09-15.
 - **Date:** 2026-09-14
 - **Owner:** Ayham
 - **Issue / pull request:** Issue #40 (Normalization + cross-provider
-  deduplication); see `docs/planning/V1_1_DISCOVERY_AND_APPLICATION_INTELLIGENCE.md` §3.3
+  deduplication), closed by [PR #57](https://github.com/SoSwag5/ASTRA/pull/57);
+  see `docs/planning/V1_1_DISCOVERY_AND_APPLICATION_INTELLIGENCE.md` §3.3
 - **Target release:** v1.1.0 (Phase A)
 - **Supersedes / superseded by:** None
 
@@ -255,8 +258,12 @@ oversight.
   Owner-sanctioned scope (Core Product Rule; MUST_NOT_COLLAPSE #5).
 - Remediation regression on the implementation worktree: 766 passed, 1
   skipped, 0 failed, 0 errors with isolated storage and a fresh pytest base;
-  the frontend checks and production build also passed. These implementation
-  results require a fresh independent retest before Owner-authorized merge.
+  the frontend checks and production build also passed. Independent review
+  confirmed these results and all six documented findings remediated; at
+  merged HEAD `17255d9` all hosted required/informational checks passed
+  (Security Verification, Python 3.13/3.14, SCA, dependency review, CodeQL
+  python/javascript-typescript/actions), and PR #57 merged to `master` with
+  Owner authorization (squash commit `b1f754997afe84798f0ab19ee552a89a03de2098`).
 
 ## Framework impact
 
