@@ -1,0 +1,6 @@
+{
+  "policy_schema_version": "fit-candidate-policy-1",
+  "id": "domain-heavier-v1",
+  "description": "Weights domain/role alignment more heavily relative to profile-evidence, on the hypothesis that a confirmed domain match matters more than confirmed skill overlap when many candidates have no CV imported yet. Recomposes the SAME already-computed component contributions; no semantic classification changes.",
+  "weights": {"domain": 35, "career_track": 15, "profile_evidence": 15, "experience": 10, "seniority": 10, "geography": 10, "freshness": 5}
+}
