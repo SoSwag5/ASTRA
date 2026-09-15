@@ -1,6 +1,6 @@
 # ASTRA project state
 
-**Snapshot date:** 2026-09-15 (Asia/Dubai), refreshed after #41 merged
+**Snapshot date:** 2026-09-15 (Asia/Dubai), refreshed after the #42 harness foundation merged
 **Rule:** This is a handoff snapshot, not a substitute for live verification.
 Refresh it at session end when repository or release state changes.
 
@@ -134,8 +134,10 @@ evidence chain and run URLs.
   Playwright browser-binary failures as `master`, 0 unexplained
   regressions). `backend/normalization.py`, `backend/deduplication.py`,
   provider transport, and the frontend are untouched.
-  Next authorized implementation target is **issue #42** (Evaluation +
-  Calibration); #42 implementation has not started. Issue #43 (Discovery
+  Issue **#42** (Evaluation + Calibration) is **IN PROGRESS**: its deterministic
+  offline harness foundation merged via PR #61, while the 80-case reference
+  labels and quality gate remain PROPOSED pending Owner adjudication and corpus
+  expansion. No production calibration was adopted. Issue #43 (Discovery
   Telemetry) remains PLANNED immediately after #42. Issues beyond #42
   remain not started under the approved 12-issue backlog
   ("v1.1 — Discovery & Application Intelligence" milestone, issues #37-#48).
@@ -179,7 +181,7 @@ Open follow-up: [#33](https://github.com/SoSwag5/ASTRA/issues/33) tracks the
 rebased R-13/R-14 hardening branch into the v1.2 milestone; not yet reviewed
 or merged.
 
-## Resolved v1.1 issues
+## v1.1 implementation status
 
 | Issue | Resolution | Notes |
 |---|---|---|
@@ -188,6 +190,7 @@ or merged.
 | [#39](https://github.com/SoSwag5/ASTRA/issues/39) | Closed. Lever + Ashby provider migration merged via [PR #55](https://github.com/SoSwag5/ASTRA/pull/55) (squash commit `6a23397028c679f9ac51a0cba9909addc826edd4`). | `backend/job_providers/lever.py` (bounded pagination, normalized identity) and `backend/job_providers/ashby.py` (validated jobUrl-first identity, Hybrid/Remote/OnSite/Unknown semantics) migrated onto the #38 framework; shared `valid_downstream_url()` added to `contracts.py`; `compatibility.py` source-label/remote_status bug fixed. Three rounds of independent Codex review, final APPROVE, Owner-authorized merge; live-verified against Lever's `leverdemo` board and real Ashby boards (Ziina, Lean Technologies). Workable: **NEEDS OWNER/PERMISSION DECISION**, not implemented. SmartRecruiters/`FormAdapter` untouched. |
 | [#40](https://github.com/SoSwag5/ASTRA/issues/40) | Closed. Normalization + conservative cross-provider deduplication merged via [PR #57](https://github.com/SoSwag5/ASTRA/pull/57) (squash commit `b1f754997afe84798f0ab19ee552a89a03de2098`). | Additive `JobObservation` provenance table (`backend/models.py`); `Job` remains the stable canonical row; versioned normalization (`backend/normalization.py`) and conservative dedupe hierarchy (`backend/deduplication.py`) with fingerprint-only evidence always `CANDIDATE`, never a destructive `MATCH`; indexed candidate lookup; non-transitive-bridge protection; forward-safe additive migration with `legacy_incomplete` backfill (no historical consolidation); ADR-0010 Accepted. Independent review confirmed six remediation findings fixed, Owner-authorized merge. |
 | [#41](https://github.com/SoSwag5/ASTRA/issues/41) | Closed. Eligibility + explainable ranking merged via [PR #59](https://github.com/SoSwag5/ASTRA/pull/59) (squash commit `3faebd370a5e4566cb5e02f1a0eabdb38622b60b`). | `backend/assessment.py` (domain/seniority/geography assessment, six-code hard-reject taxonomy, seven-component provisional scoring, score means ranking priority not probability) and `backend/experience.py` (scoped experience-clause parsing); discovery now persists every structurally valid posting through #40 before assessing it, hiding a hard reject via the existing `SKIP` status rather than skipping persistence; `evaluate_legacy()` retained for `SHADOW`/`LEGACY` rollback and #42 shadow-comparison evidence; no schema/migration change (`Job.analysis['fit_assessment']`). A remediation commit fixed six independently-found issues before a final independent APPROVE and Owner-authorized merge. `backend/normalization.py`/`backend/deduplication.py`/provider transport/frontend untouched. |
+| [#42](https://github.com/SoSwag5/ASTRA/issues/42) | **IN PROGRESS.** Deterministic evaluation + calibration harness foundation merged via [PR #61](https://github.com/SoSwag5/ASTRA/pull/61) (squash commit `fab8acda48d65f1a03ae1b97465369ec4742957a`). Issue remains open. | Offline evaluation only: 80-case corpus, reference labels remain `PROPOSED` with Owner adjudication pending, and the quality gate remains `PROPOSED` / `INSUFFICIENT_DATA` pending eligibility-sample and corpus expansion. Candidate policies are exploratory; no production calibration was adopted. #43 has not started. |
 
 ## Git and collaboration snapshot
 
@@ -232,15 +235,17 @@ framework + Greenhouse migration), issue #39 (Lever + Ashby provider
 migration), issue #40 (Normalization + conservative cross-provider
 deduplication), and issue #41 (Eligibility + Explainable Ranking) are all
 complete and merged to `master` (PR #51, PR #53, PR #55, PR #57, PR #59).
-ADR-0010 is Accepted.
-The next authorized implementation target is issue #42 (Evaluation +
-Calibration); it has not been started. Issue #43 (Discovery Telemetry)
-remains PLANNED immediately after #42. Governance v1 rules apply to #42 as
-they did to #37/#38/#39/#40/#41 (dedicated feature branch, no direct push to
-`master`, focused scope, tests, independent review before Owner-authorized
-merge). Workable remains **NEEDS OWNER/PERMISSION DECISION** (a technically
-accessible public widget endpoint, but no official Workable documentation
-establishing it as a supported integration surface) and is not registered as
-a provider. The rebased `hardening/l2-r13-r14` branch (issue #33) remains
+ADR-0010 is Accepted. Issue #42 (Evaluation + Calibration) is **IN PROGRESS**:
+the deterministic offline harness foundation is merged via PR #61, but its
+80-case reference labels and quality gate remain PROPOSED pending Owner
+adjudication and corpus expansion; the current gate is `INSUFFICIENT_DATA`,
+and no production calibration was adopted. Keep #42 open. Issue #43
+(Discovery Telemetry) remains PLANNED immediately after #42 and has not
+started. Governance v1 rules continue to apply (dedicated feature branch, no
+direct push to `master`, focused scope, tests, independent review before
+Owner-authorized merge). Workable remains **NEEDS OWNER/PERMISSION DECISION**
+(a technically accessible public widget endpoint, but no official Workable
+documentation establishing it as a supported integration surface) and is not
+registered as a provider. The rebased `hardening/l2-r13-r14` branch (issue #33) remains
 parked for v1.2 and awaits independent review before a PR is opened — not
 touched by v1.1 implementation.
