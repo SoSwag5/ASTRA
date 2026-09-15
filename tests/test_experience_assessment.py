@@ -6,6 +6,13 @@ from backend import experience as exp
 
 
 @pytest.mark.parametrize('text,minimum,necessity', [
+    ('0 years', 0, exp.REQUIRED),
+    ('1-3 years', 1, exp.REQUIRED),
+    ('1–3 years', 1, exp.REQUIRED),
+    ('1—3 years', 1, exp.REQUIRED),
+    ('1 to 3 years', 1, exp.REQUIRED),
+    ('3+ years', 3, exp.REQUIRED),
+    ('4-5 years', 4, exp.REQUIRED),
     ('0 years required', 0, exp.REQUIRED),
     ('1-3 years of experience', 1, exp.REQUIRED),
     ('1–3 years of experience', 1, exp.REQUIRED),
@@ -15,6 +22,7 @@ from backend import experience as exp
     ('minimum 5 years required', 5, exp.REQUIRED),
     ('at least five years required', 5, exp.REQUIRED),
     ('5 years preferred', 5, exp.PREFERRED),
+    ('5 years preferred but not required', 5, exp.PREFERRED),
     ('5 years is a plus', 5, exp.PREFERRED),
 ])
 def test_parser_syntax_variants(text, minimum, necessity):
@@ -37,6 +45,19 @@ def test_scoped_clauses_are_never_summed():
     assert req.effective_required_minimum == 7
 
 
+def test_scope_is_derived_per_coordinated_clause():
+    req = exp.parse('7+ years overall, 2+ years in cloud infrastructure')
+    assert [(c.minimum_years, c.scope, c.scope_text.lower()) for c in req.clauses] == [
+        (7, exp.OVERALL, ''),
+        (2, exp.DOMAIN, 'cloud infrastructure'),
+    ]
+    req = exp.parse('2 years security and 5 years IT experience')
+    assert [(c.minimum_years, c.scope, c.scope_text.lower()) for c in req.clauses] == [
+        (2, exp.DOMAIN, 'security'),
+        (5, exp.DOMAIN, 'it'),
+    ]
+
+
 def test_or_equivalent_is_recorded():
     req = exp.parse('Bachelor degree or 4 years of experience or equivalent required')
     assert any(c.or_equivalent for c in req.clauses)
@@ -50,6 +71,15 @@ def test_company_history_years_are_not_candidate_experience():
 def test_training_duration_is_not_candidate_experience():
     req = exp.parse('Complete a 3-year training program before certification.')
     assert req.effective_required_minimum is None
+
+
+@pytest.mark.parametrize('text', [
+    'Our company has operated for 12 years.',
+    'The platform includes 8 years of historical customer data.',
+    'Complete a 3-year training program.',
+])
+def test_unrelated_bare_year_numbers_are_not_candidate_experience(text):
+    assert not exp.parse(text).clauses
 
 
 def test_candidate_years_unknown_by_default():

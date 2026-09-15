@@ -38,11 +38,17 @@ record to reassess later.
 validated provider result
     -> add_job() / #40 normalize + conservative dedupe   (unchanged, authoritative)
     -> Job + JobObservation persisted
-    -> #41 FitAssessment (backend.assessment.assess())
+    -> #41 FitAssessment of canonical persisted Job (backend.assessment.assess())
         - hard incompatibility -> hidden via existing SKIP status
         - otherwise -> STRONG / GOOD / STRETCH / LOW
     -> compatibility projections (Job.match_score, .recommendation, ...) + explanation
 ```
+
+This post-persistence assessment runs for both new and deduplicated/reused
+Jobs and when no `CandidateProfile` exists. An empty profile means UNKNOWN
+candidate evidence, never "skip assessment." Audit rows and run/source bucket
+counts use the same authoritative decision. Repeat scans therefore reassess
+after relevant configuration, profile, authorization or observation changes.
 
 A structurally invalid record that cannot safely enter #40 (e.g. an unusable
 `job_url`) does not need to be forced into a Job row; `backend.main`'s
@@ -104,7 +110,10 @@ separately -- `"7+ years overall, 2+ years in cloud"` stays two clauses
 written (zero-ten) numbers, hyphen/en-dash/em-dash/"to" ranges, `+`/"or
 more", "minimum"/"at least", required/preferred/desirable/bonus/advantage/"a
 plus"/"preferred but not required", "no experience required"/"graduate"/
-"entry level", and "or equivalent". Company-history ("founded 25 years ago")
+"entry level", and "or equivalent". Bounded bare forms such as `0 years`,
+`1-3 years`, `3+ years`, and `4-5 years` are recognized without another cue.
+Scope is derived beside each matched year expression, so coordinated clauses
+keep independent OVERALL/DOMAIN scope. Company-history ("founded 25 years ago")
 and training-duration ("3-year training program") text is excluded from
 candidate-experience parsing by the same relevance gate the legacy parser
 used, refined to stop the bare word "experience" from defeating its own
@@ -130,17 +139,23 @@ with no responsibility evidence only lowers the seniority *score component*
 `backend.recall.eligibility`)
 
 Geography, nationality/eligibility, and work authorization/sponsorship/
-relocation are kept as separate concepts. Geography: UAE or a stated
-global/regional remote scope is `COMPATIBLE`; an explicit US/UK-only
-restriction or any other concrete named place with no global scope is
-`INCOMPATIBLE` (relocation evidence downgrades this to `UNKNOWN` rather than
-a hard rejection); a bare workplace-type word with no place name ("Remote",
-"Hybrid", "On-site") or a missing location is `UNKNOWN`. Work authorization
-and sponsorship are always `UNKNOWN` here -- never inferred from absence.
-`CONFIRMED_ELIGIBILITY_CONFLICT` (reusing the existing, unchanged
-`backend.recall.eligibility()` nationality check) fires only when the
-listing has an explicit requirement **and** the candidate profile explicitly
-contradicts it; an unconfirmed/unknown declaration is never a hard conflict.
+relocation are separate concepts. UAE or a stated global/regional remote
+scope is `COMPATIBLE`; an explicit US/UK-only remote restriction remains
+`INCOMPATIBLE`. An ordinary workplace location such as "New York, United
+States" is foreign onsite, not an "only" restriction: without relocation it
+is incompatible, while explicit credible relocation assistance/support makes
+it `UNKNOWN` and reviewable. Ambiguous wording such as "relocation may be
+discussed" is not credible support evidence. A bare workplace type or missing
+location is `UNKNOWN`.
+
+An explicit listing work-authorization requirement is matched only to the
+stored `application_profile.work_authorisation` fact for the same two-letter
+country code. YES causes no conflict, NO is a confirmed conflict, and UNKNOWN
+adds uncertainty without a hard rejection. Explicit no-sponsorship language
+is separately matched to `application_profile.sponsorship`. Authorization is
+never inferred from sponsorship, nationality, residence, geography, or an
+absent declaration. This is bounded fact matching, not an immigration rules
+engine; the existing UAE-nationality check remains separate.
 
 ## Scoring (provisional -- #42 owns calibration)
 
@@ -157,12 +172,12 @@ Seven components, maximum points:
 | Freshness / source-evidence quality | 5 |
 | **Total** | **100** |
 
-Experience uses a progressive tier on the *listing's* required years
-(<=3: full marks; <=5: moderate penalty; <=7: substantial penalty; higher:
-low but never zero), applied even when the candidate's own years are
-unconfirmed (an explicit uncertainty note is attached instead of a silent
-zero). A preferred-only shortfall reduces the experience component by at
-most 2 points. Freshness uses only a documented `posted_at` with
+Experience uses this exact 15-point monotonic table: required experience met
+= 15; candidate years UNKNOWN = 11 plus uncertainty; confirmed required gap
+up to 1 year = 9; gap up to 3 years = 7; gap above 3 years = 3. No stated
+requirement is neutral at 12. Preferred-only is 13 when met and 11 otherwise;
+when required and preferred coexist, the preferred shortfall reduces the
+required-case score by at most 2 points. Freshness uses only a documented `posted_at` with
 authority `documented_provider_field`/`legacy_carried_forward` -- never
 `retrieved_at` -- and an unknown posted date is neutral (3/5), not 0.
 Provider family never earns a "prestige" bonus.
@@ -206,17 +221,21 @@ priority; that dead computation is removed).
 ### Hard-rejected retention (Owner Decision 1)
 
 A structurally valid posting that is hard-rejected still gets its `Job` +
-`JobObservation` persisted; it is hidden purely via the existing `SKIP`
-status (`services.analyze()`'s existing guard: only set when the job has no
-Application and isn't already in a terminal status), so no Application,
-document, or artifact is ever created for it, and an existing saved/applied
-job's workflow state is **never** overwritten by a later reassessment.
+`JobObservation` persisted; a new untouched discovery row may be hidden via
+the existing `SKIP` status. One centralized preservation policy prevents
+reassessment from replacing the workflow status of saved/bookmarked,
+Application-linked, terminal/interviewing, manual/CSV/tracker-curated, or
+explicitly preserved/classified jobs, including rows with historical
+`fit_at_application`. Their derived FitAssessment still updates.
 
 ## Assessment modes (`Settings.assessment_mode`, default `NEW`)
 
 - **NEW** (default): `backend.assessment` is authoritative;
   `evaluate_legacy()` still runs and is attached as `legacy_shadow` on every
-  decision for #42 comparison, never for a product decision.
+  decision for comparison, never for a product decision. A bounded
+  `assessment_shadow` contains only legacy exclusion/reason/priority, new
+  bucket/priority/hard reject, and a categorized comparison; run reports
+  count those categories.
 - **SHADOW**: `evaluate_legacy()` is authoritative; the new engine still runs
   non-authoritatively and is attached as `fit_assessment` for diagnostics.
 - **LEGACY**: rollback path -- `evaluate_legacy()` only. Existing
@@ -225,11 +244,22 @@ job's workflow state is **never** overwritten by a later reassessment.
 ## Input digest / reassessment
 
 `backend.assessment.input_digest()` hashes only assessment-relevant state:
-canonical Job fields, observation authority/provenance, confirmed candidate
-declarations, enabled career tracks/custom roles, and the schema/ruleset/
-taxonomy/parser versions. It deliberately excludes `assessed_at`, wall-clock
-time, `Job.updated_at`, UI state, and Application status, so identical inputs
-always produce an identical digest regardless of when they were assessed.
+canonical Job fields, relevant JobObservation facts/authority, stable
+skill/employment/project/education/certification text used by scoring (or a
+raw-profile hash only when structured facts are absent), confirmed experience
+and UAE-citizenship declarations, explicit work-authorization/sponsorship
+maps, enabled career tracks/custom roles, and schema/ruleset/taxonomy/parser
+versions. It deliberately excludes unrelated demographics, `assessed_at`,
+wall-clock time, profile/Job update timestamps, UI state, and Application
+status.
+
+## Known follow-up outside #41
+
+`_observation_from_data()` can reject a synthetic fallback record whose
+provider identity is empty. Current Greenhouse, Lever, Ashby,
+SmartRecruiters, manual, CSV and tracker contracts supply rich provider
+identity or the manual/legacy fallback required by #40, so this remains an
+unreachable supported-path follow-up rather than expanding #41.
 
 ## Security
 

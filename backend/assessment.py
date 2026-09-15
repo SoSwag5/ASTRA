@@ -14,8 +14,8 @@ from . import career_tracks
 from . import experience as experience_module
 from .experience import REQUIRED, PREFERRED, OVERALL
 
-SCHEMA_VERSION = 'fit-assessment-1'
-RULESET_VERSION = 'fit-rules-1'
+SCHEMA_VERSION = 'fit-assessment-2'
+RULESET_VERSION = 'fit-rules-2'
 SCORE_KIND = 'RANKING_PRIORITY'
 
 STRONG, GOOD, STRETCH, LOW, REJECTED = 'STRONG', 'GOOD', 'STRETCH', 'LOW', 'REJECTED'
@@ -220,10 +220,15 @@ def assess_seniority(title, description, exp_req):
 UAE_WORDS = ['uae', 'u.a.e', 'united arab emirates', 'dubai', 'abu dhabi', 'sharjah', 'ajman',
              'ras al khaimah', 'fujairah', 'umm al quwain', 'al ain']
 _GLOBAL_SCOPE_RE = re.compile(r'\bworldwide\b|\bglobal\b|\banywhere\b|\bemea\b|\bmena\b|\bgcc\b|middle east', re.I)
-_US_ONLY_RE = re.compile(r'\bus[- ]only\b|\busa[- ]only\b|united states only|remote.{0,15}(?:us|usa|united states)\b.{0,15}only|only.{0,15}(?:us|usa|united states)\b|\bunited states\b|\bu\.s\.\b|\busa\b', re.I)
-_UK_ONLY_RE = re.compile(r'\buk[- ]only\b|united kingdom only|remote.{0,15}uk\b.{0,15}only|\bunited kingdom\b|\bu\.k\.\b', re.I)
-_RELOCATION_RE = re.compile(r'relocation (?:assistance|package|support)|visa sponsorship for relocation|'
-                             r'willing to relocate candidates|relocate to (?:the )?(?:uae|dubai|abu dhabi)', re.I)
+_US_ONLY_RE = re.compile(r'\b(?:us|usa|u\.s\.|united states)[- ]only\b|\bonly\s+(?:in|within|from)?\s*(?:the\s+)?(?:us|usa|u\.s\.|united states)\b|'
+                          r'\bmust\s+(?:reside|live|be based|be located)\s+in\s+(?:the\s+)?(?:us|usa|u\.s\.|united states)\b|'
+                          r'\bremote\b.{0,30}\b(?:us|usa|u\.s\.|united states)\b.{0,20}\bonly\b', re.I)
+_UK_ONLY_RE = re.compile(r'\b(?:uk|u\.k\.|united kingdom)[- ]only\b|\bonly\s+(?:in|within|from)?\s*(?:the\s+)?(?:uk|u\.k\.|united kingdom)\b|'
+                          r'\bmust\s+(?:reside|live|be based|be located)\s+in\s+(?:the\s+)?(?:uk|u\.k\.|united kingdom)\b|'
+                          r'\bremote\b.{0,30}\b(?:uk|u\.k\.|united kingdom)\b.{0,20}\bonly\b', re.I)
+_RELOCATION_RE = re.compile(r'relocation (?:assistance|package|support)\s+(?:is\s+)?(?:available|provided|offered)|'
+                             r'(?:available|provided|offered) relocation (?:assistance|package|support)|'
+                             r'visa sponsorship for relocation|relocation supported', re.I)
 # A bare workplace-type word with no place name at all is genuinely
 # ambiguous territory (could be onsite anywhere, or remote-from-anywhere) --
 # UNKNOWN, not a concrete foreign location. Any other non-empty text that
@@ -242,8 +247,9 @@ def assess_geography(location, remote_status, description, cfg):
     configured = [w for w in cfg.get('locations', []) if w.strip()]
     uae = _any(text, UAE_WORDS) or _any(text, [w.lower() for w in configured])
     global_scope = bool(_GLOBAL_SCOPE_RE.search(text))
-    us_only = bool(_US_ONLY_RE.search(text))
-    uk_only = bool(_UK_ONLY_RE.search(text))
+    restriction_text = f'{text} {description}'
+    us_only = bool(_US_ONLY_RE.search(restriction_text))
+    uk_only = bool(_UK_ONLY_RE.search(restriction_text))
     ambiguous_workplace = text.strip().lower() in _AMBIGUOUS_WORKPLACE_TYPES or text.strip().lower() == 'unknown'
     relocation_evidence = bool(_RELOCATION_RE.search(description))
 
@@ -305,9 +311,61 @@ def assess_user_blocked(item, cfg):
     return reasons
 
 
-def assess_eligibility_conflict(title, description, profile):
+_COUNTRY_PATTERNS = {
+    'US': re.compile(r'\b(?:US|USA|U\.S\.|United States)\b', re.I),
+    'GB': re.compile(r'\b(?:UK|U\.K\.|United Kingdom)\b', re.I),
+    'AE': re.compile(r'\b(?:UAE|U\.A\.E\.|United Arab Emirates)\b', re.I),
+}
+_AUTH_WORDS = re.compile(r'work authori[sz]ation|authori[sz]ed to work|right to work|work permit', re.I)
+_REQUIREMENT_WORDS = re.compile(r'\brequired\b|\bmust\b|\bonly\b|need(?:s|ed)? to|requirement', re.I)
+_NO_SPONSORSHIP = re.compile(r'no (?:visa )?sponsorship|sponsorship (?:is )?(?:not available|unavailable|not offered)|unable to sponsor|cannot sponsor', re.I)
+
+
+def assess_eligibility_conflict(title, description, profile, cfg=None):
+    """Match explicit listing requirements only to explicit stored facts.
+
+    This is deliberately not an immigration rules engine: nationality,
+    residence, geography and missing declarations never imply authorization.
+    """
     from .recall import eligibility
-    return eligibility((title or '') + '\n' + (description or ''), profile or {})
+    text = (title or '') + '\n' + (description or '')
+    nationality = eligibility(text, profile or {})
+    app_profile = (cfg or {}).get('application_profile', {}) or {}
+    work = app_profile.get('work_authorisation', {}) or {}
+    sponsorship = app_profile.get('sponsorship', {}) or {}
+    evidence = list(nationality.get('evidence', []))
+    requirements = []
+    states = [nationality['state']]
+    authorization_states = []
+    sponsorship_states = []
+    for sentence in re.split(r'[\n.!?;]', text):
+        if not (_AUTH_WORDS.search(sentence) and _REQUIREMENT_WORDS.search(sentence)):
+            continue
+        for country, pattern in _COUNTRY_PATTERNS.items():
+            if not pattern.search(sentence):
+                continue
+            statement = sentence.strip()[:500]
+            fact = work.get(country, 'UNKNOWN')
+            requirements.append({'country': country, 'kind': 'WORK_AUTHORIZATION',
+                                 'listing_evidence': statement, 'candidate_fact': fact})
+            evidence.append(statement)
+            auth_state = 'ELIGIBLE' if fact == 'YES' else 'INELIGIBLE' if fact == 'NO' else 'UNKNOWN'
+            authorization_states.append(auth_state); states.append(auth_state)
+            if _NO_SPONSORSHIP.search(text):
+                sponsor_fact = sponsorship.get(country, 'UNKNOWN')
+                requirements.append({'country': country, 'kind': 'SPONSORSHIP_CONSTRAINT',
+                                     'listing_evidence': 'Sponsorship unavailable', 'candidate_fact': sponsor_fact})
+                sponsor_state = 'INELIGIBLE' if sponsor_fact == 'YES' else 'ELIGIBLE' if sponsor_fact == 'NO' else 'UNKNOWN'
+                sponsorship_states.append(sponsor_state); states.append(sponsor_state)
+    combine = lambda values: ('INELIGIBLE' if 'INELIGIBLE' in values else
+                              'UNKNOWN' if 'UNKNOWN' in values else
+                              'ELIGIBLE' if values else 'UNKNOWN')
+    state = 'INELIGIBLE' if 'INELIGIBLE' in states else 'UNKNOWN' if 'UNKNOWN' in states else 'ELIGIBLE'
+    return {'state': state,
+            'scope': 'Explicit listing requirements matched to explicit candidate declarations' if requirements else nationality['scope'],
+            'evidence': list(dict.fromkeys(evidence)), 'requirements': requirements,
+            'work_authorization_state': combine(authorization_states),
+            'sponsorship_state': combine(sponsorship_states)}
 
 
 # ---------------------------------------------------------------------------
@@ -343,25 +401,33 @@ def _profile_evidence(title, description, cfg, profile):
     return points, matches, missing, uncertainty
 
 
-_EXPERIENCE_TIERS = [(3, 15), (5, 11), (7, 7), (99, 4)]
-
-
 def _experience_points(exp_req, candidate_years):
+    """Documented monotonic 15-point table.
+
+    Required: sufficient 15; unknown 11; confirmed gap <=1 year 9,
+    <=3 years 7, and >3 years 3. Preferred-only: 13 when met and 11
+    otherwise. A preferred requirement can reduce a required-case score by
+    at most two points and can never punish more than an equivalent mandatory
+    severe shortfall.
+    """
     required = exp_req.effective_required_minimum
     preferred = exp_req.effective_preferred_minimum
     uncertainty = []
-    if required is None:
+    if required is None and preferred is None:
         points = 12.0
+    elif required is None:
+        points = 13.0 if candidate_years is not None and candidate_years >= preferred else 11.0
+        if candidate_years is None:
+            uncertainty.append('Candidate relevant experience is not confirmed; preferred experience remains UNKNOWN')
     elif candidate_years is not None and candidate_years >= required:
         points = 15.0
     elif candidate_years is None:
-        # Unknown candidate years must never become zero; use the posting's
-        # own tier as a neutral baseline with explicit uncertainty.
-        points = next(p for ceiling, p in _EXPERIENCE_TIERS if required <= ceiling)
+        points = 11.0
         uncertainty.append('Candidate relevant experience is not confirmed; treated as neutral, not zero')
     else:
-        points = next(p for ceiling, p in _EXPERIENCE_TIERS if required <= ceiling)
-    if preferred is not None and (candidate_years is None or candidate_years < preferred):
+        gap = required - candidate_years
+        points = 9.0 if gap <= 1 else 7.0 if gap <= 3 else 3.0
+    if required is not None and preferred is not None and (candidate_years is None or candidate_years < preferred):
         points = max(0.0, points - 2.0)
         uncertainty.append('Preferred (non-mandatory) experience shortfall applied at most a 2-point reduction')
     return points, uncertainty
@@ -410,12 +476,26 @@ def _bucket(score):
 def input_digest(item, cfg, profile, versions):
     cfg = cfg or {}
     profile = profile or {}
+    fields = ('skills', 'employments', 'projects', 'education', 'certifications')
+    facts = {key: sorted(({'text': str(f.get('text', '')), 'context': str(f.get('context', ''))}
+                          for f in profile.get(key, []) if isinstance(f, dict)), key=lambda f: (f['text'], f['context']))
+             for key in fields}
+    declarations = profile.get('declarations', {}) or {}
+    app_profile = cfg.get('application_profile', {}) or {}
     payload = {
         'job': {k: item.get(k, '') for k in ('company', 'title', 'location', 'remote_status', 'description',
                                               'experience_requirement', 'date_posted', 'closing_date', 'job_url')},
         'observation_authority': item.get('_observation_authority', {}),
-        'candidate_facts': profile.get('declarations', {}),
-        'candidate_facts_revision': profile.get('updated_at', ''),
+        'candidate_evidence': facts,
+        'candidate_raw_text_sha256': hashlib.sha256(str(profile.get('raw_text', '')).encode()).hexdigest()
+        if profile.get('raw_text') and not any(facts.values()) else '',
+        'candidate_declarations': {k: declarations.get(k) for k in (
+            'verified_relevant_experience_years', 'verified_relevant_experience_years_confirmed',
+            'uae_citizen', 'uae_citizenship_confirmed') if k in declarations},
+        'application_profile': {
+            'work_authorisation': dict(sorted((app_profile.get('work_authorisation', {}) or {}).items())),
+            'sponsorship': dict(sorted((app_profile.get('sponsorship', {}) or {}).items())),
+        },
         'career_tracks': sorted(cfg.get('career_tracks', [])),
         'custom_target_roles': sorted(cfg.get('custom_target_roles', [])),
         'excluded_roles': sorted(cfg.get('excluded_roles', [])),
@@ -447,7 +527,8 @@ def assess(item, cfg, profile=None, clock=None):
     domain = assess_domain(title, description, cfg)
     seniority = assess_seniority(title, description, exp_req)
     geography = assess_geography(item.get('location', ''), item.get('remote_status', ''), description, cfg)
-    eligibility = assess_eligibility_conflict(title, description, profile)
+    eligibility = assess_eligibility_conflict(title, description, profile, cfg)
+    geography['work_authorization'] = eligibility['work_authorization_state']
     blocked = assess_user_blocked(item, cfg)
 
     hard_reject = None
@@ -507,7 +588,7 @@ def assess(item, cfg, profile=None, clock=None):
                                  profile_points, matched_skills, 'Skills requested by the posting are evidenced in the confirmed profile', 0.8))
     uncertainty.extend(profile_uncertainty)
 
-    if experience_points < 15 and exp_req.effective_required_minimum is not None:
+    if candidate_years is not None and experience_points < 15 and exp_req.effective_required_minimum is not None:
         penalties.append(signal('EXPERIENCE_SHORTFALL', 'Experience below stated requirement', PENALTY, 'experience',
                                  experience_points - 15, exp_req.original_texts,
                                  f"Listing requests {exp_req.effective_required_minimum:g}+ years; treated as a ranking penalty, not a rejection", 0.6))
@@ -527,7 +608,7 @@ def assess(item, cfg, profile=None, clock=None):
                                  geography_points, geography['evidence'], 'Workplace geography is compatible', geography['confidence']))
 
     if eligibility['state'] == 'UNKNOWN':
-        uncertainty.append('Eligibility/nationality wording is unconfirmed: ' + '; '.join(eligibility['evidence']))
+        uncertainty.append('Eligibility wording or confirmed candidate facts remain unresolved: ' + '; '.join(eligibility['evidence']))
 
     if freshness_note:
         uncertainty.append(freshness_note)
@@ -546,6 +627,7 @@ def assess(item, cfg, profile=None, clock=None):
         'role_family': domain['role_family'], 'match_type': domain['match_type'],
         'components': {k: round(v, 1) for k, v in components.items()}, 'component_weights': WEIGHTS,
         'experience': exp_req.to_dict(), 'seniority': {k: v for k, v in seniority.items()},
+        'eligibility': eligibility,
         'geography': geography, 'query_expansion_match': 'UNKNOWN', 'query_expansion_weight': 0,
         'matched_skills': matched_skills, 'missing_skills': missing_skills,
         'positives': [s.to_dict() for s in positives], 'penalties': [s.to_dict() for s in penalties],

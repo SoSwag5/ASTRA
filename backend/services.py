@@ -67,7 +67,7 @@ def candidate(db):
     return {**serialize(p),'skills':[serialize(x) for x in db.scalars(select(Skill))],**{m.__tablename__:[serialize(x) for x in db.scalars(select(m))] for m in FACT_MODELS.values()}}
 
 def contains(text,word): return bool(re.search(r'(?<!\w)'+re.escape(word.lower())+r'(?!\w)',text.lower()))
-def score(job,p,cfg):
+def score(job,p,cfg,decision=None,item=None):
     """One authoritative scoring formula (issue #41): `decision['priority']`
     IS `decision['fit_assessment']['score']` (or evaluate_legacy()'s own
     priority in assessment_mode LEGACY) -- never a second, independently
@@ -91,7 +91,8 @@ def score(job,p,cfg):
         if re.search(r'\bCCNA\b',h,re.I): review.append('Confirm the full CCNA certification; a course or keyword alone does not verify certification')
     if not desc.strip(): review.append('Job description is missing')
 
-    decision=evaluate({k:getattr(job,k,'') for k in ('title','description','location','remote_status','company','job_url','experience_requirement','date_posted','closing_date')},cfg,p)
+    item=item or {k:getattr(job,k,'') for k in ('title','description','location','remote_status','company','job_url','experience_requirement','date_posted','closing_date')}
+    decision=decision or evaluate(item,cfg,p)
     fa=decision.get('fit_assessment')
     total=decision['priority'];blockers=[r['evidence'] for r in decision['hard']];review=list(dict.fromkeys(review+[r['evidence'] for r in decision['soft']]))
     matches=decision.get('matched_core_skills',[]);missing=decision.get('fit_assessment',{}).get('missing_skills',[])
@@ -122,7 +123,35 @@ def score(job,p,cfg):
     score_kind=fa['score_kind'] if fa else 'Heuristic priority index — not a probability or eligibility decision. Never an interview, hiring, or success probability.'
     return dict(recall=decision,score=total,score_kind=score_kind,weights=cfg['weights'],fit=fit,minimum_experience_years=min_years,parts={k:round(v*100) for k,v in parts.items()},matching_skills=matches,missing_skills=missing,hard_requirements=hard,hard_blockers=blockers,needs_review=review,recommendation=recommendation,why=fit+'. Ranking priority, not a percentage match or hiring prediction. Skills not found are unknown, not proven absent. Experience, language and work authorization need your review. Edit profile facts and search preferences to correct the inputs.')
 
-def analyze(db,j):
+def _assessment_item(db,j):
+    item={k:getattr(j,k,'') for k in ('title','description','location','remote_status','company','job_url',
+                                      'experience_requirement','date_posted','closing_date')}
+    observations=[]
+    for o in db.scalars(select(JobObservation).where(JobObservation.job_id==j.id).order_by(JobObservation.id)):
+        observations.append({k:getattr(o,k) for k in (
+            'provider_family','provider_version','job_source_id','board_key','identity_kind','provider_job_id',
+            'requisition_id','requisition_id_authority','employer_name_observed','title_observed',
+            'location_observed','workplace_observed','description_observed','source_url','apply_url',
+            'posted_at','posted_at_authority','closing_at','anomaly_flags','normalization_version')})
+    item['_observation_authority']=observations
+    return item
+
+
+def preserve_workflow_state(db,j):
+    """One policy for user-owned workflow state; assessment stays derived."""
+    analysis=j.analysis or {}
+    app=db.scalar(select(Application).where(Application.job_id==j.id))
+    return bool(
+        j.status in TERMINAL or app or
+        analysis.get('saved') or analysis.get('bookmarked') or
+        analysis.get('fit_at_application') or
+        (app and app.tracking.get('fit_at_application')) or
+        analysis.get('manual_classification') or analysis.get('workflow_status_preserved') or
+        analysis.get('source_type')=='MANUAL' or str(j.source).casefold()=='manual'
+    )
+
+
+def analyze(db,j,profile=None,cfg=None):
     """Issue #41: `j.analysis['fit_assessment']` is the authoritative
     derived assessment (Owner Decision 3 -- no new table/column). A hard
     reject still gets a Job row and a JobObservation (#40 identity is
@@ -131,16 +160,23 @@ def analyze(db,j):
     state on this job is never overwritten here (see the status guard
     below, unchanged from before #41).
     """
-    result=score(j,candidate(db),settings(db))
-    preserved={k:v for k,v in j.analysis.items() if k in ('discovery','saved','seen_at','occurrences','feedback','first_seen','last_seen','last_shown','last_reviewed','source_type','discovered_via','preferred_application_url')}
+    profile=profile if profile is not None else (candidate(db) if db.scalar(select(CandidateProfile)) else {})
+    cfg=cfg or settings(db)
+    item=_assessment_item(db,j)
+    from .recall import evaluate
+    decision=evaluate(item,cfg,profile)
+    result=score(j,profile,cfg,decision=decision,item=item)
     fa=result['recall'].get('fit_assessment')
-    j.analysis={**result,**preserved,**({'fit_assessment':fa} if fa else {})}
+    j.analysis={**(j.analysis or {}),**result,
+                **({'fit_assessment':fa} if fa else {}),
+                **({'assessment_shadow':decision['assessment_shadow']} if decision.get('assessment_shadow') else {})}
     j.match_score=result['score']; j.matching_skills=result['matching_skills']; j.missing_skills=result['missing_skills']; j.red_flags=result['hard_blockers']+result['needs_review']; j.requirements=result['hard_requirements']; j.recommendation=result['recommendation']; j.priority='HIGH' if result['recommendation']=='HIGH_PRIORITY' else 'NORMAL'; j.hard_requirement_score=0 if j.red_flags else 100
     for field,key in [('skill_score','skills'),('experience_score','experience'),('education_score','education'),('location_score','location')]: setattr(j,field,result['parts'][key])
     # Owner Decision 1: a hard-rejected job is still hidden via the existing
     # SKIP status, but never by overwriting a job that already has saved/
     # application/terminal workflow state -- unchanged guard from before #41.
-    if j.status not in TERMINAL and not db.scalar(select(Application.id).where(Application.job_id==j.id)): j.status=result['recommendation'] if result['recommendation'] in STATUSES else 'ANALYZED'
+    if not preserve_workflow_state(db,j):
+        j.status=result['recommendation'] if result['recommendation'] in STATUSES else 'ANALYZED'
     log(db,f'Analyzed: {j.match_score}/100, {j.recommendation}',j.id); return result
 
 _PROVIDER_FAMILY_FOR_SOURCE={'Greenhouse':'greenhouse','Lever':'lever','Ashby':'ashby','SmartRecruiters':'smartrecruiters','LinkedIn':'linkedin'}
@@ -405,11 +441,13 @@ def import_tracker(db,path):
         data['match_score']=int(float(raw.get('Match Score') or 0)); data['missing_skills']=str(raw.get('Missing Skills') or '').split(',') if raw.get('Missing Skills') else []
         state=norm(str(raw.get('Status') or 'FOUND')).upper().replace(' ','_'); data['status']=state if state in STATUSES else 'FOUND'
         j,d=add_job(db,data); dup+=bool(d); count+=not bool(d)
+        j.analysis={**(j.analysis or {}),'source_type':'TRACKER','workflow_status_preserved':True}
         if data['status'] in TERMINAL and not d:
             a=Application(job_id=j.id,status=data['status'],applied_date=str(raw.get('Applied Date') or '')); db.add(a); db.flush()
             if raw.get('Recruiter'): db.add(Recruiter(application_id=a.id,name=str(raw['Recruiter']),contacted=str(raw.get('Recruiter Contacted','')).lower() in ('yes','true')))
             if raw.get('Follow-up Date'): db.add(FollowUp(application_id=a.id,due_date=str(raw['Follow-up Date'])))
             if raw.get('Interview Date'): db.add(Interview(application_id=a.id,date=str(raw['Interview Date'])))
+        analyze(db,j)
     w.close(); log(db,f'Tracker imported: {count} records, {dup} duplicates'); return {'imported':count,'duplicates':dup,'sheets':w.sheetnames}
 def safe_cell(value): return "'"+value if isinstance(value,str) and value.startswith(('=','+','-','@')) else value
 def sync_tracker(db):

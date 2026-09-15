@@ -9,7 +9,7 @@ docs/architecture/FIT_ASSESSMENT.md.
 import re
 from dataclasses import dataclass, field, asdict
 
-VERSION = 'experience-1'
+VERSION = 'experience-2'
 
 REQUIRED = 'REQUIRED'
 PREFERRED = 'PREFERRED'
@@ -35,7 +35,7 @@ _TRAINING_RE = re.compile(r'\btraining\b|\bcourse\b|\bonboarding\b|\bcertificati
 # already contains it (see `_relevant_clause`), so including it here would
 # defeat the company-history exclusion it is meant to support.
 _CANDIDATE_RE = re.compile(r'\byou\b|\bcandidates?\b|\bapplicants?\b', re.I)
-_DATA_HISTORY_RE = re.compile(r'years?\s+of\s+(?:behavioral|historical|training|customer|industry|security)?\s*data', re.I)
+_DATA_HISTORY_RE = re.compile(r'years?\s+of\s+(?:(?:behavioral|historical|training|customer|industry|security)\s+){0,3}data', re.I)
 
 _NUMERIC_RANGE_RE = re.compile(
     r'(?:minimum\s+of\s+|at least\s+|no less than\s+)?'
@@ -43,7 +43,7 @@ _NUMERIC_RANGE_RE = re.compile(
     r'(?:years?|yrs?)\b', re.I)
 _WRITTEN_RANGE_RE = re.compile(
     r'\b(' + _WRITTEN_ALT + r')\b\s*(?:[-–—]|to)?\s*(' + _WRITTEN_ALT + r')?\s*(\+)?\s*(?:years?|yrs?)\b', re.I)
-_SCOPE_RE = re.compile(r'(?:years?|yrs?)\s+(?:of|in|with)\s+([a-zA-Z][a-zA-Z0-9 /&+.-]{2,40})', re.I)
+_SCOPE_STOP_RE = re.compile(r'\b(?:required|mandatory|preferred|desirable|nice.to.have|but not required|or equivalent)\b', re.I)
 
 
 @dataclass
@@ -86,8 +86,12 @@ class ExperienceRequirement:
 
 
 def _relevant_clause(clause):
-    if not re.search(r'experience|required|preferred|desirable|minimum|at least|\bbonus\b|\badvantage\b|a plus\b|'
-                      r'years?\s+(?:in|of)|خبرة', clause, re.I):
+    # A syntactically bounded year expression is itself enough candidate-
+    # requirement evidence. False-positive filters below still reject company
+    # history, data history and training-duration language.
+    if not (_numbers_in(clause) or re.search(
+            r'experience|required|preferred|desirable|minimum|at least|\bbonus\b|\badvantage\b|a plus\b|خبرة',
+            clause, re.I)):
         return False
     if _COMPANY_HISTORY_RE.search(clause) and not _CANDIDATE_RE.search(clause):
         return False
@@ -111,14 +115,22 @@ def _necessity(clause):
     return REQUIRED
 
 
-def _scope(clause):
-    m = _SCOPE_RE.search(clause)
-    if not m:
+def _scope_for_match(clause, span):
+    """Derive scope beside one year expression, never from a whole sentence."""
+    suffix = clause[span[1]:].strip(' ,:-')
+    if not suffix or re.match(r'overall\b', suffix, re.I):
         return OVERALL, ''
-    text = m.group(1).strip().rstrip('.').strip()
-    if not text or text.lower() in ('experience', 'the industry', 'the field'):
+    # "years of experience" is overall; "years of cloud experience" is scoped.
+    if re.match(r'(?:of\s+)?experience\b', suffix, re.I):
         return OVERALL, ''
-    return DOMAIN, text[:80]
+    m = re.match(r'(?:of|in|with)\s+(.+)', suffix, re.I)
+    candidate = m.group(1) if m else suffix
+    candidate = _SCOPE_STOP_RE.split(candidate, maxsplit=1)[0]
+    candidate = re.sub(r'\bexperience\b.*$', '', candidate, flags=re.I)
+    candidate = candidate.strip(' ,:-')
+    if not candidate or candidate.lower() in ('overall', 'the industry', 'the field'):
+        return OVERALL, ''
+    return DOMAIN, candidate[:80]
 
 
 def _numbers_in(clause):
@@ -149,14 +161,16 @@ def parse(text):
     text = text or ''
     clauses = []
     no_experience_required = bool(_NO_EXP_RE.search(text))
-    for raw in re.split(r'[\n;.!?]|,(?=\s*(?:more than|at least|over)?\s*\d+\s*(?:years?|yrs?))', text):
+    number_start = rf'(?:\d{{1,2}}|{_WRITTEN_ALT})\s*(?:(?:[-–—]|to)\s*(?:\d{{1,2}}|{_WRITTEN_ALT}))?\s*(?:\+\s*)?(?:years?|yrs?)\b'
+    splitter = re.compile(r'[\n;.!?]|(?:,|\band\b)(?=\s*(?:minimum\s+(?:of\s+)?|at\s+least\s+|no\s+less\s+than\s+|more\s+than\s+|over\s+)?' + number_start + r')', re.I)
+    for raw in splitter.split(text):
         clause = raw.strip()
         if not clause or not _relevant_clause(clause):
             continue
         necessity = _necessity(clause)
-        scope, scope_text = _scope(clause)
         or_equivalent = bool(_OR_EQUIVALENT_RE.search(clause))
-        for low, high, plus, _span in _numbers_in(clause):
+        for low, high, plus, span in _numbers_in(clause):
+            scope, scope_text = _scope_for_match(clause, span)
             clauses.append(ExperienceClause(
                 minimum_years=low, maximum_years=high, plus=plus, necessity=necessity,
                 scope=scope, scope_text=scope_text, original_text=clause[:500],
@@ -170,7 +184,7 @@ def parse(text):
     return ExperienceRequirement(
         clauses=clauses, effective_required_minimum=effective_required,
         effective_preferred_minimum=effective_preferred,
-        no_experience_required=no_experience_required and not clauses,
+        no_experience_required=no_experience_required and not any(c.necessity == REQUIRED and c.minimum_years > 0 for c in clauses),
         original_texts=[c.original_text for c in clauses], confidence=confidence)
 
 

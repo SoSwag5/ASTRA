@@ -120,12 +120,13 @@ def evaluate_legacy(item,cfg,p=None,clock=None):
 
 def funnel(decisions):
  from collections import Counter
- f={'fetched':len(decisions),'uae':0,'role_relevant':0,'seniority_compatible':0,'location_compatible':0,'eligibility_not_incompatible':0,'fresh_7d':0,'date_unknown':0,'plausible':0,'strong':0,'stretch':0,'possible':0,'excluded':0,'new':0,'duplicates':0,'already_seen':0,'near_misses':0};reasons=Counter()
- for row in decisions:
+ valid=[row for row in decisions if row.get('decision')]
+ f={'fetched':len(decisions),'invalid':len(decisions)-len(valid),'uae':0,'role_relevant':0,'seniority_compatible':0,'location_compatible':0,'eligibility_not_incompatible':0,'fresh_7d':0,'date_unknown':0,'plausible':0,'strong':0,'stretch':0,'possible':0,'excluded':0,'new':0,'duplicates':0,'already_seen':0,'near_misses':0};reasons=Counter()
+ for row in valid:
   d=row['decision'];f['uae']+=d['uae'];f['role_relevant']+=d['role']['kind']!='UNRELATED';f['seniority_compatible']+=d['seniority_compatible'];f['location_compatible']+=d['location_compatible'];f['eligibility_not_incompatible']+=d['eligibility']['state']!='INELIGIBLE';f['fresh_7d']+=d['freshness'] in ('POSTED_24H','POSTED_3D','POSTED_7D');f['date_unknown']+=d['age_days'] is None;f['excluded']+=d['excluded'];f['plausible']+=not d['excluded'];f['near_misses']+=d['near_miss'];f['new']+=row.get('disposition')=='NEW';f['duplicates']+=row.get('disposition')=='DUPLICATE';f['already_seen']+=bool(row.get('already_seen'))
   if d['fit_band'].lower() in f:f[d['fit_band'].lower()]+=1 if d['fit_band']!='EXCLUDED' else 0
   if d['hard']:reasons[d['hard'][0]['code']]+=1
- stages={'Fetched':len(decisions)};remaining=decisions
+ stages={'Fetched':len(decisions)};remaining=valid
  # Code sets include both issue #41's hard-reject taxonomy and the retired
  # legacy codes (only ever produced by evaluate_legacy/assessment_mode
  # LEGACY), so this funnel stays meaningful in every assessment mode.
@@ -133,7 +134,7 @@ def funnel(decisions):
   remaining=[r for r in remaining if not any(e['code'] in codes for e in r['decision']['hard'])];stages[label]=len(remaining)
  stages['Daily review candidates']=sum(r['decision']['daily'] for r in remaining)
  stages['New daily review candidates']=sum(r['decision']['daily'] and r.get('disposition')=='NEW' for r in remaining)
- return {'counts':f,'stages':stages,'primary_exclusions':dict(reasons),'signal_counts':dict(Counter(r['code'] for row in decisions for r in row['decision']['hard']+row['decision']['soft'])),'definition':'Attribute counts overlap; stages are successive. Primary exclusions are mutually exclusive. plausible + excluded = fetched. new + duplicates = persisted plausible rows on successful sources; errors are explicit.'}
+ return {'counts':f,'stages':stages,'primary_exclusions':dict(reasons),'signal_counts':dict(Counter(r['code'] for row in valid for r in row['decision']['hard']+row['decision']['soft'])),'definition':'Attribute counts overlap; stages are successive. Primary exclusions are mutually exclusive. plausible + excluded + invalid = fetched. new + duplicates = persisted structurally valid rows on successful sources; errors are explicit.'}
 
 def _legacy_shape(new,item,cfg,clock):
  """Project a backend.assessment FitAssessment dict into the pre-#41 decision
@@ -152,7 +153,7 @@ def _legacy_shape(new,item,cfg,clock):
  role_kind={'CORE':'DIRECT','CUSTOM':'DIRECT','ADJACENT':'ADJACENT','CONTEXTUAL':'ADJACENT','AMBIGUOUS':'ADJACENT','OUTSIDE':'UNRELATED'}[new['match_type']]
  geo=new['geography'];excluded=bool(new['hard_reject'])
  elig_code=new['hard_reject']['code'] if new['hard_reject'] else None
- elig_state='INELIGIBLE' if elig_code=='CONFIRMED_ELIGIBILITY_CONFLICT' else ('UNKNOWN' if any('ligibility' in u for u in new['uncertainty']) else 'ELIGIBLE')
+ elig=new.get('eligibility',{'state':'UNKNOWN','scope':'Issue #41 assessment','evidence':[]})
  posted=date(item.get('date_posted'));closing=date(item.get('closing_date'));age=(clock-posted).total_seconds()/86400 if posted else None
  if closing and closing<clock and not excluded:soft.append({'code':'EXPIRED','evidence':'Explicit closing date: '+str(item.get('closing_date'))})
  if age is not None and age<0:age=None
@@ -161,12 +162,32 @@ def _legacy_shape(new,item,cfg,clock):
   'fit_band':band,'role':{'family':new['role_family'],'kind':role_kind,'signals':new['matched_tracks'] or new['matched_skills'][:5]},
   'experience':{'requirements':[{'minimum':c['minimum_years'],'maximum':c['maximum_years'],'plus':c['plus'],'preferred':c['necessity']=='PREFERRED','evidence':c['original_text']} for c in new['experience']['clauses']],
    'minimum':new['experience']['effective_required_minimum'] or 0,'stated':new['experience']['stated'],'preferred_minimum':new['experience']['effective_preferred_minimum'] or 0},
-  'verified_years':None,'eligibility':{'state':elig_state,'scope':'Issue #41 assessment','evidence':new['hard_reject']['evidence_refs'] if elig_code=='CONFIRMED_ELIGIBILITY_CONFLICT' else []},
+  'verified_years':None,'eligibility':elig,
   'hard':hard,'soft':soft,'excluded':excluded,'near_miss':not excluded and new['bucket']=='STRETCH',
   'daily':not excluded and new['bucket'] in ('STRONG','GOOD'),'uae':geo['compatibility']=='COMPATIBLE',
   'location_compatible':geo['compatibility']!='INCOMPATIBLE','seniority_compatible':new['seniority']['title_level'] not in ('LEAD','MANAGER','EXECUTIVE'),
   'age_days':round(age,1) if age is not None else None,'freshness':freshness,'why_review':new['explanation'],
   'matched_core_skills':new['matched_skills'],'fit_assessment':new}
+
+def _assessment_shadow(legacy,new):
+ """Bounded comparison only; no raw job/profile text or calibration data."""
+ legacy_reason=legacy['hard'][0]['code'] if legacy.get('hard') else None
+ new_reason=new['hard_reject']['code'] if new.get('hard_reject') else None
+ if legacy.get('excluded') and not new.get('hard_reject'):
+  category='LEGACY_REJECTED_NEW_'+new['bucket']
+ elif not legacy.get('excluded') and new.get('hard_reject'):
+  category='NEW_REJECTED'
+ elif legacy.get('excluded') and new.get('hard_reject'):
+  category='SAME_REJECTION' if legacy_reason==new_reason else 'CHANGED_REJECTION_REASON'
+ else:
+  category='SAME_RANKABLE' if legacy.get('priority')==new.get('score') else 'RANKING_CHANGED'
+ return {'legacy_excluded':bool(legacy.get('excluded')),
+         'legacy_primary_reason':legacy_reason,
+         'legacy_priority':legacy.get('priority'),
+         'new_bucket':new.get('bucket'),
+         'new_priority':new.get('score'),
+         'new_hard_reject':new_reason,
+         'comparison_category':category}
 
 def evaluate(item,cfg,p=None,clock=None):
  """Issue #41 authoritative evaluator. Deterministic, local, explainable --
@@ -186,8 +207,11 @@ def evaluate(item,cfg,p=None,clock=None):
  if mode=='LEGACY':return evaluate_legacy(item,cfg,p,clock)
  from . import assessment
  new=assessment.assess(item,cfg,p,clock)
+ legacy=evaluate_legacy(item,cfg,p,clock)
+ comparison=_assessment_shadow(legacy,new)
  if mode=='SHADOW':
-  legacy=evaluate_legacy(item,cfg,p,clock);legacy['fit_assessment']=new;return legacy
+  legacy['fit_assessment']=new;legacy['assessment_shadow']=comparison;return legacy
  result=_legacy_shape(new,item,cfg,clock)
- result['legacy_shadow']=evaluate_legacy(item,cfg,p,clock)
+ result['legacy_shadow']=legacy
+ result['assessment_shadow']=comparison
  return result
