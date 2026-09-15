@@ -1,0 +1,2622 @@
+{
+  "bucket_distribution_by_reference_label": {
+    "GENUINE_REJECTION": {
+      "REJECTED": 17,
+      "STRETCH": 3
+    },
+    "LOW_BUT_USEFUL": {
+      "GOOD": 1,
+      "REJECTED": 1,
+      "STRETCH": 2,
+      "STRONG": 13
+    },
+    "MUST_SHOW": {
+      "STRONG": 25
+    },
+    "REASONABLE_STRETCH": {
+      "LOW": 2,
+      "STRETCH": 2,
+      "STRONG": 11
+    },
+    "UNCLEAR": {
+      "REJECTED": 1,
+      "STRETCH": 2
+    }
+  },
+  "calibration": {
+    "entries": [
+      {
+        "description": "Unmodified fit-rules-2 (baseline)",
+        "development": {
+          "case_count": 51,
+          "high_priority_irrelevant_leakage": {
+            "denominator": 9,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          },
+          "must_show_false_rejection_rate": {
+            "denominator": 15,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          },
+          "ndcg_at_k": {
+            "query_sets_scored": 9,
+            "status": "OK",
+            "value": 0.9932
+          },
+          "new_useful_regression_rate": {
+            "denominator": 20,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          },
+          "split": "development",
+          "useful_false_rejection_rate": {
+            "denominator": 42,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          }
+        },
+        "hash": "baseline",
+        "holdout": {
+          "case_count": 29,
+          "high_priority_irrelevant_leakage": {
+            "denominator": 11,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          },
+          "must_show_false_rejection_rate": {
+            "denominator": 10,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          },
+          "ndcg_at_k": {
+            "query_sets_scored": 3,
+            "status": "OK",
+            "value": 0.7632
+          },
+          "new_useful_regression_rate": {
+            "denominator": 13,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          },
+          "split": "holdout",
+          "useful_false_rejection_rate": {
+            "denominator": 15,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          }
+        },
+        "id": "current-ruleset",
+        "weights": {
+          "career_track": 15,
+          "domain": 25,
+          "experience": 15,
+          "freshness": 5,
+          "geography": 10,
+          "profile_evidence": 20,
+          "seniority": 10
+        }
+      },
+      {
+        "description": "Weights domain/role alignment more heavily relative to profile-evidence, on the hypothesis that a confirmed domain match matters more than confirmed skill overlap when many candidates have no CV imported yet. Recomposes the SAME already-computed component contributions; no semantic classification changes.",
+        "development": {
+          "case_count": 51,
+          "high_priority_irrelevant_leakage": {
+            "denominator": 9,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          },
+          "must_show_false_rejection_rate": {
+            "denominator": 15,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          },
+          "ndcg_at_k": {
+            "query_sets_scored": 9,
+            "status": "OK",
+            "value": 0.9779
+          },
+          "new_useful_regression_rate": {
+            "denominator": 20,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          },
+          "split": "development",
+          "useful_false_rejection_rate": {
+            "denominator": 42,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          }
+        },
+        "hash": "eceed8bc9bf0e07b",
+        "holdout": {
+          "case_count": 29,
+          "high_priority_irrelevant_leakage": {
+            "denominator": 11,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          },
+          "must_show_false_rejection_rate": {
+            "denominator": 10,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          },
+          "ndcg_at_k": {
+            "query_sets_scored": 3,
+            "status": "OK",
+            "value": 0.7718
+          },
+          "new_useful_regression_rate": {
+            "denominator": 13,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          },
+          "split": "holdout",
+          "useful_false_rejection_rate": {
+            "denominator": 15,
+            "failing_case_ids": [
+              "unrelated_professions-08"
+            ],
+            "numerator": 1,
+            "status": "OK",
+            "value": 0.0667
+          }
+        },
+        "id": "domain-heavier-v1",
+        "weights": {
+          "career_track": 15,
+          "domain": 35,
+          "experience": 10,
+          "freshness": 5,
+          "geography": 10,
+          "profile_evidence": 15,
+          "seniority": 10
+        }
+      },
+      {
+        "description": "Weights geography quality more heavily relative to freshness/seniority, on the hypothesis that workplace compatibility matters more to ranking priority than a stale-vs-fresh posting distinction. Recomposes the SAME already-computed component contributions; no semantic classification changes.",
+        "development": {
+          "case_count": 51,
+          "high_priority_irrelevant_leakage": {
+            "denominator": 9,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          },
+          "must_show_false_rejection_rate": {
+            "denominator": 15,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          },
+          "ndcg_at_k": {
+            "query_sets_scored": 9,
+            "status": "OK",
+            "value": 0.9825
+          },
+          "new_useful_regression_rate": {
+            "denominator": 20,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          },
+          "split": "development",
+          "useful_false_rejection_rate": {
+            "denominator": 42,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          }
+        },
+        "hash": "87e2268d5f9291df",
+        "holdout": {
+          "case_count": 29,
+          "high_priority_irrelevant_leakage": {
+            "denominator": 11,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          },
+          "must_show_false_rejection_rate": {
+            "denominator": 10,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          },
+          "ndcg_at_k": {
+            "query_sets_scored": 3,
+            "status": "OK",
+            "value": 0.7718
+          },
+          "new_useful_regression_rate": {
+            "denominator": 13,
+            "failing_case_ids": [],
+            "numerator": 0,
+            "status": "OK",
+            "value": 0.0
+          },
+          "split": "holdout",
+          "useful_false_rejection_rate": {
+            "denominator": 15,
+            "failing_case_ids": [
+              "unrelated_professions-08"
+            ],
+            "numerator": 1,
+            "status": "OK",
+            "value": 0.0667
+          }
+        },
+        "id": "geography-heavier-v1",
+        "weights": {
+          "career_track": 15,
+          "domain": 25,
+          "experience": 13,
+          "freshness": 2,
+          "geography": 17,
+          "profile_evidence": 20,
+          "seniority": 8
+        }
+      }
+    ],
+    "note": "PROPOSED comparison only. No candidate is adopted into production defaults by this report; Owner review and a code change to backend/assessment.py plus a new ruleset version are required before any candidate can become authoritative.",
+    "smallest_improvement_candidate_id": "geography-heavier-v1"
+  },
+  "candidate_policy": null,
+  "caveats": [
+    "Reference labels carry reference_status PROPOSED and are not yet Owner-approved ground truth.",
+    "Score means ranking priority, never a probability. score_kind is always RANKING_PRIORITY.",
+    "Results measure this corpus only, not global web recall; provider coverage in the corpus is metadata, never a quality signal.",
+    "Thresholds/bucket boundaries and component weights remain provisional (issue #41); no production default is changed by running this harness."
+  ],
+  "corpus_content_version": "2026-09-15.1",
+  "corpus_schema_version": "fit-eval-corpus-1",
+  "corpus_sha256": "43db136456b761cfb7ad401db2bd3d5a0887a7fb6267754eb4c75e90276df77d",
+  "coverage": {
+    "query_sets": 12,
+    "reference_label_distribution": {
+      "GENUINE_REJECTION": 20,
+      "LOW_BUT_USEFUL": 17,
+      "MUST_SHOW": 25,
+      "REASONABLE_STRETCH": 15,
+      "UNCLEAR": 3
+    },
+    "total_cases": 80,
+    "unclear_count": 3
+  },
+  "determinism": {
+    "assessment_clock": "2026-09-15T00:00:00+00:00",
+    "wall_clock_excluded": true
+  },
+  "duplicate_rate": {
+    "dedupe_recall_rate": {
+      "denominator": 6,
+      "failing_case_ids": [],
+      "numerator": 6,
+      "status": "OK",
+      "value": 1.0
+    },
+    "false_merge_rate": {
+      "denominator": 15,
+      "failing_case_ids": [],
+      "numerator": 0,
+      "status": "OK",
+      "value": 0.0
+    }
+  },
+  "engine": "compare",
+  "git_commit": "0147719793a1583309ef7e99690857d48938ebd3",
+  "hard_reason_precision": {
+    "CONFIRMED_ELIGIBILITY_CONFLICT": {
+      "denominator": 1,
+      "failing_case_ids": [],
+      "human_allowed_count": 1,
+      "numerator": 1,
+      "predicted_count": 1,
+      "status": "OK",
+      "value": 1.0
+    },
+    "DOMAIN_INCOMPATIBLE": {
+      "denominator": 8,
+      "failing_case_ids": [
+        "unrelated_professions-08"
+      ],
+      "human_allowed_count": 7,
+      "numerator": 7,
+      "predicted_count": 8,
+      "status": "OK",
+      "value": 0.875
+    },
+    "EXTREME_LEADERSHIP_MISMATCH": {
+      "denominator": 3,
+      "failing_case_ids": [],
+      "human_allowed_count": 3,
+      "numerator": 3,
+      "predicted_count": 3,
+      "status": "OK",
+      "value": 1.0
+    },
+    "GEO_INCOMPATIBLE": {
+      "denominator": 5,
+      "failing_case_ids": [],
+      "human_allowed_count": 5,
+      "numerator": 5,
+      "predicted_count": 5,
+      "status": "OK",
+      "value": 1.0
+    }
+  },
+  "human_label_version": "labels-v1",
+  "legacy_new_transitions": {
+    "category_counts": {
+      "CHANGED_REJECTION_REASON": 14,
+      "LEGACY_REJECTED_NEW_GOOD": 1,
+      "LEGACY_REJECTED_NEW_LOW": 2,
+      "LEGACY_REJECTED_NEW_STRETCH": 9,
+      "LEGACY_REJECTED_NEW_STRONG": 16,
+      "NEW_REJECTED": 5,
+      "RANKING_CHANGED": 33
+    },
+    "new_regression_case_ids": [
+      "cloud_security-04",
+      "data_quality_and_source_shape-08",
+      "geography_spectrum-06",
+      "geography_spectrum-07",
+      "network_engineering_noc-05"
+    ],
+    "new_regression_case_ids_reference_useful": [],
+    "recovered_case_ids_reference_useful": [
+      "cloud_security-02",
+      "cloud_security-03",
+      "cloud_security-05",
+      "cyber_soc_security_engineering-03",
+      "cyber_soc_security_engineering-04",
+      "cyber_soc_security_engineering-05",
+      "experience_spectrum-03",
+      "experience_spectrum-04",
+      "experience_spectrum-05",
+      "experience_spectrum-07",
+      "geography_spectrum-09",
+      "iam_pam_appsec_devsecops-03",
+      "network_engineering_noc-03",
+      "seniority_spectrum-01",
+      "seniority_spectrum-02",
+      "seniority_spectrum-03",
+      "seniority_spectrum-04",
+      "seniority_spectrum-05",
+      "software_engineering-02",
+      "software_engineering-03",
+      "systems_infra_cloud_platform_devops-02",
+      "systems_infra_cloud_platform_devops-03",
+      "technical_support_solutions_engineering-02"
+    ],
+    "recoveries_by_bucket": {
+      "LEGACY_REJECTED_NEW_GOOD": 1,
+      "LEGACY_REJECTED_NEW_LOW": 2,
+      "LEGACY_REJECTED_NEW_STRETCH": 9,
+      "LEGACY_REJECTED_NEW_STRONG": 16
+    }
+  },
+  "metric_definition_version": "metrics-v1",
+  "pairwise_ordering_agreement": {
+    "denominator": 151,
+    "failing_case_ids": [],
+    "numerator": 112,
+    "status": "OK",
+    "value": 0.7417
+  },
+  "per_case": [
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "cloud_security-01",
+      "legacy_excluded": false,
+      "legacy_priority": 68.0,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 92,
+      "query_id": "cloud_security",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "cloud_security",
+        "experience": "2-3",
+        "geography": "uae_onsite",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRONG",
+      "id": "cloud_security-02",
+      "legacy_excluded": true,
+      "legacy_priority": 63.0,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 92,
+      "query_id": "cloud_security",
+      "reference_label": "REASONABLE_STRETCH",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "ashby",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "cloud_security",
+        "experience": "4-5",
+        "geography": "uae_onsite",
+        "seniority": "senior_ic"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRONG",
+      "id": "cloud_security-03",
+      "legacy_excluded": true,
+      "legacy_priority": 42,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 81,
+      "query_id": "cloud_security",
+      "reference_label": "LOW_BUT_USEFUL",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "missing_experience",
+        "domain": "cloud_security",
+        "experience": "8+",
+        "geography": "uae_onsite",
+        "seniority": "lead"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "NEW_REJECTED",
+      "id": "cloud_security-04",
+      "legacy_excluded": false,
+      "legacy_priority": 68,
+      "new_bucket": "REJECTED",
+      "new_hard_reason": "GEO_INCOMPATIBLE",
+      "new_score": null,
+      "query_id": "cloud_security",
+      "reference_label": "GENUINE_REJECTION",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "cloud_security",
+        "experience": "missing",
+        "geography": "us_only_remote",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRONG",
+      "id": "cloud_security-05",
+      "legacy_excluded": true,
+      "legacy_priority": 68,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 89,
+      "query_id": "cloud_security",
+      "reference_label": "LOW_BUT_USEFUL",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "cloud_security",
+        "experience": "missing",
+        "geography": "foreign_onsite_relocation",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "cyber_soc_security_engineering-01",
+      "legacy_excluded": false,
+      "legacy_priority": 84,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 90,
+      "query_id": "cyber_soc_security_engineering",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "soc",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "cyber_soc_security_engineering-02",
+      "legacy_excluded": false,
+      "legacy_priority": 68.0,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 92,
+      "query_id": "cyber_soc_security_engineering",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "security_engineering",
+        "experience": "2-3",
+        "geography": "uae_onsite",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRONG",
+      "id": "cyber_soc_security_engineering-03",
+      "legacy_excluded": true,
+      "legacy_priority": 60.0,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 90,
+      "query_id": "cyber_soc_security_engineering",
+      "reference_label": "REASONABLE_STRETCH",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "security_engineering",
+        "experience": "4-5",
+        "geography": "uae_onsite",
+        "seniority": "senior_ic"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRONG",
+      "id": "cyber_soc_security_engineering-04",
+      "legacy_excluded": true,
+      "legacy_priority": 55,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 92,
+      "query_id": "cyber_soc_security_engineering",
+      "reference_label": "REASONABLE_STRETCH",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "incident_response",
+        "experience": "6-7",
+        "geography": "uae_onsite",
+        "seniority": "senior_ic"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_GOOD",
+      "id": "cyber_soc_security_engineering-05",
+      "legacy_excluded": true,
+      "legacy_priority": 42,
+      "new_bucket": "GOOD",
+      "new_hard_reason": null,
+      "new_score": 77,
+      "query_id": "cyber_soc_security_engineering",
+      "reference_label": "LOW_BUT_USEFUL",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "grc",
+        "experience": "8+",
+        "geography": "uae_onsite",
+        "seniority": "manager"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "cyber_soc_security_engineering-05b",
+      "legacy_excluded": false,
+      "legacy_priority": 60,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 80,
+      "query_id": "cyber_soc_security_engineering",
+      "reference_label": "LOW_BUT_USEFUL",
+      "reference_link_state": "LIKELY_STALE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "grc",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "CHANGED_REJECTION_REASON",
+      "id": "cyber_soc_security_engineering-06",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "REJECTED",
+      "new_hard_reason": "DOMAIN_INCOMPATIBLE",
+      "new_score": null,
+      "query_id": "cyber_soc_security_engineering",
+      "reference_label": "GENUINE_REJECTION",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "physical_security",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "data_quality_and_source_shape-01",
+      "legacy_excluded": false,
+      "legacy_priority": 73,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 87,
+      "query_id": "data_quality_and_source_shape",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "soc",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry",
+        "source_shape": "greenhouse"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "data_quality_and_source_shape-02",
+      "legacy_excluded": false,
+      "legacy_priority": 76,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 93,
+      "query_id": "data_quality_and_source_shape",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "lever",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "security_engineering",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry",
+        "source_shape": "lever"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "data_quality_and_source_shape-03",
+      "legacy_excluded": false,
+      "legacy_priority": 73,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 93,
+      "query_id": "data_quality_and_source_shape",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "ashby",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "cloud_security",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry",
+        "source_shape": "ashby"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "data_quality_and_source_shape-04",
+      "legacy_excluded": false,
+      "legacy_priority": 73,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 87,
+      "query_id": "data_quality_and_source_shape",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "smartrecruiters",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "network_security",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry",
+        "source_shape": "smartrecruiters"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "data_quality_and_source_shape-05",
+      "legacy_excluded": false,
+      "legacy_priority": 73,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 87,
+      "query_id": "data_quality_and_source_shape",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "manual",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "soc",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry",
+        "source_shape": "manual"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "data_quality_and_source_shape-06",
+      "legacy_excluded": false,
+      "legacy_priority": 60,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 87,
+      "query_id": "data_quality_and_source_shape",
+      "reference_label": "LOW_BUT_USEFUL",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "sparse",
+        "domain": "security_analyst",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry",
+        "source_shape": "greenhouse"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "data_quality_and_source_shape-07",
+      "legacy_excluded": false,
+      "legacy_priority": 76,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 89,
+      "query_id": "data_quality_and_source_shape",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "lever",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "missing_experience",
+        "domain": "soc",
+        "experience": "missing_field",
+        "geography": "uae_onsite",
+        "seniority": "entry",
+        "source_shape": "lever"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "NEW_REJECTED",
+      "id": "data_quality_and_source_shape-08",
+      "legacy_excluded": false,
+      "legacy_priority": 55,
+      "new_bucket": "REJECTED",
+      "new_hard_reason": "GEO_INCOMPATIBLE",
+      "new_score": null,
+      "query_id": "data_quality_and_source_shape",
+      "reference_label": "UNCLEAR",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "ashby",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "conflicting",
+        "domain": "soc",
+        "experience": "missing",
+        "geography": "conflicting",
+        "seniority": "entry",
+        "source_shape": "ashby"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRETCH",
+      "id": "data_quality_and_source_shape-09",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "STRETCH",
+      "new_hard_reason": null,
+      "new_score": 45,
+      "query_id": "data_quality_and_source_shape",
+      "reference_label": "UNCLEAR",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "smartrecruiters",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "missing_experience",
+        "domain": "ambiguous_analyst",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "associate",
+        "source_shape": "smartrecruiters"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRETCH",
+      "id": "data_quality_and_source_shape-10",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "STRETCH",
+      "new_hard_reason": null,
+      "new_score": 47,
+      "query_id": "data_quality_and_source_shape",
+      "reference_label": "UNCLEAR",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "manual",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "sparse",
+        "domain": "ambiguous_security",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "associate",
+        "source_shape": "manual"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "experience_spectrum-01",
+      "legacy_excluded": false,
+      "legacy_priority": 65,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 81,
+      "query_id": "experience_spectrum",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "soc",
+        "experience": "0-1",
+        "geography": "uae_onsite",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "experience_spectrum-02",
+      "legacy_excluded": false,
+      "legacy_priority": 68.0,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 92,
+      "query_id": "experience_spectrum",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "security_analyst",
+        "experience": "2-3",
+        "geography": "uae_onsite",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRONG",
+      "id": "experience_spectrum-03",
+      "legacy_excluded": true,
+      "legacy_priority": 44.0,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 86,
+      "query_id": "experience_spectrum",
+      "reference_label": "REASONABLE_STRETCH",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "security_engineering",
+        "experience": "4-5",
+        "geography": "uae_onsite",
+        "seniority": "senior_ic"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRONG",
+      "id": "experience_spectrum-04",
+      "legacy_excluded": true,
+      "legacy_priority": 42,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 86,
+      "query_id": "experience_spectrum",
+      "reference_label": "REASONABLE_STRETCH",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "security_engineering",
+        "experience": "6-7",
+        "geography": "uae_onsite",
+        "seniority": "senior_ic"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRONG",
+      "id": "experience_spectrum-05",
+      "legacy_excluded": true,
+      "legacy_priority": 42,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 86,
+      "query_id": "experience_spectrum",
+      "reference_label": "LOW_BUT_USEFUL",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "security_engineering",
+        "experience": "8+",
+        "geography": "uae_onsite",
+        "seniority": "senior_ic"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "experience_spectrum-06",
+      "legacy_excluded": false,
+      "legacy_priority": 67,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 86,
+      "query_id": "experience_spectrum",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "security_analyst",
+        "experience": "preferred_only",
+        "geography": "uae_onsite",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRONG",
+      "id": "experience_spectrum-07",
+      "legacy_excluded": true,
+      "legacy_priority": 55,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 92,
+      "query_id": "experience_spectrum",
+      "reference_label": "REASONABLE_STRETCH",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "cloud_security",
+        "experience": "multi_clause",
+        "geography": "uae_onsite",
+        "seniority": "senior_ic"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "experience_spectrum-08",
+      "legacy_excluded": false,
+      "legacy_priority": 76,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 89,
+      "query_id": "experience_spectrum",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "soc",
+        "experience": "no_requirement",
+        "geography": "uae_onsite",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "geography_spectrum-01",
+      "legacy_excluded": false,
+      "legacy_priority": 73,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 87,
+      "query_id": "geography_spectrum",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "soc",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "geography_spectrum-02",
+      "legacy_excluded": false,
+      "legacy_priority": 68,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 87,
+      "query_id": "geography_spectrum",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "soc",
+        "experience": "missing",
+        "geography": "uae_remote",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "geography_spectrum-03",
+      "legacy_excluded": false,
+      "legacy_priority": 68,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 87,
+      "query_id": "geography_spectrum",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "soc",
+        "experience": "missing",
+        "geography": "global_remote",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "geography_spectrum-04",
+      "legacy_excluded": false,
+      "legacy_priority": 68,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 83,
+      "query_id": "geography_spectrum",
+      "reference_label": "LOW_BUT_USEFUL",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "soc",
+        "experience": "missing",
+        "geography": "generic_remote",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "geography_spectrum-05",
+      "legacy_excluded": false,
+      "legacy_priority": 68,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 87,
+      "query_id": "geography_spectrum",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "soc",
+        "experience": "missing",
+        "geography": "emea_remote",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "NEW_REJECTED",
+      "id": "geography_spectrum-06",
+      "legacy_excluded": false,
+      "legacy_priority": 68,
+      "new_bucket": "REJECTED",
+      "new_hard_reason": "GEO_INCOMPATIBLE",
+      "new_score": null,
+      "query_id": "geography_spectrum",
+      "reference_label": "GENUINE_REJECTION",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "soc",
+        "experience": "missing",
+        "geography": "us_only_remote",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "NEW_REJECTED",
+      "id": "geography_spectrum-07",
+      "legacy_excluded": false,
+      "legacy_priority": 68,
+      "new_bucket": "REJECTED",
+      "new_hard_reason": "GEO_INCOMPATIBLE",
+      "new_score": null,
+      "query_id": "geography_spectrum",
+      "reference_label": "GENUINE_REJECTION",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "soc",
+        "experience": "missing",
+        "geography": "uk_only_remote",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "CHANGED_REJECTION_REASON",
+      "id": "geography_spectrum-08",
+      "legacy_excluded": true,
+      "legacy_priority": 68,
+      "new_bucket": "REJECTED",
+      "new_hard_reason": "GEO_INCOMPATIBLE",
+      "new_score": null,
+      "query_id": "geography_spectrum",
+      "reference_label": "GENUINE_REJECTION",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "soc",
+        "experience": "missing",
+        "geography": "foreign_onsite",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRONG",
+      "id": "geography_spectrum-09",
+      "legacy_excluded": true,
+      "legacy_priority": 68,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 83,
+      "query_id": "geography_spectrum",
+      "reference_label": "LOW_BUT_USEFUL",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "soc",
+        "experience": "missing",
+        "geography": "foreign_onsite_relocation",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "geography_spectrum-10",
+      "legacy_excluded": false,
+      "legacy_priority": 68,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 83,
+      "query_id": "geography_spectrum",
+      "reference_label": "LOW_BUT_USEFUL",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "missing_location",
+        "domain": "soc",
+        "experience": "missing",
+        "geography": "unknown",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "iam_pam_appsec_devsecops-01",
+      "legacy_excluded": false,
+      "legacy_priority": 73,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 93,
+      "query_id": "iam_pam_appsec_devsecops",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "iam",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "iam_pam_appsec_devsecops-02",
+      "legacy_excluded": false,
+      "legacy_priority": 43.0,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 86,
+      "query_id": "iam_pam_appsec_devsecops",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "appsec",
+        "experience": "2-3",
+        "geography": "uae_remote",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRONG",
+      "id": "iam_pam_appsec_devsecops-03",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 84,
+      "query_id": "iam_pam_appsec_devsecops",
+      "reference_label": "REASONABLE_STRETCH",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "lever",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "pam",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "lead"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "iam_pam_appsec_devsecops-04",
+      "legacy_excluded": false,
+      "legacy_priority": 60,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 85,
+      "query_id": "iam_pam_appsec_devsecops",
+      "reference_label": "LOW_BUT_USEFUL",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "sparse",
+        "domain": "devsecops",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "iam_pam_appsec_devsecops-04b",
+      "legacy_excluded": false,
+      "legacy_priority": 60,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 86,
+      "query_id": "iam_pam_appsec_devsecops",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "UNKNOWN",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "appsec",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "CHANGED_REJECTION_REASON",
+      "id": "iam_pam_appsec_devsecops-05",
+      "legacy_excluded": true,
+      "legacy_priority": 42,
+      "new_bucket": "REJECTED",
+      "new_hard_reason": "EXTREME_LEADERSHIP_MISMATCH",
+      "new_score": null,
+      "query_id": "iam_pam_appsec_devsecops",
+      "reference_label": "GENUINE_REJECTION",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "iam",
+        "experience": "8+",
+        "geography": "uae_onsite",
+        "seniority": "director"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "network_engineering_noc-01",
+      "legacy_excluded": false,
+      "legacy_priority": 48.0,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 86,
+      "query_id": "network_engineering_noc",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "network_engineering",
+        "experience": "2-3",
+        "geography": "uae_onsite",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "network_engineering_noc-02",
+      "legacy_excluded": false,
+      "legacy_priority": 60,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 87,
+      "query_id": "network_engineering_noc",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "smartrecruiters",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "noc",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRONG",
+      "id": "network_engineering_noc-03",
+      "legacy_excluded": true,
+      "legacy_priority": 42,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 86,
+      "query_id": "network_engineering_noc",
+      "reference_label": "REASONABLE_STRETCH",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "noc",
+        "experience": "6-7",
+        "geography": "uae_onsite",
+        "seniority": "senior_ic"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "network_engineering_noc-04",
+      "legacy_excluded": false,
+      "legacy_priority": 55,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 83,
+      "query_id": "network_engineering_noc",
+      "reference_label": "LOW_BUT_USEFUL",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "network_engineering",
+        "experience": "missing",
+        "geography": "generic_remote",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "NEW_REJECTED",
+      "id": "network_engineering_noc-05",
+      "legacy_excluded": false,
+      "legacy_priority": 55,
+      "new_bucket": "REJECTED",
+      "new_hard_reason": "GEO_INCOMPATIBLE",
+      "new_score": null,
+      "query_id": "network_engineering_noc",
+      "reference_label": "GENUINE_REJECTION",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "network_engineering",
+        "experience": "missing",
+        "geography": "uk_only_remote",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRONG",
+      "id": "seniority_spectrum-01",
+      "legacy_excluded": true,
+      "legacy_priority": 73,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 85,
+      "query_id": "seniority_spectrum",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "soc",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "senior_ic"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRONG",
+      "id": "seniority_spectrum-02",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 84,
+      "query_id": "seniority_spectrum",
+      "reference_label": "REASONABLE_STRETCH",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "security_engineering",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "lead"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_LOW",
+      "id": "seniority_spectrum-03",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "LOW",
+      "new_hard_reason": null,
+      "new_score": 44,
+      "query_id": "seniority_spectrum",
+      "reference_label": "REASONABLE_STRETCH",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "security_architecture",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "architect"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_LOW",
+      "id": "seniority_spectrum-04",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "LOW",
+      "new_hard_reason": null,
+      "new_score": 44,
+      "query_id": "seniority_spectrum",
+      "reference_label": "REASONABLE_STRETCH",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "security_management",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "manager"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRONG",
+      "id": "seniority_spectrum-05",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 84,
+      "query_id": "seniority_spectrum",
+      "reference_label": "LOW_BUT_USEFUL",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "security_engineering",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "principal"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "CHANGED_REJECTION_REASON",
+      "id": "seniority_spectrum-06",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "REJECTED",
+      "new_hard_reason": "EXTREME_LEADERSHIP_MISMATCH",
+      "new_score": null,
+      "query_id": "seniority_spectrum",
+      "reference_label": "GENUINE_REJECTION",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "security_management",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "director"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "CHANGED_REJECTION_REASON",
+      "id": "seniority_spectrum-07",
+      "legacy_excluded": true,
+      "legacy_priority": 42,
+      "new_bucket": "REJECTED",
+      "new_hard_reason": "EXTREME_LEADERSHIP_MISMATCH",
+      "new_score": null,
+      "query_id": "seniority_spectrum",
+      "reference_label": "GENUINE_REJECTION",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "security_architecture",
+        "experience": "8+",
+        "geography": "uae_onsite",
+        "seniority": "principal"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "software_engineering-01",
+      "legacy_excluded": false,
+      "legacy_priority": 73,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 87,
+      "query_id": "software_engineering",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "software_enabled",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRONG",
+      "id": "software_engineering-02",
+      "legacy_excluded": true,
+      "legacy_priority": 44.0,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 80,
+      "query_id": "software_engineering",
+      "reference_label": "REASONABLE_STRETCH",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "software_enabled",
+        "experience": "4-5",
+        "geography": "uae_onsite",
+        "seniority": "senior_ic"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRETCH",
+      "id": "software_engineering-03",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "STRETCH",
+      "new_hard_reason": null,
+      "new_score": 47,
+      "query_id": "software_engineering",
+      "reference_label": "LOW_BUT_USEFUL",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "software_disabled_adjacent",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRETCH",
+      "id": "software_engineering-04",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "STRETCH",
+      "new_hard_reason": null,
+      "new_score": 47,
+      "query_id": "software_engineering",
+      "reference_label": "GENUINE_REJECTION",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "custom_only_mismatch",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "systems_infra_cloud_platform_devops-01",
+      "legacy_excluded": false,
+      "legacy_priority": 73,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 85,
+      "query_id": "systems_infra_cloud_platform_devops",
+      "reference_label": "MUST_SHOW",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "cloud_engineering",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRETCH",
+      "id": "systems_infra_cloud_platform_devops-02",
+      "legacy_excluded": true,
+      "legacy_priority": 37,
+      "new_bucket": "STRETCH",
+      "new_hard_reason": null,
+      "new_score": 46,
+      "query_id": "systems_infra_cloud_platform_devops",
+      "reference_label": "REASONABLE_STRETCH",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "platform_engineering",
+        "experience": "4-5",
+        "geography": "uae_remote",
+        "seniority": "senior_ic"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRETCH",
+      "id": "systems_infra_cloud_platform_devops-03",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "STRETCH",
+      "new_hard_reason": null,
+      "new_score": 45,
+      "query_id": "systems_infra_cloud_platform_devops",
+      "reference_label": "LOW_BUT_USEFUL",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "sparse",
+        "domain": "devops",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "systems_infra_cloud_platform_devops-04",
+      "legacy_excluded": false,
+      "legacy_priority": 68,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 85,
+      "query_id": "systems_infra_cloud_platform_devops",
+      "reference_label": "LOW_BUT_USEFUL",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "systems_admin",
+        "experience": "missing",
+        "geography": "global_remote",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRETCH",
+      "id": "systems_infra_cloud_platform_devops-05",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "STRETCH",
+      "new_hard_reason": null,
+      "new_score": 47,
+      "query_id": "systems_infra_cloud_platform_devops",
+      "reference_label": "GENUINE_REJECTION",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "software_disabled",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "technical_support_solutions_engineering-01",
+      "legacy_excluded": false,
+      "legacy_priority": 60,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 87,
+      "query_id": "technical_support_solutions_engineering",
+      "reference_label": "REASONABLE_STRETCH",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "technical_support",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRETCH",
+      "id": "technical_support_solutions_engineering-02",
+      "legacy_excluded": true,
+      "legacy_priority": 73,
+      "new_bucket": "STRETCH",
+      "new_hard_reason": null,
+      "new_score": 63,
+      "query_id": "technical_support_solutions_engineering",
+      "reference_label": "REASONABLE_STRETCH",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "solutions_engineering",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "RANKING_CHANGED",
+      "id": "technical_support_solutions_engineering-03",
+      "legacy_excluded": false,
+      "legacy_priority": 60,
+      "new_bucket": "STRONG",
+      "new_hard_reason": null,
+      "new_score": 87,
+      "query_id": "technical_support_solutions_engineering",
+      "reference_label": "LOW_BUT_USEFUL",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "sparse",
+        "domain": "help_desk",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "LEGACY_REJECTED_NEW_STRETCH",
+      "id": "technical_support_solutions_engineering-04",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "STRETCH",
+      "new_hard_reason": null,
+      "new_score": 47,
+      "query_id": "technical_support_solutions_engineering",
+      "reference_label": "GENUINE_REJECTION",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "development",
+      "tags": {
+        "data_quality": "full",
+        "domain": "solutions_engineering_unrelated",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "CHANGED_REJECTION_REASON",
+      "id": "unrelated_professions-01",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "REJECTED",
+      "new_hard_reason": "DOMAIN_INCOMPATIBLE",
+      "new_score": null,
+      "query_id": "unrelated_professions",
+      "reference_label": "GENUINE_REJECTION",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "mechanical",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "CHANGED_REJECTION_REASON",
+      "id": "unrelated_professions-02",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "REJECTED",
+      "new_hard_reason": "DOMAIN_INCOMPATIBLE",
+      "new_score": null,
+      "query_id": "unrelated_professions",
+      "reference_label": "GENUINE_REJECTION",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "civil",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "CHANGED_REJECTION_REASON",
+      "id": "unrelated_professions-03",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "REJECTED",
+      "new_hard_reason": "DOMAIN_INCOMPATIBLE",
+      "new_score": null,
+      "query_id": "unrelated_professions",
+      "reference_label": "GENUINE_REJECTION",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "accounting",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "CHANGED_REJECTION_REASON",
+      "id": "unrelated_professions-04",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "REJECTED",
+      "new_hard_reason": "DOMAIN_INCOMPATIBLE",
+      "new_score": null,
+      "query_id": "unrelated_professions",
+      "reference_label": "GENUINE_REJECTION",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "marketing",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "CHANGED_REJECTION_REASON",
+      "id": "unrelated_professions-05",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "REJECTED",
+      "new_hard_reason": "USER_BLOCKED",
+      "new_score": null,
+      "query_id": "unrelated_professions",
+      "reference_label": "GENUINE_REJECTION",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "sales",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "CHANGED_REJECTION_REASON",
+      "id": "unrelated_professions-06",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "REJECTED",
+      "new_hard_reason": "DOMAIN_INCOMPATIBLE",
+      "new_score": null,
+      "query_id": "unrelated_professions",
+      "reference_label": "GENUINE_REJECTION",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "healthcare",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "CHANGED_REJECTION_REASON",
+      "id": "unrelated_professions-07",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "REJECTED",
+      "new_hard_reason": "DOMAIN_INCOMPATIBLE",
+      "new_score": null,
+      "query_id": "unrelated_professions",
+      "reference_label": "GENUINE_REJECTION",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "physical_security",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "CHANGED_REJECTION_REASON",
+      "id": "unrelated_professions-08",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "REJECTED",
+      "new_hard_reason": "DOMAIN_INCOMPATIBLE",
+      "new_score": null,
+      "query_id": "unrelated_professions",
+      "reference_label": "LOW_BUT_USEFUL",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "legal_privacy_adjacent",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "associate"
+      }
+    },
+    {
+      "candidate_bucket": null,
+      "candidate_score": null,
+      "comparison_category": "CHANGED_REJECTION_REASON",
+      "id": "unrelated_professions-09",
+      "legacy_excluded": true,
+      "legacy_priority": 60,
+      "new_bucket": "REJECTED",
+      "new_hard_reason": "CONFIRMED_ELIGIBILITY_CONFLICT",
+      "new_score": null,
+      "query_id": "unrelated_professions",
+      "reference_label": "GENUINE_REJECTION",
+      "reference_link_state": "LIKELY_LIVE",
+      "reference_status": "PROPOSED",
+      "source_kind": "greenhouse",
+      "split": "holdout",
+      "tags": {
+        "data_quality": "full",
+        "domain": "soc",
+        "experience": "missing",
+        "geography": "uae_onsite",
+        "seniority": "entry"
+      }
+    }
+  ],
+  "primary_metrics": {
+    "broad_irrelevant_leakage": {
+      "denominator": 20,
+      "failing_case_ids": [
+        "software_engineering-04",
+        "systems_infra_cloud_platform_devops-05",
+        "technical_support_solutions_engineering-04"
+      ],
+      "low_only": {
+        "denominator": 20,
+        "failing_case_ids": [],
+        "numerator": 0,
+        "status": "OK",
+        "value": 0.0
+      },
+      "numerator": 3,
+      "status": "OK",
+      "value": 0.15
+    },
+    "high_priority_irrelevant_leakage": {
+      "denominator": 20,
+      "failing_case_ids": [],
+      "numerator": 0,
+      "status": "OK",
+      "value": 0.0
+    },
+    "must_show_false_rejection_rate": {
+      "denominator": 25,
+      "failing_case_ids": [],
+      "numerator": 0,
+      "status": "OK",
+      "value": 0.0
+    },
+    "new_useful_regression_rate": {
+      "denominator": 33,
+      "failing_case_ids": [],
+      "numerator": 0,
+      "status": "OK",
+      "value": 0.0
+    },
+    "useful_false_rejection_rate": {
+      "denominator": 57,
+      "failing_case_ids": [
+        "unrelated_professions-08"
+      ],
+      "numerator": 1,
+      "status": "OK",
+      "value": 0.0175
+    }
+  },
+  "quality_gate": {
+    "approval_state": "PROPOSED / NOT OWNER-APPROVED",
+    "checks": [
+      {
+        "name": "max_must_show_false_rejection_rate",
+        "observed": 0.0,
+        "status": "PASS",
+        "threshold": 0.0
+      },
+      {
+        "name": "max_useful_false_rejection_rate",
+        "observed": 0.0175,
+        "status": "PASS",
+        "threshold": 0.05
+      },
+      {
+        "name": "max_high_priority_leakage",
+        "observed": 0.0,
+        "status": "PASS",
+        "threshold": 0.02
+      },
+      {
+        "name": "forbid_useful_legacy_accepted_new_rejected",
+        "observed": 0,
+        "status": "PASS"
+      },
+      {
+        "name": "min_hard_reason_sample_size[DOMAIN_INCOMPATIBLE]",
+        "observed": 8,
+        "status": "PASS",
+        "threshold": 3
+      },
+      {
+        "name": "min_hard_reason_sample_size[GEO_INCOMPATIBLE]",
+        "observed": 5,
+        "status": "PASS",
+        "threshold": 3
+      },
+      {
+        "name": "min_hard_reason_sample_size[EXTREME_LEADERSHIP_MISMATCH]",
+        "observed": 3,
+        "status": "PASS",
+        "threshold": 3
+      },
+      {
+        "name": "min_hard_reason_sample_size[CONFIRMED_ELIGIBILITY_CONFLICT]",
+        "observed": 1,
+        "status": "FAIL",
+        "threshold": 3
+      }
+    ],
+    "gate_status": "FAIL"
+  },
+  "ranking_metrics": {
+    "ndcg_at_k": {
+      "query_sets_scored": 12,
+      "status": "OK",
+      "value": 0.9279
+    },
+    "per_query_set": {
+      "cloud_security": {
+        "k": 5,
+        "ndcg": 1.0,
+        "pool_size": 5,
+        "precision": 0.8,
+        "recall": 1.0,
+        "relevant_total": 4
+      },
+      "cyber_soc_security_engineering": {
+        "k": 7,
+        "ndcg": 0.9825361852209898,
+        "pool_size": 7,
+        "precision": 0.8571428571428571,
+        "recall": 1.0,
+        "relevant_total": 6
+      },
+      "data_quality_and_source_shape": {
+        "k": 7,
+        "ndcg": 1.0,
+        "pool_size": 7,
+        "precision": 1.0,
+        "recall": 1.0,
+        "relevant_total": 7
+      },
+      "experience_spectrum": {
+        "k": 8,
+        "ndcg": 0.9553287438200085,
+        "pool_size": 8,
+        "precision": 1.0,
+        "recall": 1.0,
+        "relevant_total": 8
+      },
+      "geography_spectrum": {
+        "k": 10,
+        "ndcg": 1.0,
+        "pool_size": 10,
+        "precision": 0.7,
+        "recall": 1.0,
+        "relevant_total": 7
+      },
+      "iam_pam_appsec_devsecops": {
+        "k": 6,
+        "ndcg": 0.9942646540427001,
+        "pool_size": 6,
+        "precision": 0.8333333333333334,
+        "recall": 1.0,
+        "relevant_total": 5
+      },
+      "network_engineering_noc": {
+        "k": 5,
+        "ndcg": 1.0,
+        "pool_size": 5,
+        "precision": 0.8,
+        "recall": 1.0,
+        "relevant_total": 4
+      },
+      "seniority_spectrum": {
+        "k": 7,
+        "ndcg": 0.982619653523767,
+        "pool_size": 7,
+        "precision": 0.7142857142857143,
+        "recall": 1.0,
+        "relevant_total": 5
+      },
+      "software_engineering": {
+        "k": 4,
+        "ndcg": 1.0,
+        "pool_size": 4,
+        "precision": 0.75,
+        "recall": 1.0,
+        "relevant_total": 3
+      },
+      "systems_infra_cloud_platform_devops": {
+        "k": 5,
+        "ndcg": 0.9396440613358614,
+        "pool_size": 5,
+        "precision": 0.8,
+        "recall": 1.0,
+        "relevant_total": 4
+      },
+      "technical_support_solutions_engineering": {
+        "k": 4,
+        "ndcg": 0.9651954696014428,
+        "pool_size": 4,
+        "precision": 0.75,
+        "recall": 1.0,
+        "relevant_total": 3
+      },
+      "unrelated_professions": {
+        "k": 9,
+        "ndcg": 0.31546487678572877,
+        "pool_size": 9,
+        "precision": 0.1111111111111111,
+        "recall": 1.0,
+        "relevant_total": 1
+      }
+    },
+    "precision_at_k": {
+      "query_sets_scored": 12,
+      "status": "OK",
+      "value": 0.7597
+    },
+    "recall_at_k": {
+      "query_sets_scored": 12,
+      "status": "OK",
+      "value": 1.0
+    }
+  },
+  "report_schema_version": "fit-eval-report-1",
+  "slice_filters": {},
+  "split_filter": null,
+  "stale_link_rate": {
+    "denominator": 80,
+    "failing_case_ids": [
+      "cyber_soc_security_engineering-05b"
+    ],
+    "numerator": 1,
+    "status": "OK",
+    "unknown_count": 1,
+    "value": 0.0125
+  },
+  "user_blocked_check": {
+    "denominator": 1,
+    "failing_case_ids": [],
+    "human_allowed_count": 1,
+    "numerator": 1,
+    "predicted_count": 1,
+    "status": "OK",
+    "value": 1.0
+  },
+  "versions": {
+    "assessment_ruleset": "fit-rules-2",
+    "assessment_schema": "fit-assessment-2",
+    "experience_parser": "experience-2",
+    "metric_definition_version": "metrics-v1",
+    "taxonomy": "career-tracks-1"
+  }
+}

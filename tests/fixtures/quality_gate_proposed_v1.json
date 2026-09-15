@@ -1,0 +1,10 @@
+{
+  "id": "quality-gate-proposed-v1",
+  "approval_state": "PROPOSED / NOT OWNER-APPROVED",
+  "description": "A starting-point quality gate for future ranking changes, derived from the #42 baseline evidence. These are proposed values only -- see docs/evaluation/FIT_EVALUATION.md and the Owner Review section of the PR for why each threshold was chosen. Nothing in this repository treats this file as an approved gate.",
+  "max_must_show_false_rejection_rate": 0.0,
+  "max_useful_false_rejection_rate": 0.05,
+  "max_high_priority_leakage": 0.02,
+  "forbid_useful_legacy_accepted_new_rejected": true,
+  "min_hard_reason_sample_size": 3
+}
