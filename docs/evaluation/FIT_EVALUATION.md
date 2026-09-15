@@ -1,9 +1,14 @@
-# Issue #42: fit-assessment evaluation harness
+# Issue #42: fit-assessment evaluation harness foundation
 
 Answers a different question than issue #41 does. #41 answers "what does
 ASTRA think about this job?" This harness answers **"is that judgment
 actually useful?"** -- with the primary product risk being **false rejection
 of a useful opportunity**, not one headline accuracy number.
+
+This PR supplies the **foundation** for issue #42. The seed corpus and quality
+gate remain proposed; issue #42 stays open for independent human/Owner label
+adjudication, corpus expansion, gate approval, and any separately approved
+production calibration.
 
 This harness is pure, offline, and deterministic: no network, no browser, no
 provider API, no LLM, no live/production database. It always calls the real
@@ -13,7 +18,7 @@ or reimplements domain/seniority/geography classification.
 
 ## Reference labels are not system buckets
 
-The evaluation-only reference label model is deliberately independent of
+The evaluation-only reference-label vocabulary is deliberately distinct from
 `backend.assessment`'s buckets:
 
 | Reference label | Meaning |
@@ -26,27 +31,28 @@ The evaluation-only reference label model is deliberately independent of
 
 `MUST_SHOW` is **not** an alias for `STRONG`; `GENUINE_REJECTION` is **not**
 "whatever the classifier happened to reject." The whole point of an
-independent label is that ASTRA can be evaluated against it, not graded by
-its own assumptions.
+separate label is that ASTRA can eventually be evaluated against independently
+adjudicated judgments, rather than graded by its own assumptions.
 
 `UNCLEAR` cases are counted for coverage and reported, but excluded from
 every *scored* metric's denominator (`backend.evaluation.scored()`) unless a
 metric explicitly says otherwise -- they must never silently become negative
 (`GENUINE_REJECTION`-equivalent) examples.
 
-## Labelling discipline
+## Label provenance and Owner boundary
 
-Every case in `tests/fixtures/fit_evaluation_v1.json` was written with its
-`human_reason` and `reference_label` decided **from the scenario
-description**, before the classifier was ever run against it (the corpus
-generator that produced this file lives outside the shipped repository, but
-its labels were fixed at authoring time; see the generator's own docstring
-for the discipline it followed). Several labelling bugs were found and fixed
-*because* the harness disagreed with a hand-written label -- see "Bugs found
-while building this harness" below; in each case the fix was to the corpus
-or the harness, and the original scenario-based label was kept if it still
-matched, or corrected with a documented reason if the case's own set-up
-(not the label) turned out to be wrong.
+The 80 seed scenarios, rationales, and proposed labels were Claude-authored.
+They were written from the scenario descriptions rather than mechanically
+copied from system buckets, and they deliberately contain label/system
+disagreements. That is useful exploratory input, but it is **not independent
+human-labelled ground truth** and does not yet satisfy issue #42's final label
+adjudication requirement.
+
+`docs/evaluation/FIT_LABEL_REVIEW.md` presents every case for later Owner or
+independent-human adjudication. Reviewers may APPROVE the proposal, CHANGE the
+label, or MARK UNCLEAR. Any material adjudication requires a new
+`human_label_version` and `corpus_content_version`; this foundation does not
+record those decisions on the Owner's behalf.
 
 **`reference_status` is `"PROPOSED"` for every case in this corpus.** No
 label here is Owner-approved ground truth. Nothing in `backend/evaluation.py`
@@ -55,10 +61,10 @@ production defaults are never changed by running this harness.
 
 ## Corpus
 
-`tests/fixtures/fit_evaluation_v1.json`: **80 cases across 12 query sets**
+`tests/fixtures/fit_evaluation_v1.json`: **80 proposed seed cases across 12 query sets**
 (a representative subset of the ~120-case target discussed during planning
 -- deliberately scoped down so this PR stays reviewable; the corpus is
-versioned and designed to grow before the rest of v1.1 ships). Actual label
+versioned and designed to grow before gate approval or production calibration). Actual proposed-label
 distribution:
 
 | Label | Count |
@@ -100,9 +106,11 @@ separately for the Owner to inspect.
 
 ## Primary metrics
 
-Every metric exposes `numerator`, `denominator`, `value`, `status`, and
-`failing_case_ids` where meaningful. **`denominator == 0` always produces
+Every ratio metric exposes `numerator`, `denominator`, `value`, `status`, and
+`failing_case_ids` where meaningful. **`denominator == 0` produces
 `value: null, status: "INSUFFICIENT_DATA"`** -- never a fake 0% or 100%.
+New-engine-only metrics in `--engine legacy` runs instead use explicit
+`UNAVAILABLE` status and are never calculated from null new-engine outcomes.
 
 - **`must_show_false_rejection_rate`**: among `MUST_SHOW` cases, how many the
   new engine hard-rejects (`bucket == REJECTED`). The highest-severity
@@ -146,6 +154,10 @@ fraction of comparable pairs (different reference gain) where the system's
 relative order agrees with the human gain order, micro-averaged across all
 query sets. Bucket-by-reference-label distribution is reported as a
 cross-tab for inspection.
+
+If a query set has zero ideal gain (for example, it contains only
+`GENUINE_REJECTION` cases), nDCG is `null / INSUFFICIENT_DATA` and is excluded
+from the macro average.
 
 ## Legacy vs. new comparison
 
@@ -192,13 +204,16 @@ code change to `backend/assessment.py` and a new ruleset version -- never a
 candidate-policy file alone.**
 
 `backend.evaluation.evaluate_candidate_policies` runs each predeclared
-candidate against the current ruleset baseline on both splits and reports
+candidate against the **real** current-ruleset `new_bucket/new_score` baseline
+on both splits and reports
 the comparison; it **never** auto-adopts a "best" candidate. Preference
 order when comparing candidates (development split only): (1) eliminate
 `MUST_SHOW` rejection, (2) minimize useful false rejection, (3) avoid useful
 legacy-accepted -> new-rejected regressions, (4) control `STRONG`/`GOOD`
 irrelevant leakage, (5) improve nDCG, (6) prefer the smallest deviation from
-the current ruleset. No ML optimizer, no opaque search, no LLM tuning, no
+the current ruleset. A candidate is called improving only when its development
+lexicographic key beats that real baseline; deviation is the final tie-break.
+No ML optimizer, no opaque search, no LLM tuning, no
 protected-demographic or provider-prestige signal, no inference from missing
 facts.
 
@@ -206,20 +221,28 @@ facts.
 
 `tests/fixtures/quality_gate_proposed_v1.json` and `backend.evaluation.
 evaluate_quality_gate` implement the *mechanism* for evaluating explicit,
-versioned quality-gate thresholds against a report -- a check whose metric
-is `INSUFFICIENT_DATA` is **skipped**, never silently passed or failed. The
+versioned quality-gate checks against one named engine/view. Every check names
+a supported metric, operator, threshold, minimum denominator, and whether it
+is required or optional. A required check whose metric is insufficient makes
+the overall gate `INSUFFICIENT_DATA`; an empty gate is invalid and can never
+PASS. Optional checks may be explicitly skipped. The
 shipped gate file's specific threshold values are a **starting proposal
 only**, derived from this baseline's own evidence; see the Owner Review
 section of the PR for the reasoning. **No gate in this repository is
 Owner-approved.**
 
-## Determinism
+## Determinism and report provenance
 
 The same git commit + corpus + ruleset + candidate policy + fixed
 assessment clock (`corpus['fixed_assessment_clock']`, never wall-clock time)
 produces byte-identical JSON: fixed key ordering (`sort_keys=True`), stable
 case/query ordering, no absolute local paths, no random values. Verified by
 `tests/test_fit_evaluation.py::test_determinism_byte_identical_output`.
+Machine output records both `provenance.evaluated_commit` and
+`provenance.evaluated_tree_hash`. A committed report is generated from a clean
+evaluated commit and may be stored by a later report-only commit; the snapshot
+note states that relationship rather than pretending the report contains its
+own future commit SHA.
 
 ## Running the harness
 
@@ -229,21 +252,23 @@ python scripts/evaluate_fit.py --case <id>                        # one case
 python scripts/evaluate_fit.py --query <query_id>                 # one query set
 python scripts/evaluate_fit.py --slice domain=cloud_security       # one tag slice
 python scripts/evaluate_fit.py --split holdout                    # holdout only
-python scripts/evaluate_fit.py --engine new|legacy|compare        # which engine(s)
+python scripts/evaluate_fit.py --engine new|legacy|compare        # legacy marks new-only metrics UNAVAILABLE
 python scripts/evaluate_fit.py --format json|text|markdown
 python scripts/evaluate_fit.py --dedupe                           # add duplicate/stale-link metrics
-python scripts/evaluate_fit.py --candidate-policy path.json       # recompose this run only
+python scripts/evaluate_fit.py --candidate-policy path.json       # candidate becomes the headline metric view
 python scripts/evaluate_fit.py --calibration a.json --calibration b.json --gate gate.json
 ```
 
-An unsupported `corpus_schema_version` or an invalid candidate-policy file
-fails clearly (`backend.evaluation.CorpusError`), never silently falls back.
+Unsupported corpus/label/metric versions, malformed governance fields,
+candidate policies, and quality gates fail clearly
+(`backend.evaluation.CorpusError`), never silently fall back. Candidate policy
+and quality-gate JSON files carry explicit schema versions.
 
 ## Adding a new case to the corpus
 
 1. Write the job/candidate/config scenario first.
-2. Decide the `reference_label` and write `human_reason` **before** running
-   the classifier against it.
+2. Propose the `reference_label` and write `human_reason` **before** running
+   the classifier against it; record it as `PROPOSED`.
 3. Pick a stable, never-reused `id` (`kebab-case`, prefixed with its
    `query_id`).
 4. If the label is `GENUINE_REJECTION`, declare `allowed_hard_reasons`.
@@ -254,6 +279,8 @@ fails clearly (`backend.evaluation.CorpusError`), never silently falls back.
    to be wrong (see "Bugs found while building this harness").
 6. Run the full corpus test (`pytest tests/test_fit_evaluation.py`) to
    confirm the corpus still validates.
+7. Add the case to `FIT_LABEL_REVIEW.md`; independent human/Owner adjudication
+   is a later explicit step, not something the harness infers.
 
 ## Re-running before/after a ranking change
 
@@ -300,9 +327,9 @@ not the classifier's fault either -- genuine harness bugs):
   `K = min(10, pool size)` and should be read as directional, not a fully
   powered top-10 evaluation. The corpus is versioned so it can grow without
   breaking existing case IDs.
-- Labels are Claude-authored from written scenario rationale, not
-  independent human labelling -- `reference_status: PROPOSED` reflects this
-  throughout; see "Owner / ground-truth boundary" in the PR description.
+- Labels are Claude-authored proposals, not independent human labelling;
+  `reference_status: PROPOSED` reflects this throughout. Issue #42 remains
+  open for adjudication, gate approval, and any later production calibration.
 - `stale_link_rate` is a labelled-snapshot proxy; it says nothing about
   whether a link is *actually* dead today.
 - `CONFIRMED_ELIGIBILITY_CONFLICT` has only 1 corpus example; its precision

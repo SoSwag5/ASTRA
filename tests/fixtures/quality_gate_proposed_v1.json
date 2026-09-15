@@ -1,10 +1,19 @@
 {
+  "gate_schema_version": "fit-quality-gate-1",
   "id": "quality-gate-proposed-v1",
   "approval_state": "PROPOSED / NOT OWNER-APPROVED",
-  "description": "A starting-point quality gate for future ranking changes, derived from the #42 baseline evidence. These are proposed values only -- see docs/evaluation/FIT_EVALUATION.md and the Owner Review section of the PR for why each threshold was chosen. Nothing in this repository treats this file as an approved gate.",
-  "max_must_show_false_rejection_rate": 0.0,
-  "max_useful_false_rejection_rate": 0.05,
-  "max_high_priority_leakage": 0.02,
-  "forbid_useful_legacy_accepted_new_rejected": true,
-  "min_hard_reason_sample_size": 3
+  "target_engine": "compare",
+  "target_view": "BASELINE",
+  "description": "A starting-point quality gate for future ranking changes. It remains proposed and non-authoritative; every required check must be evaluable and pass before the gate can pass.",
+  "required_checks": [
+    {"name": "must-show-false-rejection", "metric": "primary_metrics.must_show_false_rejection_rate", "operator": "<=", "threshold": 0.0, "min_denominator": 1},
+    {"name": "useful-false-rejection", "metric": "primary_metrics.useful_false_rejection_rate", "operator": "<=", "threshold": 0.05, "min_denominator": 1},
+    {"name": "high-priority-leakage", "metric": "primary_metrics.high_priority_irrelevant_leakage", "operator": "<=", "threshold": 0.02, "min_denominator": 1},
+    {"name": "new-useful-regression", "metric": "primary_metrics.new_useful_regression_rate", "operator": "<=", "threshold": 0.0, "min_denominator": 1},
+    {"name": "domain-hard-reason-sample", "metric": "hard_reason_precision.DOMAIN_INCOMPATIBLE", "operator": ">=", "threshold": 0.0, "min_denominator": 3},
+    {"name": "geography-hard-reason-sample", "metric": "hard_reason_precision.GEO_INCOMPATIBLE", "operator": ">=", "threshold": 0.0, "min_denominator": 3},
+    {"name": "leadership-hard-reason-sample", "metric": "hard_reason_precision.EXTREME_LEADERSHIP_MISMATCH", "operator": ">=", "threshold": 0.0, "min_denominator": 3},
+    {"name": "eligibility-hard-reason-sample", "metric": "hard_reason_precision.CONFIRMED_ELIGIBILITY_CONFLICT", "operator": ">=", "threshold": 0.0, "min_denominator": 3}
+  ],
+  "optional_checks": []
 }

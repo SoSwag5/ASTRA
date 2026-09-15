@@ -1,4 +1,5 @@
 {
+  "policy_schema_version": "fit-candidate-policy-1",
   "id": "geography-heavier-v1",
   "description": "Weights geography quality more heavily relative to freshness/seniority, on the hypothesis that workplace compatibility matters more to ranking priority than a stale-vs-fresh posting distinction. Recomposes the SAME already-computed component contributions; no semantic classification changes.",
   "weights": {"domain": 25, "career_track": 15, "profile_evidence": 20, "experience": 13, "seniority": 8, "geography": 17, "freshness": 2}

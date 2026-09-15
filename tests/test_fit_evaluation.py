@@ -5,6 +5,7 @@ Network-free, deterministic. Uses the shipped corpus
 corpus-validation edge cases.
 """
 import json
+import copy
 import subprocess
 import sys
 from pathlib import Path
@@ -29,11 +30,12 @@ def results(corpus):
 
 def _minimal_corpus(**overrides):
     base = {
-        'corpus_schema_version': 'fit-eval-corpus-1', 'corpus_content_version': 'test-1',
-        'human_label_version': 'test-1', 'metric_definition_version': 'test-1',
+        'corpus_schema_version': ev.CORPUS_SCHEMA_VERSION, 'corpus_content_version': '2026-09-15.99',
+        'human_label_version': ev.HUMAN_LABEL_VERSION, 'metric_definition_version': ev.METRIC_DEFINITION_VERSION,
         'fixed_assessment_clock': '2026-09-15T00:00:00+00:00',
         'cases': [{
             'id': 'case-1', 'query_id': 'q1', 'source_kind': 'manual', 'reference_opportunity_id': 'opp-1',
+            'split': 'development',
             'job': {'title': 'SOC Analyst', 'description': 'SIEM monitoring', 'location': 'Dubai'},
             'candidate_profile_fixture': {}, 'career_config': {}, 'reference_label': 'MUST_SHOW',
             'reference_status': 'PROPOSED', 'human_reason': 'core match', 'allowed_hard_reasons': [],
@@ -204,8 +206,17 @@ def test_unclear_excluded_from_scored_denominators():
 def test_unclear_never_becomes_negative_example(corpus, results):
     unclear = [r for r in results if r.reference_label == 'UNCLEAR']
     assert unclear
-    for name in ('must_show_false_rejection_rate', 'useful_false_rejection_rate'):
-        pass  # documented by construction: scored() filters UNCLEAR out entirely (see test above)
+    report = ev.build_report(corpus, CORPUS_PATH, unclear)
+    assert report['coverage']['total_cases'] == len(unclear)
+    assert report['coverage']['unclear_count'] == len(unclear)
+    assert report['coverage']['reference_label_distribution'] == {'UNCLEAR': len(unclear)}
+    for metric in report['primary_metrics'].values():
+        if 'low_only' in metric:
+            assert metric['low_only']['status'] == ev.INSUFFICIENT_DATA
+        assert metric['status'] == ev.INSUFFICIENT_DATA
+        assert metric['value'] is None
+    assert report['ranking_metrics']['precision_at_k']['status'] == ev.INSUFFICIENT_DATA
+    assert report['ranking_metrics']['ndcg_at_k']['status'] == ev.INSUFFICIENT_DATA
 
 
 def test_hard_reason_precision_shape(results):
@@ -282,7 +293,7 @@ def test_stale_link_rate_shape(results):
 def test_candidate_policy_never_changes_hard_reject(corpus):
     case = next(c for c in corpus['cases'] if c['reference_label'] == 'GENUINE_REJECTION')
     from backend import assessment
-    policy = ev.CandidatePolicy(id='t', description='t',
+    policy = ev.CandidatePolicy(schema_version=ev.CANDIDATE_POLICY_SCHEMA_VERSION, id='test-policy', description='t',
                                 weights={'domain': 50, 'career_track': 10, 'profile_evidence': 10,
                                         'experience': 10, 'seniority': 10, 'geography': 5, 'freshness': 5})
     item, cfg, profile = case['job'], {**case.get('career_config', {})}, case.get('candidate_profile_fixture', {})
@@ -296,7 +307,8 @@ def test_candidate_policy_never_changes_hard_reject(corpus):
 
 def test_candidate_policy_rejects_bad_weights(tmp_path):
     path = tmp_path / 'policy.json'
-    path.write_text(json.dumps({'id': 'x', 'description': 'x', 'weights': {'domain': 200}}), encoding='utf-8')
+    path.write_text(json.dumps({'policy_schema_version': ev.CANDIDATE_POLICY_SCHEMA_VERSION,
+                                'id': 'candidate-x', 'description': 'x', 'weights': {'domain': 200}}), encoding='utf-8')
     with pytest.raises(ev.CorpusError):
         ev.load_candidate_policy(str(path))
 
@@ -305,7 +317,8 @@ def test_candidate_policy_rejects_weights_not_summing_to_100(tmp_path):
     path = tmp_path / 'policy.json'
     weights = {'domain': 50, 'career_track': 15, 'profile_evidence': 20, 'experience': 15, 'seniority': 10,
               'geography': 10, 'freshness': 5}  # sums to 125
-    path.write_text(json.dumps({'id': 'x', 'description': 'x', 'weights': weights}), encoding='utf-8')
+    path.write_text(json.dumps({'policy_schema_version': ev.CANDIDATE_POLICY_SCHEMA_VERSION,
+                                'id': 'candidate-x', 'description': 'x', 'weights': weights}), encoding='utf-8')
     with pytest.raises(ev.CorpusError, match='sum to 100'):
         ev.load_candidate_policy(str(path))
 
@@ -421,3 +434,235 @@ def test_evaluation_module_makes_no_network_calls(monkeypatch, corpus):
         raise AssertionError('backend.evaluation must never touch the network')
     monkeypatch.setattr(socket, 'getaddrinfo', blocked)
     ev.run_corpus(corpus, engine='compare')
+
+
+# ---------------------------------------------------------------------------
+# Independent-review remediation regressions (F-02 through F-10)
+# ---------------------------------------------------------------------------
+
+def test_calibration_baseline_is_the_real_split_report(corpus):
+    policies = [ev.load_candidate_policy('tests/fixtures/candidate_policies/domain_heavier.json')]
+    calibration = ev.evaluate_candidate_policies(corpus, policies)
+    baseline = calibration['entries'][0]
+    for split in ('development', 'holdout'):
+        split_results = ev.run_corpus(corpus, engine='compare', case_filter=lambda c, s=split: c['split'] == s)
+        report = ev.build_report(corpus, CORPUS_PATH, split_results, split_filter=split)
+        assert baseline[split]['must_show_false_rejection_rate'] == report['primary_metrics']['must_show_false_rejection_rate']
+        assert baseline[split]['useful_false_rejection_rate'] == report['primary_metrics']['useful_false_rejection_rate']
+        assert baseline[split]['high_priority_irrelevant_leakage'] == report['primary_metrics']['high_priority_irrelevant_leakage']
+        assert baseline[split]['ndcg_at_k'] == report['ranking_metrics']['ndcg_at_k']
+
+
+def test_candidate_policy_controls_headline_metric_view(corpus):
+    policy = ev.load_candidate_policy('tests/fixtures/candidate_policies/geography_heavier.json')
+    candidate_results = ev.run_corpus(corpus, engine='compare', candidate_policy=policy)
+    report = ev.build_report(corpus, CORPUS_PATH, candidate_results, candidate_policy=policy, engine='compare')
+    summary = ev.summarize_candidate(candidate_results)
+    assert report['evaluation_view'] == ev.CANDIDATE_VIEW
+    assert report['primary_metrics']['useful_false_rejection_rate'] == summary['useful_false_rejection_rate']
+    assert report['ranking_metrics']['ndcg_at_k'] == summary['ndcg_at_k']
+    assert any(row['candidate_score'] != row['new_score'] for row in report['per_case']
+               if row['candidate_score'] is not None)
+
+
+def test_quality_gate_targets_candidate_view(corpus):
+    policy = ev.load_candidate_policy('tests/fixtures/candidate_policies/geography_heavier.json')
+    candidate_results = ev.run_corpus(corpus, engine='compare', candidate_policy=policy)
+    report = ev.build_report(corpus, CORPUS_PATH, candidate_results, candidate_policy=policy, engine='compare')
+    gate = copy.deepcopy(ev.load_quality_gate('tests/fixtures/quality_gate_proposed_v1.json'))
+    gate['target_view'] = ev.CANDIDATE_VIEW
+    result = ev.evaluate_quality_gate(report, gate)
+    assert result['target_view'] == ev.CANDIDATE_VIEW
+    assert result['checks'][1]['observed'] == report['primary_metrics']['useful_false_rejection_rate']['value']
+
+
+@pytest.mark.parametrize(('field', 'value', 'message'), [
+    ('metric_definition_version', 'metrics-v999', 'Unsupported metric_definition_version'),
+    ('human_label_version', 'labels-v999', 'Unsupported human_label_version'),
+])
+def test_rejects_unknown_corpus_governance_versions(tmp_path, field, value, message):
+    data = _minimal_corpus()
+    data[field] = value
+    with pytest.raises(ev.CorpusError, match=message):
+        ev.load_corpus(_write(tmp_path, data))
+
+
+def test_rejects_non_proposed_reference_status(tmp_path):
+    data = _minimal_corpus()
+    data['cases'][0]['reference_status'] = 'OWNER_APPROVED'
+    with pytest.raises(ev.CorpusError, match='invalid reference_status'):
+        ev.load_corpus(_write(tmp_path, data))
+
+
+def test_rejects_invalid_split(tmp_path):
+    data = _minimal_corpus()
+    data['cases'][0]['split'] = 'secret-test'
+    with pytest.raises(ev.CorpusError, match='invalid split'):
+        ev.load_corpus(_write(tmp_path, data))
+
+
+def test_rejects_duplicate_reference_opportunity_ids(tmp_path):
+    data = _minimal_corpus()
+    duplicate = copy.deepcopy(data['cases'][0])
+    duplicate['id'] = 'case-2'
+    data['cases'].append(duplicate)
+    with pytest.raises(ev.CorpusError, match='Duplicate reference_opportunity_id'):
+        ev.load_corpus(_write(tmp_path, data))
+
+
+def test_rejects_malformed_query_id(tmp_path):
+    data = _minimal_corpus()
+    data['cases'][0]['query_id'] = 'Bad Query!'
+    with pytest.raises(ev.CorpusError, match='query_id'):
+        ev.load_corpus(_write(tmp_path, data))
+
+
+def test_rejects_unknown_allowed_hard_reason(tmp_path):
+    data = _minimal_corpus()
+    data['cases'][0]['reference_label'] = 'GENUINE_REJECTION'
+    data['cases'][0]['allowed_hard_reasons'] = ['MADE_UP_REASON']
+    with pytest.raises(ev.CorpusError, match='invalid allowed_hard_reasons'):
+        ev.load_corpus(_write(tmp_path, data))
+
+
+def _valid_policy_data():
+    return {'policy_schema_version': ev.CANDIDATE_POLICY_SCHEMA_VERSION, 'id': 'candidate-test',
+            'description': 'test candidate', 'weights': dict(ev.assessment.WEIGHTS)}
+
+
+def test_rejects_negative_candidate_weight(tmp_path):
+    data = _valid_policy_data()
+    data['weights']['domain'] = -1
+    data['weights']['career_track'] += 26
+    with pytest.raises(ev.CorpusError, match='nonnegative'):
+        ev.load_candidate_policy(_write(tmp_path, data, 'policy.json'))
+
+
+def test_rejects_nonnumeric_candidate_weight(tmp_path):
+    data = _valid_policy_data()
+    data['weights']['domain'] = '25'
+    with pytest.raises(ev.CorpusError, match='finite number'):
+        ev.load_candidate_policy(_write(tmp_path, data, 'policy.json'))
+
+
+def test_rejects_unknown_candidate_component(tmp_path):
+    data = _valid_policy_data()
+    data['weights']['surprise'] = data['weights'].pop('domain')
+    with pytest.raises(ev.CorpusError, match='cover exactly'):
+        ev.load_candidate_policy(_write(tmp_path, data, 'policy.json'))
+
+
+@pytest.mark.parametrize('floors', [
+    [[80, 'SUPER'], [65, 'GOOD'], [45, 'STRETCH'], [0, 'LOW']],
+    [[65, 'GOOD'], [80, 'STRONG'], [45, 'STRETCH'], [0, 'LOW']],
+    [['high', 'STRONG'], [65, 'GOOD'], [45, 'STRETCH'], [0, 'LOW']],
+])
+def test_rejects_invalid_candidate_bucket_floors(tmp_path, floors):
+    data = _valid_policy_data()
+    data['bucket_floors'] = floors
+    with pytest.raises(ev.CorpusError):
+        ev.load_candidate_policy(_write(tmp_path, data, 'policy.json'))
+
+
+def test_rejects_unsupported_candidate_policy_schema(tmp_path):
+    data = _valid_policy_data()
+    data['policy_schema_version'] = 'fit-candidate-policy-999'
+    with pytest.raises(ev.CorpusError, match='Unsupported policy_schema_version'):
+        ev.load_candidate_policy(_write(tmp_path, data, 'policy.json'))
+
+
+def test_empty_quality_gate_is_rejected():
+    with pytest.raises(ev.CorpusError, match='missing required field'):
+        ev.validate_quality_gate({})
+
+
+@pytest.mark.parametrize(('mutation', 'message'), [
+    (lambda g: g.update(gate_schema_version='fit-quality-gate-999'), 'Unsupported gate_schema_version'),
+    (lambda g: g.update(target_engine='legacy'), 'target_engine'),
+    (lambda g: g.update(target_view='ANY'), 'target_view'),
+    (lambda g: g['required_checks'][0].update(metric='primary_metrics.made_up'), 'unsupported metric'),
+    (lambda g: g['required_checks'][0].update(operator='~='), 'unsupported operator'),
+    (lambda g: g['required_checks'][0].update(threshold='zero'), 'finite number'),
+    (lambda g: g['required_checks'][0].update(min_denominator=-1), 'nonnegative integer'),
+])
+def test_rejects_invalid_quality_gate_fields(mutation, message):
+    gate = copy.deepcopy(ev.load_quality_gate('tests/fixtures/quality_gate_proposed_v1.json'))
+    mutation(gate)
+    with pytest.raises(ev.CorpusError, match=message):
+        ev.validate_quality_gate(gate)
+
+
+def test_all_required_insufficient_gate_is_not_pass(corpus):
+    report = ev.build_report(corpus, CORPUS_PATH, [])
+    gate = ev.load_quality_gate('tests/fixtures/quality_gate_proposed_v1.json')
+    result = ev.evaluate_quality_gate(report, gate)
+    assert result['gate_status'] == ev.INSUFFICIENT_DATA
+    assert all(check['status'] == ev.INSUFFICIENT_DATA for check in result['checks'])
+
+
+def test_quality_gate_rejects_wrong_report_view(corpus):
+    policy = ev.load_candidate_policy('tests/fixtures/candidate_policies/geography_heavier.json')
+    results = ev.run_corpus(corpus, candidate_policy=policy)
+    report = ev.build_report(corpus, CORPUS_PATH, results, candidate_policy=policy)
+    baseline_gate = ev.load_quality_gate('tests/fixtures/quality_gate_proposed_v1.json')
+    with pytest.raises(ev.CorpusError, match='targets view'):
+        ev.evaluate_quality_gate(report, baseline_gate)
+
+
+def test_legacy_engine_marks_new_metrics_unavailable(corpus):
+    legacy = ev.run_corpus(corpus, engine='legacy')
+    report = ev.build_report(corpus, CORPUS_PATH, legacy, engine='legacy')
+    assert report['evaluation_view'] == ev.LEGACY_VIEW
+    assert all(metric['status'] == ev.UNAVAILABLE for metric in report['primary_metrics'].values())
+    assert report['ranking_metrics']['ndcg_at_k']['status'] == ev.UNAVAILABLE
+    assert report['pairwise_ordering_agreement']['status'] == ev.UNAVAILABLE
+
+
+def test_ndcg_zero_ideal_gain_is_insufficient():
+    rejection = ev.CaseResult(id='genuine-only', query_id='q1', split='development', source_kind='manual',
+                              reference_label='GENUINE_REJECTION', reference_status='PROPOSED',
+                              allowed_hard_reasons=['DOMAIN_INCOMPATIBLE'], reference_link_state='LIKELY_LIVE',
+                              tags={}, new_bucket='REJECTED', new_score=None,
+                              new_hard_reason='DOMAIN_INCOMPATIBLE')
+    result = ev.precision_recall_ndcg_at_k({'q1': [rejection]})
+    assert result['per_query_set']['q1']['ndcg'] is None
+    assert result['ndcg_at_k']['value'] is None
+    assert result['ndcg_at_k']['status'] == ev.INSUFFICIENT_DATA
+
+
+def test_report_provenance_identifies_exact_commit_and_tree(corpus, results):
+    report = ev.build_report(corpus, CORPUS_PATH, results)
+    expected_commit = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True,
+                                     text=True, check=True).stdout.strip()
+    expected_tree = subprocess.run(['git', 'rev-parse', 'HEAD^{tree}'], cwd=ROOT, capture_output=True,
+                                   text=True, check=True).stdout.strip()
+    assert report['provenance']['evaluated_commit'] == expected_commit
+    assert report['provenance']['evaluated_tree_hash'] == expected_tree
+    assert report['git_commit'] == expected_commit
+
+
+def test_cli_text_includes_requested_extended_sections():
+    result = subprocess.run([
+        sys.executable, 'scripts/evaluate_fit.py', '--dedupe',
+        '--calibration', 'tests/fixtures/candidate_policies/domain_heavier.json',
+        '--gate', 'tests/fixtures/quality_gate_proposed_v1.json', '--format', 'text'],
+        cwd=str(ROOT), capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0
+    assert 'Duplicate / stale-link:' in result.stdout
+    assert 'Calibration candidates (PROPOSED, not adopted):' in result.stdout
+    assert 'Quality gate quality-gate-proposed-v1' in result.stdout
+
+
+@pytest.mark.parametrize(('option', 'kind'), [
+    ('--corpus', 'Corpus error:'),
+    ('--candidate-policy', 'Candidate policy error:'),
+    ('--gate', 'Quality gate error:'),
+])
+def test_cli_malformed_json_is_bounded(tmp_path, option, kind):
+    bad = tmp_path / 'bad.json'
+    bad.write_text('{bad json', encoding='utf-8')
+    result = subprocess.run([sys.executable, 'scripts/evaluate_fit.py', option, str(bad)],
+                            cwd=str(ROOT), capture_output=True, text=True, timeout=60)
+    assert result.returncode == 2
+    assert kind in result.stderr
+    assert 'Traceback' not in result.stderr

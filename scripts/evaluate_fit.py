@@ -53,8 +53,10 @@ def build_case_filter(args):
     slice_filters = {}
     for item in args.slice:
         if '=' not in item:
-            raise SystemExit(f'--slice must be TAG=VALUE, got: {item!r}')
+            raise ev.CorpusError(f'--slice must be TAG=VALUE, got: {item!r}')
         tag, value = item.split('=', 1)
+        if not tag or not value:
+            raise ev.CorpusError(f'--slice must have non-empty TAG and VALUE, got: {item!r}')
         slice_filters[tag] = value
         filters.append(lambda c, tag=tag, value=value: c.get('tags', {}).get(tag) == value)
     if args.split:
@@ -65,11 +67,13 @@ def build_case_filter(args):
     return (combined if filters else None), slice_filters
 
 
-def render_text(report):
+def render_text(report, calibration=None, gate_result=None):
     lines = []
     lines.append(f"Corpus: {report['corpus_content_version']} ({report['coverage']['total_cases']} cases, "
                  f"{report['coverage']['query_sets']} query sets, {report['coverage']['unclear_count']} UNCLEAR)")
-    lines.append(f"Engine: {report['engine']}   Git commit: {report['git_commit']}")
+    lines.append(f"Engine/view: {report['engine']} / {report['evaluation_view']}")
+    lines.append(f"Evaluated commit: {report['provenance']['evaluated_commit']}")
+    lines.append(f"Evaluated tree: {report['provenance']['evaluated_tree_hash']}")
     lines.append('')
     lines.append('Primary metrics:')
     for name, m in report['primary_metrics'].items():
@@ -91,18 +95,50 @@ def render_text(report):
     lt = report['legacy_new_transitions']
     lines.append(f"  category counts: {lt['category_counts']}")
     lines.append(f"  new regressions (reference-useful): {lt['new_regression_case_ids_reference_useful']}")
+    if 'duplicate_rate' in report:
+        lines.append('')
+        lines.append('Duplicate / stale-link:')
+        lines.append(f"  dedupe recall: {_fmt_rate(report['duplicate_rate']['dedupe_recall_rate'])}")
+        lines.append(f"  false merge: {_fmt_rate(report['duplicate_rate']['false_merge_rate'])}")
+        lines.append(f"  stale-link snapshot proxy: {_fmt_rate(report['stale_link_rate'])}")
+    if calibration is not None:
+        lines.append('')
+        lines.append('Calibration candidates (PROPOSED, not adopted):')
+        for entry in calibration['entries']:
+            for split in ('development', 'holdout'):
+                summary = entry[split]
+                lines.append(f"  {entry['id']} / {split}: useful FR "
+                             f"{_fmt_rate(summary['useful_false_rejection_rate'])}; "
+                             f"nDCG@10 {_fmt_value(summary['ndcg_at_k'])}")
+        improving = calibration['smallest_improvement_candidate_id'] or 'none'
+        lines.append(f"  development improving candidate: {improving}")
+        lines.append(f"  {calibration['note']}")
+    if gate_result is not None:
+        lines.append('')
+        lines.append(f"Quality gate {gate_result['gate_id']} (PROPOSED, NOT OWNER-APPROVED): "
+                     f"{gate_result['gate_status']}")
+        for check in gate_result['checks']:
+            detail = f" observed={check.get('observed')}" if 'observed' in check else ''
+            if check.get('reason'):
+                detail += f" reason={check['reason']} denominator={check.get('denominator')} "
+                detail += f"minimum={check.get('min_denominator')}"
+            lines.append(f"  {check['name']}: {check['status']}{detail}")
     return '\n'.join(lines)
 
 
 def _fmt_rate(m):
     if m['status'] == ev.INSUFFICIENT_DATA:
         return 'INSUFFICIENT_DATA (denominator=0)'
+    if m['status'] == ev.UNAVAILABLE:
+        return f"UNAVAILABLE ({m.get('reason', 'unsupported engine/view')})"
     return f"{m['value']:.4f} ({m['numerator']}/{m['denominator']})"
 
 
 def _fmt_value(m):
     if m['status'] == ev.INSUFFICIENT_DATA:
         return 'INSUFFICIENT_DATA'
+    if m['status'] == ev.UNAVAILABLE:
+        return f"UNAVAILABLE ({m.get('reason', 'unsupported engine/view')})"
     return f"{m['value']:.4f} (over {m['query_sets_scored']} query sets)"
 
 
@@ -122,10 +158,10 @@ def main(argv=None):
             print(f'Candidate policy error: {e}', file=sys.stderr)
             return 2
 
-    case_filter, slice_filters = build_case_filter(args)
     try:
+        case_filter, slice_filters = build_case_filter(args)
         results = ev.run_corpus(corpus, engine=args.engine, case_filter=case_filter, candidate_policy=candidate_policy)
-    except Exception as e:
+    except ev.CorpusError as e:
         print(f'Evaluation error: {e}', file=sys.stderr)
         return 2
     if not results:
@@ -149,8 +185,12 @@ def main(argv=None):
 
     gate_result = None
     if args.gate:
-        gate = json.loads(Path(args.gate).read_text(encoding='utf-8'))
-        gate_result = ev.evaluate_quality_gate(report, gate)
+        try:
+            gate = ev.load_quality_gate(args.gate)
+            gate_result = ev.evaluate_quality_gate(report, gate)
+        except ev.CorpusError as e:
+            print(f'Quality gate error: {e}', file=sys.stderr)
+            return 2
 
     if args.format == 'json':
         out = dict(report)
@@ -162,7 +202,7 @@ def main(argv=None):
     elif args.format == 'markdown':
         print(ev.render_markdown(report, calibration=calibration, gate_result=gate_result), end='')
     else:
-        print(render_text(report))
+        print(render_text(report, calibration=calibration, gate_result=gate_result))
     return 0
 
 
