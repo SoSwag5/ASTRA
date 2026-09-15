@@ -16,18 +16,15 @@ def date(value):
  except (ValueError,TypeError):return None
 
 def experience(text):
- """Retain lower/upper bounds, preference and supporting clause; never sum tenures."""
- output=[]
- for clause in re.split(r'[\n;.!?]|,(?=\s*(?:more than|at least|over)?\s*\d+\s*(?:years?|yrs?))',text):
-  if not re.search(r'experience|required|preferred|desirable|minimum|at least|years?\s+(?:in|of)|خبرة',clause,re.I):continue
-  if re.search(r'company|founded|in business|our history',clause,re.I) and not re.search(r'you|candidate|applicant',clause,re.I):continue
-  if re.search(r'years?\s+of\s+(?:behavioral|historical|training|customer|industry|security)?\s*data',clause,re.I) and not re.search(r'experience',clause,re.I):continue
-  for m in re.finditer(r'(\d{1,2})\s*(?:[-–—]|to)?\s*(\d{1,2})?\s*(\+)?\s*(?:years?|yrs?)\b',clause,re.I):
-   low=int(m[1]);high=int(m[2]) if m[2] else None
-   if high is not None and high<low:continue
-   output.append({'minimum':low,'maximum':high,'plus':bool(m[3]),'preferred':bool(re.search(r'preferred|desirable|nice.to.have|bonus|advantage|a plus',clause,re.I)),'evidence':clause.strip()[:500]})
- mandatory=[r['minimum'] for r in output if not r['preferred']]
- return {'requirements':output,'minimum':max(mandatory,default=0),'stated':bool(output),'preferred_minimum':max((r['minimum'] for r in output if r['preferred']),default=0)}
+ """Legacy-shaped experience summary, now backed by backend.experience's
+ scoped clause parser (issue #41). Kept for callers that still expect the
+ old flattened dict shape (a single 'minimum', not scoped clauses) --
+ backend.assessment consumes backend.experience.parse() directly instead.
+ """
+ from . import experience as _experience_module
+ req=_experience_module.parse(text)
+ requirements=[{'minimum':c.minimum_years,'maximum':c.maximum_years,'plus':c.plus,'preferred':c.necessity==_experience_module.PREFERRED,'evidence':c.original_text} for c in req.clauses]
+ return {'requirements':requirements,'minimum':req.effective_required_minimum if req.effective_required_minimum is not None else 0,'stated':req.stated,'preferred_minimum':req.effective_preferred_minimum if req.effective_preferred_minimum is not None else 0}
 
 def role(title,description='',cfg=None):
  if re.search(r'physical security|security guard|loss prevention|\bgsoc\b',title,re.I):return {'family':'Physical security','kind':'UNRELATED','signals':[]}
@@ -56,7 +53,14 @@ def eligibility(text,p):
  citizen=d.get('uae_citizen') if d.get('uae_citizenship_confirmed') is True else None
  return {'state':'ELIGIBLE' if citizen is True else 'INELIGIBLE' if citizen is False else 'UNKNOWN','scope':'UAE nationality restriction','evidence':evidence}
 
-def evaluate(item,cfg,p=None,clock=None):
+def evaluate_legacy(item,cfg,p=None,clock=None):
+ """Pre-issue-#41 authoritative evaluator. Retained ONLY for #42 shadow
+ comparison and rollback (assessment_mode == 'LEGACY') -- see
+ docs/architecture/FIT_ASSESSMENT.md. Its TOO_SENIOR/EXPERIENCE_GAP/
+ ROLE_NOT_RELEVANT hard-rejection behavior is exactly the over-aggressive
+ false-positive pattern issue #41 was written to retire; nothing new should
+ call this expecting authoritative product behavior.
+ """
  p=p or {};clock=clock or datetime.now(timezone.utc);policy_name=cfg.get('discovery_policy','BALANCED');policy={**POLICIES.get(policy_name,POLICIES['BALANCED']),**cfg.get('recall_thresholds',{})}
  title=item.get('title','');desc=item.get('description','');loc=item.get('location','');text=title+'\n'+desc+'\n'+item.get('experience_requirement','')
  family=role(title,desc,cfg);exp=experience(text);elig=eligibility(text,p)
@@ -116,14 +120,98 @@ def evaluate(item,cfg,p=None,clock=None):
 
 def funnel(decisions):
  from collections import Counter
- f={'fetched':len(decisions),'uae':0,'role_relevant':0,'seniority_compatible':0,'location_compatible':0,'eligibility_not_incompatible':0,'fresh_7d':0,'date_unknown':0,'plausible':0,'strong':0,'stretch':0,'possible':0,'excluded':0,'new':0,'duplicates':0,'already_seen':0,'near_misses':0};reasons=Counter()
- for row in decisions:
+ valid=[row for row in decisions if row.get('decision')]
+ f={'fetched':len(decisions),'invalid':len(decisions)-len(valid),'uae':0,'role_relevant':0,'seniority_compatible':0,'location_compatible':0,'eligibility_not_incompatible':0,'fresh_7d':0,'date_unknown':0,'plausible':0,'strong':0,'stretch':0,'possible':0,'excluded':0,'new':0,'duplicates':0,'already_seen':0,'near_misses':0};reasons=Counter()
+ for row in valid:
   d=row['decision'];f['uae']+=d['uae'];f['role_relevant']+=d['role']['kind']!='UNRELATED';f['seniority_compatible']+=d['seniority_compatible'];f['location_compatible']+=d['location_compatible'];f['eligibility_not_incompatible']+=d['eligibility']['state']!='INELIGIBLE';f['fresh_7d']+=d['freshness'] in ('POSTED_24H','POSTED_3D','POSTED_7D');f['date_unknown']+=d['age_days'] is None;f['excluded']+=d['excluded'];f['plausible']+=not d['excluded'];f['near_misses']+=d['near_miss'];f['new']+=row.get('disposition')=='NEW';f['duplicates']+=row.get('disposition')=='DUPLICATE';f['already_seen']+=bool(row.get('already_seen'))
   if d['fit_band'].lower() in f:f[d['fit_band'].lower()]+=1 if d['fit_band']!='EXCLUDED' else 0
   if d['hard']:reasons[d['hard'][0]['code']]+=1
- stages={'Fetched':len(decisions)};remaining=decisions
- for label,codes in [('UAE or location worth verifying',{'NON_UAE','REMOTE_NOT_UAE_COMPATIBLE'}),('Target-track role or adjacent duties',{'ROLE_NOT_RELEVANT','EXCLUDED_ROLE'}),('Seniority plausible',{'TOO_SENIOR'}),('Experience plausible under policy',{'EXPERIENCE_GAP'}),('No confirmed eligibility conflict',{'EXPLICIT_NATIONALITY_RESTRICTION'}),('Not closed or blocked',{'EXPIRED','BLOCKED_COMPANY','BLOCKED_DOMAIN'})]:
+ stages={'Fetched':len(decisions)};remaining=valid
+ # Code sets include both issue #41's hard-reject taxonomy and the retired
+ # legacy codes (only ever produced by evaluate_legacy/assessment_mode
+ # LEGACY), so this funnel stays meaningful in every assessment mode.
+ for label,codes in [('UAE or location worth verifying',{'NON_UAE','REMOTE_NOT_UAE_COMPATIBLE','GEO_INCOMPATIBLE'}),('Target-track role or adjacent duties',{'ROLE_NOT_RELEVANT','EXCLUDED_ROLE','DOMAIN_INCOMPATIBLE'}),('Seniority plausible',{'TOO_SENIOR','EXTREME_LEADERSHIP_MISMATCH'}),('Experience plausible under policy',{'EXPERIENCE_GAP'}),('No confirmed eligibility conflict',{'EXPLICIT_NATIONALITY_RESTRICTION','CONFIRMED_ELIGIBILITY_CONFLICT'}),('Not closed or blocked',{'EXPIRED','BLOCKED_COMPANY','BLOCKED_DOMAIN','USER_BLOCKED'})]:
   remaining=[r for r in remaining if not any(e['code'] in codes for e in r['decision']['hard'])];stages[label]=len(remaining)
  stages['Daily review candidates']=sum(r['decision']['daily'] for r in remaining)
  stages['New daily review candidates']=sum(r['decision']['daily'] and r.get('disposition')=='NEW' for r in remaining)
- return {'counts':f,'stages':stages,'primary_exclusions':dict(reasons),'signal_counts':dict(Counter(r['code'] for row in decisions for r in row['decision']['hard']+row['decision']['soft'])),'definition':'Attribute counts overlap; stages are successive. Primary exclusions are mutually exclusive. plausible + excluded = fetched. new + duplicates = persisted plausible rows on successful sources; errors are explicit.'}
+ return {'counts':f,'stages':stages,'primary_exclusions':dict(reasons),'signal_counts':dict(Counter(r['code'] for row in valid for r in row['decision']['hard']+row['decision']['soft'])),'definition':'Attribute counts overlap; stages are successive. Primary exclusions are mutually exclusive. plausible + excluded + invalid = fetched. new + duplicates = persisted structurally valid rows on successful sources; errors are explicit.'}
+
+def _legacy_shape(new,item,cfg,clock):
+ """Project a backend.assessment FitAssessment dict into the pre-#41 decision
+ shape every existing caller (recall_api, services.score, main.py's discover
+ loop, funnel()) already knows how to read, so #41 does not require a
+ simultaneous rewrite of every consumer. `fit_assessment` carries the full
+ structured record for anything that wants the richer #41 data directly.
+ """
+ hard=[{'code':new['hard_reject']['code'],'evidence':new['hard_reject']['explanation'][:600]}] if new['hard_reject'] else []
+ # Deliberately excludes new['uncertainty'] (e.g. "posted date unknown"):
+ # an absence of information must stay informational, never gate a
+ # confident recommendation the way a real penalty does (non-negotiable
+ # outcomes #5/#6/#14) -- see docs/architecture/FIT_ASSESSMENT.md.
+ soft=[{'code':p['code'],'evidence':p['explanation'][:600]} for p in new['penalties']]
+ band={'STRONG':'STRONG','GOOD':'STRONG','STRETCH':'STRETCH','LOW':'POSSIBLE','REJECTED':'EXCLUDED'}[new['bucket']]
+ role_kind={'CORE':'DIRECT','CUSTOM':'DIRECT','ADJACENT':'ADJACENT','CONTEXTUAL':'ADJACENT','AMBIGUOUS':'ADJACENT','OUTSIDE':'UNRELATED'}[new['match_type']]
+ geo=new['geography'];excluded=bool(new['hard_reject'])
+ elig_code=new['hard_reject']['code'] if new['hard_reject'] else None
+ elig=new.get('eligibility',{'state':'UNKNOWN','scope':'Issue #41 assessment','evidence':[]})
+ posted=date(item.get('date_posted'));closing=date(item.get('closing_date'));age=(clock-posted).total_seconds()/86400 if posted else None
+ if closing and closing<clock and not excluded:soft.append({'code':'EXPIRED','evidence':'Explicit closing date: '+str(item.get('closing_date'))})
+ if age is not None and age<0:age=None
+ freshness='POSTED_24H' if age is not None and 0<=age<=1 else 'POSTED_3D' if age is not None and age<=3 else 'POSTED_7D' if age is not None and age<=7 else 'OLDER' if age is not None else 'DATE_UNKNOWN'
+ return {'version':VERSION,'policy':cfg.get('discovery_policy','BALANCED'),'priority':new['score'] if new['score'] is not None else 0,
+  'fit_band':band,'role':{'family':new['role_family'],'kind':role_kind,'signals':new['matched_tracks'] or new['matched_skills'][:5]},
+  'experience':{'requirements':[{'minimum':c['minimum_years'],'maximum':c['maximum_years'],'plus':c['plus'],'preferred':c['necessity']=='PREFERRED','evidence':c['original_text']} for c in new['experience']['clauses']],
+   'minimum':new['experience']['effective_required_minimum'] or 0,'stated':new['experience']['stated'],'preferred_minimum':new['experience']['effective_preferred_minimum'] or 0},
+  'verified_years':None,'eligibility':elig,
+  'hard':hard,'soft':soft,'excluded':excluded,'near_miss':not excluded and new['bucket']=='STRETCH',
+  'daily':not excluded and new['bucket'] in ('STRONG','GOOD'),'uae':geo['compatibility']=='COMPATIBLE',
+  'location_compatible':geo['compatibility']!='INCOMPATIBLE','seniority_compatible':new['seniority']['title_level'] not in ('LEAD','MANAGER','EXECUTIVE'),
+  'age_days':round(age,1) if age is not None else None,'freshness':freshness,'why_review':new['explanation'],
+  'matched_core_skills':new['matched_skills'],'fit_assessment':new}
+
+def _assessment_shadow(legacy,new):
+ """Bounded comparison only; no raw job/profile text or calibration data."""
+ legacy_reason=legacy['hard'][0]['code'] if legacy.get('hard') else None
+ new_reason=new['hard_reject']['code'] if new.get('hard_reject') else None
+ if legacy.get('excluded') and not new.get('hard_reject'):
+  category='LEGACY_REJECTED_NEW_'+new['bucket']
+ elif not legacy.get('excluded') and new.get('hard_reject'):
+  category='NEW_REJECTED'
+ elif legacy.get('excluded') and new.get('hard_reject'):
+  category='SAME_REJECTION' if legacy_reason==new_reason else 'CHANGED_REJECTION_REASON'
+ else:
+  category='SAME_RANKABLE' if legacy.get('priority')==new.get('score') else 'RANKING_CHANGED'
+ return {'legacy_excluded':bool(legacy.get('excluded')),
+         'legacy_primary_reason':legacy_reason,
+         'legacy_priority':legacy.get('priority'),
+         'new_bucket':new.get('bucket'),
+         'new_priority':new.get('score'),
+         'new_hard_reject':new_reason,
+         'comparison_category':category}
+
+def evaluate(item,cfg,p=None,clock=None):
+ """Issue #41 authoritative evaluator. Deterministic, local, explainable --
+ see backend.assessment. Retains the pre-#41 decision dict shape so every
+ existing caller keeps working unchanged; the full structured result is
+ available under the returned dict's 'fit_assessment' key.
+
+ assessment_mode (Settings, default NEW):
+ - NEW: this engine is authoritative; evaluate_legacy() is also computed and
+   attached as 'legacy_shadow' for #42 comparison, never for a product decision.
+ - SHADOW: evaluate_legacy() is authoritative; this engine still runs and is
+   attached under 'fit_assessment' for diagnostics only.
+ - LEGACY: rollback path -- evaluate_legacy() only, unchanged.
+ """
+ cfg=cfg or {};p=p or {};clock=clock or datetime.now(timezone.utc)
+ mode=cfg.get('assessment_mode','NEW')
+ if mode=='LEGACY':return evaluate_legacy(item,cfg,p,clock)
+ from . import assessment
+ new=assessment.assess(item,cfg,p,clock)
+ legacy=evaluate_legacy(item,cfg,p,clock)
+ comparison=_assessment_shadow(legacy,new)
+ if mode=='SHADOW':
+  legacy['fit_assessment']=new;legacy['assessment_shadow']=comparison;return legacy
+ result=_legacy_shape(new,item,cfg,clock)
+ result['legacy_shadow']=legacy
+ result['assessment_shadow']=comparison
+ return result

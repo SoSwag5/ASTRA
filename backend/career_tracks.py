@@ -106,6 +106,21 @@ TRACKS = OrderedDict({
     },
 })
 
+# Issue #41: strong unrelated-profession title evidence. Used only as one
+# side of DOMAIN_INCOMPATIBLE's required conjunction (backend/assessment.py)
+# -- never sufficient alone when a role also carries credible enabled-track,
+# custom-role, or contextual technical evidence.
+UNRELATED_PROFESSIONS = ['mechanical engineer', 'civil engineer', 'accountant', 'registered nurse', 'staff nurse',
+                          'marketing specialist', 'marketing executive', 'sales representative', 'sales executive',
+                          'sales manager', 'corporate counsel', 'legal counsel', 'attorney']
+PHYSICAL_SECURITY_SIGNALS = ['physical security', 'security guard', 'loss prevention', 'gsoc', 'patrol',
+                              'premises security', 'access gate', 'security patrol', 'guard duty', 'watchman']
+# Evidence that a "Security Officer"/"Security Analyst"-shaped title is
+# technical cyber work rather than a physical-security posting sharing the
+# same generic word.
+TECHNICAL_SECURITY_CONTEXT = ['siem', 'iam', 'incident response', 'soc', 'vulnerability', 'penetration test',
+                               'firewall', 'endpoint', 'cloud security', 'network security', 'devsecops', 'grc']
+
 def _has(text, phrase):
     return bool(re.search(r'(?<!\w)' + re.escape(phrase) + r'(?!\w)', text or '', re.I))
 
@@ -113,8 +128,21 @@ def selected_ids(cfg):
     return [key for key in (cfg or {}).get('career_tracks', []) if key in TRACKS]
 
 def active_tracks(cfg):
+    cfg = cfg or {}
     ids = selected_ids(cfg)
-    return [TRACKS[key] for key in ids] if ids else list(TRACKS.values())
+    if ids:
+        return [TRACKS[key] for key in ids]
+    if not cfg.get('search_focus_confirmed', False):
+        # Fresh/unconfigured install (Settings.FRESH_DEFAULTS), or any
+        # minimal/ad-hoc cfg with no real settings row behind it at all:
+        # no explicit choice has been confirmed, so fall back to every
+        # built-in track exactly as before this fix.
+        return list(TRACKS.values())
+    # Issue #41 custom-only fix: the user has confirmed their search focus
+    # and explicitly selected zero built-in tracks (a custom-roles-only
+    # setup). That must not silently re-activate every built-in track --
+    # custom target roles remain first-class on their own.
+    return []
 
 def families(cfg):
     output = OrderedDict()
