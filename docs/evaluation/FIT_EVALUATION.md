@@ -247,6 +247,22 @@ evaluated commit and may be stored by a later report-only commit; the snapshot
 note states that relationship rather than pretending the report contains its
 own future commit SHA.
 
+`backend.evaluation.verify_report_provenance()` is the single contract for
+checking a committed report's provenance (`tests/test_fit_evaluation.py`'s
+`test_committed_report_provenance_binds_current_corpus_and_evaluated_commit`
+calls it; nothing duplicates its logic). It proves the corpus blob stored at
+`provenance.evaluated_commit` -- and the corpus currently on disk -- both hash
+to the report's `corpus_sha256`, and that `evaluated_tree_hash` is that
+commit's real tree. It deliberately does **not** require `evaluated_commit`
+to be a commit-graph ancestor of the current checkout: an authorized squash
+merge (the normal way a PR lands here) replaces branch history while
+preserving the approved tree content, so graph ancestry would fail on every
+ordinary squash merge for a reason unrelated to whether the report is
+trustworthy. Content equivalence, not ancestry, is the proof. A fabricated or
+missing `evaluated_commit`, a forged `evaluated_tree_hash`, or corpus drift at
+either end still raises `ProvenanceError` -- existence of a historical commit
+is necessary but never sufficient by itself.
+
 ## Running the harness
 
 ```

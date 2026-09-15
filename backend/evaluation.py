@@ -788,6 +788,89 @@ def _git_tree_hash():
         return 'UNKNOWN'
 
 
+class ProvenanceError(ValueError):
+    """A committed report's provenance claim does not hold against the
+    current repository state (a fabricated/malformed claim, or genuine
+    corpus drift)."""
+
+
+def verify_report_provenance(report, corpus_path, *, repo_root=None):
+    """Prove a committed report's binding to the source snapshot it was
+    evaluated from and to the corpus currently on disk -- without requiring
+    `provenance.evaluated_commit` to be a commit-graph ancestor of the
+    current checkout.
+
+    An authorized squash merge deliberately replaces branch history while
+    preserving the approved tree content, so graph ancestry is not evidence
+    of anything a squash merge does not already guarantee; requiring it
+    makes every future squash merge fail this check for a reason that has
+    nothing to do with whether the report is trustworthy. What this proves
+    instead, and what actually matters:
+
+    1. `provenance.evaluated_commit` names a commit object that genuinely
+       exists in this repository. This is a necessary sanity check, never
+       sufficient by itself -- the availability of an arbitrary historical
+       commit (e.g. fetched from an untrusted remote) proves nothing on its
+       own; checks 3-4 below are the real content-based proof.
+    2. `provenance.evaluated_tree_hash` is that commit's actual tree hash
+       (catches a forged or stale claim).
+    3. The corpus blob Git stored in that commit hashes to the report's
+       `corpus_sha256` (binds the hash to a real, specific historical
+       snapshot, not an assertion).
+    4. The corpus file currently on disk -- read as canonical LF bytes, so a
+       CRLF checkout can never disagree -- hashes to that same
+       `corpus_sha256` (proves no unauthorized corpus drift since the
+       evaluated snapshot).
+
+    Raises ProvenanceError with a specific reason on any failure; never
+    silently accepts a report that only "exists" or a corpus that only
+    "loads".
+    """
+    repo_root = Path(repo_root) if repo_root is not None else Path(__file__).resolve().parents[1]
+    provenance = report.get('provenance') or {}
+    evaluated_commit = provenance.get('evaluated_commit')
+    evaluated_tree_hash = provenance.get('evaluated_tree_hash')
+    corpus_sha256 = report.get('corpus_sha256')
+    if not evaluated_commit or not evaluated_tree_hash or not corpus_sha256:
+        raise ProvenanceError('report is missing provenance.evaluated_commit, '
+                              'provenance.evaluated_tree_hash, or corpus_sha256')
+
+    exists = subprocess.run(['git', 'cat-file', '-e', f'{evaluated_commit}^{{commit}}'],
+                            cwd=repo_root, capture_output=True, timeout=5)
+    if exists.returncode != 0:
+        raise ProvenanceError(f'provenance.evaluated_commit {evaluated_commit!r} does not resolve to a '
+                              'real commit in this repository')
+
+    actual_tree = subprocess.run(['git', 'rev-parse', f'{evaluated_commit}^{{tree}}'],
+                                 cwd=repo_root, capture_output=True, text=True, timeout=5)
+    if actual_tree.returncode != 0:
+        raise ProvenanceError(f'could not resolve the tree of {evaluated_commit}: '
+                              f'{actual_tree.stderr.strip()}')
+    actual_tree_hash = actual_tree.stdout.strip()
+    if actual_tree_hash != evaluated_tree_hash:
+        raise ProvenanceError(f'provenance.evaluated_tree_hash {evaluated_tree_hash!r} does not match '
+                              f'{evaluated_commit}\'s actual tree {actual_tree_hash!r}')
+
+    blob = subprocess.run(['git', 'show', f'{evaluated_commit}:{corpus_path}'],
+                          cwd=repo_root, capture_output=True, timeout=5)
+    if blob.returncode != 0:
+        raise ProvenanceError(f'could not read {corpus_path} at {evaluated_commit}: '
+                              f'{blob.stderr.decode("utf-8", "replace").strip()}')
+    evaluated_corpus_hash = hashlib.sha256(blob.stdout).hexdigest()
+    if evaluated_corpus_hash != corpus_sha256:
+        raise ProvenanceError(f'the corpus blob at {evaluated_commit} hashes to {evaluated_corpus_hash!r}, '
+                              f'not the committed corpus_sha256 {corpus_sha256!r} -- unauthorized corpus '
+                              'drift at the evaluated snapshot')
+
+    current_corpus_hash = hashlib.sha256(_canonical_bytes(repo_root / corpus_path)).hexdigest()
+    if current_corpus_hash != corpus_sha256:
+        raise ProvenanceError(f'the corpus currently on disk hashes to {current_corpus_hash!r}, not the '
+                              f'committed corpus_sha256 {corpus_sha256!r} -- unauthorized corpus drift '
+                              'since the evaluated snapshot')
+
+    return True
+
+
 def build_report(corpus, corpus_path, results, *, split_filter=None, slice_filters=None,
                   candidate_policy=None, engine='compare', evaluation_view=None):
     """Assemble the single canonical machine-readable report. Deterministic:

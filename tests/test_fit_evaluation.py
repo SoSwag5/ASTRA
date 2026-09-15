@@ -739,19 +739,11 @@ def test_report_provenance_identifies_exact_commit_and_tree(corpus, results):
 def test_committed_report_provenance_binds_current_corpus_and_evaluated_commit(corpus):
     report_path = ROOT / 'docs/evaluation/fit_evaluation_report.json'
     committed = json.loads(report_path.read_text(encoding='utf-8'))
-    evaluated_commit = committed['provenance']['evaluated_commit']
-    expected_tree = subprocess.run(['git', 'rev-parse', f'{evaluated_commit}^{{tree}}'], cwd=ROOT,
-                                   capture_output=True, text=True, check=True).stdout.strip()
-    assert committed['provenance']['evaluated_tree_hash'] == expected_tree
-    subprocess.run(['git', 'merge-base', '--is-ancestor', evaluated_commit, 'HEAD'], cwd=ROOT, check=True)
-    evaluated_corpus = subprocess.run(['git', 'show', f'{evaluated_commit}:{CORPUS_PATH}'], cwd=ROOT,
-                                      capture_output=True, check=True).stdout
-    # Normalized to LF before hashing: a CRLF working-tree checkout
-    # (core.autocrlf=true, the common Windows default) must never desync this
-    # assertion from the LF bytes Git actually stores in the blob.
-    current_corpus = ev._canonical_bytes(CORPUS_PATH)
-    assert hashlib.sha256(evaluated_corpus).hexdigest() == committed['corpus_sha256']
-    assert hashlib.sha256(current_corpus).hexdigest() == committed['corpus_sha256']
+    # Content-based provenance, not commit-graph ancestry: an authorized
+    # squash merge replaces branch history while preserving the approved
+    # tree, so provenance.evaluated_commit is intentionally not required to
+    # be an ancestor of HEAD. See ev.verify_report_provenance.
+    assert ev.verify_report_provenance(committed, CORPUS_PATH, repo_root=ROOT)
 
     results = ev.run_corpus(corpus, engine='compare')
     current = ev.build_report(corpus, CORPUS_PATH, results)
@@ -768,6 +760,147 @@ def test_committed_report_provenance_binds_current_corpus_and_evaluated_commit(c
     assert ev.render_markdown(current, calibration=current['calibration'],
                               gate_result=current['quality_gate']) == \
         (ROOT / 'docs/evaluation/FIT_EVALUATION_REPORT.md').read_text(encoding='utf-8')
+
+
+def _run_git(args, cwd, **kwargs):
+    return subprocess.run(['git'] + args, cwd=cwd, capture_output=True, text=True,
+                          timeout=10, check=True, **kwargs)
+
+
+def _init_isolated_repo(root):
+    _run_git(['init', '-q'], cwd=root)
+    _run_git(['config', 'user.email', 'test@example.invalid'], cwd=root)
+    _run_git(['config', 'user.name', 'Provenance Test'], cwd=root)
+    _run_git(['config', 'commit.gpgsign', 'false'], cwd=root)
+
+
+def _commit_all(root, message):
+    _run_git(['add', '-A'], cwd=root)
+    _run_git(['commit', '-q', '-m', message], cwd=root)
+    return _run_git(['rev-parse', 'HEAD'], cwd=root).stdout.strip()
+
+
+@pytest.fixture
+def isolated_corpus_repo(tmp_path):
+    """A throwaway git repo (never the real ASTRA repository) used only to
+    construct disconnected-history scenarios that are awkward to build
+    safely inside this repo itself.
+    """
+    root = tmp_path / 'repo'
+    root.mkdir()
+    _init_isolated_repo(root)
+    return root
+
+
+def test_provenance_succeeds_for_content_equivalent_squash_descendant(isolated_corpus_repo):
+    """The exact scenario PR #63 hit: the report's evaluated_commit is
+    genuinely not a graph ancestor of the current checkout (a squash merge
+    replaced history), but the governed corpus content is identical.
+    Provenance must still pass.
+    """
+    root = isolated_corpus_repo
+    corpus_relpath = 'tests/fixtures/fit_evaluation_v1.json'
+    corpus_file = root / corpus_relpath
+    corpus_file.parent.mkdir(parents=True)
+    corpus_file.write_text('{"cases": []}\n', encoding='utf-8', newline='\n')
+    evaluated_commit = _commit_all(root, 'original evaluated commit')
+    evaluated_tree = _run_git(['rev-parse', 'HEAD^{tree}'], cwd=root).stdout.strip()
+    corpus_sha256 = hashlib.sha256(ev._canonical_bytes(corpus_file)).hexdigest()
+
+    # Simulate a squash merge: an unrelated root commit (no shared history
+    # with evaluated_commit at all) that happens to check out identical
+    # corpus content -- exactly what a content-preserving squash produces.
+    _run_git(['checkout', '-q', '--orphan', 'squashed'], cwd=root)
+    _run_git(['rm', '-rq', '--cached', '.'], cwd=root)
+    corpus_file.write_text('{"cases": []}\n', encoding='utf-8', newline='\n')
+    _commit_all(root, 'squash-merged descendant with disconnected history')
+
+    # Confirm the scenario is genuine: evaluated_commit is NOT an ancestor of
+    # the current checkout (git merge-base --is-ancestor exits non-zero).
+    with pytest.raises(subprocess.CalledProcessError):
+        _run_git(['merge-base', '--is-ancestor', evaluated_commit, 'HEAD'], cwd=root)
+
+    report = {'provenance': {'evaluated_commit': evaluated_commit, 'evaluated_tree_hash': evaluated_tree},
+             'corpus_sha256': corpus_sha256}
+    assert ev.verify_report_provenance(report, corpus_relpath, repo_root=root)
+
+
+def test_provenance_fails_when_current_corpus_content_differs(isolated_corpus_repo):
+    root = isolated_corpus_repo
+    corpus_relpath = 'tests/fixtures/fit_evaluation_v1.json'
+    corpus_file = root / corpus_relpath
+    corpus_file.parent.mkdir(parents=True)
+    corpus_file.write_text('{"cases": []}\n', encoding='utf-8', newline='\n')
+    evaluated_commit = _commit_all(root, 'evaluated commit')
+    evaluated_tree = _run_git(['rev-parse', 'HEAD^{tree}'], cwd=root).stdout.strip()
+    corpus_sha256 = hashlib.sha256(ev._canonical_bytes(corpus_file)).hexdigest()
+
+    # Unauthorized drift: the file on disk now differs from what was evaluated.
+    corpus_file.write_text('{"cases": [{"id": "unauthorized-addition"}]}\n', encoding='utf-8', newline='\n')
+
+    report = {'provenance': {'evaluated_commit': evaluated_commit, 'evaluated_tree_hash': evaluated_tree},
+             'corpus_sha256': corpus_sha256}
+    with pytest.raises(ev.ProvenanceError, match='corpus currently on disk'):
+        ev.verify_report_provenance(report, corpus_relpath, repo_root=root)
+
+
+def test_provenance_fails_when_evaluated_tree_hash_is_wrong(isolated_corpus_repo):
+    root = isolated_corpus_repo
+    corpus_relpath = 'tests/fixtures/fit_evaluation_v1.json'
+    corpus_file = root / corpus_relpath
+    corpus_file.parent.mkdir(parents=True)
+    corpus_file.write_text('{"cases": []}\n', encoding='utf-8', newline='\n')
+    evaluated_commit = _commit_all(root, 'evaluated commit')
+    corpus_sha256 = hashlib.sha256(ev._canonical_bytes(corpus_file)).hexdigest()
+
+    report = {'provenance': {'evaluated_commit': evaluated_commit,
+                             'evaluated_tree_hash': '0' * 40},  # forged
+             'corpus_sha256': corpus_sha256}
+    with pytest.raises(ev.ProvenanceError, match='evaluated_tree_hash'):
+        ev.verify_report_provenance(report, corpus_relpath, repo_root=root)
+
+
+def test_provenance_fails_when_evaluated_corpus_blob_differs(isolated_corpus_repo):
+    """The evaluated_commit is real and its tree hash is correctly recorded,
+    but corpus_sha256 does not match what that commit actually stored --
+    e.g. a forged or copy-pasted-from-elsewhere corpus_sha256.
+    """
+    root = isolated_corpus_repo
+    corpus_relpath = 'tests/fixtures/fit_evaluation_v1.json'
+    corpus_file = root / corpus_relpath
+    corpus_file.parent.mkdir(parents=True)
+    corpus_file.write_text('{"cases": []}\n', encoding='utf-8', newline='\n')
+    evaluated_commit = _commit_all(root, 'evaluated commit')
+    evaluated_tree = _run_git(['rev-parse', 'HEAD^{tree}'], cwd=root).stdout.strip()
+
+    report = {'provenance': {'evaluated_commit': evaluated_commit, 'evaluated_tree_hash': evaluated_tree},
+             'corpus_sha256': hashlib.sha256(b'not the real corpus content').hexdigest()}
+    with pytest.raises(ev.ProvenanceError, match='corpus blob'):
+        ev.verify_report_provenance(report, corpus_relpath, repo_root=root)
+
+
+def test_provenance_fails_closed_on_fabricated_evaluated_commit(isolated_corpus_repo):
+    """A malformed/nonexistent evaluated_commit must never be treated as
+    sufficient proof by itself -- it must fail, not pass by default.
+    """
+    root = isolated_corpus_repo
+    corpus_relpath = 'tests/fixtures/fit_evaluation_v1.json'
+    corpus_file = root / corpus_relpath
+    corpus_file.parent.mkdir(parents=True)
+    corpus_file.write_text('{"cases": []}\n', encoding='utf-8', newline='\n')
+    _commit_all(root, 'unrelated commit')
+    corpus_sha256 = hashlib.sha256(ev._canonical_bytes(corpus_file)).hexdigest()
+
+    report = {'provenance': {'evaluated_commit': 'f' * 40, 'evaluated_tree_hash': '0' * 40},
+             'corpus_sha256': corpus_sha256}
+    with pytest.raises(ev.ProvenanceError, match='does not resolve to a real commit'):
+        ev.verify_report_provenance(report, corpus_relpath, repo_root=root)
+
+
+def test_provenance_rejects_report_missing_required_fields(isolated_corpus_repo):
+    root = isolated_corpus_repo
+    with pytest.raises(ev.ProvenanceError, match='missing provenance'):
+        ev.verify_report_provenance({'provenance': {}}, 'x.json', repo_root=root)
 
 
 def test_canonical_bytes_is_stable_across_crlf_checkouts(tmp_path):
