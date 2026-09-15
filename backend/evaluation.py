@@ -21,9 +21,10 @@ import json
 import math
 import re
 import subprocess
+from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from . import assessment
 from . import career_tracks
@@ -31,7 +32,7 @@ from . import experience as experience_module
 from . import recall
 from .models import DEFAULTS
 
-REPORT_SCHEMA_VERSION = 'fit-eval-report-2'
+REPORT_SCHEMA_VERSION = 'fit-eval-report-3'
 METRIC_DEFINITION_VERSION = 'metrics-v2'
 CORPUS_SCHEMA_VERSION = 'fit-eval-corpus-1'
 HUMAN_LABEL_VERSION = 'labels-v2'
@@ -61,6 +62,53 @@ SPLITS = ('development', 'holdout')
 STABLE_ID = re.compile(r'[a-z0-9][a-z0-9_-]{1,80}')
 ALLOWED_HARD_REASONS = frozenset(HARD_REASONS_EVALUATED + ('USER_BLOCKED',))
 ALLOWED_BUCKETS = frozenset(BUCKET_ORDER)
+
+PROVENANCE_CONTRACT_VERSION = 'fit-eval-provenance-1'
+PROVENANCE_MANIFEST_SCHEMA_VERSION = 'fit-eval-input-manifest-1'
+PROVENANCE_FIELDS = frozenset({
+    'contract_version', 'manifest_path', 'manifest_sha256', 'report_payload_sha256',
+    'evaluated_commit', 'evaluated_tree_hash', 'report_snapshot_note',
+})
+REPORT_PAYLOAD_EXCLUDED_FIELDS = (
+    'git_commit',
+    'provenance.evaluated_commit',
+    'provenance.evaluated_tree_hash',
+    'provenance.report_snapshot_note',
+    'provenance.report_payload_sha256',
+)
+REPORT_SNAPSHOT_NOTE = (
+    'evaluated_commit and evaluated_tree_hash are informational Git diagnostics only; '
+    'the versioned input manifest and report_payload_sha256 are the authoritative, '
+    'durable provenance contract.'
+)
+CANONICAL_MANIFEST_PATH = 'docs/evaluation/fit_evaluation_provenance_v1.json'
+CANONICAL_CORPUS_PATH = 'tests/fixtures/fit_evaluation_v1.json'
+CANONICAL_DEDUPE_CORPUS_PATH = 'tests/fixtures/job_dedupe_corpus.json'
+CANONICAL_CALIBRATION_PATHS = (
+    'tests/fixtures/candidate_policies/domain_heavier.json',
+    'tests/fixtures/candidate_policies/geography_heavier.json',
+)
+CANONICAL_GATE_PATH = 'tests/fixtures/quality_gate_proposed_v1.json'
+REQUIRED_MANIFEST_INPUTS = {
+    'backend/assessment.py': 'evaluation_dependency',
+    'backend/career_tracks.py': 'evaluation_dependency',
+    'backend/deduplication.py': 'evaluation_dependency',
+    'backend/discovery.py': 'evaluation_dependency',
+    'backend/evaluation.py': 'evaluation_implementation',
+    'backend/experience.py': 'evaluation_dependency',
+    'backend/models.py': 'evaluation_dependency',
+    'backend/normalization.py': 'evaluation_dependency',
+    'backend/policy.py': 'evaluation_dependency',
+    'backend/recall.py': 'evaluation_dependency',
+    'backend/services.py': 'evaluation_dependency',
+    'requirements.lock.txt': 'runtime_dependency_lock',
+    'scripts/evaluate_fit.py': 'report_generator',
+    CANONICAL_CORPUS_PATH: 'evaluation_corpus',
+    CANONICAL_DEDUPE_CORPUS_PATH: 'dedupe_corpus',
+    CANONICAL_CALIBRATION_PATHS[0]: 'candidate_policy',
+    CANONICAL_CALIBRATION_PATHS[1]: 'candidate_policy',
+    CANONICAL_GATE_PATH: 'quality_gate',
+}
 
 
 class CorpusError(ValueError):
@@ -789,85 +837,246 @@ def _git_tree_hash():
 
 
 class ProvenanceError(ValueError):
-    """A committed report's provenance claim does not hold against the
-    current repository state (a fabricated/malformed claim, or genuine
-    corpus drift)."""
+    """A report cannot be proved from its governed, versioned inputs."""
 
 
-def verify_report_provenance(report, corpus_path, *, repo_root=None):
-    """Prove a committed report's binding to the source snapshot it was
-    evaluated from and to the corpus currently on disk -- without requiring
-    `provenance.evaluated_commit` to be a commit-graph ancestor of the
-    current checkout.
+_FULL_GIT_OID = re.compile(r'[0-9a-f]{40}')
+_SHA256 = re.compile(r'[0-9a-f]{64}')
+_MANIFEST_FIELDS = frozenset({'manifest_schema_version', 'hash_algorithm', 'text_canonicalization',
+                              'inputs', 'generation'})
+_GENERATION_FIELDS = frozenset({'corpus', 'engine', 'dedupe', 'calibration', 'quality_gate',
+                                'split', 'slice_filters', 'candidate_policy'})
 
-    An authorized squash merge deliberately replaces branch history while
-    preserving the approved tree content, so graph ancestry is not evidence
-    of anything a squash merge does not already guarantee; requiring it
-    makes every future squash merge fail this check for a reason that has
-    nothing to do with whether the report is trustworthy. What this proves
-    instead, and what actually matters:
 
-    1. `provenance.evaluated_commit` names a commit object that genuinely
-       exists in this repository. This is a necessary sanity check, never
-       sufficient by itself -- the availability of an arbitrary historical
-       commit (e.g. fetched from an untrusted remote) proves nothing on its
-       own; checks 3-4 below are the real content-based proof.
-    2. `provenance.evaluated_tree_hash` is that commit's actual tree hash
-       (catches a forged or stale claim).
-    3. The corpus blob Git stored in that commit hashes to the report's
-       `corpus_sha256` (binds the hash to a real, specific historical
-       snapshot, not an assertion).
-    4. The corpus file currently on disk -- read as canonical LF bytes, so a
-       CRLF checkout can never disagree -- hashes to that same
-       `corpus_sha256` (proves no unauthorized corpus drift since the
-       evaluated snapshot).
+def _strict_json_object(source, kind):
+    """Read a JSON object while rejecting duplicate keys and operational errors."""
+    if isinstance(source, dict):
+        return deepcopy(source)
+    if not isinstance(source, (str, Path)):
+        raise ProvenanceError(f'{kind} root must be a JSON object')
+    try:
+        raw = Path(source).read_text(encoding='utf-8')
+    except (OSError, UnicodeError) as e:
+        raise ProvenanceError(f'{kind} could not be read: {e}') from e
 
-    Raises ProvenanceError with a specific reason on any failure; never
-    silently accepts a report that only "exists" or a corpus that only
-    "loads".
+    def no_duplicates(pairs):
+        out = {}
+        for key, value in pairs:
+            if key in out:
+                raise ProvenanceError(f'{kind} contains duplicate JSON key {key!r}')
+            out[key] = value
+        return out
+
+    def no_nonfinite(value):
+        raise ProvenanceError(f'{kind} contains non-standard numeric constant {value!r}')
+
+    try:
+        data = json.loads(raw, object_pairs_hook=no_duplicates, parse_constant=no_nonfinite)
+    except ProvenanceError:
+        raise
+    except (json.JSONDecodeError, UnicodeError) as e:
+        raise ProvenanceError(f'{kind} is not valid UTF-8 JSON: {e}') from e
+    if not isinstance(data, dict):
+        raise ProvenanceError(f'{kind} root must be a JSON object')
+    return data
+
+
+def _safe_repo_path(value, field):
+    if not isinstance(value, str) or not value or '\\' in value:
+        raise ProvenanceError(f'{field} must be a non-empty normalized repository-relative POSIX path')
+    path = PurePosixPath(value)
+    if path.is_absolute() or str(path) != value or '..' in path.parts or '.' in path.parts:
+        raise ProvenanceError(f'{field} must be a normalized repository-relative POSIX path, got {value!r}')
+    return value
+
+
+def _sha256_file(path, kind):
+    try:
+        return hashlib.sha256(_canonical_bytes(path)).hexdigest()
+    except OSError as e:
+        raise ProvenanceError(f'{kind} could not be read: {e}') from e
+
+
+def validate_provenance_manifest(manifest):
+    if not isinstance(manifest, dict) or set(manifest) != _MANIFEST_FIELDS:
+        raise ProvenanceError(f'provenance manifest fields must be exactly {sorted(_MANIFEST_FIELDS)}')
+    if manifest['manifest_schema_version'] != PROVENANCE_MANIFEST_SCHEMA_VERSION:
+        raise ProvenanceError(f'unsupported provenance manifest schema {manifest["manifest_schema_version"]!r}')
+    if manifest['hash_algorithm'] != 'sha256' or manifest['text_canonicalization'] != 'lf':
+        raise ProvenanceError('provenance manifest must use sha256 with LF text canonicalization')
+    inputs = manifest['inputs']
+    if not isinstance(inputs, list) or len(inputs) != len(REQUIRED_MANIFEST_INPUTS):
+        raise ProvenanceError('provenance manifest has an incomplete or unexpected input set')
+    actual = {}
+    for index, item in enumerate(inputs):
+        if not isinstance(item, dict) or set(item) != {'path', 'role', 'sha256'}:
+            raise ProvenanceError(f'provenance manifest inputs[{index}] has invalid fields')
+        path = _safe_repo_path(item['path'], f'inputs[{index}].path')
+        if path in actual:
+            raise ProvenanceError(f'provenance manifest contains duplicate input path {path!r}')
+        if not isinstance(item['sha256'], str) or _SHA256.fullmatch(item['sha256']) is None:
+            raise ProvenanceError(f'provenance manifest input {path!r} has malformed sha256')
+        actual[path] = item['role']
+    if actual != REQUIRED_MANIFEST_INPUTS:
+        raise ProvenanceError('provenance manifest input paths or roles do not match the required contract')
+    generation = manifest['generation']
+    if not isinstance(generation, dict) or set(generation) != _GENERATION_FIELDS:
+        raise ProvenanceError(f'provenance manifest generation fields must be exactly {sorted(_GENERATION_FIELDS)}')
+    expected = {'corpus': CANONICAL_CORPUS_PATH, 'engine': 'compare', 'dedupe': True,
+                'calibration': list(CANONICAL_CALIBRATION_PATHS), 'quality_gate': CANONICAL_GATE_PATH,
+                'split': None, 'slice_filters': {}, 'candidate_policy': None}
+    if generation != expected:
+        raise ProvenanceError('provenance manifest generation recipe does not match the canonical report contract')
+    return manifest
+
+
+def load_provenance_manifest(path):
+    return validate_provenance_manifest(_strict_json_object(path, 'Provenance manifest'))
+
+
+def verify_manifest_inputs(manifest, repo_root):
+    repo_root = Path(repo_root)
+    for item in manifest['inputs']:
+        actual = _sha256_file(repo_root / item['path'], f'manifest input {item["path"]!r}')
+        if actual != item['sha256']:
+            raise ProvenanceError(f'manifest input {item["path"]!r} hashes to {actual}, not {item["sha256"]}')
+    return True
+
+
+def _report_payload(report):
+    payload = deepcopy(report)
+    payload.pop('git_commit', None)
+    provenance = payload.get('provenance')
+    if isinstance(provenance, dict):
+        for field in ('evaluated_commit', 'evaluated_tree_hash', 'report_snapshot_note',
+                      'report_payload_sha256'):
+            provenance.pop(field, None)
+    return payload
+
+
+def report_payload_sha256(report):
+    try:
+        payload = json.dumps(_report_payload(report), sort_keys=True, separators=(',', ':'),
+                             ensure_ascii=False, allow_nan=False).encode('utf-8')
+    except (TypeError, ValueError) as e:
+        raise ProvenanceError(f'report payload cannot be canonically serialized: {e}') from e
+    return hashlib.sha256(payload).hexdigest()
+
+
+def bind_report_provenance(report, manifest_path=CANONICAL_MANIFEST_PATH, *, repo_root=None):
+    """Bind a generated report to the versioned inputs and its full substantive payload."""
+    repo_root = Path(repo_root) if repo_root is not None else Path(__file__).resolve().parents[1]
+    manifest_path = _safe_repo_path(str(manifest_path), 'manifest_path')
+    if manifest_path != CANONICAL_MANIFEST_PATH:
+        raise ProvenanceError(f'manifest_path must be {CANONICAL_MANIFEST_PATH!r}')
+    manifest = load_provenance_manifest(repo_root / manifest_path)
+    verify_manifest_inputs(manifest, repo_root)
+    provenance = report.setdefault('provenance', {})
+    provenance.update({'contract_version': PROVENANCE_CONTRACT_VERSION,
+                       'manifest_path': manifest_path,
+                       'manifest_sha256': _sha256_file(repo_root / manifest_path, 'Provenance manifest'),
+                       'report_snapshot_note': REPORT_SNAPSHOT_NOTE})
+    provenance['report_payload_sha256'] = report_payload_sha256(report)
+    return report
+
+
+def build_canonical_report_from_manifest(manifest, *, repo_root=None):
+    """Re-run the complete canonical report recipe declared by a validated manifest."""
+    repo_root = Path(repo_root) if repo_root is not None else Path(__file__).resolve().parents[1]
+    manifest = validate_provenance_manifest(manifest)
+    generation = manifest['generation']
+    corpus_path = repo_root / generation['corpus']
+    corpus = load_corpus(corpus_path)
+    results = run_corpus(corpus, engine=generation['engine'])
+    report = build_report(corpus, corpus_path, results, engine=generation['engine'],
+                          split_filter=generation['split'], slice_filters=generation['slice_filters'])
+    report['duplicate_rate'] = duplicate_rate(repo_root / CANONICAL_DEDUPE_CORPUS_PATH)
+    report['stale_link_rate'] = stale_link_rate(results)
+    policies = [load_candidate_policy(repo_root / path) for path in generation['calibration']]
+    report['calibration'] = evaluate_candidate_policies(corpus, policies, engine=generation['engine'])
+    gate = load_quality_gate(repo_root / generation['quality_gate'])
+    report['quality_gate'] = evaluate_quality_gate(report, gate)
+    return report
+
+
+def _optional_git_diagnostics(provenance, repo_root):
+    commit = provenance['evaluated_commit']
+    tree = provenance['evaluated_tree_hash']
+    if not isinstance(commit, str) or _FULL_GIT_OID.fullmatch(commit) is None:
+        raise ProvenanceError('provenance.evaluated_commit must be a full lowercase 40-hex object id')
+    if not isinstance(tree, str) or _FULL_GIT_OID.fullmatch(tree) is None:
+        raise ProvenanceError('provenance.evaluated_tree_hash must be a full lowercase 40-hex object id')
+    if not (repo_root / '.git').exists():
+        return
+    try:
+        probe = subprocess.run(['git', 'cat-file', '--batch-check=%(objectname) %(objecttype)'],
+                               cwd=repo_root, input=commit + '\n', capture_output=True,
+                               text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError) as e:
+        raise ProvenanceError(f'Git provenance diagnostic failed: {e}') from e
+    if probe.returncode != 0:
+        raise ProvenanceError(f'Git provenance diagnostic failed: {probe.stderr.strip()}')
+    object_name, separator, object_type = probe.stdout.strip().partition(' ')
+    if separator and object_type == 'missing':
+        return  # Pruned/squashed history is explicitly supported; the manifest is authoritative.
+    if object_name != commit or not separator:
+        raise ProvenanceError(f'Git provenance diagnostic returned malformed output {probe.stdout.strip()!r}')
+    if object_type != 'commit':
+        raise ProvenanceError(f'provenance.evaluated_commit names a {object_type}, not a commit')
+    try:
+        resolved = subprocess.run(['git', 'rev-parse', f'{commit}^{{tree}}'], cwd=repo_root,
+                                  capture_output=True, text=True, timeout=5, check=True).stdout.strip()
+    except (OSError, subprocess.SubprocessError) as e:
+        raise ProvenanceError(f'Git tree diagnostic failed: {e}') from e
+    if resolved != tree:
+        raise ProvenanceError(f'provenance.evaluated_tree_hash {tree!r} does not match commit tree {resolved!r}')
+
+
+def verify_report_provenance(report, corpus_path=CANONICAL_CORPUS_PATH, *, repo_root=None):
+    """Fail closed unless inputs, recipe, generated payload, and report digest all agree.
+
+    Git commit/tree values are validated diagnostics when available, but are
+    deliberately not required objects: verification remains valid after a
+    squash, shallow clone, source archive, or unreachable-object pruning.
     """
     repo_root = Path(repo_root) if repo_root is not None else Path(__file__).resolve().parents[1]
-    provenance = report.get('provenance') or {}
-    evaluated_commit = provenance.get('evaluated_commit')
-    evaluated_tree_hash = provenance.get('evaluated_tree_hash')
-    corpus_sha256 = report.get('corpus_sha256')
-    if not evaluated_commit or not evaluated_tree_hash or not corpus_sha256:
-        raise ProvenanceError('report is missing provenance.evaluated_commit, '
-                              'provenance.evaluated_tree_hash, or corpus_sha256')
-
-    exists = subprocess.run(['git', 'cat-file', '-e', f'{evaluated_commit}^{{commit}}'],
-                            cwd=repo_root, capture_output=True, timeout=5)
-    if exists.returncode != 0:
-        raise ProvenanceError(f'provenance.evaluated_commit {evaluated_commit!r} does not resolve to a '
-                              'real commit in this repository')
-
-    actual_tree = subprocess.run(['git', 'rev-parse', f'{evaluated_commit}^{{tree}}'],
-                                 cwd=repo_root, capture_output=True, text=True, timeout=5)
-    if actual_tree.returncode != 0:
-        raise ProvenanceError(f'could not resolve the tree of {evaluated_commit}: '
-                              f'{actual_tree.stderr.strip()}')
-    actual_tree_hash = actual_tree.stdout.strip()
-    if actual_tree_hash != evaluated_tree_hash:
-        raise ProvenanceError(f'provenance.evaluated_tree_hash {evaluated_tree_hash!r} does not match '
-                              f'{evaluated_commit}\'s actual tree {actual_tree_hash!r}')
-
-    blob = subprocess.run(['git', 'show', f'{evaluated_commit}:{corpus_path}'],
-                          cwd=repo_root, capture_output=True, timeout=5)
-    if blob.returncode != 0:
-        raise ProvenanceError(f'could not read {corpus_path} at {evaluated_commit}: '
-                              f'{blob.stderr.decode("utf-8", "replace").strip()}')
-    evaluated_corpus_hash = hashlib.sha256(blob.stdout).hexdigest()
-    if evaluated_corpus_hash != corpus_sha256:
-        raise ProvenanceError(f'the corpus blob at {evaluated_commit} hashes to {evaluated_corpus_hash!r}, '
-                              f'not the committed corpus_sha256 {corpus_sha256!r} -- unauthorized corpus '
-                              'drift at the evaluated snapshot')
-
-    current_corpus_hash = hashlib.sha256(_canonical_bytes(repo_root / corpus_path)).hexdigest()
-    if current_corpus_hash != corpus_sha256:
-        raise ProvenanceError(f'the corpus currently on disk hashes to {current_corpus_hash!r}, not the '
-                              f'committed corpus_sha256 {corpus_sha256!r} -- unauthorized corpus drift '
-                              'since the evaluated snapshot')
-
+    report = _strict_json_object(report, 'Evaluation report')
+    provenance = report.get('provenance')
+    if not isinstance(provenance, dict) or set(provenance) != PROVENANCE_FIELDS:
+        raise ProvenanceError(f'report provenance fields must be exactly {sorted(PROVENANCE_FIELDS)}')
+    if provenance['contract_version'] != PROVENANCE_CONTRACT_VERSION:
+        raise ProvenanceError(f'unsupported report provenance contract {provenance["contract_version"]!r}')
+    if provenance['report_snapshot_note'] != REPORT_SNAPSHOT_NOTE:
+        raise ProvenanceError('report_snapshot_note does not match the provenance contract')
+    if report.get('git_commit') != provenance['evaluated_commit']:
+        raise ProvenanceError('git_commit must equal provenance.evaluated_commit')
+    manifest_path = _safe_repo_path(provenance['manifest_path'], 'provenance.manifest_path')
+    if manifest_path != CANONICAL_MANIFEST_PATH:
+        raise ProvenanceError(f'provenance.manifest_path must be {CANONICAL_MANIFEST_PATH!r}')
+    corpus_path = _safe_repo_path(str(corpus_path), 'corpus_path')
+    manifest = load_provenance_manifest(repo_root / manifest_path)
+    if manifest['generation']['corpus'] != corpus_path:
+        raise ProvenanceError('requested corpus path does not match the manifest generation recipe')
+    actual_manifest_hash = _sha256_file(repo_root / manifest_path, 'Provenance manifest')
+    if provenance['manifest_sha256'] != actual_manifest_hash:
+        raise ProvenanceError('provenance manifest digest does not match the versioned manifest')
+    verify_manifest_inputs(manifest, repo_root)
+    _optional_git_diagnostics(provenance, repo_root)
+    actual_payload_hash = report_payload_sha256(report)
+    if provenance['report_payload_sha256'] != actual_payload_hash:
+        raise ProvenanceError('report payload digest does not match the report contents')
+    try:
+        expected = build_canonical_report_from_manifest(manifest, repo_root=repo_root)
+        expected['git_commit'] = report.get('git_commit')
+        expected['provenance']['evaluated_commit'] = provenance['evaluated_commit']
+        expected['provenance']['evaluated_tree_hash'] = provenance['evaluated_tree_hash']
+        bind_report_provenance(expected, manifest_path, repo_root=repo_root)
+    except ProvenanceError:
+        raise
+    except (CorpusError, OSError, UnicodeError, subprocess.SubprocessError) as e:
+        raise ProvenanceError(f'canonical report reproduction failed: {e}') from e
+    if _report_payload(report) != _report_payload(expected):
+        raise ProvenanceError('report contents do not match a fresh canonical reproduction')
     return True
 
 
@@ -966,7 +1175,7 @@ def build_report(corpus, corpus_path, results, *, split_filter=None, slice_filte
         'provenance': {
             'evaluated_commit': evaluated_commit,
             'evaluated_tree_hash': evaluated_tree_hash,
-            'report_snapshot_note': 'Committed reports are generated from this clean evaluated commit and may be stored in a later report-only commit.',
+            'report_snapshot_note': REPORT_SNAPSHOT_NOTE,
         },
         'versions': versions,
         'engine': engine,
@@ -1269,6 +1478,12 @@ def render_markdown(report, calibration=None, gate_result=None):
              '',
              '## Primary metrics', '',
              '| Metric | Value |', '|---|---|']
+    if 'manifest_path' in report['provenance']:
+        lines[10:10] = [
+            f"- Input manifest: `{report['provenance']['manifest_path']}` "
+            f"(`{report['provenance']['manifest_sha256']}`)",
+            f"- Report payload SHA-256: `{report['provenance']['report_payload_sha256']}`",
+        ]
     for name, m in report['primary_metrics'].items():
         lines.append(f"| {name} | {fmt(m)} |")
     lines += ['', '## Hard-reason precision', '', '| Reason | Precision | Predicted |', '|---|---|---|']

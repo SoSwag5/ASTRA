@@ -7,6 +7,7 @@ corpus-validation edge cases.
 import copy
 import hashlib
 import json
+import shutil
 import subprocess
 import sys
 from collections import Counter
@@ -736,13 +737,9 @@ def test_report_provenance_identifies_exact_commit_and_tree(corpus, results):
     assert report['git_commit'] == expected_commit
 
 
-def test_committed_report_provenance_binds_current_corpus_and_evaluated_commit(corpus):
+def test_committed_report_provenance_binds_manifest_payload_and_fresh_reproduction(corpus):
     report_path = ROOT / 'docs/evaluation/fit_evaluation_report.json'
     committed = json.loads(report_path.read_text(encoding='utf-8'))
-    # Content-based provenance, not commit-graph ancestry: an authorized
-    # squash merge replaces branch history while preserving the approved
-    # tree, so provenance.evaluated_commit is intentionally not required to
-    # be an ancestor of HEAD. See ev.verify_report_provenance.
     assert ev.verify_report_provenance(committed, CORPUS_PATH, repo_root=ROOT)
 
     results = ev.run_corpus(corpus, engine='compare')
@@ -762,145 +759,114 @@ def test_committed_report_provenance_binds_current_corpus_and_evaluated_commit(c
         (ROOT / 'docs/evaluation/FIT_EVALUATION_REPORT.md').read_text(encoding='utf-8')
 
 
-def _run_git(args, cwd, **kwargs):
-    return subprocess.run(['git'] + args, cwd=cwd, capture_output=True, text=True,
-                          timeout=10, check=True, **kwargs)
+@pytest.fixture(scope='module')
+def bound_report():
+    manifest = ev.load_provenance_manifest(ROOT / ev.CANONICAL_MANIFEST_PATH)
+    report = ev.build_canonical_report_from_manifest(manifest, repo_root=ROOT)
+    return ev.bind_report_provenance(report, repo_root=ROOT)
 
 
-def _init_isolated_repo(root):
-    _run_git(['init', '-q'], cwd=root)
-    _run_git(['config', 'user.email', 'test@example.invalid'], cwd=root)
-    _run_git(['config', 'user.name', 'Provenance Test'], cwd=root)
-    _run_git(['config', 'commit.gpgsign', 'false'], cwd=root)
+def _copy_provenance_snapshot(destination):
+    manifest = ev.load_provenance_manifest(ROOT / ev.CANONICAL_MANIFEST_PATH)
+    for relative in [ev.CANONICAL_MANIFEST_PATH] + [item['path'] for item in manifest['inputs']]:
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / relative, target)
 
 
-def _commit_all(root, message):
-    _run_git(['add', '-A'], cwd=root)
-    _run_git(['commit', '-q', '-m', message], cwd=root)
-    return _run_git(['rev-parse', 'HEAD'], cwd=root).stdout.strip()
+def test_provenance_verifies_without_git_or_historical_objects(tmp_path, bound_report):
+    archive = tmp_path / 'source-archive'
+    _copy_provenance_snapshot(archive)
+    assert not (archive / '.git').exists()
+    assert ev.verify_report_provenance(bound_report, repo_root=archive)
 
 
-@pytest.fixture
-def isolated_corpus_repo(tmp_path):
-    """A throwaway git repo (never the real ASTRA repository) used only to
-    construct disconnected-history scenarios that are awkward to build
-    safely inside this repo itself.
-    """
-    root = tmp_path / 'repo'
-    root.mkdir()
-    _init_isolated_repo(root)
-    return root
+@pytest.mark.parametrize('path,value', [
+    (('primary_metrics', 'useful_false_rejection_rate', 'numerator'), 999),
+    (('quality_gate', 'gate_status'), 'PASS'),
+])
+def test_provenance_rejects_metric_and_gate_tampering(bound_report, path, value):
+    tampered = copy.deepcopy(bound_report)
+    cursor = tampered
+    for key in path[:-1]:
+        cursor = cursor[key]
+    cursor[path[-1]] = value
+    with pytest.raises(ev.ProvenanceError, match='report payload digest'):
+        ev.verify_report_provenance(tampered, repo_root=ROOT)
 
 
-def test_provenance_succeeds_for_content_equivalent_squash_descendant(isolated_corpus_repo):
-    """The exact scenario PR #63 hit: the report's evaluated_commit is
-    genuinely not a graph ancestor of the current checkout (a squash merge
-    replaced history), but the governed corpus content is identical.
-    Provenance must still pass.
-    """
-    root = isolated_corpus_repo
-    corpus_relpath = 'tests/fixtures/fit_evaluation_v1.json'
-    corpus_file = root / corpus_relpath
-    corpus_file.parent.mkdir(parents=True)
-    corpus_file.write_text('{"cases": []}\n', encoding='utf-8', newline='\n')
-    evaluated_commit = _commit_all(root, 'original evaluated commit')
-    evaluated_tree = _run_git(['rev-parse', 'HEAD^{tree}'], cwd=root).stdout.strip()
-    corpus_sha256 = hashlib.sha256(ev._canonical_bytes(corpus_file)).hexdigest()
-
-    # Simulate a squash merge: an unrelated root commit (no shared history
-    # with evaluated_commit at all) that happens to check out identical
-    # corpus content -- exactly what a content-preserving squash produces.
-    _run_git(['checkout', '-q', '--orphan', 'squashed'], cwd=root)
-    _run_git(['rm', '-rq', '--cached', '.'], cwd=root)
-    corpus_file.write_text('{"cases": []}\n', encoding='utf-8', newline='\n')
-    _commit_all(root, 'squash-merged descendant with disconnected history')
-
-    # Confirm the scenario is genuine: evaluated_commit is NOT an ancestor of
-    # the current checkout (git merge-base --is-ancestor exits non-zero).
-    with pytest.raises(subprocess.CalledProcessError):
-        _run_git(['merge-base', '--is-ancestor', evaluated_commit, 'HEAD'], cwd=root)
-
-    report = {'provenance': {'evaluated_commit': evaluated_commit, 'evaluated_tree_hash': evaluated_tree},
-             'corpus_sha256': corpus_sha256}
-    assert ev.verify_report_provenance(report, corpus_relpath, repo_root=root)
+def test_provenance_rejects_forged_payload_digest_after_tampering(bound_report):
+    tampered = copy.deepcopy(bound_report)
+    tampered['quality_gate']['gate_status'] = 'PASS'
+    tampered['provenance']['report_payload_sha256'] = ev.report_payload_sha256(tampered)
+    with pytest.raises(ev.ProvenanceError, match='fresh canonical reproduction'):
+        ev.verify_report_provenance(tampered, repo_root=ROOT)
 
 
-def test_provenance_fails_when_current_corpus_content_differs(isolated_corpus_repo):
-    root = isolated_corpus_repo
-    corpus_relpath = 'tests/fixtures/fit_evaluation_v1.json'
-    corpus_file = root / corpus_relpath
-    corpus_file.parent.mkdir(parents=True)
-    corpus_file.write_text('{"cases": []}\n', encoding='utf-8', newline='\n')
-    evaluated_commit = _commit_all(root, 'evaluated commit')
-    evaluated_tree = _run_git(['rev-parse', 'HEAD^{tree}'], cwd=root).stdout.strip()
-    corpus_sha256 = hashlib.sha256(ev._canonical_bytes(corpus_file)).hexdigest()
+def test_provenance_rejects_manifest_and_input_tampering(tmp_path, bound_report):
+    archive = tmp_path / 'archive'
+    _copy_provenance_snapshot(archive)
+    corpus = archive / ev.CANONICAL_CORPUS_PATH
+    corpus.write_text(corpus.read_text(encoding='utf-8') + ' ', encoding='utf-8')
+    with pytest.raises(ev.ProvenanceError, match='manifest input'):
+        ev.verify_report_provenance(bound_report, repo_root=archive)
 
-    # Unauthorized drift: the file on disk now differs from what was evaluated.
-    corpus_file.write_text('{"cases": [{"id": "unauthorized-addition"}]}\n', encoding='utf-8', newline='\n')
-
-    report = {'provenance': {'evaluated_commit': evaluated_commit, 'evaluated_tree_hash': evaluated_tree},
-             'corpus_sha256': corpus_sha256}
-    with pytest.raises(ev.ProvenanceError, match='corpus currently on disk'):
-        ev.verify_report_provenance(report, corpus_relpath, repo_root=root)
+    _copy_provenance_snapshot(archive)
+    manifest = archive / ev.CANONICAL_MANIFEST_PATH
+    manifest.write_text(manifest.read_text(encoding='utf-8').replace('"engine": "compare"',
+                                                                    '"engine": "new"'), encoding='utf-8')
+    with pytest.raises(ev.ProvenanceError, match='generation recipe|manifest digest'):
+        ev.verify_report_provenance(bound_report, repo_root=archive)
 
 
-def test_provenance_fails_when_evaluated_tree_hash_is_wrong(isolated_corpus_repo):
-    root = isolated_corpus_repo
-    corpus_relpath = 'tests/fixtures/fit_evaluation_v1.json'
-    corpus_file = root / corpus_relpath
-    corpus_file.parent.mkdir(parents=True)
-    corpus_file.write_text('{"cases": []}\n', encoding='utf-8', newline='\n')
-    evaluated_commit = _commit_all(root, 'evaluated commit')
-    corpus_sha256 = hashlib.sha256(ev._canonical_bytes(corpus_file)).hexdigest()
-
-    report = {'provenance': {'evaluated_commit': evaluated_commit,
-                             'evaluated_tree_hash': '0' * 40},  # forged
-             'corpus_sha256': corpus_sha256}
-    with pytest.raises(ev.ProvenanceError, match='evaluated_tree_hash'):
-        ev.verify_report_provenance(report, corpus_relpath, repo_root=root)
+@pytest.mark.parametrize('identifier', ['HEAD', '6d3f63c', 'A' * 40, '../HEAD'])
+def test_provenance_rejects_symbolic_abbreviated_or_malformed_git_identifiers(bound_report, identifier):
+    tampered = copy.deepcopy(bound_report)
+    tampered['provenance']['evaluated_commit'] = identifier
+    tampered['git_commit'] = identifier
+    with pytest.raises(ev.ProvenanceError, match='full lowercase 40-hex'):
+        ev.verify_report_provenance(tampered, repo_root=ROOT)
 
 
-def test_provenance_fails_when_evaluated_corpus_blob_differs(isolated_corpus_repo):
-    """The evaluated_commit is real and its tree hash is correctly recorded,
-    but corpus_sha256 does not match what that commit actually stored --
-    e.g. a forged or copy-pasted-from-elsewhere corpus_sha256.
-    """
-    root = isolated_corpus_repo
-    corpus_relpath = 'tests/fixtures/fit_evaluation_v1.json'
-    corpus_file = root / corpus_relpath
-    corpus_file.parent.mkdir(parents=True)
-    corpus_file.write_text('{"cases": []}\n', encoding='utf-8', newline='\n')
-    evaluated_commit = _commit_all(root, 'evaluated commit')
-    evaluated_tree = _run_git(['rev-parse', 'HEAD^{tree}'], cwd=root).stdout.strip()
-
-    report = {'provenance': {'evaluated_commit': evaluated_commit, 'evaluated_tree_hash': evaluated_tree},
-             'corpus_sha256': hashlib.sha256(b'not the real corpus content').hexdigest()}
-    with pytest.raises(ev.ProvenanceError, match='corpus blob'):
-        ev.verify_report_provenance(report, corpus_relpath, repo_root=root)
+def test_provenance_rejects_present_non_commit_git_object(bound_report):
+    blob = subprocess.run(['git', 'rev-parse', f'HEAD:{CORPUS_PATH}'], cwd=ROOT, capture_output=True,
+                          text=True, check=True).stdout.strip()
+    tampered = copy.deepcopy(bound_report)
+    tampered['provenance']['evaluated_commit'] = blob
+    tampered['git_commit'] = blob
+    with pytest.raises(ev.ProvenanceError, match='not a commit'):
+        ev.verify_report_provenance(tampered, repo_root=ROOT)
 
 
-def test_provenance_fails_closed_on_fabricated_evaluated_commit(isolated_corpus_repo):
-    """A malformed/nonexistent evaluated_commit must never be treated as
-    sufficient proof by itself -- it must fail, not pass by default.
-    """
-    root = isolated_corpus_repo
-    corpus_relpath = 'tests/fixtures/fit_evaluation_v1.json'
-    corpus_file = root / corpus_relpath
-    corpus_file.parent.mkdir(parents=True)
-    corpus_file.write_text('{"cases": []}\n', encoding='utf-8', newline='\n')
-    _commit_all(root, 'unrelated commit')
-    corpus_sha256 = hashlib.sha256(ev._canonical_bytes(corpus_file)).hexdigest()
-
-    report = {'provenance': {'evaluated_commit': 'f' * 40, 'evaluated_tree_hash': '0' * 40},
-             'corpus_sha256': corpus_sha256}
-    with pytest.raises(ev.ProvenanceError, match='does not resolve to a real commit'):
-        ev.verify_report_provenance(report, corpus_relpath, repo_root=root)
+@pytest.mark.parametrize('failure', [FileNotFoundError('git unavailable'),
+                                     subprocess.TimeoutExpired('git', 5)])
+def test_provenance_operational_git_failure_is_bounded(monkeypatch, bound_report, failure):
+    def unavailable(*args, **kwargs):
+        raise failure
+    monkeypatch.setattr(ev.subprocess, 'run', unavailable)
+    with pytest.raises(ev.ProvenanceError, match='Git provenance diagnostic failed'):
+        ev.verify_report_provenance(bound_report, repo_root=ROOT)
 
 
-def test_provenance_rejects_report_missing_required_fields(isolated_corpus_repo):
-    root = isolated_corpus_repo
-    with pytest.raises(ev.ProvenanceError, match='missing provenance'):
-        ev.verify_report_provenance({'provenance': {}}, 'x.json', repo_root=root)
+def test_provenance_rejects_malformed_report_and_duplicate_json_keys(tmp_path):
+    with pytest.raises(ev.ProvenanceError, match='root must be a JSON object'):
+        ev.verify_report_provenance([], repo_root=ROOT)
+    malformed = tmp_path / 'report.json'
+    malformed.write_text('{"provenance": {}, "provenance": {}}', encoding='utf-8')
+    with pytest.raises(ev.ProvenanceError, match='duplicate JSON key'):
+        ev.verify_report_provenance(malformed, repo_root=ROOT)
+    malformed.write_text('{"metric": NaN}', encoding='utf-8')
+    with pytest.raises(ev.ProvenanceError, match='non-standard numeric constant'):
+        ev.verify_report_provenance(malformed, repo_root=ROOT)
+
+
+def test_cli_refuses_to_bind_noncanonical_filtered_report():
+    result = subprocess.run([
+        sys.executable, 'scripts/evaluate_fit.py', '--case', 'cyber_soc_security_engineering-01',
+        '--format', 'json', '--provenance-manifest', ev.CANONICAL_MANIFEST_PATH],
+        cwd=str(ROOT), capture_output=True, text=True, timeout=60)
+    assert result.returncode == 2
+    assert 'fresh canonical reproduction' in result.stderr
 
 
 def test_canonical_bytes_is_stable_across_crlf_checkouts(tmp_path):
