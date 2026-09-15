@@ -9,10 +9,12 @@ reimplements domain/seniority/geography classification.
 Reference labels (MUST_SHOW / REASONABLE_STRETCH / LOW_BUT_USEFUL /
 GENUINE_REJECTION / UNCLEAR) use an evaluation-only vocabulary distinct from
 system buckets (STRONG/GOOD/STRETCH/LOW/REJECTED) -- see
-docs/evaluation/FIT_EVALUATION.md. The shipped seed labels are Claude-authored
-proposals, not independent human ground truth. Every case carries
-`reference_status: "PROPOSED"`; strict corpus validation rejects any other
-status in this foundation.
+docs/evaluation/FIT_EVALUATION.md. A case's `reference_status` is either
+`PROPOSED` (a Claude-authored seed label, not yet reviewed) or
+`OWNER_ADJUDICATED` (the repository Owner has personally reviewed the case
+and recorded a final label plus decision method/rationale under
+`owner_adjudication` -- see docs/evaluation/FIT_LABEL_REVIEW.md); strict
+corpus validation rejects any other status.
 """
 import hashlib
 import json
@@ -32,7 +34,7 @@ from .models import DEFAULTS
 REPORT_SCHEMA_VERSION = 'fit-eval-report-2'
 METRIC_DEFINITION_VERSION = 'metrics-v2'
 CORPUS_SCHEMA_VERSION = 'fit-eval-corpus-1'
-HUMAN_LABEL_VERSION = 'labels-v1'
+HUMAN_LABEL_VERSION = 'labels-v2'
 CANDIDATE_POLICY_SCHEMA_VERSION = 'fit-candidate-policy-1'
 QUALITY_GATE_SCHEMA_VERSION = 'fit-quality-gate-1'
 
@@ -50,7 +52,7 @@ INSUFFICIENT_DATA = 'INSUFFICIENT_DATA'
 UNAVAILABLE = 'UNAVAILABLE'
 OK = 'OK'
 
-REFERENCE_STATUSES = ('PROPOSED',)
+REFERENCE_STATUSES = ('PROPOSED', 'OWNER_ADJUDICATED')
 SPLITS = ('development', 'holdout')
 STABLE_ID = re.compile(r'[a-z0-9][a-z0-9_-]{1,80}')
 ALLOWED_HARD_REASONS = frozenset(HARD_REASONS_EVALUATED + ('USER_BLOCKED',))
@@ -785,6 +787,15 @@ def build_report(corpus, corpus_path, results, *, split_filter=None, slice_filte
         pairwise_metric = pairwise_ordering_agreement(by_query)
         bucket_distribution = bucket_distribution_by_label(metric_results)
 
+    if filtered and all(r.reference_status == 'OWNER_ADJUDICATED' for r in filtered):
+        label_caveat = ('Seed labels are Owner-adjudicated reference labels (reference_status '
+                        'OWNER_ADJUDICATED); this is the repository Owner\'s individual review and '
+                        'rationale recorded per case (see docs/evaluation/FIT_LABEL_REVIEW.md), not a '
+                        'multi-human consensus or independently human-labelled benchmark.')
+    else:
+        label_caveat = ('Seed labels are Claude-authored proposals, carry reference_status PROPOSED, '
+                        'and are not independent human or Owner-approved ground truth.')
+
     evaluated_commit = _git_commit()
     evaluated_tree_hash = _git_tree_hash()
     report = {
@@ -819,7 +830,7 @@ def build_report(corpus, corpus_path, results, *, split_filter=None, slice_filte
         'per_case': [r.to_public_dict() for r in sorted(filtered, key=lambda r: r.id)],
         'determinism': {'wall_clock_excluded': True, 'assessment_clock': corpus['fixed_assessment_clock']},
         'caveats': [
-            'Seed labels are Claude-authored proposals, carry reference_status PROPOSED, and are not independent human or Owner-approved ground truth.',
+            label_caveat,
             'Score means ranking priority, never a probability. score_kind is always RANKING_PRIORITY.',
             'Results measure this corpus only, not global web recall; provider coverage in the corpus is '
             'metadata, never a quality signal.',
@@ -1090,8 +1101,7 @@ def render_markdown(report, calibration=None, gate_result=None):
              f"- Report snapshot: {report['provenance']['report_snapshot_note']}",
              f"- Engine/view: `{report['engine']}` / `{report['evaluation_view']}`",
              '',
-             '> **Seed labels are Claude-authored proposals, carry `reference_status: PROPOSED`, and are '
-             'not independent human or Owner-approved ground truth.** Score means ranking priority, never a probability or hiring '
+             f"> **{report['caveats'][0]}** Score means ranking priority, never a probability or hiring "
              'likelihood. These results measure this corpus only -- not global web recall -- and provider '
              'coverage in the corpus is metadata, never a quality signal. Bucket thresholds and component '
              'weights remain provisional (issue #41); running this harness changes no production default.',

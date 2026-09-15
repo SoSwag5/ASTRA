@@ -1,14 +1,13 @@
 {
   "bucket_distribution_by_reference_label": {
     "GENUINE_REJECTION": {
-      "REJECTED": 17,
+      "REJECTED": 18,
       "STRETCH": 3
     },
     "LOW_BUT_USEFUL": {
       "GOOD": 1,
-      "REJECTED": 1,
       "STRETCH": 2,
-      "STRONG": 13
+      "STRONG": 12
     },
     "MUST_SHOW": {
       "STRONG": 25
@@ -16,7 +15,7 @@
     "REASONABLE_STRETCH": {
       "LOW": 2,
       "STRETCH": 2,
-      "STRONG": 11
+      "STRONG": 12
     },
     "UNCLEAR": {
       "REJECTED": 1,
@@ -46,7 +45,7 @@
           "ndcg_at_k": {
             "query_sets_scored": 9,
             "status": "OK",
-            "value": 0.98
+            "value": 0.9831
           },
           "new_useful_regression_rate": {
             "denominator": 20,
@@ -68,7 +67,7 @@
         "holdout": {
           "case_count": 29,
           "high_priority_irrelevant_leakage": {
-            "denominator": 11,
+            "denominator": 12,
             "failing_case_ids": [],
             "numerator": 0,
             "status": "OK",
@@ -82,9 +81,9 @@
             "value": 0.0
           },
           "ndcg_at_k": {
-            "query_sets_scored": 3,
+            "query_sets_scored": 2,
             "status": "OK",
-            "value": 0.7718
+            "value": 1.0
           },
           "new_useful_regression_rate": {
             "denominator": 13,
@@ -95,13 +94,11 @@
           },
           "split": "holdout",
           "useful_false_rejection_rate": {
-            "denominator": 15,
-            "failing_case_ids": [
-              "unrelated_professions-08"
-            ],
-            "numerator": 1,
+            "denominator": 14,
+            "failing_case_ids": [],
+            "numerator": 0,
             "status": "OK",
-            "value": 0.0667
+            "value": 0.0
           }
         },
         "id": "current-ruleset",
@@ -136,7 +133,7 @@
           "ndcg_at_k": {
             "query_sets_scored": 9,
             "status": "OK",
-            "value": 0.9779
+            "value": 0.9811
           },
           "new_useful_regression_rate": {
             "denominator": 20,
@@ -158,7 +155,7 @@
         "holdout": {
           "case_count": 29,
           "high_priority_irrelevant_leakage": {
-            "denominator": 11,
+            "denominator": 12,
             "failing_case_ids": [],
             "numerator": 0,
             "status": "OK",
@@ -172,9 +169,9 @@
             "value": 0.0
           },
           "ndcg_at_k": {
-            "query_sets_scored": 3,
+            "query_sets_scored": 2,
             "status": "OK",
-            "value": 0.7718
+            "value": 1.0
           },
           "new_useful_regression_rate": {
             "denominator": 13,
@@ -185,13 +182,11 @@
           },
           "split": "holdout",
           "useful_false_rejection_rate": {
-            "denominator": 15,
-            "failing_case_ids": [
-              "unrelated_professions-08"
-            ],
-            "numerator": 1,
+            "denominator": 14,
+            "failing_case_ids": [],
+            "numerator": 0,
             "status": "OK",
-            "value": 0.0667
+            "value": 0.0
           }
         },
         "id": "domain-heavier-v1",
@@ -226,7 +221,7 @@
           "ndcg_at_k": {
             "query_sets_scored": 9,
             "status": "OK",
-            "value": 0.9825
+            "value": 0.9854
           },
           "new_useful_regression_rate": {
             "denominator": 20,
@@ -248,7 +243,7 @@
         "holdout": {
           "case_count": 29,
           "high_priority_irrelevant_leakage": {
-            "denominator": 11,
+            "denominator": 12,
             "failing_case_ids": [],
             "numerator": 0,
             "status": "OK",
@@ -262,9 +257,9 @@
             "value": 0.0
           },
           "ndcg_at_k": {
-            "query_sets_scored": 3,
+            "query_sets_scored": 2,
             "status": "OK",
-            "value": 0.7718
+            "value": 1.0
           },
           "new_useful_regression_rate": {
             "denominator": 13,
@@ -275,13 +270,11 @@
           },
           "split": "holdout",
           "useful_false_rejection_rate": {
-            "denominator": 15,
-            "failing_case_ids": [
-              "unrelated_professions-08"
-            ],
-            "numerator": 1,
+            "denominator": 14,
+            "failing_case_ids": [],
+            "numerator": 0,
             "status": "OK",
-            "value": 0.0667
+            "value": 0.0
           }
         },
         "id": "geography-heavier-v1",
@@ -301,21 +294,21 @@
   },
   "candidate_policy": null,
   "caveats": [
-    "Seed labels are Claude-authored proposals, carry reference_status PROPOSED, and are not independent human or Owner-approved ground truth.",
+    "Seed labels are Owner-adjudicated reference labels (reference_status OWNER_ADJUDICATED); this is the repository Owner's individual review and rationale recorded per case (see docs/evaluation/FIT_LABEL_REVIEW.md), not a multi-human consensus or independently human-labelled benchmark.",
     "Score means ranking priority, never a probability. score_kind is always RANKING_PRIORITY.",
     "Results measure this corpus only, not global web recall; provider coverage in the corpus is metadata, never a quality signal.",
     "Thresholds/bucket boundaries and component weights remain provisional (issue #41); no production default is changed by running this harness."
   ],
-  "corpus_content_version": "2026-09-15.2",
+  "corpus_content_version": "2026-09-15.3",
   "corpus_schema_version": "fit-eval-corpus-1",
-  "corpus_sha256": "d1dee1965446cee498f41819b2dabef77b822d49fe4b394b5a78038e36c59fd2",
+  "corpus_sha256": "4e8382f50b832c097822957efe2d028d96192c03d92177686f7cf247c0cff028",
   "coverage": {
     "query_sets": 12,
     "reference_label_distribution": {
-      "GENUINE_REJECTION": 20,
-      "LOW_BUT_USEFUL": 17,
+      "GENUINE_REJECTION": 21,
+      "LOW_BUT_USEFUL": 15,
       "MUST_SHOW": 25,
-      "REASONABLE_STRETCH": 15,
+      "REASONABLE_STRETCH": 16,
       "UNCLEAR": 3
     },
     "total_cases": 80,
@@ -343,7 +336,7 @@
   },
   "engine": "compare",
   "evaluation_view": "BASELINE",
-  "git_commit": "9eaa7c3c56b5560513d3c17c5538be84d224cd2d",
+  "git_commit": "97e888f218ff02ed63ee2d591f06e94f76968870",
   "hard_reason_precision": {
     "CONFIRMED_ELIGIBILITY_CONFLICT": {
       "denominator": 1,
@@ -384,7 +377,7 @@
       "value": 1.0
     }
   },
-  "human_label_version": "labels-v1",
+  "human_label_version": "labels-v2",
   "legacy_new_transitions": {
     "category_counts": {
       "CHANGED_REJECTION_REASON": 14,
@@ -437,11 +430,11 @@
   },
   "metric_definition_version": "metrics-v2",
   "pairwise_ordering_agreement": {
-    "denominator": 151,
+    "denominator": 143,
     "failing_case_ids": [],
-    "numerator": 112,
+    "numerator": 113,
     "status": "OK",
-    "value": 0.7417
+    "value": 0.7902
   },
   "per_case": [
     {
@@ -457,7 +450,7 @@
       "query_id": "cloud_security",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -481,7 +474,7 @@
       "query_id": "cloud_security",
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "ashby",
       "split": "development",
       "tags": {
@@ -505,7 +498,7 @@
       "query_id": "cloud_security",
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -529,7 +522,7 @@
       "query_id": "cloud_security",
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -553,7 +546,7 @@
       "query_id": "cloud_security",
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -577,7 +570,7 @@
       "query_id": "cyber_soc_security_engineering",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -601,7 +594,7 @@
       "query_id": "cyber_soc_security_engineering",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -625,7 +618,7 @@
       "query_id": "cyber_soc_security_engineering",
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -649,7 +642,7 @@
       "query_id": "cyber_soc_security_engineering",
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -673,7 +666,7 @@
       "query_id": "cyber_soc_security_engineering",
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -697,7 +690,7 @@
       "query_id": "cyber_soc_security_engineering",
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_STALE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -721,7 +714,7 @@
       "query_id": "cyber_soc_security_engineering",
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -745,7 +738,7 @@
       "query_id": "data_quality_and_source_shape",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -770,7 +763,7 @@
       "query_id": "data_quality_and_source_shape",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "lever",
       "split": "holdout",
       "tags": {
@@ -795,7 +788,7 @@
       "query_id": "data_quality_and_source_shape",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "ashby",
       "split": "holdout",
       "tags": {
@@ -820,7 +813,7 @@
       "query_id": "data_quality_and_source_shape",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "smartrecruiters",
       "split": "holdout",
       "tags": {
@@ -845,7 +838,7 @@
       "query_id": "data_quality_and_source_shape",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "manual",
       "split": "holdout",
       "tags": {
@@ -870,7 +863,7 @@
       "query_id": "data_quality_and_source_shape",
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -895,7 +888,7 @@
       "query_id": "data_quality_and_source_shape",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "lever",
       "split": "holdout",
       "tags": {
@@ -920,7 +913,7 @@
       "query_id": "data_quality_and_source_shape",
       "reference_label": "UNCLEAR",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "ashby",
       "split": "holdout",
       "tags": {
@@ -945,7 +938,7 @@
       "query_id": "data_quality_and_source_shape",
       "reference_label": "UNCLEAR",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "smartrecruiters",
       "split": "holdout",
       "tags": {
@@ -970,7 +963,7 @@
       "query_id": "data_quality_and_source_shape",
       "reference_label": "UNCLEAR",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "manual",
       "split": "holdout",
       "tags": {
@@ -995,7 +988,7 @@
       "query_id": "experience_spectrum",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1019,7 +1012,7 @@
       "query_id": "experience_spectrum",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1043,7 +1036,7 @@
       "query_id": "experience_spectrum",
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1067,7 +1060,7 @@
       "query_id": "experience_spectrum",
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1091,7 +1084,7 @@
       "query_id": "experience_spectrum",
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1115,7 +1108,7 @@
       "query_id": "experience_spectrum",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1139,7 +1132,7 @@
       "query_id": "experience_spectrum",
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1163,7 +1156,7 @@
       "query_id": "experience_spectrum",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1187,7 +1180,7 @@
       "query_id": "geography_spectrum",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -1211,7 +1204,7 @@
       "query_id": "geography_spectrum",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -1235,7 +1228,7 @@
       "query_id": "geography_spectrum",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -1259,7 +1252,7 @@
       "query_id": "geography_spectrum",
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -1283,7 +1276,7 @@
       "query_id": "geography_spectrum",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -1307,7 +1300,7 @@
       "query_id": "geography_spectrum",
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -1331,7 +1324,7 @@
       "query_id": "geography_spectrum",
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -1355,7 +1348,7 @@
       "query_id": "geography_spectrum",
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -1379,7 +1372,7 @@
       "query_id": "geography_spectrum",
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -1403,7 +1396,7 @@
       "query_id": "geography_spectrum",
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -1427,7 +1420,7 @@
       "query_id": "iam_pam_appsec_devsecops",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1451,7 +1444,7 @@
       "query_id": "iam_pam_appsec_devsecops",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1475,7 +1468,7 @@
       "query_id": "iam_pam_appsec_devsecops",
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "lever",
       "split": "development",
       "tags": {
@@ -1499,7 +1492,7 @@
       "query_id": "iam_pam_appsec_devsecops",
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1523,7 +1516,7 @@
       "query_id": "iam_pam_appsec_devsecops",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "UNKNOWN",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1547,7 +1540,7 @@
       "query_id": "iam_pam_appsec_devsecops",
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1571,7 +1564,7 @@
       "query_id": "network_engineering_noc",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1595,7 +1588,7 @@
       "query_id": "network_engineering_noc",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "smartrecruiters",
       "split": "development",
       "tags": {
@@ -1619,7 +1612,7 @@
       "query_id": "network_engineering_noc",
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1643,7 +1636,7 @@
       "query_id": "network_engineering_noc",
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1667,7 +1660,7 @@
       "query_id": "network_engineering_noc",
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1691,7 +1684,7 @@
       "query_id": "seniority_spectrum",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1715,7 +1708,7 @@
       "query_id": "seniority_spectrum",
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1739,7 +1732,7 @@
       "query_id": "seniority_spectrum",
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1763,7 +1756,7 @@
       "query_id": "seniority_spectrum",
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1787,7 +1780,7 @@
       "query_id": "seniority_spectrum",
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1811,7 +1804,7 @@
       "query_id": "seniority_spectrum",
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1835,7 +1828,7 @@
       "query_id": "seniority_spectrum",
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1859,7 +1852,7 @@
       "query_id": "software_engineering",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1883,7 +1876,7 @@
       "query_id": "software_engineering",
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1907,7 +1900,7 @@
       "query_id": "software_engineering",
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1931,7 +1924,7 @@
       "query_id": "software_engineering",
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1955,7 +1948,7 @@
       "query_id": "systems_infra_cloud_platform_devops",
       "reference_label": "MUST_SHOW",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -1979,7 +1972,7 @@
       "query_id": "systems_infra_cloud_platform_devops",
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2003,7 +1996,7 @@
       "query_id": "systems_infra_cloud_platform_devops",
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2025,9 +2018,9 @@
       "new_hard_reason": null,
       "new_score": 85,
       "query_id": "systems_infra_cloud_platform_devops",
-      "reference_label": "LOW_BUT_USEFUL",
+      "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2051,7 +2044,7 @@
       "query_id": "systems_infra_cloud_platform_devops",
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2075,7 +2068,7 @@
       "query_id": "technical_support_solutions_engineering",
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2099,7 +2092,7 @@
       "query_id": "technical_support_solutions_engineering",
       "reference_label": "REASONABLE_STRETCH",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2123,7 +2116,7 @@
       "query_id": "technical_support_solutions_engineering",
       "reference_label": "LOW_BUT_USEFUL",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2147,7 +2140,7 @@
       "query_id": "technical_support_solutions_engineering",
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "development",
       "tags": {
@@ -2171,7 +2164,7 @@
       "query_id": "unrelated_professions",
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -2195,7 +2188,7 @@
       "query_id": "unrelated_professions",
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -2219,7 +2212,7 @@
       "query_id": "unrelated_professions",
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -2243,7 +2236,7 @@
       "query_id": "unrelated_professions",
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -2267,7 +2260,7 @@
       "query_id": "unrelated_professions",
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -2291,7 +2284,7 @@
       "query_id": "unrelated_professions",
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -2315,7 +2308,7 @@
       "query_id": "unrelated_professions",
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -2337,9 +2330,9 @@
       "new_hard_reason": "DOMAIN_INCOMPATIBLE",
       "new_score": null,
       "query_id": "unrelated_professions",
-      "reference_label": "LOW_BUT_USEFUL",
+      "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -2363,7 +2356,7 @@
       "query_id": "unrelated_professions",
       "reference_label": "GENUINE_REJECTION",
       "reference_link_state": "LIKELY_LIVE",
-      "reference_status": "PROPOSED",
+      "reference_status": "OWNER_ADJUDICATED",
       "source_kind": "greenhouse",
       "split": "holdout",
       "tags": {
@@ -2377,14 +2370,14 @@
   ],
   "primary_metrics": {
     "broad_irrelevant_leakage": {
-      "denominator": 20,
+      "denominator": 21,
       "failing_case_ids": [
         "software_engineering-04",
         "systems_infra_cloud_platform_devops-05",
         "technical_support_solutions_engineering-04"
       ],
       "low_only": {
-        "denominator": 20,
+        "denominator": 21,
         "failing_case_ids": [],
         "numerator": 0,
         "status": "OK",
@@ -2392,10 +2385,10 @@
       },
       "numerator": 3,
       "status": "OK",
-      "value": 0.15
+      "value": 0.1429
     },
     "high_priority_irrelevant_leakage": {
-      "denominator": 20,
+      "denominator": 21,
       "failing_case_ids": [],
       "numerator": 0,
       "status": "OK",
@@ -2416,18 +2409,16 @@
       "value": 0.0
     },
     "useful_false_rejection_rate": {
-      "denominator": 57,
-      "failing_case_ids": [
-        "unrelated_professions-08"
-      ],
-      "numerator": 1,
+      "denominator": 56,
+      "failing_case_ids": [],
+      "numerator": 0,
       "status": "OK",
-      "value": 0.0175
+      "value": 0.0
     }
   },
   "provenance": {
-    "evaluated_commit": "9eaa7c3c56b5560513d3c17c5538be84d224cd2d",
-    "evaluated_tree_hash": "0780f89c0019ccabcc8ff0bfaf3f387b542a0ffc",
+    "evaluated_commit": "97e888f218ff02ed63ee2d591f06e94f76968870",
+    "evaluated_tree_hash": "5ecece5c14ac767bc296c40dd009b59e867b16d3",
     "report_snapshot_note": "Committed reports are generated from this clean evaluated commit and may be stored in a later report-only commit."
   },
   "quality_gate": {
@@ -2445,18 +2436,18 @@
         "threshold": 0.0
       },
       {
-        "denominator": 57,
+        "denominator": 56,
         "metric": "primary_metrics.useful_false_rejection_rate",
         "min_denominator": 1,
         "name": "useful-false-rejection",
-        "observed": 0.0175,
+        "observed": 0.0,
         "operator": "<=",
         "required": true,
         "status": "PASS",
         "threshold": 0.05
       },
       {
-        "denominator": 20,
+        "denominator": 21,
         "metric": "primary_metrics.high_priority_irrelevant_leakage",
         "min_denominator": 1,
         "name": "high-priority-leakage",
@@ -2531,9 +2522,9 @@
   },
   "ranking_metrics": {
     "ndcg_at_k": {
-      "query_sets_scored": 12,
+      "query_sets_scored": 11,
       "status": "OK",
-      "value": 0.9279
+      "value": 0.9862
     },
     "per_query_set": {
       "cloud_security": {
@@ -2610,7 +2601,7 @@
       },
       "systems_infra_cloud_platform_devops": {
         "k": 5,
-        "ndcg": 0.9396440613358614,
+        "ndcg": 0.9679456339667245,
         "pool_size": 5,
         "precision": 0.8,
         "recall": 1.0,
@@ -2626,20 +2617,20 @@
       },
       "unrelated_professions": {
         "k": 9,
-        "ndcg": 0.31546487678572877,
+        "ndcg": null,
         "pool_size": 9,
-        "precision": 0.1111111111111111,
-        "recall": 1.0,
-        "relevant_total": 1
+        "precision": 0.0,
+        "recall": null,
+        "relevant_total": 0
       }
     },
     "precision_at_k": {
       "query_sets_scored": 12,
       "status": "OK",
-      "value": 0.7597
+      "value": 0.7504
     },
     "recall_at_k": {
-      "query_sets_scored": 12,
+      "query_sets_scored": 11,
       "status": "OK",
       "value": 1.0
     }

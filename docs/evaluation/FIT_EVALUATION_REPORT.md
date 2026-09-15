@@ -2,23 +2,23 @@
 
 _Generated from `backend.evaluation`'s canonical machine-readable output -- not hand-maintained._
 
-- Corpus: `2026-09-15.2` (80 cases, 12 query sets, 3 UNCLEAR)
+- Corpus: `2026-09-15.3` (80 cases, 12 query sets, 3 UNCLEAR)
 - Code: assessment schema `fit-assessment-2`, ruleset `fit-rules-2`, taxonomy `career-tracks-1`, experience parser `experience-2`
-- Evaluated commit: `9eaa7c3c56b5560513d3c17c5538be84d224cd2d`
-- Evaluated tree: `0780f89c0019ccabcc8ff0bfaf3f387b542a0ffc`
+- Evaluated commit: `97e888f218ff02ed63ee2d591f06e94f76968870`
+- Evaluated tree: `5ecece5c14ac767bc296c40dd009b59e867b16d3`
 - Report snapshot: Committed reports are generated from this clean evaluated commit and may be stored in a later report-only commit.
 - Engine/view: `compare` / `BASELINE`
 
-> **Seed labels are Claude-authored proposals, carry `reference_status: PROPOSED`, and are not independent human or Owner-approved ground truth.** Score means ranking priority, never a probability or hiring likelihood. These results measure this corpus only -- not global web recall -- and provider coverage in the corpus is metadata, never a quality signal. Bucket thresholds and component weights remain provisional (issue #41); running this harness changes no production default.
+> **Seed labels are Owner-adjudicated reference labels (reference_status OWNER_ADJUDICATED); this is the repository Owner's individual review and rationale recorded per case (see docs/evaluation/FIT_LABEL_REVIEW.md), not a multi-human consensus or independently human-labelled benchmark.** Score means ranking priority, never a probability or hiring likelihood. These results measure this corpus only -- not global web recall -- and provider coverage in the corpus is metadata, never a quality signal. Bucket thresholds and component weights remain provisional (issue #41); running this harness changes no production default.
 
 ## Coverage
 
 | Reference label | Count |
 |---|---|
 | MUST_SHOW | 25 |
-| REASONABLE_STRETCH | 15 |
-| LOW_BUT_USEFUL | 17 |
-| GENUINE_REJECTION | 20 |
+| REASONABLE_STRETCH | 16 |
+| LOW_BUT_USEFUL | 15 |
+| GENUINE_REJECTION | 21 |
 | UNCLEAR | 3 |
 
 ## Primary metrics
@@ -26,10 +26,10 @@ _Generated from `backend.evaluation`'s canonical machine-readable output -- not 
 | Metric | Value |
 |---|---|
 | must_show_false_rejection_rate | **0.0000** (0/25) |
-| useful_false_rejection_rate | **0.0175** (1/57) |
+| useful_false_rejection_rate | **0.0000** (0/56) |
 | new_useful_regression_rate | **0.0000** (0/33) |
-| high_priority_irrelevant_leakage | **0.0000** (0/20) |
-| broad_irrelevant_leakage | **0.1500** (3/20) |
+| high_priority_irrelevant_leakage | **0.0000** (0/21) |
+| broad_irrelevant_leakage | **0.1429** (3/21) |
 
 ## Hard-reason precision
 
@@ -43,10 +43,10 @@ _Generated from `backend.evaluation`'s canonical machine-readable output -- not 
 
 ## Ranking quality
 
-- Precision@10: 0.7597
+- Precision@10: 0.7504
 - Recall@K: 1.0
-- nDCG@10: 0.9279
-- Pairwise ordering agreement: **0.7417** (112/151)
+- nDCG@10: 0.9862
+- Pairwise ordering agreement: **0.7902** (113/143)
 
 ## Legacy vs new engine
 
@@ -64,12 +64,12 @@ _Generated from `backend.evaluation`'s canonical machine-readable output -- not 
 
 | Policy | Split | MUST_SHOW FR | Useful FR | HP leakage | nDCG@10 |
 |---|---|---|---|---|---|
-| current-ruleset | development | **0.0000** (0/15) | **0.0000** (0/42) | **0.0000** (0/9) | **0.9800** |
-| current-ruleset | holdout | **0.0000** (0/10) | **0.0667** (1/15) | **0.0000** (0/11) | **0.7718** |
-| domain-heavier-v1 | development | **0.0000** (0/15) | **0.0000** (0/42) | **0.0000** (0/9) | **0.9779** |
-| domain-heavier-v1 | holdout | **0.0000** (0/10) | **0.0667** (1/15) | **0.0000** (0/11) | **0.7718** |
-| geography-heavier-v1 | development | **0.0000** (0/15) | **0.0000** (0/42) | **0.0000** (0/9) | **0.9825** |
-| geography-heavier-v1 | holdout | **0.0000** (0/10) | **0.0667** (1/15) | **0.0000** (0/11) | **0.7718** |
+| current-ruleset | development | **0.0000** (0/15) | **0.0000** (0/42) | **0.0000** (0/9) | **0.9831** |
+| current-ruleset | holdout | **0.0000** (0/10) | **0.0000** (0/14) | **0.0000** (0/12) | **1.0000** |
+| domain-heavier-v1 | development | **0.0000** (0/15) | **0.0000** (0/42) | **0.0000** (0/9) | **0.9811** |
+| domain-heavier-v1 | holdout | **0.0000** (0/10) | **0.0000** (0/14) | **0.0000** (0/12) | **1.0000** |
+| geography-heavier-v1 | development | **0.0000** (0/15) | **0.0000** (0/42) | **0.0000** (0/9) | **0.9854** |
+| geography-heavier-v1 | holdout | **0.0000** (0/10) | **0.0000** (0/14) | **0.0000** (0/12) | **1.0000** |
 
 Smallest-deviation improving candidate (development split): **geography-heavier-v1**
 
@@ -82,7 +82,7 @@ Overall: **INSUFFICIENT_DATA**
 | Check | Status | Threshold | Observed |
 |---|---|---|---|
 | must-show-false-rejection | PASS | <= 0.0 | 0.0 |
-| useful-false-rejection | PASS | <= 0.05 | 0.0175 |
+| useful-false-rejection | PASS | <= 0.05 | 0.0 |
 | high-priority-leakage | PASS | <= 0.02 | 0.0 |
 | new-useful-regression | PASS | <= 0.0 | 0.0 |
 | domain-hard-reason-sample | PASS | >= 0.0 | 0.875 |
@@ -92,9 +92,8 @@ Overall: **INSUFFICIENT_DATA**
 
 ## Top failures
 
-- **useful_false_rejection_rate**: unrelated_professions-08
 - **broad_irrelevant_leakage**: software_engineering-04, systems_infra_cloud_platform_devops-05, technical_support_solutions_engineering-04
 
 ---
 
-Report schema `fit-eval-report-2`, metric definitions `metrics-v2`, corpus SHA-256 `d1dee1965446cee4...`
+Report schema `fit-eval-report-2`, metric definitions `metrics-v2`, corpus SHA-256 `4e8382f50b832c09...`

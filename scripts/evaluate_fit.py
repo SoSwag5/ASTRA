@@ -74,7 +74,7 @@ def render_text(report, calibration=None, gate_result=None):
     lines.append(f"Engine/view: {report['engine']} / {report['evaluation_view']}")
     lines.append(f"Evaluated commit: {report['provenance']['evaluated_commit']}")
     lines.append(f"Evaluated tree: {report['provenance']['evaluated_tree_hash']}")
-    lines.append('Labels: Claude-authored PROPOSED seed labels; not independent human or Owner-approved ground truth')
+    lines.append(f"Labels: {report['caveats'][0]}")
     lines.append('')
     lines.append('Primary metrics:')
     for name, m in report['primary_metrics'].items():
