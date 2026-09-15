@@ -1,0 +1,38 @@
+{
+  "generation": {
+    "calibration": [
+      "tests/fixtures/candidate_policies/domain_heavier.json",
+      "tests/fixtures/candidate_policies/geography_heavier.json"
+    ],
+    "candidate_policy": null,
+    "corpus": "tests/fixtures/fit_evaluation_v1.json",
+    "dedupe": true,
+    "engine": "compare",
+    "quality_gate": "tests/fixtures/quality_gate_proposed_v1.json",
+    "slice_filters": {},
+    "split": null
+  },
+  "hash_algorithm": "sha256",
+  "inputs": [
+    {"path": "backend/assessment.py", "role": "evaluation_dependency", "sha256": "c17337af155d4f275b86802ce93663e98f5af411475f619d35d26b9cfa82294b"},
+    {"path": "backend/career_tracks.py", "role": "evaluation_dependency", "sha256": "dc2776ab10fb91ee47cca651bf74397716c33bb34a2f9cf69c89be890bda5eb4"},
+    {"path": "backend/deduplication.py", "role": "evaluation_dependency", "sha256": "a501a295dfe370b8138cbb405dd220d4deff89cbfc2d4a49ebbf6602b54034dc"},
+    {"path": "backend/discovery.py", "role": "evaluation_dependency", "sha256": "1397935b69e36eff79045a63d706d69557bb30cf0ad2a85b7dac1a72183744b3"},
+    {"path": "backend/evaluation.py", "role": "evaluation_implementation", "sha256": "63bcadf186a24c51a36e024db0384fd875f9c5ebc77e6ba0005790974530e880"},
+    {"path": "backend/experience.py", "role": "evaluation_dependency", "sha256": "b66c8d4752825b9be919e1a8aa19eac6d6e0f761f678acb17995c082f08d18e7"},
+    {"path": "backend/models.py", "role": "evaluation_dependency", "sha256": "520fb8fc07ac8e94cce6a20a3779ebe087ddf36bb664024b407846df1b697e31"},
+    {"path": "backend/normalization.py", "role": "evaluation_dependency", "sha256": "1193155c9245760e33fa412f38a8bb0bee93c60338f86d55dbba9756410718c5"},
+    {"path": "backend/policy.py", "role": "evaluation_dependency", "sha256": "a7325ac768d910827fbc84c42dc6081764a15ea1ad6adfc5ef7eb8f3c3cde1ac"},
+    {"path": "backend/recall.py", "role": "evaluation_dependency", "sha256": "21b58046fc82ee8a92965a3545a5c01cc79c436423df961a04a4495ec797c869"},
+    {"path": "backend/services.py", "role": "evaluation_dependency", "sha256": "07436354825c859549285a54cb34b0da5e70d8d9ff59738d87cf48b5aecae699"},
+    {"path": "requirements.lock.txt", "role": "runtime_dependency_lock", "sha256": "ab5d7faed11e2a3428d9e367c2c8443aaa4363dab3804925e781f5db0174f5c6"},
+    {"path": "scripts/evaluate_fit.py", "role": "report_generator", "sha256": "aa706cef132857d822664f70cbb595ddd780f2e361664924020e89042a78ed52"},
+    {"path": "tests/fixtures/fit_evaluation_v1.json", "role": "evaluation_corpus", "sha256": "19d420c06d4b2dff24428713d4b0997bdf95c26ac8247395c0067019a445b612"},
+    {"path": "tests/fixtures/job_dedupe_corpus.json", "role": "dedupe_corpus", "sha256": "bd4f1762b688686aab2cf004c55311e8f47248c75fa5773b8a6fa68c19bbc3c1"},
+    {"path": "tests/fixtures/candidate_policies/domain_heavier.json", "role": "candidate_policy", "sha256": "437fe32f2316f8f0e20e2feb73e7dc848944710c19a891d5685b73ad28ed0fa2"},
+    {"path": "tests/fixtures/candidate_policies/geography_heavier.json", "role": "candidate_policy", "sha256": "4519ddf02e2eb5e4edbee6c123328b7932833aba5a7ee4cf0cf359cc48a7eeb2"},
+    {"path": "tests/fixtures/quality_gate_proposed_v1.json", "role": "quality_gate", "sha256": "f2c9d60e33ac0364f1c7d57df62e9e5293e12b2b09c1c7d3699eef18b5ebf084"}
+  ],
+  "manifest_schema_version": "fit-eval-input-manifest-1",
+  "text_canonicalization": "lf"
+}
