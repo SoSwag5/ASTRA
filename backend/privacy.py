@@ -19,9 +19,9 @@ PRIVACY_COPY={
     'network':'Enabled public-board scans send your IP address and requested board URL to the source. Opening a job link uses your browser and the destination’s privacy rules.',
     'models':'Rules mode makes no model request. Ollama is restricted to this device. Each OpenAI advice request requires your approval and sends the current job description and your listed skills to api.openai.com. Model advice is unverified commentary, never an approved career fact.',
     'submission':'The app does not fill external forms, upload CVs to employers or submit applications. Review your documents and answers, then submit in your own browser. Assessments and optional demographic answers stay under your direct control.',
-    'storage':'Local files and SQLite are not encrypted by this app. Protect your OS account and use disk encryption. API credentials saved here use the operating system credential store. No analytics or remote error-reporting service is configured.',
-    'deletion':'Deletion removes app-managed records, derived documents, tracker copies, backups and browser-session files for the selected scope. Downloaded/exported copies, original uploads outside the app, cloud-provider retention and employer records cannot be erased here. SSD recovery, OS backups and synced folders may retain copies.',
-    'export':'Exports contain private information and are unencrypted. Browser sessions and API credentials are excluded. Keep exports somewhere you control.'
+    'storage':'Local files and SQLite are not encrypted by this app. Protect your OS account and use disk encryption. API credentials saved here use the operating system credential store. Gmail connection tokens use that same credential store and are never written to the database, a settings file, logs, exports, backups or diagnostics. No analytics or remote error-reporting service is configured.',
+    'deletion':'Deletion removes app-managed records, derived documents, tracker copies, backups and browser-session files for the selected scope. Delete All Local Data also removes saved API credentials and Gmail connection tokens; it does not call Google to revoke access, which is what Disconnect does. Downloaded/exported copies, original uploads outside the app, cloud-provider retention and employer records cannot be erased here. SSD recovery, OS backups and synced folders may retain copies.',
+    'export':'Exports contain private information and are unencrypted. Browser sessions, API credentials and Gmail connection tokens are excluded. Keep exports somewhere you control.'
 }
 
 def managed_files():
@@ -109,7 +109,15 @@ def delete_data(request:DeleteRequest):
         files=managed_files()
         if request.scope!='all': files=[p for p in files if not p.name.startswith('ai-usage.db')]
         if request.scope=='history': files=[p for p in files if p.name not in ('master.pdf','incoming.pdf')]
-        if request.scope=='all': delete_credential('openai')
+        if request.scope=='all':
+            delete_credential('openai')
+            # Issue #44: this deletion scope covers all credentials, so the
+            # Gmail refresh tokens go with the OpenAI key. This is the full
+            # local erase, not a disconnect: it makes no Google revocation
+            # call. Disconnecting a single account is the separate, per-account
+            # action in backend/gmail_accounts.py.
+            from .gmail_accounts import purge_all_local
+            purge_all_local()
         # Preflight all paths before removing anything. A filesystem failure is surfaced,
         # never reported as success; retry can finish the idempotent deletion.
         for path in files: path.unlink()

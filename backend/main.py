@@ -265,6 +265,12 @@ async def lifespan(app):
         yield
         return
     initialize()
+    # Issue #44: additive Gmail account table. Owned by backend/gmail_accounts.py
+    # rather than models.initialize(), because backend/models.py is a
+    # SHA-256-pinned #42 evaluation-provenance input; see that module's
+    # docstring. Idempotent and safe on an existing database.
+    from .gmail_accounts import initialize_gmail_schema
+    initialize_gmail_schema()
     if os.getenv('BIND_HOST','127.0.0.1') not in ('127.0.0.1','localhost') and not os.getenv('APP_TOKEN'): raise RuntimeError('APP_TOKEN required for public binding')
     # A process restart cannot finish an earlier in-memory scan.
     if task_lock.acquire(False):
@@ -663,6 +669,8 @@ from .privacy import router as privacy_router
 app.include_router(privacy_router)
 from .recall_api import router as recall_router
 app.include_router(recall_router)
+from .gmail_api import router as gmail_router
+app.include_router(gmail_router)
 dist=Path(__file__).resolve().parents[1]/'frontend'/'dist'
 @app.get('/demo',include_in_schema=False)
 def demo_page():

@@ -209,22 +209,61 @@ OS-backed store, not plaintext fallback.
 
 ## Evidence and validation
 
-**Implementation evidence status: Pending.** This ADR's `Accepted`
-status (if granted) reflects Owner approval of the architecture
-decision above — it does not certify that any control described here
-has been built. The following evidence is required before this ADR's
-controls may be relied upon in the v1.1 release evidence pack, and is
-tracked independently of the ADR's status field: a working local
-proof-of-concept of the auth-code+PKCE(S256) flow against a real
-Google OAuth client; confirmation that the exact granted scope is
-`gmail.readonly`; a negative test proving tokens are never written to
-logs, exports, backups, diagnostic bundles, or the SQLite database in
-plaintext; negative tests for the OAuth-callback abuse case (incorrect
-state rejected, missing state rejected, reused callback rejected,
-invalid PKCE verifier rejected, credential cannot attach to the wrong
-Gmail account record); and confirmation that DPAPI storage uses
-`CurrentUser` scope. See issue #48 (v1.1 security/privacy assurance)
-for where this evidence is assembled.
+**Implementation evidence status: PARTIAL — code implemented, live
+Google validation pending.** This ADR's `Accepted` status reflects Owner
+approval of the architecture decision above — it does not certify that
+any control described here has been built. Evidence is tracked
+independently of the status field.
+
+Implemented and covered by automated tests on
+`feature/44-gmail-oauth` (issue #44, **not merged**) — see
+`docs/architecture/GMAIL_OAUTH.md`:
+
+- The auth-code + PKCE(S256) + loopback-redirect flow, with a
+  256-bit single-use `state` compared in constant time, atomic
+  consume-before-exchange, 5-minute attempt expiry, per-slot
+  supersession, and a memory-only attempt store that a restart clears.
+- Granted-scope validation that inspects what Google actually granted
+  and rejects a token that is **missing** `gmail.readonly` *or* carries
+  anything beyond it, before any credential is stored.
+- Authorized-identity binding from Gmail's authenticated
+  `users/me/profile`, never from user intent or a login hint, with
+  identity and credential-key uniqueness among connected records.
+- Refresh-token storage in the native OS credential store only, under a
+  dedicated namespace, with no plaintext/environment/SQLite/file/cache
+  fallback, and a Windows check that the backend is the native
+  DPAPI-backed Credential Manager (`CurrentUser`, never
+  `LocalMachine`).
+- Negative tests proving high-entropy sentinel tokens are absent from
+  application logs, captured stdout/stderr, the security-event file,
+  the SQLite database bytes (including `-wal`/`-shm`), the private
+  export archive, a daily backup snapshot, diagnostic output, every API
+  response body, and exception strings and tracebacks.
+- OAuth-callback abuse-case negative tests: incorrect `state` rejected,
+  missing `state` rejected, duplicate `state` rejected, replayed
+  callback rejected, expired/cancelled/superseded attempts rejected,
+  concurrent callbacks yielding exactly one terminal result, and a
+  credential that cannot attach to a conflicting Gmail account record.
+- Per-account disconnect that removes local access even when Google is
+  unreachable, times out, errors or answers malformed, and reports the
+  local and remote results separately without ever presenting a failed
+  revocation as a success.
+
+**Still outstanding — this ADR's controls must not be relied upon in the
+v1.1 release evidence pack until these exist:**
+
+- A live proof-of-concept against a real Google OAuth client in a
+  dedicated ASTRA Google Cloud project, including **manual
+  consent-screen evidence** of the exact permissions requested. A mocked
+  test is not consent-screen evidence.
+- Confirmation on a real installation that the DPAPI-protected entry is
+  present in Windows Credential Manager and that no plaintext token
+  exists on disk.
+- Independent review of the implementation.
+
+See issue #48 (v1.1 security/privacy assurance) for where this evidence
+is assembled, and `docs/security/RISK_REGISTER.md` R-16, which remains
+**OPEN** — the existence of this code is not closure.
 
 ## Framework impact
 

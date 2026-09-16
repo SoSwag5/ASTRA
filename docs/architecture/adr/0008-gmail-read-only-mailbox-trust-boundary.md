@@ -171,19 +171,45 @@ and their negative tests exist.
 
 ## Evidence and validation
 
-**Implementation evidence status: Pending.** This ADR's `Accepted`
-status (if granted) reflects Owner approval of the architecture
-decision above, not proof that any control has been built. Required
-before this ADR's controls may be relied upon in the v1.1 release
-evidence pack: the actual Gmail scope requested by ADR-0007's
-implementation confirmed as read-only; a code-level test asserting the
-Gmail client wrapper exposes no mutating method; a test confirming no
-full message body or HTML is present in the SQLite database or any
-on-disk cache after a sync/parse cycle completes (memory-only
-enforcement); a test proving a single-signal match cannot reach HIGH
-confidence; and a test proving a message with missing/contradictory
-authentication evidence is capped at MEDIUM regardless of template
-match quality. See issue #48 for where this evidence is assembled.
+**Implementation evidence status: PARTIAL — only the authorization-layer
+half exists.** This ADR's `Accepted` status reflects Owner approval of
+the architecture decision above, not proof that any control has been
+built.
+
+Satisfied by issue #44 (`feature/44-gmail-oauth`, **not merged**) — see
+`docs/architecture/GMAIL_OAUTH.md`:
+
+- The actual Gmail scope ASTRA requests is confirmed read-only in code
+  and by test: exactly `https://www.googleapis.com/auth/gmail.readonly`,
+  with parametrized tests asserting no `mail.google.com`, Gmail
+  modify/send/compose/insert/settings, Drive, Contacts or
+  OpenID/profile/email scope is ever requested, and
+  `include_granted_scopes=false` so a broader earlier grant is not
+  silently inherited.
+- A code-level test asserting the Gmail client wrapper exposes no
+  mutating operation: the profile lookup is the **only** Gmail API URL
+  anywhere in the feature, asserted by scanning the modules for any
+  other `/gmail/v1/` path, so no code path can call a mutating
+  operation.
+- The granted scope is validated after exchange and a
+  broader-than-requested grant stops the flow before any credential is
+  stored — so the scope-layer intent of this ADR is enforced at the
+  authorization layer, not only asserted in code.
+- Disconnect semantics per this ADR's amended rules: disconnect deletes
+  the account's refresh token **and** its sync state, and does not
+  delete application records or history. Tests cover both halves.
+- No message, thread, subject, sender, history or `threadId` value is
+  persisted; mailbox counts returned by the profile lookup are dropped
+  rather than stored.
+
+**Not applicable yet, because the behaviour does not exist:** issue #44
+implements no mailbox sync or parsing at all. The remaining evidence —
+no full message body or HTML in the SQLite database or any on-disk cache
+after a sync/parse cycle; a single-signal match cannot reach HIGH
+confidence; a message with missing or contradictory authentication
+evidence is capped at MEDIUM regardless of template match quality —
+requires issue #45 and cannot be produced before it. See issue #48 for
+where this evidence is assembled.
 
 ## Framework impact
 
