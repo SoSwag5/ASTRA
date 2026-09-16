@@ -737,6 +737,99 @@ def test_token_exchange_rejects_a_redirect_instead_of_following_it(monkeypatch):
     assert 'evil.example' not in str(raised.value)
 
 
+# --- Live-validation regression: Content-Encoding on a Google response ----
+# The reader consumes iter_raw() so the size cap applies to wire bytes, which
+# means it owns the Content-Encoding step. It previously did not, so a
+# compressed response reached json.loads as compressed bytes and the whole
+# exchange failed as TOKEN_EXCHANGE_FAILED with no way to see why. ASTRA asks
+# for `identity`, but that is a preference a server may ignore.
+def _encoded(body, encoding):
+    if encoding == 'gzip':
+        import gzip
+        return gzip.compress(body)
+    if encoding == 'deflate':
+        import zlib
+        return zlib.compress(body)
+    if encoding == 'deflate-raw':
+        import zlib
+        compressor = zlib.compressobj(wbits=-zlib.MAX_WBITS)
+        return compressor.compress(body) + compressor.flush()
+    return body
+
+
+@pytest.mark.parametrize('encoding,header', [
+    (None, None), ('identity', 'identity'), ('gzip', 'gzip'),
+    ('deflate', 'deflate'), ('deflate-raw', 'deflate'),
+])
+def test_a_compressed_token_response_is_decoded_not_rejected(monkeypatch, encoding, header):
+    payload = json.dumps({'access_token': SENTINEL_ACCESS,
+                          'refresh_token': SENTINEL_REFRESH,
+                          'scope': oauth.GMAIL_READONLY_SCOPE}).encode()
+
+    def handler(request):
+        headers = {'content-type': 'application/json'}
+        if header:
+            headers['content-encoding'] = header
+        return httpx.Response(200, content=iter([_encoded(payload, encoding)]),
+                              headers=headers)
+
+    mock_google(monkeypatch, handler)
+    result = exchange_now()
+    assert result['granted_scopes'] == [oauth.GMAIL_READONLY_SCOPE]
+    assert result['refresh_token'].reveal() == SENTINEL_REFRESH
+    result['access_token'].clear()
+    result['refresh_token'].clear()
+
+
+def test_the_client_still_prefers_an_uncompressed_response():
+    """Decoding compression is a fallback, not a reason to invite it."""
+    client = oauth._client(oauth.TOTAL_TIMEOUT)
+    try:
+        assert client.headers['accept-encoding'] == 'identity'
+    finally:
+        client.close()
+
+
+@pytest.mark.parametrize('header,body', [
+    ('br', b'{"access_token":"x"}'),                       # unsupported codec
+    ('gzip', b'\x1f\x8b not actually gzip'),               # corrupt
+    ('deflate', b'not actually deflate at all'),           # corrupt
+])
+def test_an_undecodable_response_is_rejected(monkeypatch, header, body):
+    mock_google(monkeypatch, lambda request: httpx.Response(
+        200, content=iter([body]),
+        headers={'content-type': 'application/json', 'content-encoding': header}))
+    with pytest.raises(oauth.OAuthError) as raised:
+        exchange_now()
+    assert raised.value.code == 'TOKEN_EXCHANGE_FAILED'
+
+
+def test_a_decompression_bomb_is_refused_within_the_size_bound(monkeypatch):
+    """A small compressed body must not expand into an unbounded read."""
+    import gzip
+    bomb = gzip.compress(b'\0' * (oauth.MAX_RESPONSE_BYTES * 40))
+    assert len(bomb) < oauth.MAX_RESPONSE_BYTES, 'the bomb must pass the wire cap'
+    mock_google(monkeypatch, lambda request: httpx.Response(
+        200, content=iter([bomb]),
+        headers={'content-type': 'application/json', 'content-encoding': 'gzip'}))
+    with pytest.raises(oauth.OAuthError) as raised:
+        exchange_now()
+    assert raised.value.code == 'TOKEN_EXCHANGE_FAILED'
+
+
+def test_decoding_applies_to_the_profile_and_revocation_calls_too(monkeypatch):
+    """All three outbound calls share the reader, so all three decode."""
+    import gzip
+    profile = json.dumps({'emailAddress': SYNTHETIC_EMAIL}).encode()
+    mock_google(monkeypatch, lambda request: httpx.Response(
+        200, content=iter([gzip.compress(profile)]),
+        headers={'content-type': 'application/json', 'content-encoding': 'gzip'}))
+    identity = oauth.fetch_authorized_identity(oauth.Secret(SENTINEL_ACCESS))
+    assert identity['authorized_email'] == SYNTHETIC_EMAIL
+    # Revocation only inspects the status, but must not trip on encoding.
+    assert oauth.revoke_refresh_token(oauth.Secret(SENTINEL_REFRESH)) == 'SUCCEEDED'
+
+
 def test_token_exchange_bounds_the_response_size(monkeypatch):
     oversized = b'{"padding":"' + b'A' * (oauth.MAX_RESPONSE_BYTES + 1000) + b'"}'
     mock_google(monkeypatch, responds(200, oversized))

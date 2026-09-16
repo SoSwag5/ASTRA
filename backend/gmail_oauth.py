@@ -56,6 +56,7 @@ import secrets
 import ssl
 import threading
 import time
+import zlib
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlencode, urlsplit, parse_qs
@@ -616,13 +617,69 @@ def _client(total_timeout):
 
 
 def _read_bounded(response, failure_code):
-    body = bytearray()
+    """Read at most MAX_RESPONSE_BYTES of wire bytes, then decode them.
+
+    `iter_raw()` is used rather than `iter_bytes()` so the cap applies to
+    the bytes actually on the wire, before any expansion -- httpx's
+    decoding stream would happily inflate a small compressed body past
+    the cap first. That means this function owns the `Content-Encoding`
+    step itself.
+    """
+    raw = bytearray()
     for chunk in response.iter_raw():
-        body.extend(chunk)
-        if len(body) > MAX_RESPONSE_BYTES:
+        raw.extend(chunk)
+        if len(raw) > MAX_RESPONSE_BYTES:
             raise OAuthError(failure_code,
                              'A Google response exceeded the allowed size')
-    return bytes(body)
+    return _decode_body(bytes(raw), response.headers.get('content-encoding', ''),
+                        failure_code)
+
+
+def _decode_body(raw, encoding, failure_code):
+    """Decode a Content-Encoding body within the same size bound.
+
+    ASTRA asks for `Accept-Encoding: identity` because an uncompressed
+    token/profile/revocation response has no downside and keeps this path
+    trivial. That is a preference, not a guarantee: a server may compress
+    anyway, and issue #44's live validation showed how that ends --
+    `json.loads` on still-compressed bytes fails, and the whole exchange
+    reports a bounded transport failure with no way to see why. So the
+    encodings a server may legitimately choose are decoded here, and
+    anything else is refused.
+
+    Decompression is bounded the same way the provider transport bounds
+    it (`backend/job_providers/transport.py`): output is capped by
+    `decompress(max_length=...)`, a non-empty `unconsumed_tail` means the
+    cap was hit, and the total is re-checked after `flush()`. A small
+    compressed body cannot expand into an unbounded allocation.
+    """
+    name = (encoding or '').strip().lower()
+    if name in ('', 'identity'):
+        return raw
+    if name not in ('gzip', 'deflate'):
+        raise OAuthError(failure_code,
+                         'A Google response used an unsupported content-encoding')
+    # gzip has its own header; `deflate` is sent both zlib-wrapped and raw
+    # in the wild, so both window settings are tried.
+    windows = [zlib.MAX_WBITS | 16] if name == 'gzip' else [zlib.MAX_WBITS,
+                                                            -zlib.MAX_WBITS]
+    for wbits in windows:
+        decompressor = zlib.decompressobj(wbits)
+        try:
+            decoded = decompressor.decompress(raw, MAX_RESPONSE_BYTES + 1)
+            if decompressor.unconsumed_tail:
+                raise OAuthError(failure_code,
+                                 'A Google response exceeded the allowed size')
+            decoded += decompressor.flush()
+        except OAuthError:
+            raise
+        except zlib.error:
+            continue
+        if len(decoded) > MAX_RESPONSE_BYTES:
+            raise OAuthError(failure_code,
+                             'A Google response exceeded the allowed size')
+        return decoded
+    raise OAuthError(failure_code, 'A Google response could not be decompressed')
 
 
 def _strict_json_object(body, failure_code):

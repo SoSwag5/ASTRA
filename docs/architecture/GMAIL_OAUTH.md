@@ -10,14 +10,38 @@ granted, or that ASTRA is approved to distribute a restricted-scope Gmail
 integration. See [Live validation](#live-validation-procedure) and
 [Distribution limits](#distribution-and-verification-limits).
 
-**Live-validation log.** A first live run against a real Desktop client in a
-dedicated Google Cloud project reached Google's consent screen and returned a
-real callback, which ASTRA then **rejected** with
-`CALLBACK_UNEXPECTED_PARAMETER` — a genuine defect in the callback
-parameter policy, described under
-[Loopback callback listener](#loopback-callback-listener). It was remediated
-and a second live run is required before the flow can be called validated.
-No credential, token, code or address was exposed by the failed run.
+**Live-validation log.** Two defects have been found by live runs against a
+real Desktop client in a dedicated Google Cloud project. Neither run exposed
+a credential, token, code or address.
+
+1. **Run 1 — callback rejected** with `CALLBACK_UNEXPECTED_PARAMETER`. The
+   allowlist covered only the parameters Google's installed-app page
+   enumerates; the real redirect carried `iss` (RFC 9207) alongside `code`,
+   `scope` and `state`. Fixed by the three-tier parameter policy under
+   [Loopback callback listener](#loopback-callback-listener). Run 2 confirmed
+   the real callback (`code, iss, scope, state`, one value each) is now
+   accepted.
+2. **Run 2 — token exchange failed** with `TOKEN_EXCHANGE_FAILED`. Offline
+   verification of the request shape found it correct in every respect
+   (exact endpoint, POST, `application/x-www-form-urlencoded`, exactly the
+   five fields Google requires and no extras, byte-identical `redirect_uri`
+   between the authorization request and the exchange, PKCE verifier
+   matching the S256 challenge, TLS verification on, redirects disabled,
+   proxies ignored). It did, however, expose a **response-validation
+   defect**: the reader bounded and consumed raw wire bytes but never
+   handled `Content-Encoding`, so a compressed response reached `json.loads`
+   as compressed bytes and reported a bounded transport failure with no way
+   to see why. Fixed; see the Response encoding row under
+   [Transport controls](#transport-controls). Whether that was the sole
+   cause is being confirmed by a bounded probe of the token endpoint that
+   uses a deliberately invalid authorization code, so no credential or
+   browser round is involved.
+
+A client secret is still **not** sent, accepted or stored: Google's current
+installed-app documentation marks `client_secret` optional and states that
+installed apps cannot keep secrets confidential. If live evidence ever proves
+this Desktop client requires one, that is an explicit Owner decision, not an
+implementation choice — see [Client secret](#client-secret).
 
 Scope of issue #44 is the **authorization and credential layer only**. No
 Gmail message listing, history synchronization, mailbox scan, message or
@@ -209,7 +233,8 @@ one hardened client:
 | Proxies | `trust_env=False` — no `HTTP(S)_PROXY`/`NO_PROXY`/`SSLKEYLOGFILE` inheritance. ASTRA has no approved proxy policy. |
 | DNS/hosts redirection | After connecting, the peer address must be globally routable; a poisoned answer pointing at loopback, a private range or a metadata address is refused. No extra DNS lookup is made, so there is no unbounded resolution step. |
 | Deadlines | Bounded connect/read/write/pool timeouts; 30s total per call, 8s for revocation. |
-| Response size | 256 KB cap, enforced while streaming rather than after buffering. |
+| Response size | 256 KB cap on the bytes actually **on the wire**, enforced while streaming rather than after buffering. `iter_raw()` is used rather than `iter_bytes()` precisely so a small compressed body cannot inflate past the cap before it is measured. |
+| Response encoding | `Accept-Encoding: identity` is requested, because an uncompressed token/profile/revocation response has no downside. That is a preference, not a guarantee, so `gzip` and `deflate` (zlib-wrapped or raw) are decoded within the same size bound; any other codec, a corrupt stream, or a body that expands past the cap is refused. |
 | Response shape | Expected status, `application/json` content type, and a strict JSON-object check. |
 | Retries | **None** for the authorization-code exchange — codes are single-use and an ambiguous retry could produce a confusing or unsafe outcome. No retry loop for revocation either. |
 | Logging | No request, response, header or body is ever logged. A raw Google error string never reaches an exception message or an API response. |
