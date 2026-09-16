@@ -32,6 +32,73 @@ def overview():
                 'next_scan':job.next_run_time.isoformat() if job and scheduler.running and active else None,
                 'sources':sources,'runs':[{**serialize(r),'report':{k:v for k,v in r.report.items() if k!='decisions'}} for r in runs[:20]]}
 
+MAX_TELEMETRY_RUNS=20
+DEFAULT_TELEMETRY_RUNS=5
+
+def _telemetry_runs(db,limit,offset=0):
+    """Discovery runs inside the 90-day retention window, newest first.
+
+    Bounded twice over: the query is limited to the retention window and the
+    caller's page size is clamped, so this endpoint can never return an
+    unbounded history or a payload that grows with the job database.
+    """
+    from . import discovery_telemetry as telemetry
+    cutoff=telemetry.retention_cutoff().isoformat()
+    return list(db.scalars(select(AutomationRun)
+                           .where(AutomationRun.task=='discover',AutomationRun.created_at>=cutoff)
+                           .order_by(AutomationRun.id.desc())
+                           .offset(max(0,offset)).limit(limit)))
+
+@router.get('/telemetry')
+def telemetry_latest():
+    """Issue #43: the latest completed or partial discovery run's funnel.
+
+    Read-only, local-boundary only (the application's loopback/origin guard and
+    optional access key already gate every /api route). Never returns verbose
+    decision records, job descriptions, titles, URLs, provider payloads or any
+    other private per-job content -- `public_view` is a whitelist projection.
+    """
+    from . import discovery_telemetry as telemetry
+    with Session() as db:
+        runs=_telemetry_runs(db,MAX_TELEMETRY_RUNS)
+        if not runs:
+            return {'schema_version':telemetry.TELEMETRY_SCHEMA_VERSION,
+                    'status':telemetry.NO_DATA,'run':None,
+                    'note':'No discovery run has been recorded within the 90-day telemetry '
+                           'retention window.'}
+        finished=[r for r in runs if r.status!='RUNNING']
+        latest=next((r for r in finished if telemetry.REPORT_KEY in (r.report or {})),None)
+        run=latest or runs[0]
+        view=telemetry.public_view(run)
+        return {'schema_version':telemetry.TELEMETRY_SCHEMA_VERSION,
+                'status':view['telemetry_status'],'run':view,'note':view['note']}
+
+@router.get('/telemetry/runs')
+def telemetry_history(limit:int=DEFAULT_TELEMETRY_RUNS,offset:int=0):
+    from . import discovery_telemetry as telemetry
+    if type(limit) is not int or type(offset) is not int or limit<1 or offset<0:
+        raise ValueError('Choose a positive page size and a non-negative offset')
+    limit=min(limit,MAX_TELEMETRY_RUNS)
+    with Session() as db:
+        runs=_telemetry_runs(db,limit,offset)
+        return {'schema_version':telemetry.TELEMETRY_SCHEMA_VERSION,
+                'retention_days':telemetry.RETENTION_DAYS,'limit':limit,'offset':offset,
+                'maximum_runs':MAX_TELEMETRY_RUNS,'returned':len(runs),
+                'runs':[telemetry.public_view(run) for run in runs]}
+
+@router.get('/telemetry/runs/{run_id}')
+def telemetry_run(run_id:int):
+    from . import discovery_telemetry as telemetry
+    if run_id<1: raise HTTPException(404,'Discovery run not found')
+    with Session() as db:
+        run=db.get(AutomationRun,run_id)
+        if run is None or run.task!='discover': raise HTTPException(404,'Discovery run not found')
+        cutoff=telemetry.retention_cutoff().isoformat()
+        if (run.created_at or '')<cutoff: raise HTTPException(404,'Discovery run not found')
+        view=telemetry.public_view(run)
+        return {'schema_version':telemetry.TELEMETRY_SCHEMA_VERSION,
+                'status':view['telemetry_status'],'run':view,'note':view['note']}
+
 @router.post('/scan')
 def scan(data:dict={}):
     from .main import task, task_lock

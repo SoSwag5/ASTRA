@@ -39,6 +39,26 @@ def _source_outcome(source, report, outcome):
                       'last_error_code':report['error_code']}
 
 
+def _compat_funnel(rows):
+    """Issue #43: the pre-#43 recall funnel is retained ONLY as derived
+    compatibility output for the existing recall audit view and workspace UI.
+    Its attribute counts overlap by design and it is NOT a second
+    authoritative funnel -- backend.discovery_telemetry
+    (discovery-telemetry-v1) is the single source of truth. The marker below
+    says so inside the persisted report itself, so no consumer has to guess
+    which of the two shapes is authoritative. backend/recall.py is a
+    provenance-pinned #42 evaluation input and is deliberately not edited to
+    carry this note.
+    """
+    from .recall import funnel
+    from .discovery_telemetry import REPORT_KEY, TELEMETRY_SCHEMA_VERSION
+    return {**funnel(rows), 'schema': 'legacy-discovery-funnel-compat-1',
+            'authoritative_funnel': f'{REPORT_KEY} ({TELEMETRY_SCHEMA_VERSION})',
+            'compatibility_note': 'Derived compatibility output retained for pre-issue-#43 '
+                                  'consumers. Attribute counts overlap and this is not the '
+                                  'authoritative monotonic discovery funnel.'}
+
+
 def task(name, source_id=None, scheduled_run=False, trigger=None):
     if not task_lock.acquire(blocking=False): return {'busy':True}
     try:
@@ -46,28 +66,49 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
             cfg=settings(db); run=AutomationRun(task=name); db.add(run); db.commit(); report={'discovered':0,'duplicates':0,'prepared':0,'submitted':0,'failures':0,'trigger':trigger or ('APP' if scheduled_run else 'MANUAL'),'started_at':now(),'checked':0,'buckets':{k:0 for k in ('STRONG','GOOD','STRETCH','LOW','REJECTED')},'assessment_comparisons':{}}
             try:
                 if name=='discover':
-                    from .recall import evaluate,funnel
+                    from .recall import evaluate
+                    from . import discovery_telemetry as telemetry
                     report.update(scanned=0,filtered=0,sources=[],source_id=source_id,decisions=[])
                     profile=candidate(db) if db.scalar(select(CandidateProfile)) else {}
+                    # Issue #43: one authoritative funnel accumulator for this run. It only
+                    # ever OBSERVES the pipeline below -- it never changes ranking,
+                    # eligibility, deduplication, provider transport or persistence, and a
+                    # telemetry failure can never roll back a valid source's ingestion.
+                    run_telemetry=telemetry.RunTelemetry(run_id=run.id,trigger=report['trigger'],
+                                                         started_at=report['started_at'],
+                                                         source_filter=source_id,cfg=cfg)
+                    # A disabled source is genuinely a distinct outcome from a failed or an
+                    # empty one, so it is reported as skipped rather than as zeroes.
+                    for skipped in db.scalars(select(JobSource).where(JobSource.adapter!='manual',JobSource.enabled==False)):
+                        run_telemetry.skip(skipped,telemetry.SKIPPED_DISABLED)
                     for source in list(db.scalars(select(JobSource).where(JobSource.enabled==True))):
                         if source.adapter=='manual':continue
-                        if source_id is not None and source.id != source_id: continue
+                        if source_id is not None and source.id != source_id:
+                            run_telemetry.skip(source,telemetry.SKIPPED_NOT_TARGETED); continue
                         if scheduled_run and source.details.get('last_success'):
                             from .search_workspace import parse_date
                             last=parse_date(source.details['last_success'])
                             interval=source.details.get('interval_hours',cfg['discovery_interval_hours'])
-                            if last and interval in (3,6,12,24) and last+timedelta(hours=interval)>datetime.now(timezone.utc):continue
+                            if last and interval in (3,6,12,24) and last+timedelta(hours=interval)>datetime.now(timezone.utc):
+                                run_telemetry.skip(source,telemetry.SKIPPED_NOT_DUE); continue
                         source_report={'id':source.id,'name':source.name,'scanned':0,'checked':0,'imported':0,'duplicates':0,'filtered':{},'error':'','completion':'COMPLETE','buckets':{k:0 for k in ('STRONG','GOOD','STRETCH','LOW','REJECTED')},'assessment_comparisons':{}}
                         source_decisions=[]
+                        attempt=run_telemetry.attempt(source)
                         try:
                             source.details={**source.details,'last_attempted':now(),'mode':'AUTOMATIC','market':'UAE campaign','interval_hours':source.details.get('interval_hours',cfg['discovery_interval_hours'])}
                             if source.adapter=='generic':
                                 raise ValueError('Generic page scanning is disabled pending destination and platform review; use a public board API or paste the description')
                             items=discover(source.adapter,source.board,source.url,cfg)
                             health=getattr(items,'health',None)
-                            _source_outcome(source, source_report, health or {
+                            outcome=health or {
                                 'completion':'COMPLETE', 'health':'HEALTHY' if items else 'EMPTY',
-                                'completion_reason':None, 'metrics':None, 'error':None})
+                                'completion_reason':None, 'metrics':None, 'error':None}
+                            _source_outcome(source, source_report, outcome)
+                            # #43 FETCHED is exactly what the provider/compatibility boundary
+                            # delivered to this orchestration loop -- never HTTP requests, raw
+                            # JSON elements, or the provider's own pre-validation row count
+                            # (those stay in provider_metrics as separate diagnostics).
+                            attempt.record_fetch(outcome)
                             # Issue #41 Owner Decision 1: a structurally valid posting is always
                             # persisted through #40's normalize/dedupe seam, even when hard-rejected
                             # -- rejection is expressed later as a hidden SKIP status, never as
@@ -76,6 +117,7 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                             # INVALID_JOB result instead of crashing the whole source.
                             for item in items:
                                 report['scanned']+=1; source_report['scanned']+=1
+                                attempt.observed()
                                 item['company']=source.name
                                 audit={'source_id':source.id,'item':{k:str(item.get(k,''))[:(2200 if k=='description' else 2000)] for k in ('title','company','location','job_url','source_job_id','source','date_posted','closing_date','description')},'disposition':'PENDING'}
                                 source_decisions.append(audit);report['decisions'].append(audit)
@@ -84,12 +126,20 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                                 except ValueError as invalid:
                                     audit.update(disposition='INVALID_JOB',invalid_reason=str(invalid))
                                     source_report['invalid']=source_report.get('invalid',0)+1
+                                    # Rejected by #40's own ingestion contract, so it never
+                                    # enters STRUCTURALLY_VALID. No second structural
+                                    # validator exists: add_job() is the only authority.
+                                    attempt.invalid_observation()
                                     continue
+                                attempt.persisted(j.id,created=not d)
                                 # #40 persistence/identity is resolved first. The canonical
                                 # persisted Job is then assessed once, for new and reused rows
                                 # alike, with an empty profile representing UNKNOWN evidence.
                                 result=analyze(db,j,profile=profile,cfg=cfg)
                                 decision=result['recall'];bucket=decision['fit_assessment']['bucket'] if decision.get('fit_assessment') else ('REJECTED' if decision['excluded'] else 'LOW')
+                                # #43 reads this one authoritative #41 decision; it never
+                                # reimplements geography, eligibility or relevance rules.
+                                attempt.assessed(j.id,decision)
                                 # Rescoring a discovery never changes historical application fields or stages.
                                 j.analysis={**j.analysis,'first_seen':j.analysis.get('first_seen',j.date_found),'last_seen':now(),'discovery':{**j.analysis.get('discovery',{}),'source_id':source.id,'last_seen':now()}}
                                 audit.update(job_id=j.id,decision=decision,disposition='DUPLICATE' if d else 'NEW',already_seen=bool(j.analysis.get('seen_at')),bucket=bucket)
@@ -104,7 +154,7 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                             source_report['filtered']=dict(Counter('INVALID_JOB' for a in source_decisions if a['disposition']=='INVALID_JOB'))
                             report['filtered']+=sum(source_report['filtered'].values())
                             source_report['rejected']=dict(Counter(a['decision']['hard'][0]['code'] for a in source_decisions if a.get('decision') and a['decision']['excluded']))
-                            source_report['funnel']=funnel(source_decisions)
+                            source_report['funnel']=_compat_funnel(source_decisions)
                             source.details={**source.details,'last_success':now(),'last_verified':now()[:10],'jobs_fetched':source_report['scanned'],'new_jobs':source_report['imported'],'updated_jobs':source_report['duplicates'],'last_error':''}
                             db.commit()
                         except Exception as e:
@@ -114,7 +164,7 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                             source_report['imported']=source_report['duplicates']=source_report['checked']=0; source_report['buckets']={k:0 for k in ('STRONG','GOOD','STRETCH','LOW','REJECTED')};source_report['assessment_comparisons']={}
                             for audit in report.get('decisions',[]):
                                 if audit['source_id']==source.id and audit['disposition'] in ('NEW','DUPLICATE','PENDING'):audit['disposition']='SOURCE_ERROR';audit.pop('job_id',None)
-                            source_report['funnel']=funnel(source_decisions)
+                            source_report['funnel']=_compat_funnel(source_decisions)
                             # A provider-framework exception (issue #38) carries the batch's own
                             # truthful completion/health/metrics; a legacy adapter's plain
                             # exception has none, so it is truthfully FAILED here regardless of
@@ -122,13 +172,17 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                             # telemetry always REPLACES whatever a prior successful run recorded
                             # -- a fresh failure must never leave stale success metrics in place.
                             code=getattr(e,'error_code',None)
-                            _source_outcome(source, source_report, {
-                                'completion':getattr(e,'completion','FAILED'),
-                                'completion_reason':getattr(e,'completion_reason',None),
-                                'health':getattr(e,'health','UNAVAILABLE'),
-                                'metrics':getattr(e,'metrics',None),
-                                'error':{'code':code or 'SOURCE_REQUEST_FAILED',
-                                         'message':str(e) if code else 'Source request failed'}})
+                            failure={'completion':getattr(e,'completion','FAILED'),
+                                     'completion_reason':getattr(e,'completion_reason',None),
+                                     'health':getattr(e,'health','UNAVAILABLE'),
+                                     'metrics':getattr(e,'metrics',None),
+                                     'error':{'code':code or 'SOURCE_REQUEST_FAILED',
+                                              'message':str(e) if code else 'Source request failed'}}
+                            _source_outcome(source, source_report, failure)
+                            # A provider failure is reported as a failure, never as
+                            # "zero relevant jobs": the rolled-back canonical stages
+                            # are cleared and the attempt is marked incomplete.
+                            attempt.failed(failure)
                             source.details={**source.details,'last_attempted':now(),'last_error':'Request failed; retry or review source configuration'}
                             report['failures']+=1; source_report['error']='Source request failed ('+type(e).__name__+'). Check the source URL or retry later.'; log(db,source_report['error'],level='ERROR'); db.commit()
                         report['sources'].append(source_report)
@@ -153,11 +207,19 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                     report['hard_reasons']=dict(Counter(
                         audit['decision']['hard'][0]['code'] for audit in report['decisions']
                         if audit.get('decision') and audit['decision']['excluded'] and audit.get('disposition')!='SOURCE_ERROR'))
-                    report['funnel']=funnel(report['decisions']);report['sources_attempted']=len(report['sources']);report['sources_successful']=sum(not s['error'] for s in report['sources'])
-                    # Bound verbose decision retention to the requested 90-day campaign; keep aggregate history.
-                    cutoff=(datetime.now(timezone.utc)-timedelta(days=90)).isoformat()
-                    for old in db.scalars(select(AutomationRun).where(AutomationRun.created_at<cutoff)):
-                        if 'decisions' in old.report:old.report={k:v for k,v in old.report.items() if k!='decisions'}
+                    report['funnel']=_compat_funnel(report['decisions']);report['sources_attempted']=len(report['sources']);report['sources_successful']=sum(not s['error'] for s in report['sources'])
+                    run_status='PARTIAL' if report['failures'] else 'COMPLETED'
+                    # Issue #43: the authoritative, versioned discovery funnel. Building it
+                    # cannot fail the run -- RunTelemetry.finalize() returns a bounded
+                    # telemetry-error payload rather than raising or publishing fabricated
+                    # counts, and every source's ingestion is already committed by now.
+                    report[telemetry.REPORT_KEY]=run_telemetry.finalize(
+                        db,run_status,finished_at=report['finished_at'],
+                        duration_seconds=report['duration_seconds'])
+                    # Bound discovery telemetry and verbose decisions to 90 days. Idempotent
+                    # and limited to discovery reporting: no Job, JobObservation,
+                    # Application, user decision or application history is ever touched.
+                    telemetry.prune_expired(db)
                 run=db.get(AutomationRun,run.id); run.status='PARTIAL' if report['failures'] else 'COMPLETED'; run.report=report; db.commit()
             except Exception as e:
                 db.rollback(); run=db.get(AutomationRun,run.id); run.status='FAILED'
