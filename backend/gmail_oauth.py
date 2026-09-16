@@ -217,11 +217,143 @@ class OAuthError(ValueError):
     return to the local frontend.  `message` is text ASTRA itself authored
     -- never a raw Google response, never a URL with query values, and
     never a token, code, verifier or state value.
+
+    The message is for developers and tests. **Anything user-facing --
+    an API body, a console line -- must come from `message_for(code)`
+    instead**, never from `str(error)`. That keeps exception-derived data
+    out of every output channel by construction rather than by careful
+    authoring: a future edit that put a sensitive value into a message
+    could not leak it, and CodeQL's clear-text-logging and
+    stack-trace-exposure rules both flagged the earlier arrangement on
+    exactly that basis.
     """
 
     def __init__(self, code, message):
         super().__init__(message)
         self.code = code
+
+
+#: The single authoritative bounded code -> user-facing text map. Every
+#: value is authored here; nothing is interpolated, and no upstream or
+#: exception-derived string can enter. `frontend/src/GmailConnection.tsx`
+#: mirrors these keys for its own rendering.
+MESSAGES = {
+    'OK': 'Ready.',
+    # Configuration
+    'CLIENT_NOT_CONFIGURED': 'Set the Gmail OAuth client ID for your dedicated '
+                             'ASTRA Google Cloud project before connecting Gmail.',
+    'CLIENT_ID_INVALID': 'The configured Gmail OAuth client ID is not a valid '
+                         'Google installed-app client ID. Re-copy it from your '
+                         'dedicated ASTRA Google Cloud project.',
+    'CLIENT_SECRET_NOT_CONFIGURED': 'This Google OAuth client requires its '
+                                    'client secret. Run '
+                                    '"python -m backend.gmail_setup" on this '
+                                    'computer to store it securely.',
+    'CLIENT_SECRET_INVALID': 'That does not look like a Google OAuth client '
+                             'secret. Nothing was stored.',
+    'SECONDARY_NOT_ENABLED': 'The second Gmail account is not enabled yet. The '
+                             'primary account is validated end to end first.',
+    'UNKNOWN_ACCOUNT_SLOT': 'Unknown Gmail account slot.',
+    'LISTENER_UNAVAILABLE': 'A local callback port could not be opened. Close '
+                            'other applications and try again.',
+    # Credential store
+    'CREDENTIAL_STORE_UNAVAILABLE': 'A supported native operating-system '
+                                    'credential store is unavailable. ASTRA '
+                                    'never falls back to storing a Gmail token '
+                                    'in plaintext.',
+    'CREDENTIAL_STORE_FAILED': 'The Gmail credential could not be saved to the '
+                               'operating-system credential store. Nothing was '
+                               'stored.',
+    'PERSISTENCE_FAILED': 'The Gmail connection could not be saved, so the '
+                          'stored token was removed again. Nothing was '
+                          'connected. Try connecting once more.',
+    # Token exchange and refresh
+    'TOKEN_EXCHANGE_FAILED': 'Google did not complete the token exchange. Start '
+                             'the connection again.',
+    'TOKEN_REFRESH_FAILED': 'ASTRA could not renew access with the stored '
+                            'connection. Reconnect Gmail.',
+    'TOKEN_RESPONSE_INVALID': 'Google returned an unexpected response. Nothing '
+                              'was stored.',
+    'ACCESS_TOKEN_MISSING': 'Google did not return a usable access token. '
+                            'Nothing was stored.',
+    'REFRESH_TOKEN_NOT_RETURNED': 'Google did not return a refresh token, so no '
+                                  'credential was stored and nothing was '
+                                  'changed. Remove ASTRA at your Google account '
+                                  'permissions page, then connect again and '
+                                  'approve access.',
+    'CLIENT_AUTHENTICATION_REQUIRED': 'Google rejected ASTRA\'s client '
+                                      'authentication. Configure or re-enter '
+                                      'the client secret for your OAuth client, '
+                                      'then try again.',
+    'AUTHORIZATION_EXPIRED': 'Google would not accept that authorization. Start '
+                             'the connection again.',
+    # Scope and identity
+    'SCOPE_MISSING_REQUIRED': 'Google did not grant Gmail read-only access. '
+                              'Connect again and approve the read-only '
+                              'permission.',
+    'SCOPE_BROADER_THAN_REQUESTED': 'Google granted more access than ASTRA '
+                                    'requested. Nothing was stored. Remove '
+                                    'ASTRA from your Google account permissions '
+                                    'and connect again.',
+    'IDENTITY_LOOKUP_FAILED': 'ASTRA could not confirm which account was '
+                              'authorized, so nothing was stored.',
+    'IDENTITY_RESPONSE_INVALID': 'ASTRA could not confirm which account was '
+                                 'authorized, so nothing was stored.',
+    'IDENTITY_ALREADY_CONNECTED': 'That Gmail account is already connected to a '
+                                  'different ASTRA account slot. Nothing was '
+                                  'stored. Disconnect it there first.',
+    # Transport
+    'DESTINATION_NOT_ALLOWED': 'Gmail requests only ever contact Google over '
+                               'HTTPS.',
+    # Attempt lifecycle and callbacks
+    'AWAITING_GOOGLE': 'Waiting for you to approve access in your browser.',
+    'CONNECTED': 'Connected.',
+    'CANCELLED': 'The connection attempt was cancelled.',
+    'EXPIRED': 'The connection attempt expired. Start again.',
+    'ATTEMPT_EXPIRED': 'The connection attempt expired. Start again.',
+    'SUPERSEDED': 'A newer connection attempt replaced this one.',
+    'INVALIDATED': 'The connection attempt is no longer valid.',
+    'INVALIDATED_BY_DISCONNECT': 'The connection attempt ended because the '
+                                 'account was disconnected.',
+    'CONNECTION_FAILED': 'The connection could not be completed. Nothing was '
+                         'stored. Try again.',
+    'CALLBACK_INVALID': 'The response from Google was not accepted. Start again.',
+    'CALLBACK_MALFORMED_QUERY': 'The response from Google was malformed and was '
+                                'rejected.',
+    'CALLBACK_STATE_MISSING': 'The response from Google was not accepted. Start '
+                              'again.',
+    'CALLBACK_STATE_MISMATCH': 'The response from Google did not match this '
+                               'attempt and was rejected.',
+    'CALLBACK_MISSING_CODE': 'The response from Google was incomplete. Start '
+                             'again.',
+    'CALLBACK_DUPLICATE_PARAMETER': 'The response from Google was malformed and '
+                                    'was rejected.',
+    'CALLBACK_UNEXPECTED_PARAMETER': 'The response from Google contained '
+                                     'something ASTRA does not recognise and '
+                                     'was rejected. Nothing was stored.',
+    'CALLBACK_FORBIDDEN_PARAMETER': 'The response from Google was rejected '
+                                    'because it carried a credential that does '
+                                    'not belong in this step. Nothing was '
+                                    'stored.',
+    'CALLBACK_PROVIDER_ERROR': 'Google reported that access was not granted.',
+    'CALLBACK_REPLAYED': 'That response was already used and cannot be reused.',
+}
+
+#: Returned when a code has no authored message. Deliberately generic: an
+#: unmapped code must never fall back to exception text.
+DEFAULT_MESSAGE = ('The Gmail operation could not be completed. Nothing was '
+                   'stored. Try again.')
+
+
+def message_for(code):
+    """The authored user-facing text for a bounded code.
+
+    The only sanctioned source of user-facing failure text. Takes a code,
+    not an exception, so no exception-derived or upstream data can reach an
+    output channel through it.
+    """
+    return MESSAGES.get(code, DEFAULT_MESSAGE) if isinstance(code, str) \
+        else DEFAULT_MESSAGE
 
 
 def _now():

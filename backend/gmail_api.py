@@ -44,22 +44,37 @@ def _slot(slug):
 def _bounded_error(error):
     """Map a bounded OAuth failure to a bounded HTTP response.
 
-    The body carries only ASTRA's own authored message and its stable
-    code -- never a Google payload, a URL with query values, or an
-    exception chain.
+    The body is built from the failure's stable **code** only, and its
+    text comes from `oauth.message_for()` -- ASTRA's authored message
+    table. `str(error)` is deliberately never used: exception-derived
+    data must not reach a response body at all, so a Google payload, a
+    URL with query values, an exception chain or a future message that
+    embedded something sensitive cannot leak through this path. CodeQL's
+    `py/stack-trace-exposure` rule flagged the earlier `str(error)`
+    version on exactly that basis.
     """
     status = 409 if error.code in ('SECONDARY_NOT_ENABLED', 'IDENTITY_ALREADY_CONNECTED') else 400
     if error.code in ('CLIENT_NOT_CONFIGURED', 'CLIENT_ID_INVALID',
                       'CREDENTIAL_STORE_UNAVAILABLE'):
         status = 503
-    return JSONResponse({'detail': str(error), 'code': error.code}, status,
+    return JSONResponse({'detail': oauth.message_for(error.code),
+                         'code': error.code}, status,
                         headers={'Cache-Control': 'no-store'})
 
 
 @router.get('/status')
 def gmail_status():
-    """Read the Gmail connection status. No secret, no token field."""
-    return accounts.status()
+    """Read the Gmail connection status. No secret, no token field.
+
+    `OAuthError` subclasses `ValueError`, and ASTRA's global handler
+    returns `str(exc)` for a `ValueError`. Catching it here keeps every
+    Gmail failure on the bounded-code path instead of letting an
+    exception message become a response body.
+    """
+    try:
+        return accounts.status()
+    except OAuthError as error:
+        return _bounded_error(error)
 
 
 @router.post('/accounts/{slug}/authorize')
@@ -76,8 +91,11 @@ def start_authorization(slug: str):
 def authorization_status(slug: str):
     """Bounded pending/terminal status for a slot's attempt."""
     slot = _slot(slug)
-    return {'slot': slot, 'enabled': slot in oauth.ENABLED_SLOTS,
-            'attempt': oauth.attempts.status(slot)}
+    try:
+        return {'slot': slot, 'enabled': slot in oauth.ENABLED_SLOTS,
+                'attempt': oauth.attempts.status(slot)}
+    except OAuthError as error:
+        return _bounded_error(error)
 
 
 @router.post('/accounts/{slug}/authorize/cancel')

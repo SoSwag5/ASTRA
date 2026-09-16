@@ -1368,6 +1368,108 @@ def test_an_incorrect_secret_surfaces_a_bounded_authentication_failure(
     assert accounts.status()['accounts']['PRIMARY']['status'] == 'DISCONNECTED'
 
 
+# --- CodeQL-driven hardening: exception text must not reach any output ---
+# Hosted CodeQL flagged two real taint paths in this feature:
+#   py/clear-text-logging-sensitive-data (high) -- an exception raised by a
+#     function that had handled the secret flowed into print().
+#   py/stack-trace-exposure (medium) -- str(error) flowed into an HTTP body.
+# Both are now structurally impossible: user-facing text comes only from the
+# authored message table, keyed by a bounded code.
+def test_every_bounded_code_has_an_authored_message():
+    import re
+    import pathlib
+    source = ''.join(pathlib.Path(f'backend/{name}').read_text(encoding='utf-8')
+                     for name in ('gmail_oauth.py', 'gmail_accounts.py'))
+    raised = set(re.findall(r"OAuthError\('([A-Z_]+)'", source))
+    assert raised, 'the sweep must actually find raise sites'
+    missing = sorted(raised - set(oauth.MESSAGES))
+    assert not missing, f'codes without an authored message: {missing}'
+    # Result codes the attempt manager reports are covered too.
+    for code in ('AWAITING_GOOGLE', 'CONNECTED', 'CANCELLED', 'EXPIRED',
+                 'SUPERSEDED', 'INVALIDATED', 'INVALIDATED_BY_DISCONNECT',
+                 'CONNECTION_FAILED', 'ATTEMPT_EXPIRED',
+                 'CLIENT_AUTHENTICATION_REQUIRED', 'AUTHORIZATION_EXPIRED',
+                 'CLIENT_SECRET_NOT_CONFIGURED', 'TOKEN_REFRESH_FAILED'):
+        assert code in oauth.MESSAGES, code
+
+
+def test_message_for_never_returns_exception_or_upstream_text():
+    assert oauth.message_for('SECONDARY_NOT_ENABLED') == \
+        oauth.MESSAGES['SECONDARY_NOT_ENABLED']
+    # An unmapped, hostile or non-string code falls back to a generic line,
+    # never to anything derived from input.
+    for code in ('NOT_A_CODE', '', None, 123, SENTINEL_REFRESH,
+                 '<script>alert(1)</script>'):
+        assert oauth.message_for(code) == oauth.DEFAULT_MESSAGE
+    assert SENTINEL_REFRESH not in oauth.DEFAULT_MESSAGE
+
+
+def _executable_python(path):
+    """Source with comments and string literals removed.
+
+    A module that documents why it avoids `str(error)` would otherwise
+    fail a scan for that very phrase, so only real code tokens are kept.
+    """
+    import io
+    import pathlib
+    import tokenize
+    text = pathlib.Path(path).read_text(encoding='utf-8')
+    kept = []
+    for token in tokenize.generate_tokens(io.StringIO(text).readline):
+        if token.type in (tokenize.COMMENT, tokenize.STRING):
+            continue
+        kept.append(token.string)
+    return ' '.join(kept)
+
+
+def test_the_api_body_is_built_from_the_code_not_the_exception(monkeypatch):
+    """`str(error)` must never reach a response body."""
+    code = _executable_python('backend/gmail_api.py')
+    assert 'str ( error )' not in code, 'the API must not stringify an exception'
+    assert 'message_for' in code
+    assert 'traceback' not in code and 'format_exc' not in code
+
+    from backend.gmail_api import _bounded_error
+    marker = 'INTERNAL DETAIL THAT MUST NOT SURFACE'
+    response = _bounded_error(oauth.OAuthError('SCOPE_MISSING_REQUIRED', marker))
+    body = json.loads(response.body)
+    assert marker not in json.dumps(body)
+    assert body['code'] == 'SCOPE_MISSING_REQUIRED'
+    assert body['detail'] == oauth.MESSAGES['SCOPE_MISSING_REQUIRED']
+    # An unmapped code still yields authored text, never the message.
+    body = json.loads(_bounded_error(oauth.OAuthError('UNMAPPED', marker)).body)
+    assert body['detail'] == oauth.DEFAULT_MESSAGE
+    assert marker not in json.dumps(body)
+
+
+def test_the_setup_command_can_only_print_authored_lines():
+    """No free string reaches print() in the secret-handling module."""
+    import pathlib
+    import re
+    code = _executable_python('backend/gmail_setup.py')
+    # Every print() call site is one of the three authored helpers.
+    prints = re.findall(r'^\s*print\(', pathlib.Path('backend/gmail_setup.py')
+                        .read_text(encoding='utf-8'), re.M)
+    assert len(prints) == 3, f'unexpected print() call sites: {len(prints)}'
+    assert 'str ( error )' not in code
+    assert 'type ( error )' not in code, \
+        'even an exception type is derived from the call that read the secret'
+    # The value read at the prompt is wrapped immediately and never held as
+    # a bare local string that a later line could interpolate.
+    assert 'Secret ( getpass . getpass' in code
+
+
+def test_the_setup_command_replaces_unexpected_interpolated_tokens(capsys):
+    from backend import gmail_setup
+    gmail_setup._report('secret', SENTINEL_CLIENT_SECRET)
+    output = capsys.readouterr().out
+    assert SENTINEL_CLIENT_SECRET not in output
+    assert 'UNKNOWN' in output
+    # Allowlisted state words pass through unchanged.
+    gmail_setup._report('secret', 'CONFIGURED')
+    assert 'CONFIGURED' in capsys.readouterr().out
+
+
 def test_no_schema_column_can_hold_the_client_secret():
     columns = set(accounts.GmailAccount.__table__.columns.keys())
     for forbidden in ('client_secret', 'secret', 'client_credential'):
