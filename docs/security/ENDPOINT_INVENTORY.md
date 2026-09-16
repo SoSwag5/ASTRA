@@ -54,6 +54,9 @@ Statically extracted decorator paths; router prefixes must be composed from APIR
 | recall_api.py | POST | /paste-preview | paste_preview |
 | recall_api.py | PUT | /jobs/{job_id}/source | preferred_source |
 | search_workspace.py | GET | /overview | overview |
+| search_workspace.py | GET | /telemetry | telemetry_latest |
+| search_workspace.py | GET | /telemetry/runs | telemetry_history |
+| search_workspace.py | GET | /telemetry/runs/{run_id} | telemetry_run |
 | search_workspace.py | POST | /scan | scan |
 | search_workspace.py | POST | /sources | add_source |
 | search_workspace.py | POST | /jobs/{job_id}/notes | notes |
