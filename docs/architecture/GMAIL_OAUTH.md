@@ -3,19 +3,33 @@
 *Implements [ADR-0007](adr/0007-gmail-oauth-credential-storage.md) and the
 read-only boundary of [ADR-0008](adr/0008-gmail-read-only-mailbox-trust-boundary.md).*
 
-**Status: implemented; live Google OAuth validation in progress.** This
-document describes controls that exist in code and are covered by automated
-tests. It does **not** claim that Google OAuth verification has been
-granted, or that ASTRA is approved to distribute a restricted-scope Gmail
-integration. See [Live validation](#live-validation-procedure) and
-[Distribution limits](#distribution-and-verification-limits).
+**Status: implemented and live-validated (self-verified).** The final
+isolated end-to-end live OAuth validation returned **PASS**. This document
+describes controls that exist in code, are covered by automated tests, and
+were exercised against a real Google Desktop OAuth client in a dedicated
+Google Cloud project.
+
+Two things this status does **not** mean:
+
+- **It is self-verified, not independently reviewed.** Governance v1
+  normally requires independent review before an Owner-authorized merge.
+  For issue #44 the Owner explicitly accepted the self-verification and
+  waived an additional independent review. That waiver is recorded here
+  honestly: no second party reviewed this implementation, and it must not
+  be described as independently reviewed.
+- **No Google OAuth verification, public restricted-scope distribution
+  approval, certification, or production rollout approval is claimed.**
+  See [Distribution limits](#distribution-and-verification-limits).
+
+Issue **#45 remains unstarted.**
 
 **Live-validation log.** Live runs against a real Desktop client in a
 dedicated Google Cloud project found **three defects** plus one required
 architecture change, in the order below. No run exposed a credential, token,
 authorization code or mailbox address, and every finding was fixed at the
-root rather than by relaxing a check. Run 4 completed the whole flow; a
-fifth run is required to confirm the remanence fix end to end.
+root rather than by relaxing a check. **Run 5 returned `PASS`** and is the
+authoritative result; runs 1-4 are retained because the defects they found
+are the reason the controls read as they now do.
 
 1. **Run 1 — callback rejected** with `CALLBACK_UNEXPECTED_PARAMETER`. The
    allowlist covered only the parameters Google's installed-app page
@@ -60,6 +74,39 @@ fifth run is required to confirm the remanence fix end to end.
    (so the address remained live data), and a cleared column's previous
    page image survives in the write-ahead log. Both fixed; see
    [Identity clearing and storage remanence](#disconnect-and-revocation).
+5. **Run 5 — `PASS`.** The complete flow succeeded and the leak scan
+   returned zero findings. Recorded evidence, all machine-verified and
+   fully redacted (no address, token, code, verifier or client identifier
+   appears in the evidence report):
+
+   | Control | Result |
+   |---|---|
+   | Requested scope | exactly `https://www.googleapis.com/auth/gmail.readonly` |
+   | Google-returned granted scope | exactly `https://www.googleapis.com/auth/gmail.readonly`, and identical again on refresh |
+   | Broader authorization | none requested, none granted — no send, compose, modify, delete, label-management, broader settings, Calendar, Contacts or Drive scope |
+   | PKCE | `S256`; challenge equals SHA-256 of the verifier and is not the verifier |
+   | State binding | 256-bit, bound to the attempt, single-use |
+   | Loopback | numeric `127.0.0.1`, ephemeral port, fixed callback path, not ASTRA's API port |
+   | Callback validation | wrong path 404, wrong method 405, wrong state 400 with `CALLBACK_STATE_MISMATCH` and the account left disconnected; real callback `code, iss, scope, state` with one value each and no unlisted name |
+   | Identity binding | from the authenticated `users/me/profile`, matched the connected account, normalization rule verified |
+   | Credential storage | `keyring.backends.Windows` (DPAPI, current user), opaque local handle, namespace separate from both the OpenAI credential and the client secret |
+   | Refresh | stored refresh token usable through `refresh_access_token`, with client authentication |
+   | Minimal Gmail call | `GET /gmail/v1/users/me/profile` only — metadata, no message listed, no content requested, no mailbox counts persisted |
+   | Disconnect | local removal succeeded; refresh token, client secret, identity keys and sync state all removed; `credential_removal_complete: true`; repeated disconnect idempotent |
+   | Remote revocation | `SUCCEEDED`, and reuse of the revoked token was **rejected by Google** |
+   | Identity remanence | `PURGED` — absent from the database, `-wal`, `-shm` and the event log |
+   | Credential/privacy leak scan | **zero findings** across 4 isolated files, 1 log and 287 repository files |
+
+   **Manual consent-screen pixels were not preserved.** No screenshot or
+   transcription of the consent screen exists, and this document does not
+   pretend otherwise. The authoritative evidence for what was authorized is
+   therefore: the machine-verified authorization request (recorded
+   parameter-by-parameter above), the granted scope Google itself returned
+   in the token response and again on refresh, the successful metadata-only
+   Gmail call that scope permits, and Google's own published definition of
+   the scope — `gmail.readonly` = **"View your email messages and
+   settings"**. Those four together establish the granted authorization
+   without relying on a human reading a screen.
 
 Scope of issue #44 is the **authorization and credential layer only**. No
 Gmail message listing, history synchronization, mailbox scan, message or
@@ -671,8 +718,10 @@ and tracebacks.
 
 ## Live validation procedure
 
-Required before #44 can be called operationally complete. **Not yet
-performed.** When it is run, record what was observed — never the values.
+**Performed; final run returned `PASS`** (see the live-validation log
+above). This is the repeatable procedure, retained for re-validation after
+any change to the OAuth, credential or disconnect paths. Record what was
+observed — never the values.
 
 1. Confirm the dedicated ASTRA Google Cloud project is the one in use.
 2. Confirm the OAuth client type is **Desktop app**.
@@ -763,8 +812,17 @@ disconnected until you reconnect.
 | Redirect/DNS/proxy diversion of a credential call | Fixed HTTPS hosts, TLS verification, redirects disabled, proxies ignored, non-routable peer refused | A local CA the user installed could MITM; that is inside the OS trust boundary. |
 | False revocation success | Local and remote results reported separately; `FAILED` is never reported as `SUCCEEDED` | Google-side revocation can still fail silently after returning 200; step 2 of the incident procedure covers this. |
 
-**Risk R-16 remains OPEN.** These controls and their tests are the treatment
-ADR-0007 anticipated, but R-16 is not accepted or closed by the existence of
-this code. Its residual is reassessed only after independent review, and the
-live-validation evidence above is part of what that review needs. See
-`docs/security/RISK_REGISTER.md`.
+**Risk R-16 remains OPEN.** These controls, their tests and the `PASS` live
+validation are the treatment ADR-0007 anticipated, and that treatment is now
+implemented and exercised end to end — but R-16 is not *closed* by the
+existence of working code. Two things are deliberately distinguished:
+
+- The **controls exist and were live-verified** (self-verified; the Owner
+  waived an additional independent review for #44).
+- The **residual** — token theft by an actor already inside the OS-account
+  boundary, which is R-15's existing threat actor — is unchanged by any of
+  this work. DPAPI raises the bar; it does not remove the residual, and
+  accepting a residual is an Owner risk decision recorded in the register,
+  not something an implementation can assert about itself.
+
+See `docs/security/RISK_REGISTER.md`.

@@ -209,11 +209,60 @@ OS-backed store, not plaintext fallback.
 
 ## Evidence and validation
 
-**Implementation evidence status: PARTIAL — code implemented, live
-Google validation pending.** This ADR's `Accepted` status reflects Owner
-approval of the architecture decision above — it does not certify that
-any control described here has been built. Evidence is tracked
-independently of the status field.
+**Implementation evidence status: COMPLETE for this ADR's controls —
+implemented and live-validated (self-verified; independent review waived
+by the Owner for issue #44).** This ADR's `Accepted` status reflects
+Owner approval of the architecture decision; the evidence below is what
+certifies the controls were actually built and exercised, and it is
+tracked independently of the status field.
+
+**Final live validation: `PASS`** (issue #44, PR #66). Recorded
+machine-verified evidence, fully redacted:
+
+- Requested scope was exactly
+  `https://www.googleapis.com/auth/gmail.readonly`, and the scope Google
+  itself returned in the token response — and again on refresh — was
+  exactly the same. Google's published definition of that scope is
+  **"View your email messages and settings"**. No send, compose, modify,
+  delete, label-management, broader settings, Calendar, Contacts or Drive
+  authorization was requested or granted.
+- PKCE `S256` with the challenge equal to SHA-256 of the verifier; 256-bit
+  single-use `state` bound to the attempt; numeric `127.0.0.1` loopback on
+  an ephemeral port; strict callback validation (wrong path 404, wrong
+  method 405, wrong state 400 leaving the account disconnected).
+- Authorized identity taken from the authenticated `users/me/profile` and
+  matched to the connected account.
+- Refresh token stored only in the DPAPI-backed Windows credential store
+  under the current user, in a namespace separate from both the OpenAI
+  credential and the OAuth client secret; refresh through
+  `refresh_access_token` proved the stored credential usable.
+- One metadata-only Gmail call (`users/me/profile`); no message listed, no
+  content requested, no mailbox counts persisted.
+- Disconnect removed the refresh token, the client secret, the identity
+  keys and the sync state; remote revocation **succeeded**; reuse of the
+  revoked token was **rejected by Google**; repeated disconnect was
+  idempotent.
+- Identity remanence `PURGED` — the authorized address absent from the
+  database, `-wal`, `-shm` and the event log.
+- Credential and privacy leak scan: **zero findings** across the isolated
+  database and sidecars, the security-event log and 287 repository files.
+
+**Manual consent-screen pixels were not preserved** — no screenshot or
+transcription exists. The authoritative evidence for the granted
+authorization is therefore the machine-verified authorization request, the
+granted scope Google returned (twice), the successful metadata-only call
+that scope permits, and Google's official definition of the scope. This
+ADR does not claim a human-attested consent screen.
+
+**Not claimed:** Google OAuth verification, public restricted-scope
+distribution approval, certification, or production rollout approval —
+see "Distribution scope" above. Issue #45 remains unstarted.
+
+**Process note, recorded honestly:** Governance v1 normally requires
+independent review before an Owner-authorized merge. For issue #44 the
+Owner explicitly accepted the self-verification and waived an additional
+independent review. No second party reviewed this implementation, and it
+must not be described as independently reviewed.
 
 Implemented and covered by automated tests on
 `feature/44-gmail-oauth` (issue #44, **not merged**) — see
@@ -270,17 +319,25 @@ Implemented and covered by automated tests on
   local and remote results separately without ever presenting a failed
   revocation as a success.
 
-**Still outstanding — this ADR's controls must not be relied upon in the
-v1.1 release evidence pack until these exist:**
+**Previously outstanding, now satisfied or consciously accepted:**
 
 - A live proof-of-concept against a real Google OAuth client in a
-  dedicated ASTRA Google Cloud project, including **manual
-  consent-screen evidence** of the exact permissions requested. A mocked
-  test is not consent-screen evidence.
+  dedicated ASTRA Google Cloud project — **done**, final run `PASS`.
 - Confirmation on a real installation that the DPAPI-protected entry is
   present in Windows Credential Manager and that no plaintext token
-  exists on disk.
-- Independent review of the implementation.
+  exists on disk — **done**; the entry was observed present in
+  `keyring.backends.Windows` while connected and absent after disconnect,
+  and the leak scan found no token in the database, its sidecars, the
+  event log or the repository.
+- **Manual consent-screen evidence of the exact permissions requested —
+  NOT captured.** This requirement is recorded as unmet rather than
+  quietly reinterpreted. The granted authorization is established instead
+  by the machine-verified request, Google's own returned granted scope
+  (twice), the metadata-only call that scope permits, and Google's
+  official scope definition. A mocked test was never treated as
+  consent-screen evidence.
+- **Independent review of the implementation — NOT performed.** The Owner
+  explicitly waived it for issue #44 and accepted the self-verification.
 
 See issue #48 (v1.1 security/privacy assurance) for where this evidence
 is assembled, and `docs/security/RISK_REGISTER.md` R-16, which remains
