@@ -10,9 +10,12 @@ granted, or that ASTRA is approved to distribute a restricted-scope Gmail
 integration. See [Live validation](#live-validation-procedure) and
 [Distribution limits](#distribution-and-verification-limits).
 
-**Live-validation log.** Two defects have been found by live runs against a
-real Desktop client in a dedicated Google Cloud project. Neither run exposed
-a credential, token, code or address.
+**Live-validation log.** Live runs against a real Desktop client in a
+dedicated Google Cloud project found **three defects** plus one required
+architecture change, in the order below. No run exposed a credential, token,
+authorization code or mailbox address, and every finding was fixed at the
+root rather than by relaxing a check. Run 4 completed the whole flow; a
+fifth run is required to confirm the remanence fix end to end.
 
 1. **Run 1 — callback rejected** with `CALLBACK_UNEXPECTED_PARAMETER`. The
    allowlist covered only the parameters Google's installed-app page
@@ -45,6 +48,18 @@ a credential, token, code or address.
    treated as non-confidential. The same investigation also made Google's
    standard `error` identifiers map to bounded, actionable ASTRA codes, so
    a client-authentication failure now says so instead of failing opaquely.
+4. **Run 4 — flow succeeded end to end; identity remanence found.** The
+   full flow completed: consent, exact `gmail.readonly` scope, identity
+   validated and matched, refresh token in the DPAPI store, a minimal
+   `users/me/profile` read with the stored credential, disconnect, remote
+   revocation succeeded, the revoked token rejected by Google on reuse,
+   credential and client secret removed, keys cleared, repeated disconnect
+   idempotent, no message read. The leak scan then found one blocker: the
+   **authorized address was recoverable from `live.db-wal`**. Two causes —
+   disconnect had never cleared `authorized_email`/`identity_kind` at all
+   (so the address remained live data), and a cleared column's previous
+   page image survives in the write-ahead log. Both fixed; see
+   [Identity clearing and storage remanence](#disconnect-and-revocation).
 
 Scope of issue #44 is the **authorization and credential layer only**. No
 Gmail message listing, history synchronization, mailbox scan, message or
@@ -519,6 +534,39 @@ Local disconnection succeeds even when Google is unavailable, DNS fails, TLS
 fails, the request times out, Google returns an error, the token is already
 invalid, or the response is malformed. Revocation is never retried
 indefinitely. Repeated disconnects are idempotent.
+
+**Identity clearing and storage remanence.** Disconnect clears the
+authorized address and its provider-identity label along with the identity
+and credential keys: those are account-integration metadata, not evidence,
+so ADR-0008's "disconnect deletes the account's integration state" covers
+them, and no part of the UI ever displayed a disconnected account's address.
+Clearing a column is not enough on its own, though — SQLite keeps the
+previous page image in the write-ahead log until it is checkpointed, and
+stale frames survive in the `-wal` file after that. The final live
+validation of #44 found the authorized address recoverable from `live.db-wal`
+after a successful disconnect.
+
+`purge_identity_remnants()` therefore runs after the clearing transaction
+commits (and inside the slot lock, so a concurrent connect cannot write a
+new identity in between): `VACUUM` rebuilds the file without the freed
+pages, then `PRAGMA wal_checkpoint(TRUNCATE)` flushes that rebuild and
+truncates the log to zero, and `PRAGMA secure_delete=ON` (set for every
+connection) zeroes freed content. The same purge runs on full local
+deletion.
+
+It is **best-effort and never fatal**, and — importantly — it verifies its
+own postcondition. `wal_checkpoint` reports failure *in its result row*
+rather than raising, so a reader holding a snapshot leaves the log
+un-truncated while the statement appears to succeed; an implementation that
+only caught exceptions would report success while the identity was still
+recoverable. The purge checks the busy flag **and** that the `-wal` file is
+actually empty, and otherwise returns `DEFERRED_DATABASE_BUSY`. Disconnect
+then reports `credential_removal_complete: false` and names
+`identity_remnants_purged` among the incomplete items, so the gap is stated
+rather than hidden; the next disconnect or a full local deletion repeats it.
+A blocked purge cannot roll back the disconnect — the clearing transaction
+has already committed — and nothing is deleted by the purge, so unrelated
+ASTRA data is untouched.
 
 **Disconnect is not erasure.** It removes credential access and sync state.
 It does not delete application records, already-created minimized evidence,

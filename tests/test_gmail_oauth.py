@@ -1760,6 +1760,219 @@ def test_full_local_deletion_also_removes_the_client_secret(monkeypatch, tmp_pat
     assert _stored_credentials() == {}
 
 
+# --- Live-validation regression: identity remanence in SQLite artifacts ---
+# The final live run found the authorized address recoverable from
+# `live.db-wal` after a disconnect. Two causes: disconnect never cleared
+# `authorized_email`/`identity_kind` at all (so the address stayed live
+# data), and clearing a column leaves the previous page image in the
+# write-ahead log until it is checkpointed and the file truncated.
+FICTIONAL_IDENTITY = 'remnant.regression.user@example.invalid'
+
+
+def _sqlite_artifacts():
+    """Every SQLite file that could retain a page image, plus journals."""
+    import pathlib
+    from backend.models import engine
+    base = pathlib.Path(engine.url.database)
+    paths = [base.with_name(base.name + suffix)
+             for suffix in ('', '-wal', '-shm', '-journal')]
+    # Any temporary/rollback artifact SQLite may have left beside it.
+    paths += [p for p in base.parent.glob(base.name + '*')
+              if p not in paths]
+    return [p for p in paths if p.exists()]
+
+
+def _identity_remnants(value=FICTIONAL_IDENTITY):
+    """Which SQLite artifacts still contain `value`."""
+    needle = value.encode('utf-8')
+    return sorted(path.name for path in _sqlite_artifacts()
+                  if needle in path.read_bytes())
+
+
+def _connect_fictional(slot='PRIMARY', email=FICTIONAL_IDENTITY):
+    accounts._bind_credential(
+        slot, {'authorized_email': email,
+               'identity_key': oauth.normalize_identity(email),
+               'identity_kind': 'GMAIL_PROFILE_EMAIL'},
+        [oauth.GMAIL_READONLY_SCOPE],
+        oauth.Secret('fictional-refresh-for-remanence-test'))
+
+
+def test_disconnect_clears_the_authorized_identity_from_the_row(monkeypatch):
+    """The address is integration metadata, not evidence, so it goes."""
+    _connect_fictional()
+    assert accounts.status()['accounts']['PRIMARY']['authorized_email'] == \
+        FICTIONAL_IDENTITY
+    install_google_double(monkeypatch, revoke_status=200)
+    accounts.disconnect('PRIMARY')
+    row = _rows()[0]
+    assert row.authorized_email == ''
+    assert row.identity_kind == ''
+    assert row.identity_key == ''
+    state = accounts.status()['accounts']['PRIMARY']
+    assert state['authorized_email'] == ''
+    assert state['identity_kind'] == ''
+    # The truthful disconnect record survives -- it carries no identity.
+    assert row.disconnected_at and row.last_remote_revocation == 'SUCCEEDED'
+
+
+def test_a_disconnected_identity_is_absent_from_every_sqlite_artifact(monkeypatch):
+    _connect_fictional()
+    # Reproduce the finding's precondition: the value is somewhere on disk.
+    assert _identity_remnants(), 'the identity must first be persisted'
+    install_google_double(monkeypatch, revoke_status=200)
+    result = accounts.disconnect('PRIMARY')
+    assert result['credential_removal']['identity_remnants'] == 'PURGED'
+    assert result['credential_removal']['identity_remnants_purged'] is True
+    assert result['credential_removal_complete'] is True
+    assert _identity_remnants() == [], \
+        'the identity must not survive in the database, -wal, -shm or a journal'
+
+
+def test_an_active_reader_defers_the_purge_honestly(monkeypatch):
+    """A reader holding a snapshot blocks a truncating checkpoint.
+
+    `PRAGMA wal_checkpoint(TRUNCATE)` reports that in its RESULT ROW
+    rather than raising, so a naive implementation "succeeds" while the
+    old page images are still in `-wal`. The purge must therefore check
+    the busy flag and the resulting file size, and report DEFERRED.
+    """
+    import sqlite3
+    from backend.models import engine
+    _connect_fictional()
+    install_google_double(monkeypatch, revoke_status=200)
+    accounts.disconnect('PRIMARY')          # clears the row
+    # Re-dirty the log, then hold a snapshot across the purge.
+    _connect_fictional()
+    reader = sqlite3.connect(engine.url.database, timeout=0.3)
+    try:
+        reader.execute('BEGIN')
+        reader.execute('SELECT COUNT(*) FROM gmail_accounts').fetchone()
+        deferred = accounts.purge_identity_remnants()
+    finally:
+        reader.rollback()
+        reader.close()
+    assert deferred == 'DEFERRED_DATABASE_BUSY', \
+        'a blocked truncating checkpoint must never be reported as purged'
+    # Once the reader releases, the retry completes the cleanup.
+    install_google_double(monkeypatch, revoke_status=200)
+    accounts.disconnect('PRIMARY')
+    assert accounts.purge_identity_remnants() == 'PURGED'
+    assert _identity_remnants() == []
+
+
+def test_the_purge_verifies_its_own_postcondition(monkeypatch):
+    """A left-behind log must be reported, even if the statements pass."""
+    monkeypatch.setattr(accounts, '_write_ahead_log_is_empty', lambda: False)
+    assert accounts.purge_identity_remnants() == 'DEFERRED_DATABASE_BUSY'
+    monkeypatch.undo()
+    assert accounts.purge_identity_remnants() == 'PURGED'
+
+
+def test_a_deferred_purge_is_reported_without_being_fatal(monkeypatch):
+    """Disconnect still succeeds and is durable; the gap is reported."""
+    import sqlite3
+    from backend.models import engine
+    _connect_fictional()
+    install_google_double(monkeypatch, revoke_status=200)
+    monkeypatch.setattr(accounts, 'purge_identity_remnants',
+                        lambda: 'DEFERRED_DATABASE_BUSY')
+    result = accounts.disconnect('PRIMARY')
+    monkeypatch.undo()
+    # Bounded status, reported as incomplete rather than silently ignored.
+    assert result['credential_removal']['identity_remnants'] == 'DEFERRED_DATABASE_BUSY'
+    assert result['credential_removal_complete'] is False
+    assert 'identity_remnants_purged' in result['credential_removal_incomplete']
+    # The local disconnect itself still succeeded and is durable: the
+    # clearing transaction committed before the purge was attempted.
+    assert result['local_disconnected'] is True
+    assert _rows()[0].authorized_email == ''
+    assert _rows()[0].credential_key == ''
+    assert accounts.status()['accounts']['PRIMARY']['status'] == 'DISCONNECTED'
+    # No database error text or path leaks into the bounded report.
+    payload = json.dumps(result)
+    assert 'sqlite' not in payload.lower() and 'Traceback' not in payload
+    assert 'C:\\' not in payload and '/tmp' not in payload
+    # The database is undamaged. `with sqlite3.connect(...)` manages the
+    # transaction, not the connection, so it is closed explicitly -- an open
+    # handle would keep the test database file locked on Windows.
+    check = sqlite3.connect(engine.url.database)
+    try:
+        assert check.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
+    finally:
+        check.close()
+    # A later purge completes the cleanup that was deferred.
+    assert accounts.purge_identity_remnants() == 'PURGED'
+    assert _identity_remnants() == []
+
+
+def test_repeated_disconnect_keeps_the_identity_absent(monkeypatch):
+    _connect_fictional()
+    install_google_double(monkeypatch, revoke_status=200)
+    first = accounts.disconnect('PRIMARY')
+    second = accounts.disconnect('PRIMARY')
+    third = accounts.disconnect('PRIMARY')
+    assert first['local_disconnected'] is True
+    assert second['remote_revocation'] == 'NOT_ATTEMPTED_NO_LOCAL_CREDENTIAL'
+    assert second['credential_removal']['identity_remnants'] == 'PURGED'
+    assert third['credential_removal']['identity_remnants'] == 'PURGED'
+    assert _identity_remnants() == []
+    assert len(_rows()) == 1
+
+
+def test_a_backup_taken_after_disconnect_carries_no_identity(monkeypatch, tmp_path):
+    import backend.reliability as reliability
+    _connect_fictional()
+    install_google_double(monkeypatch, revoke_status=200)
+    accounts.disconnect('PRIMARY')
+    monkeypatch.setattr(reliability, 'DATA', tmp_path)
+    name = reliability.backup_database(force=True)
+    assert name, 'a backup snapshot must be produced'
+    snapshot = tmp_path / 'backups' / name
+    assert FICTIONAL_IDENTITY.encode() not in snapshot.read_bytes()
+
+
+def test_the_purge_does_not_touch_unrelated_astra_data(monkeypatch):
+    """VACUUM repacks; it must never remove another row."""
+    from backend.models import Application, Job, Session as ModelSession
+    from sqlalchemy import delete
+    with ModelSession.begin() as db:
+        job = Job(company='Remnant Test Employer', title='Security Analyst',
+                  notes='unrelated note that must survive')
+        db.add(job)
+        db.flush()
+        db.add(Application(job_id=job.id, status='INTERVIEW'))
+        job_id = job.id
+    before = [(j.id, j.company, j.notes) for j in _all_jobs()]
+    _connect_fictional()
+    install_google_double(monkeypatch, revoke_status=200)
+    accounts.disconnect('PRIMARY')
+    assert [(j.id, j.company, j.notes) for j in _all_jobs()] == before
+    with ModelSession() as db:
+        application = db.scalar(select(Application).where(Application.job_id == job_id))
+        assert application is not None and application.status == 'INTERVIEW'
+    with ModelSession.begin() as db:
+        db.execute(delete(Application).where(Application.job_id == job_id))
+        db.execute(delete(Job).where(Job.id == job_id))
+
+
+def _all_jobs():
+    from backend.models import Job
+    with Session() as db:
+        return list(db.scalars(select(Job)))
+
+
+def test_full_local_deletion_leaves_no_identity_remnant(monkeypatch, tmp_path):
+    import backend.privacy as privacy
+    _connect_fictional()
+    monkeypatch.setattr(privacy, 'DATA', tmp_path)
+    monkeypatch.setattr(privacy, 'delete_credential', lambda name: None)
+    privacy.delete_data(privacy.DeleteRequest(
+        scope='all', confirmation='DELETE ALL LOCAL DATA'))
+    assert _rows() == []
+    assert _identity_remnants() == []
+
+
 def test_an_unknown_slot_cannot_be_disconnected():
     with pytest.raises(oauth.OAuthError) as raised:
         accounts.disconnect('TERTIARY')

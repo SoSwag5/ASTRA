@@ -359,6 +359,12 @@ def purge_all_local():
     delete_client_secret()
     with Session.begin() as db:
         db.execute(sql_delete(GmailAccount))
+    # Deleting the rows frees their pages but leaves the old page images in
+    # the write-ahead log, so the same purge the disconnect path uses runs
+    # here too. This entry point must stand on its own: `privacy.delete_data`
+    # happens to checkpoint and VACUUM afterwards for scope 'all', but
+    # callers of this function should not have to rely on that.
+    purge_identity_remnants()
     return removed
 
 
@@ -585,6 +591,83 @@ def _bind_credential(slot, identity, granted, refresh):
     return 'CONNECTED'
 
 
+def purge_identity_remnants():
+    """Make a cleared Gmail identity unrecoverable from SQLite's files.
+
+    Clearing a column rewrites the row, but the *previous* page image
+    survives in the write-ahead log until it is checkpointed, and stale
+    frames survive in the `-wal` file after that. Live validation of
+    issue #44 found exactly this: the authorized address was recoverable
+    from `live.db-wal` after a disconnect.
+
+    Two steps, both already the established pattern in
+    `backend/privacy.py`'s deletion path:
+
+    * `wal_checkpoint(TRUNCATE)` writes the log into the database and
+      truncates the `-wal` file to zero length, so no old frame remains
+      and the `-shm` index is reset.
+    * `VACUUM` rebuilds the database file itself, so a freed page still
+      holding the old bytes is not carried forward. `PRAGMA
+      secure_delete=ON` (set for every connection in `backend/models.py`)
+      zeroes freed content as well.
+
+    Best-effort by design, and never fatal. A concurrent reader can
+    legitimately hold a transaction that blocks a truncating checkpoint or
+    a VACUUM, and by the time this runs the disconnect has already
+    succeeded: the credential is gone and the row is cleared. So a
+    blocked purge returns a bounded status instead of raising, the caller
+    reports it, and the next disconnect or a full local deletion repeats
+    it. Nothing is deleted here -- VACUUM repacks, it does not remove
+    rows -- so unrelated ASTRA data is untouched, and either step failing
+    leaves the committed transaction intact.
+    """
+    try:
+        with engine.connect().execution_options(isolation_level='AUTOCOMMIT') as connection:
+            # VACUUM rebuilds the file without the freed pages, then the
+            # checkpoint flushes that rebuild and truncates the log, so the
+            # `-wal` file is left empty rather than holding the rebuild.
+            connection.exec_driver_sql('VACUUM')
+            checkpoint = connection.exec_driver_sql(
+                'PRAGMA wal_checkpoint(TRUNCATE)').fetchone()
+    except Exception:
+        # The reason is deliberately not recorded: a database error string
+        # can name local paths. The bounded status is what callers act on.
+        security_event('GMAIL_CREDENTIAL_STORE_FAILED', result='DELETE_FAILED')
+        return 'DEFERRED_DATABASE_BUSY'
+    # `wal_checkpoint` reports failure in its RESULT ROW (busy, log,
+    # checkpointed) instead of raising, so a reader holding a snapshot
+    # leaves the log un-truncated while the statement "succeeds". Checking
+    # the busy flag AND the resulting file size is what makes this honest:
+    # without it the purge reported PURGED while the old identity was still
+    # recoverable from `-wal`, which is the false assurance the live
+    # validation of issue #44 was meant to catch.
+    if checkpoint is not None and checkpoint[0]:
+        security_event('GMAIL_CREDENTIAL_STORE_FAILED', result='DELETE_FAILED')
+        return 'DEFERRED_DATABASE_BUSY'
+    if not _write_ahead_log_is_empty():
+        security_event('GMAIL_CREDENTIAL_STORE_FAILED', result='DELETE_FAILED')
+        return 'DEFERRED_DATABASE_BUSY'
+    return 'PURGED'
+
+
+def _write_ahead_log_is_empty():
+    """Whether the `-wal` sidecar holds no frames.
+
+    The purge's postcondition, verified against the filesystem rather than
+    inferred from a statement completing. An in-memory or non-file
+    database has no sidecar, which trivially satisfies it.
+    """
+    from pathlib import Path
+    database = engine.url.database
+    if not database or database == ':memory:':
+        return True
+    try:
+        log = Path(database + '-wal')
+        return not log.exists() or log.stat().st_size == 0
+    except OSError:
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Disconnect
 # ---------------------------------------------------------------------------
@@ -641,6 +724,16 @@ def disconnect(slot):
                 row = GmailAccount(slot=slot)
                 db.add(row)
             row.status = DISCONNECTED
+            # The authorized address and its provider-identity label are
+            # account-integration metadata, not evidence, so ADR-0008's
+            # "disconnect deletes the account's integration state" applies
+            # to them. They were previously retained, which left the mailbox
+            # address as live data after a disconnect -- no part of the UI
+            # ever displayed it, so retention bought nothing and cost the
+            # user a recoverable identity. Cleared here; the WAL/sidecar
+            # remnants of the old value are purged below.
+            row.authorized_email = ''
+            row.identity_kind = ''
             row.identity_key = ''
             row.credential_key = ''
             row.granted_scopes = []
@@ -671,9 +764,15 @@ def disconnect(slot):
         removal['access_token'] = 'NEVER_STORED'
         removal['credential_entry_absent_after'] = (
             read_credential(credential_key) is None if credential_key else True)
+        # Runs after the clearing transaction has committed, so the purge
+        # reflects the cleared state; inside the slot lock, so a concurrent
+        # connect cannot write a new identity in between.
+        removal['identity_remnants'] = purge_identity_remnants()
+        removal['identity_remnants_purged'] = (
+            removal['identity_remnants'] == 'PURGED')
 
     incomplete = [name for name, outcome in removal.items()
-                  if name.endswith('_absent_after') and outcome is False]
+                  if name.endswith(('_absent_after', '_purged')) and outcome is False]
     if was_connected:
         security_event('GMAIL_ACCOUNT_DISCONNECTED', slot=slot, result=remote)
     if incomplete:
