@@ -7,6 +7,7 @@ corpus-validation edge cases.
 import copy
 import hashlib
 import json
+import shutil
 import subprocess
 import sys
 from collections import Counter
@@ -736,22 +737,10 @@ def test_report_provenance_identifies_exact_commit_and_tree(corpus, results):
     assert report['git_commit'] == expected_commit
 
 
-def test_committed_report_provenance_binds_current_corpus_and_evaluated_commit(corpus):
+def test_committed_report_provenance_binds_manifest_payload_and_fresh_reproduction(corpus):
     report_path = ROOT / 'docs/evaluation/fit_evaluation_report.json'
     committed = json.loads(report_path.read_text(encoding='utf-8'))
-    evaluated_commit = committed['provenance']['evaluated_commit']
-    expected_tree = subprocess.run(['git', 'rev-parse', f'{evaluated_commit}^{{tree}}'], cwd=ROOT,
-                                   capture_output=True, text=True, check=True).stdout.strip()
-    assert committed['provenance']['evaluated_tree_hash'] == expected_tree
-    subprocess.run(['git', 'merge-base', '--is-ancestor', evaluated_commit, 'HEAD'], cwd=ROOT, check=True)
-    evaluated_corpus = subprocess.run(['git', 'show', f'{evaluated_commit}:{CORPUS_PATH}'], cwd=ROOT,
-                                      capture_output=True, check=True).stdout
-    # Normalized to LF before hashing: a CRLF working-tree checkout
-    # (core.autocrlf=true, the common Windows default) must never desync this
-    # assertion from the LF bytes Git actually stores in the blob.
-    current_corpus = ev._canonical_bytes(CORPUS_PATH)
-    assert hashlib.sha256(evaluated_corpus).hexdigest() == committed['corpus_sha256']
-    assert hashlib.sha256(current_corpus).hexdigest() == committed['corpus_sha256']
+    assert ev.verify_report_provenance(committed, CORPUS_PATH, repo_root=ROOT)
 
     results = ev.run_corpus(corpus, engine='compare')
     current = ev.build_report(corpus, CORPUS_PATH, results)
@@ -768,6 +757,116 @@ def test_committed_report_provenance_binds_current_corpus_and_evaluated_commit(c
     assert ev.render_markdown(current, calibration=current['calibration'],
                               gate_result=current['quality_gate']) == \
         (ROOT / 'docs/evaluation/FIT_EVALUATION_REPORT.md').read_text(encoding='utf-8')
+
+
+@pytest.fixture(scope='module')
+def bound_report():
+    manifest = ev.load_provenance_manifest(ROOT / ev.CANONICAL_MANIFEST_PATH)
+    report = ev.build_canonical_report_from_manifest(manifest, repo_root=ROOT)
+    return ev.bind_report_provenance(report, repo_root=ROOT)
+
+
+def _copy_provenance_snapshot(destination):
+    manifest = ev.load_provenance_manifest(ROOT / ev.CANONICAL_MANIFEST_PATH)
+    for relative in [ev.CANONICAL_MANIFEST_PATH] + [item['path'] for item in manifest['inputs']]:
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / relative, target)
+
+
+def test_provenance_verifies_without_git_or_historical_objects(tmp_path, bound_report):
+    archive = tmp_path / 'source-archive'
+    _copy_provenance_snapshot(archive)
+    assert not (archive / '.git').exists()
+    assert ev.verify_report_provenance(bound_report, repo_root=archive)
+
+
+@pytest.mark.parametrize('path,value', [
+    (('primary_metrics', 'useful_false_rejection_rate', 'numerator'), 999),
+    (('quality_gate', 'gate_status'), 'PASS'),
+])
+def test_provenance_rejects_metric_and_gate_tampering(bound_report, path, value):
+    tampered = copy.deepcopy(bound_report)
+    cursor = tampered
+    for key in path[:-1]:
+        cursor = cursor[key]
+    cursor[path[-1]] = value
+    with pytest.raises(ev.ProvenanceError, match='report payload digest'):
+        ev.verify_report_provenance(tampered, repo_root=ROOT)
+
+
+def test_provenance_rejects_forged_payload_digest_after_tampering(bound_report):
+    tampered = copy.deepcopy(bound_report)
+    tampered['quality_gate']['gate_status'] = 'PASS'
+    tampered['provenance']['report_payload_sha256'] = ev.report_payload_sha256(tampered)
+    with pytest.raises(ev.ProvenanceError, match='fresh canonical reproduction'):
+        ev.verify_report_provenance(tampered, repo_root=ROOT)
+
+
+def test_provenance_rejects_manifest_and_input_tampering(tmp_path, bound_report):
+    archive = tmp_path / 'archive'
+    _copy_provenance_snapshot(archive)
+    corpus = archive / ev.CANONICAL_CORPUS_PATH
+    corpus.write_text(corpus.read_text(encoding='utf-8') + ' ', encoding='utf-8')
+    with pytest.raises(ev.ProvenanceError, match='manifest input'):
+        ev.verify_report_provenance(bound_report, repo_root=archive)
+
+    _copy_provenance_snapshot(archive)
+    manifest = archive / ev.CANONICAL_MANIFEST_PATH
+    manifest.write_text(manifest.read_text(encoding='utf-8').replace('"engine": "compare"',
+                                                                    '"engine": "new"'), encoding='utf-8')
+    with pytest.raises(ev.ProvenanceError, match='generation recipe|manifest digest'):
+        ev.verify_report_provenance(bound_report, repo_root=archive)
+
+
+@pytest.mark.parametrize('identifier', ['HEAD', '6d3f63c', 'A' * 40, '../HEAD'])
+def test_provenance_rejects_symbolic_abbreviated_or_malformed_git_identifiers(bound_report, identifier):
+    tampered = copy.deepcopy(bound_report)
+    tampered['provenance']['evaluated_commit'] = identifier
+    tampered['git_commit'] = identifier
+    with pytest.raises(ev.ProvenanceError, match='full lowercase 40-hex'):
+        ev.verify_report_provenance(tampered, repo_root=ROOT)
+
+
+def test_provenance_rejects_present_non_commit_git_object(bound_report):
+    blob = subprocess.run(['git', 'rev-parse', f'HEAD:{CORPUS_PATH}'], cwd=ROOT, capture_output=True,
+                          text=True, check=True).stdout.strip()
+    tampered = copy.deepcopy(bound_report)
+    tampered['provenance']['evaluated_commit'] = blob
+    tampered['git_commit'] = blob
+    with pytest.raises(ev.ProvenanceError, match='not a commit'):
+        ev.verify_report_provenance(tampered, repo_root=ROOT)
+
+
+@pytest.mark.parametrize('failure', [FileNotFoundError('git unavailable'),
+                                     subprocess.TimeoutExpired('git', 5)])
+def test_provenance_operational_git_failure_is_bounded(monkeypatch, bound_report, failure):
+    def unavailable(*args, **kwargs):
+        raise failure
+    monkeypatch.setattr(ev.subprocess, 'run', unavailable)
+    with pytest.raises(ev.ProvenanceError, match='Git provenance diagnostic failed'):
+        ev.verify_report_provenance(bound_report, repo_root=ROOT)
+
+
+def test_provenance_rejects_malformed_report_and_duplicate_json_keys(tmp_path):
+    with pytest.raises(ev.ProvenanceError, match='root must be a JSON object'):
+        ev.verify_report_provenance([], repo_root=ROOT)
+    malformed = tmp_path / 'report.json'
+    malformed.write_text('{"provenance": {}, "provenance": {}}', encoding='utf-8')
+    with pytest.raises(ev.ProvenanceError, match='duplicate JSON key'):
+        ev.verify_report_provenance(malformed, repo_root=ROOT)
+    malformed.write_text('{"metric": NaN}', encoding='utf-8')
+    with pytest.raises(ev.ProvenanceError, match='non-standard numeric constant'):
+        ev.verify_report_provenance(malformed, repo_root=ROOT)
+
+
+def test_cli_refuses_to_bind_noncanonical_filtered_report():
+    result = subprocess.run([
+        sys.executable, 'scripts/evaluate_fit.py', '--case', 'cyber_soc_security_engineering-01',
+        '--format', 'json', '--provenance-manifest', ev.CANONICAL_MANIFEST_PATH],
+        cwd=str(ROOT), capture_output=True, text=True, timeout=60)
+    assert result.returncode == 2
+    assert 'fresh canonical reproduction' in result.stderr
 
 
 def test_canonical_bytes_is_stable_across_crlf_checkouts(tmp_path):

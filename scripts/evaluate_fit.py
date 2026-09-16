@@ -22,6 +22,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from backend import evaluation as ev
 
 DEFAULT_CORPUS = 'tests/fixtures/fit_evaluation_v1.json'
+DEFAULT_MANIFEST = 'docs/evaluation/fit_evaluation_provenance_v1.json'
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def parse_args(argv=None):
@@ -41,6 +43,10 @@ def parse_args(argv=None):
     p.add_argument('--gate', help='Path to a PROPOSED quality-gate policy JSON file to evaluate (not an approved gate)')
     p.add_argument('--format', choices=('json', 'text', 'markdown'), default='text', help='Output format (default: text)')
     p.add_argument('--dedupe', action='store_true', help='Also compute the #40 duplicate-rate and stale-link metrics')
+    p.add_argument('--provenance-manifest', metavar='MANIFEST.json',
+                   help='Bind a canonical generated report to the versioned input manifest')
+    p.add_argument('--verify-report', metavar='REPORT.json',
+                   help='Verify a committed canonical report and exit without generating a new report')
     return p.parse_args(argv)
 
 
@@ -145,6 +151,14 @@ def _fmt_value(m):
 
 def main(argv=None):
     args = parse_args(argv)
+    if args.verify_report:
+        try:
+            ev.verify_report_provenance(args.verify_report, args.corpus, repo_root=ROOT)
+        except ev.ProvenanceError as e:
+            print(f'Provenance error: {e}', file=sys.stderr)
+            return 2
+        print('Report provenance verified.')
+        return 0
     try:
         corpus = ev.load_corpus(args.corpus)
     except ev.CorpusError as e:
@@ -193,17 +207,25 @@ def main(argv=None):
             print(f'Quality gate error: {e}', file=sys.stderr)
             return 2
 
+    out = dict(report)
+    if calibration is not None:
+        out['calibration'] = calibration
+    if gate_result is not None:
+        out['quality_gate'] = gate_result
+    if args.provenance_manifest:
+        try:
+            ev.bind_report_provenance(out, args.provenance_manifest, repo_root=ROOT)
+            ev.verify_report_provenance(out, args.corpus, repo_root=ROOT)
+        except ev.ProvenanceError as e:
+            print(f'Provenance error: {e}', file=sys.stderr)
+            return 2
+
     if args.format == 'json':
-        out = dict(report)
-        if calibration is not None:
-            out['calibration'] = calibration
-        if gate_result is not None:
-            out['quality_gate'] = gate_result
         print(ev.report_to_json(out), end='')
     elif args.format == 'markdown':
-        print(ev.render_markdown(report, calibration=calibration, gate_result=gate_result), end='')
+        print(ev.render_markdown(out, calibration=calibration, gate_result=gate_result), end='')
     else:
-        print(render_text(report, calibration=calibration, gate_result=gate_result))
+        print(render_text(out, calibration=calibration, gate_result=gate_result))
     return 0
 
 

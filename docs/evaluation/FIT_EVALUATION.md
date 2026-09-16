@@ -236,16 +236,35 @@ Owner-approved.** The current evidence therefore reports
 
 ## Determinism and report provenance
 
-The same git commit + corpus + ruleset + candidate policy + fixed
-assessment clock (`corpus['fixed_assessment_clock']`, never wall-clock time)
-produces byte-identical JSON: fixed key ordering (`sort_keys=True`), stable
-case/query ordering, no absolute local paths, no random values. Verified by
-`tests/test_fit_evaluation.py::test_determinism_byte_identical_output`.
-Machine output records both `provenance.evaluated_commit` and
-`provenance.evaluated_tree_hash`. A committed report is generated from a clean
-evaluated commit and may be stored by a later report-only commit; the snapshot
-note states that relationship rather than pretending the report contains its
-own future commit SHA.
+The same governed inputs plus fixed assessment clock
+(`corpus['fixed_assessment_clock']`, never wall-clock time) produce
+byte-identical substantive JSON: fixed key ordering (`sort_keys=True`), stable
+case/query ordering, no absolute local paths, and no random values. The
+authoritative input set and generation recipe are versioned in
+`docs/evaluation/fit_evaluation_provenance_v1.json`. It pins the corpus,
+evaluation implementation and generator, production dependencies used by the
+harness, candidate policies, proposed gate, dedupe corpus, and dependency
+lockfile by SHA-256 after LF normalization.
+
+Committed reports use provenance contract `fit-eval-provenance-1` and report
+schema `fit-eval-report-3`. `manifest_sha256` binds the exact manifest file;
+`report_payload_sha256` binds every substantive report field, including all
+metrics, quality-gate results, calibration, and per-case results. Verification
+then reruns the manifest's canonical recipe and requires the freshly generated
+substantive payload to be identical. Metric or gate edits therefore fail even
+if somebody recalculates the payload digest.
+
+`evaluated_commit` and `evaluated_tree_hash` remain full, lowercase 40-hex Git
+diagnostics. When the object exists locally, it must be a commit with the
+claimed tree. They are not authoritative inputs and their objects need not be
+available: ordinary squash merges, master-only fetches, shallow clones, source
+archives without `.git`, and repositories after unreachable-object pruning are
+supported. Abbreviated hashes, symbolic revisions such as `HEAD`, malformed
+identifiers, present non-commit objects, input drift, malformed JSON, and
+operational Git failures all fail closed with a bounded `ProvenanceError`.
+
+`backend.evaluation.verify_report_provenance()` is the single verification
+contract. It performs no network access and never fetches missing objects.
 
 ## Running the harness
 
@@ -260,12 +279,19 @@ python scripts/evaluate_fit.py --format json|text|markdown
 python scripts/evaluate_fit.py --dedupe                           # add duplicate/stale-link metrics
 python scripts/evaluate_fit.py --candidate-policy path.json       # candidate becomes the headline metric view
 python scripts/evaluate_fit.py --calibration a.json --calibration b.json --gate gate.json
+python scripts/evaluate_fit.py --format json --dedupe \
+  --calibration tests/fixtures/candidate_policies/domain_heavier.json \
+  --calibration tests/fixtures/candidate_policies/geography_heavier.json \
+  --gate tests/fixtures/quality_gate_proposed_v1.json \
+  --provenance-manifest docs/evaluation/fit_evaluation_provenance_v1.json
+python scripts/evaluate_fit.py --verify-report docs/evaluation/fit_evaluation_report.json
 ```
 
 Unsupported corpus/label/metric versions, malformed governance fields,
-candidate policies, and quality gates fail clearly
-(`backend.evaluation.CorpusError`), never silently fall back. Candidate policy
-and quality-gate JSON files carry explicit schema versions.
+candidate policies, quality gates, provenance manifests, report payloads, and
+Git diagnostics fail clearly (`backend.evaluation.CorpusError` or bounded
+`backend.evaluation.ProvenanceError`), never silently fall back. Candidate
+policy and quality-gate JSON files carry explicit schema versions.
 
 ## Adding a new case to the corpus
 
