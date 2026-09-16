@@ -3,13 +3,21 @@
 *Implements [ADR-0007](adr/0007-gmail-oauth-credential-storage.md) and the
 read-only boundary of [ADR-0008](adr/0008-gmail-read-only-mailbox-trust-boundary.md).*
 
-**Status: implemented; live Google OAuth validation pending.** This document
-describes controls that exist in code and are covered by automated tests. It
-does **not** claim that a live consent-screen run has been performed, that
-Google OAuth verification has been granted, or that ASTRA is approved to
-distribute a restricted-scope Gmail integration. See
-[Live validation](#live-validation-procedure) and
+**Status: implemented; live Google OAuth validation in progress.** This
+document describes controls that exist in code and are covered by automated
+tests. It does **not** claim that Google OAuth verification has been
+granted, or that ASTRA is approved to distribute a restricted-scope Gmail
+integration. See [Live validation](#live-validation-procedure) and
 [Distribution limits](#distribution-and-verification-limits).
+
+**Live-validation log.** A first live run against a real Desktop client in a
+dedicated Google Cloud project reached Google's consent screen and returned a
+real callback, which ASTRA then **rejected** with
+`CALLBACK_UNEXPECTED_PARAMETER` — a genuine defect in the callback
+parameter policy, described under
+[Loopback callback listener](#loopback-callback-listener). It was remediated
+and a second live run is required before the flow can be called validated.
+No credential, token, code or address was exposed by the failed run.
 
 Scope of issue #44 is the **authorization and credential layer only**. No
 Gmail message listing, history synchronization, mailbox scan, message or
@@ -133,11 +141,45 @@ status record per slot is retained so a polling UI sees the outcome.
 - Request line bounded to 2048 bytes (414), headers to 32 (431), query to
   4096 bytes. Per-connection socket timeout 5s; `HTTP/1.0` so no keep-alive
   holds the listener.
-- Duplicate `state`/`code`/`error`, a missing `state`, a missing or empty
-  `code`, `code` together with `error`, and any unexpected parameter are all
-  rejected. Parameters Google legitimately adds (`scope`, `authuser`,
-  `prompt`, `hd`, `session_state`, `error_description`, `error_subtype`) are
-  tolerated without making the callback ambiguous.
+- Query parameters follow a **three-tier policy**, not a single allowlist:
+  1. **Security-sensitive** — `state`, `code`, `error`. Each may appear at
+     most once; `state` must always be present. A duplicate is ambiguous and
+     is rejected rather than resolved by picking one. `code` together with
+     `error` is rejected.
+  2. **Documented non-secret metadata** — `scope`, `granted_scopes`,
+     `authuser`, `prompt`, `hd`, `login_hint`, `approval_prompt`,
+     `session_state`, `iss`, `nonce`, `expires_in`, `error_description`,
+     `error_subtype`, `error_uri`. Tolerated, then **ignored**: none of them
+     can influence a security decision, and a hostile `scope` or
+     `granted_scopes` in the callback is *not* the scope ASTRA trusts — that
+     comes only from the token response.
+  3. **Refused** — `access_token`, `id_token`, `refresh_token`, `token`,
+     `token_type`, `client_secret`, `code_verifier`, `assertion`, `password`
+     are refused outright (a bearer credential or PKCE verifier here means
+     this is not the flow ASTRA started), and so is any name not listed in
+     tiers 1-2. Tolerating documented metadata is deliberately *not* the
+     same as accepting arbitrary unknown parameters.
+
+  A callback with no parameters, or with more than 24, is rejected before any
+  parameter is inspected.
+
+  **Why tier 2 exists (live-validation finding).** The first live OAuth run
+  of #44 was rejected with `CALLBACK_UNEXPECTED_PARAMETER`: the original
+  allowlist covered only the parameters Google's installed-app page
+  enumerates (`code`/`error` plus `state`), but the real redirect carries
+  more non-secret metadata than that page lists. RFC 6749 section 4.1.2 —
+  and Google's own OpenID Connect documentation, which repeats it verbatim
+  as "clients MUST ignore unrecognized response parameters" — require a
+  client to ignore what it does not recognize. Rejecting the whole callback
+  was therefore both a functional defect and a spec violation. The fix
+  widened tier 2 to the union of what Google and the relevant
+  specifications document, while keeping tiers 1 and 3 strict.
+- A request-target **fragment** is rejected: a fragment cannot be read
+  server-side, so its presence is either a malformed client or an attempt to
+  smuggle parameters past validation.
+- **Malformed query encoding** is rejected: strict parsing refuses empty and
+  name-only fields (`&&`, `&x`), and a stray `%` that is not a valid
+  two-digit escape is refused before parsing.
 - Serves at most one accepted callback, then closes immediately — also on
   terminal failure, cancellation, or the deadline.
 - The response is a small static page with `Cache-Control: no-store`,

@@ -115,14 +115,54 @@ CLIENT_ID_MAX_LENGTH = 200
 CLIENT_ID_PATTERN = re.compile(
     r'^[0-9]{6,32}-[a-z0-9_-]{8,64}\.apps\.googleusercontent\.com$')
 
-#: Query parameters Google may legitimately place on the loopback callback.
-#: Anything else makes the callback ambiguous and is rejected rather than
-#: ignored.
-ALLOWED_CALLBACK_PARAMETERS = frozenset({
-    'state', 'code', 'error', 'error_description', 'error_subtype',
-    'scope', 'authuser', 'prompt', 'hd', 'session_state',
-})
+#: The three parameters ASTRA's security decisions actually depend on. Each
+#: must appear at most once; a duplicate makes the callback ambiguous and is
+#: rejected rather than resolved by picking one.
 SINGLE_VALUE_CALLBACK_PARAMETERS = ('state', 'code', 'error')
+
+#: Non-secret metadata Google may attach to an authorization response.
+#: These are tolerated and then ignored -- they never influence a security
+#: decision.
+#:
+#: RFC 6749 section 4.1.2 requires a client to ignore unrecognized response
+#: parameters, and Google's OpenID Connect documentation repeats that
+#: requirement verbatim ("clients MUST ignore unrecognized response
+#: parameters"). Google's installed-app documentation only promises `code`/
+#: `error` plus `state`, and does not enumerate the additional metadata it
+#: actually sends, so the real set is wider than the documented minimum --
+#: which is exactly what live validation of issue #44 discovered. This list
+#: is therefore the union of what Google and the relevant specifications
+#: document: the OAuth/OIDC authorization-response fields (`scope`,
+#: `session_state`, `nonce`, `expires_in`, error metadata), Google's
+#: incremental-authorization and account-selection echoes
+#: (`granted_scopes`, `authuser`, `prompt`, `hd`, `login_hint`,
+#: `approval_prompt`), and RFC 9207 issuer identification (`iss`).
+ALLOWED_CALLBACK_METADATA = frozenset({
+    'scope', 'granted_scopes', 'authuser', 'prompt', 'hd', 'login_hint',
+    'approval_prompt', 'session_state', 'iss', 'nonce', 'expires_in',
+    'error_description', 'error_subtype', 'error_uri',
+})
+
+#: Names that must never appear in an authorization-code callback query.
+#: A bearer credential or a PKCE verifier arriving here means the flow is
+#: not the one ASTRA started (an implicit-flow response, a redirect from a
+#: different client, or an injection attempt), so it is refused outright
+#: rather than ignored as unrecognized metadata.
+FORBIDDEN_CALLBACK_PARAMETERS = frozenset({
+    'access_token', 'id_token', 'refresh_token', 'token', 'token_type',
+    'client_secret', 'code_verifier', 'assertion', 'password',
+})
+
+#: Every name the callback may carry. Anything outside this set is rejected:
+#: ASTRA tolerates documented metadata, never arbitrary unknown parameters.
+ALLOWED_CALLBACK_PARAMETERS = (frozenset(SINGLE_VALUE_CALLBACK_PARAMETERS)
+                               | ALLOWED_CALLBACK_METADATA)
+
+#: A callback carrying an implausible number of parameters is refused before
+#: any of them is inspected.
+MAX_CALLBACK_PARAMETERS = 24
+
+_PERCENT_ENCODING = re.compile(r'%(?![0-9A-Fa-f]{2})')
 
 
 class Secret:
@@ -364,8 +404,29 @@ class _CallbackHandler(BaseHTTPRequestHandler):
             self.server.astra_reject('CALLBACK_INVALID')
             self._respond(414, _FAILURE_PAGE)
             return
-        accepted = self.server.astra_callback(
-            parse_qs(split.query, keep_blank_values=True, strict_parsing=False))
+        # A real OAuth redirect puts its parameters in the query string. A
+        # fragment cannot be read server-side at all, so a request-target
+        # fragment is either a malformed client or an attempt to smuggle
+        # parameters past this validation.
+        if split.fragment or not split.query:
+            self.server.astra_reject('CALLBACK_INVALID')
+            self._respond(400, _FAILURE_PAGE)
+            return
+        # Strict parsing refuses empty fields and name-only fields; the
+        # pattern check refuses a stray '%' that is not a valid escape.
+        # Neither is something Google's redirect produces.
+        if _PERCENT_ENCODING.search(split.query):
+            self.server.astra_reject('CALLBACK_MALFORMED_QUERY')
+            self._respond(400, _FAILURE_PAGE)
+            return
+        try:
+            parameters = parse_qs(split.query, keep_blank_values=True,
+                                  strict_parsing=True)
+        except ValueError:
+            self.server.astra_reject('CALLBACK_MALFORMED_QUERY')
+            self._respond(400, _FAILURE_PAGE)
+            return
+        accepted = self.server.astra_callback(parameters)
         self._respond(200 if accepted else 400,
                       _SUCCESS_PAGE if accepted else _FAILURE_PAGE)
 
@@ -1009,16 +1070,36 @@ class AttemptManager:
 def _validate_callback(parameters):
     """Structural validation of the loopback callback query.
 
-    Rejects duplicate, missing, malformed, oversized and unexpected
-    parameters.  `state` and PKCE are the security controls here -- the
-    browser's `Origin`/`Referer` headers are deliberately not consulted,
-    because Google's redirect carries neither reliably and neither is
-    authority for an OAuth callback.
+    Rejects duplicate, missing, malformed, oversized, forbidden and
+    unexpected parameters.  `state` and PKCE are the security controls
+    here -- the browser's `Origin`/`Referer` headers are deliberately not
+    consulted, because Google's redirect carries neither reliably and
+    neither is authority for an OAuth callback.
+
+    Parameter policy (three tiers, not one):
+
+    1. `state`, `code` and `error` drive every security decision, so each
+       may appear at most once and `state` must always be present.
+    2. `ALLOWED_CALLBACK_METADATA` is documented non-secret metadata:
+       tolerated, then ignored. RFC 6749 section 4.1.2 and Google's own
+       OIDC documentation both require a client to ignore unrecognized
+       response parameters, and live validation of issue #44 confirmed
+       Google sends more of them than its installed-app page enumerates.
+    3. `FORBIDDEN_CALLBACK_PARAMETERS` and anything not listed at all are
+       refused. Tolerating documented metadata is not the same as
+       accepting arbitrary unknown parameters, and this keeps the
+       difference explicit.
     """
     if not isinstance(parameters, dict):
         return None, None, 'CALLBACK_INVALID'
-    unexpected = set(parameters) - ALLOWED_CALLBACK_PARAMETERS
-    if unexpected:
+    if not parameters or len(parameters) > MAX_CALLBACK_PARAMETERS:
+        return None, None, 'CALLBACK_INVALID'
+    names = set(parameters)
+    # A credential or a PKCE verifier in the query is never "unrecognized
+    # metadata" -- it means this is not the flow ASTRA started.
+    if names & FORBIDDEN_CALLBACK_PARAMETERS:
+        return None, None, 'CALLBACK_FORBIDDEN_PARAMETER'
+    if names - ALLOWED_CALLBACK_PARAMETERS:
         return None, None, 'CALLBACK_UNEXPECTED_PARAMETER'
     for name in SINGLE_VALUE_CALLBACK_PARAMETERS:
         if len(parameters.get(name, [])) > 1:

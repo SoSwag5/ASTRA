@@ -352,8 +352,157 @@ def test_unexpected_parameters_and_error_plus_code_are_rejected():
                     'authuser': ['0'], 'prompt': ['consent']}) is None
 
 
+# --- Live-validation regression: Google's real callback shape -------------
+# Live validation of issue #44 rejected a genuine Google callback with
+# CALLBACK_UNEXPECTED_PARAMETER: the allowlist only covered the parameters
+# Google's installed-app page enumerates, but the real redirect carries
+# more non-secret metadata than that. RFC 6749 section 4.1.2 and Google's
+# own OIDC documentation both require unrecognized response parameters to
+# be ignored. These tests pin the corrected three-tier policy.
+@pytest.mark.parametrize('extra', [
+    {},
+    {'scope': [oauth.GMAIL_READONLY_SCOPE]},
+    {'scope': [oauth.GMAIL_READONLY_SCOPE], 'authuser': ['0'], 'prompt': ['consent']},
+    {'granted_scopes': [oauth.GMAIL_READONLY_SCOPE]},
+    {'iss': ['https://accounts.google.com']},
+    {'hd': ['example.com']},
+    {'session_state': ['opaque-value']},
+    {'nonce': ['opaque-value']},
+    {'expires_in': ['3599']},
+    {'login_hint': ['opaque']},
+    {'approval_prompt': ['force']},
+    # The full realistic shape, all documented metadata at once.
+    {'scope': [oauth.GMAIL_READONLY_SCOPE], 'granted_scopes': [oauth.GMAIL_READONLY_SCOPE],
+     'authuser': ['0'], 'prompt': ['consent'], 'hd': ['example.com'],
+     'iss': ['https://accounts.google.com'], 'session_state': ['opaque']},
+])
+def test_a_real_google_callback_with_documented_metadata_is_accepted(extra):
+    query = {'state': ['s'], 'code': ['c'], **extra}
+    assert _reject(query) is None, f'documented metadata must be tolerated: {sorted(extra)}'
+
+
+def test_documented_metadata_is_ignored_and_never_influences_the_decision():
+    """Tolerated metadata must not be able to change the outcome."""
+    plain = oauth._validate_callback({'state': ['s'], 'code': ['c']})
+    decorated = oauth._validate_callback({
+        'state': ['s'], 'code': ['c'], 'scope': ['anything at all'],
+        'authuser': ['9'], 'iss': ['https://impostor.example'],
+        'granted_scopes': ['https://mail.google.com/']})
+    assert plain == decorated == ('c', 's', None)
+    # In particular, a hostile `scope`/`granted_scopes` in the callback is
+    # not the scope ASTRA trusts -- that comes from the token response.
+    assert oauth.REQUIRED_SCOPES == frozenset({oauth.GMAIL_READONLY_SCOPE})
+
+
+@pytest.mark.parametrize('forbidden', [
+    'access_token', 'id_token', 'refresh_token', 'token', 'token_type',
+    'client_secret', 'code_verifier', 'assertion', 'password',
+])
+def test_a_credential_bearing_callback_parameter_is_refused_outright(forbidden):
+    """A bearer credential here means this is not the flow ASTRA started."""
+    query = {'state': ['s'], 'code': ['c'], forbidden: ['value']}
+    assert _reject(query) == 'CALLBACK_FORBIDDEN_PARAMETER'
+    # Refused even when it is the only thing wrong, and even without a code.
+    assert _reject({'state': ['s'], forbidden: ['value']}) == \
+        'CALLBACK_FORBIDDEN_PARAMETER'
+
+
+@pytest.mark.parametrize('query,expected', [
+    # Genuinely unknown names are still rejected -- tolerating documented
+    # metadata is not the same as accepting anything.
+    ({'state': ['s'], 'code': ['c'], 'surprise': ['1']}, 'CALLBACK_UNEXPECTED_PARAMETER'),
+    ({'state': ['s'], 'code': ['c'], 'SCOPE': ['x']}, 'CALLBACK_UNEXPECTED_PARAMETER'),
+    ({'state': ['s'], 'code': ['c'], '': ['x']}, 'CALLBACK_UNEXPECTED_PARAMETER'),
+    # Duplicates of the security-sensitive three stay ambiguous, so refused.
+    ({'state': ['a', 'b'], 'code': ['c']}, 'CALLBACK_DUPLICATE_PARAMETER'),
+    ({'state': ['s'], 'code': ['a', 'b']}, 'CALLBACK_DUPLICATE_PARAMETER'),
+    ({'state': ['s'], 'error': ['a', 'b']}, 'CALLBACK_DUPLICATE_PARAMETER'),
+    # Conflicting success and error responses.
+    ({'state': ['s'], 'code': ['c'], 'error': ['access_denied']}, 'CALLBACK_INVALID'),
+    # Missing or empty essentials.
+    ({'code': ['c']}, 'CALLBACK_STATE_MISSING'),
+    ({'state': [''], 'code': ['c']}, 'CALLBACK_STATE_MISSING'),
+    ({'state': ['s']}, 'CALLBACK_MISSING_CODE'),
+    ({'state': ['s'], 'code': ['']}, 'CALLBACK_MISSING_CODE'),
+    ({'state': ['s'], 'code': ['x' * 2049]}, 'CALLBACK_MISSING_CODE'),
+    # Structurally impossible callbacks.
+    ({}, 'CALLBACK_INVALID'),
+    ([], 'CALLBACK_INVALID'),
+])
+def test_adversarial_callback_shapes_are_rejected(query, expected):
+    assert _reject(query) == expected
+
+
+def test_an_implausible_number_of_parameters_is_rejected_before_inspection():
+    query = {'state': ['s'], 'code': ['c']}
+    query.update({f'scope': ['x']})
+    flood = {**query, **{f'unknown{i}': ['x'] for i in range(oauth.MAX_CALLBACK_PARAMETERS)}}
+    assert _reject(flood) == 'CALLBACK_INVALID'
+    assert len(flood) > oauth.MAX_CALLBACK_PARAMETERS
+
+
+def test_the_allowlist_tiers_are_disjoint_and_exclude_secrets():
+    sensitive = frozenset(oauth.SINGLE_VALUE_CALLBACK_PARAMETERS)
+    assert not (sensitive & oauth.ALLOWED_CALLBACK_METADATA)
+    assert not (oauth.ALLOWED_CALLBACK_METADATA & oauth.FORBIDDEN_CALLBACK_PARAMETERS)
+    assert not (sensitive & oauth.FORBIDDEN_CALLBACK_PARAMETERS)
+    assert oauth.ALLOWED_CALLBACK_PARAMETERS == sensitive | oauth.ALLOWED_CALLBACK_METADATA
+    # No metadata name may be something that carries a credential.
+    for name in oauth.ALLOWED_CALLBACK_METADATA:
+        assert 'token' not in name and 'secret' not in name and 'verifier' not in name
+
+
 def _reject(parameters):
     return oauth._validate_callback(parameters)[2]
+
+
+def test_the_listener_accepts_googles_real_callback_shape_over_http(listener):
+    """End-to-end over a real socket, with the metadata Google actually sends.
+
+    This is the HTTP-level regression for the live-validation failure: the
+    same request previously produced CALLBACK_UNEXPECTED_PARAMETER.
+    """
+    serve_one(listener)
+    query = ('?state=opaque-state-value&code=opaque-code-value'
+             '&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fgmail.readonly'
+             '&authuser=0&prompt=consent&iss=https%3A%2F%2Faccounts.google.com')
+    status, headers, body = request_callback(listener, oauth.CALLBACK_PATH + query)
+    assert status == 200, 'a real Google callback must be accepted'
+    assert listener.received and set(listener.received[0]) == {
+        'state', 'code', 'scope', 'authuser', 'prompt', 'iss'}
+    assert headers['Cache-Control'] == 'no-store'
+    # The accepted page still reflects nothing from the query.
+    for leaked in (b'opaque-state-value', b'opaque-code-value', b'authuser',
+                   b'accounts.google.com'):
+        assert leaked not in body
+
+
+@pytest.mark.parametrize('query', [
+    '?code=a&&state=b',          # empty field
+    '?code=a&state=b&x',         # name-only field
+    '?code=%ZZ&state=b',         # invalid percent escape
+    '?code=a&state=%',           # truncated percent escape
+])
+def test_a_malformed_query_is_rejected_by_the_listener(listener, query):
+    serve_one(listener)
+    status, _headers, _body = request_callback(listener, oauth.CALLBACK_PATH + query)
+    assert status == 400
+    assert listener.received == [], 'a malformed query never reaches validation'
+
+
+def test_a_fragment_or_empty_query_is_rejected_by_the_listener(listener):
+    serve_one(listener)
+    status, _headers, _body = request_callback(
+        listener, oauth.CALLBACK_PATH + '#code=a&state=b')
+    assert status == 400
+    assert listener.received == [], 'parameters cannot be smuggled in a fragment'
+
+
+def test_a_bare_callback_path_with_no_query_is_rejected(listener):
+    serve_one(listener)
+    status, _headers, _body = request_callback(listener, oauth.CALLBACK_PATH)
+    assert status == 400
+    assert listener.received == []
 
 
 def test_listener_closes_after_a_terminal_callback(listener):
