@@ -28,12 +28,25 @@ for (const api of ['localStorage', 'sessionStorage', 'indexedDB', 'IndexedDB',
 
 // --- 2. No secret-bearing field is read or rendered ---------------------
 for (const field of ['refresh_token', 'access_token', 'code_verifier',
-                     'code_challenge', 'client_secret', 'authorization_code',
+                     'code_challenge', 'authorization_code',
                      'oauth_state', 'callback_url', 'redirect_uri', 'stack',
                      'credential_key', 'client_id']) {
   check(!source.includes(field),
         `GmailConnection.tsx must never reference ${field}`);
 }
+
+// --- 2b. The client secret is console-only, never a UI input ------------
+// The panel may report WHETHER one is configured, but must never accept,
+// hold or display a value. A password field would put it in page state and
+// in a request body; a hidden console prompt keeps it in one process.
+check(!/type=["']password["']/.test(source),
+      'the Gmail panel must never render a secret input');
+for (const forbidden of ['setSecret', 'client_secret:', 'clientSecret']) {
+  check(!source.includes(forbidden),
+        `GmailConnection.tsx must never hold a client secret (${forbidden})`);
+}
+check(source.includes('client_secret?.state'),
+      'the panel should report only the bounded client-secret state');
 
 // --- 3. The consent URL is opened safely --------------------------------
 check(source.includes("safeLink(started.authorization_url)"),

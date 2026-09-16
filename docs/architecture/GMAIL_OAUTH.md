@@ -32,16 +32,19 @@ a credential, token, code or address.
    handled `Content-Encoding`, so a compressed response reached `json.loads`
    as compressed bytes and reported a bounded transport failure with no way
    to see why. Fixed; see the Response encoding row under
-   [Transport controls](#transport-controls). Whether that was the sole
-   cause is being confirmed by a bounded probe of the token endpoint that
-   uses a deliberately invalid authorization code, so no credential or
-   browser round is involved.
-
-A client secret is still **not** sent, accepted or stored: Google's current
-installed-app documentation marks `client_secret` optional and states that
-installed apps cannot keep secrets confidential. If live evidence ever proves
-this Desktop client requires one, that is an explicit Owner decision, not an
-implementation choice — see [Client secret](#client-secret).
+   [Transport controls](#transport-controls).
+3. **Probe — client authentication is required.** Because run 2's failure
+   was opaque, a bounded probe of the token endpoint was run using a
+   *deliberately invalid* authorization code, so no real credential and no
+   browser round was involved. It proved this Desktop client enforces client
+   authentication before evaluating the grant: `400 invalid_request` naming
+   the missing secret without one, and `401 invalid_client` with a
+   deliberately wrong one. The Owner authorized DPAPI-backed client-secret
+   support on that evidence — see [Client secret](#client-secret). PKCE is
+   still generated per attempt and still sent, and the secret is still
+   treated as non-confidential. The same investigation also made Google's
+   standard `error` identifiers map to bounded, actionable ASTRA codes, so
+   a client-authentication failure now says so instead of failing opaquely.
 
 Scope of issue #44 is the **authorization and credential layer only**. No
 Gmail message listing, history synchronization, mailbox scan, message or
@@ -90,29 +93,111 @@ downloaded client JSON, no token and no Gmail address.
    app**.
 6. Copy the client ID. Do **not** download the JSON file into the
    repository, and do not commit it anywhere.
-7. Set the client ID as an environment variable and restart ASTRA:
+7. Set the client ID as an environment variable and restart ASTRA. The
+   client ID is configuration, not a secret:
 
    ```
    ASTRA_GMAIL_CLIENT_ID=<your-client-id>.apps.googleusercontent.com
    ```
 
-8. Open **Privacy & Local Data → Gmail connection** and choose
+8. Store the client secret, which this client type requires at the token
+   endpoint (see [Client secret](#client-secret)). Run this in a terminal
+   on the machine; it prompts without echoing and stores the value in your
+   OS credential store. Do **not** pass it as an argument, put it in a
+   file, or paste it into the web UI:
+
+   ```
+   python -m backend.gmail_setup
+   ```
+
+   `python -m backend.gmail_setup --status` reports whether it is
+   configured, and `--remove` deletes it.
+
+9. Open **Privacy & Local Data → Gmail connection** and choose
    *Connect Gmail (read-only)*.
 
 ### Client secret
 
-ASTRA does **not** accept, store or send a client secret, and has no code
-path that could persist one. Google's installed-app documentation lists
-`client_secret` as *optional* for a Desktop app token exchange, and PKCE
-replaces it: an installed application cannot keep a secret confidential, so
-treating one as confidential would be a false assurance.
+**Live-verified position (Owner-authorized).** Google's installed-app
+documentation marks `client_secret` *optional* for a Desktop app token
+exchange and states that installed apps cannot keep a secret confidential.
+Live validation of issue #44 nevertheless proved that this Desktop OAuth
+client **enforces client authentication at the token endpoint**, before it
+evaluates the grant at all:
 
-If a future Google change made a secret mandatory for this flow, that is a
-**stop condition**, not something to work around: persisting a confidential
-client secret needs an explicit Owner decision and a storage design, because
-neither SQLite nor an ASTRA settings file is an acceptable location for one.
-`configuration_status()` reports `client_secret_required: false` so this
-assumption is visible rather than implicit.
+| Request | Google's answer |
+|---|---|
+| No `client_secret` | `400 invalid_request`, error describing the secret as missing |
+| Deliberately wrong `client_secret` | `401 invalid_client` |
+
+Both facts are true at once, and the design holds both:
+
+- **A Desktop client secret is not a globally confidential credential.**
+  Anyone who distributes the application distributes it, and Google's own
+  documentation says as much. ASTRA therefore never treats possession of
+  this secret as proof of anything, never relies on it as a security
+  boundary, and does not weaken PKCE because of it. PKCE remains the proof
+  of possession: the verifier is still generated per attempt and still sent.
+  What the secret provides is *client authentication to Google*, which this
+  client requires — not confidentiality that an installed app could keep.
+- **It is still the Owner's configured credential for their own Google
+  Cloud project**, so leaking it locally would let another local actor
+  impersonate this installation's OAuth client against Google. ASTRA
+  therefore protects it locally exactly as it protects a refresh token:
+  DPAPI-backed OS credential store, current user only, no plaintext
+  fallback anywhere.
+
+**How it is entered.** Only through `python -m backend.gmail_setup`, which
+reads it with `getpass` — a hidden prompt that reads the console directly
+rather than stdin, so the value is not echoed, cannot be piped in from a
+file or another process, and does not enter shell history. It is **never**
+accepted as a command-line argument (the command refuses `--secret*`
+outright, because an argument is visible to every process on the machine),
+and never through the web UI: a browser form would place it in page state,
+in the DOM, and in a request body traversing the local HTTP stack. The
+frontend only ever learns *whether* one is configured.
+
+**Where it lives.** Keyring service `ASTRA-Gmail-OAuth-Client`, key
+`client-secret` — deliberately a different namespace from the per-account
+refresh tokens in `ASTRA-Gmail-OAuth`. The two are different kinds of
+secret with different lifetimes: the client credential belongs to the
+installation's OAuth client and is shared by every account slot, while a
+refresh token belongs to one mailbox. Separate namespaces mean neither can
+be read, overwritten or deleted while operating on the other, and an audit
+of either is unambiguous.
+
+**Where it is sent.** Only to `https://oauth2.googleapis.com/token`, for the
+authorization-code exchange and the refresh-token exchange — the two places
+Google requires client authentication. This is enforced at the single
+transport chokepoint every outbound call passes through, not left to each
+call site, so a future caller cannot send it to the profile or revocation
+endpoint even by mistake. It never appears in a query string, a log, the
+database, an export, a backup, diagnostics, telemetry, an error message, a
+test fixture, the UI, or browser storage.
+
+**Never stored anywhere else.** No schema column exists for it; `SQLite`,
+`.env`, settings files, command arguments and process environment are all
+excluded (the environment holds only the client *ID*, which is
+configuration, not a secret).
+
+**Removal.** Disconnecting the last connected account removes the client
+secret along with that account's refresh token, and "Delete All Local Data"
+removes both. While another account slot is still connected the shared
+client credential is retained, because removing it would break that slot;
+with only `PRIMARY` enabled (OD-012) disconnecting it clears everything.
+If any removal cannot be confirmed, `disconnect()` reports
+`credential_removal_complete: false` and names the credential *class* that
+could not be confirmed gone — never a value, and never a keyring error
+string.
+
+**If the secret is absent**, ASTRA does not hard-block: it attempts the
+exchange without one (some clients do not enforce authentication), and maps
+Google's standard `invalid_client`/`unauthorized_client`/`invalid_request`
+identifier to the bounded code `CLIENT_AUTHENTICATION_REQUIRED`, whose
+message tells the user to configure the secret. Only the RFC 6749 `error`
+identifier — a fixed token from a closed set — is read from an error
+response; `error_description` is free text that can restate the request and
+is never parsed, surfaced or logged.
 
 The client ID itself is treated as **configuration, not a secret** (Google's
 own guidance for native apps), but it is still validated strictly against

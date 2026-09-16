@@ -702,6 +702,15 @@ def _request(method, url, *, failure_code, total_timeout, data=None, bearer=None
     if urlsplit(url).hostname not in ALLOWED_HOSTS or not url.startswith('https://'):
         raise OAuthError('DESTINATION_NOT_ALLOWED',
                          'Gmail OAuth requests only ever contact Google over HTTPS')
+    # The client secret authenticates ASTRA to exactly one endpoint. This is
+    # the single chokepoint every outbound call passes through, so the
+    # restriction is enforced here rather than trusted to each caller: a
+    # future call site cannot send it to the profile or revocation endpoint
+    # even by mistake.
+    if isinstance(data, dict) and 'client_secret' in data and url != TOKEN_ENDPOINT:
+        raise OAuthError('DESTINATION_NOT_ALLOWED',
+                         'Client authentication is only ever sent to Google\'s '
+                         'token endpoint')
     headers = {}
     if bearer is not None:
         headers['Authorization'] = 'Bearer ' + bearer.reveal()
@@ -724,13 +733,65 @@ def _request(method, url, *, failure_code, total_timeout, data=None, bearer=None
     return status, content_type, body
 
 
+#: Standard OAuth 2.0 error identifiers (RFC 6749 section 5.2) mapped to
+#: bounded ASTRA codes and actionable messages. Only these fixed tokens are
+#: ever read from an error response -- `error_description` is free text that
+#: can restate the request, so it is never parsed, surfaced or logged.
+_OAUTH_ERROR_CODES = {
+    'invalid_client': ('CLIENT_AUTHENTICATION_REQUIRED',
+                       'Google rejected ASTRA\'s client authentication. Check '
+                       'the configured Gmail client secret and try again.'),
+    'unauthorized_client': ('CLIENT_AUTHENTICATION_REQUIRED',
+                            'Google rejected ASTRA\'s client authentication. '
+                            'Check the configured Gmail client secret and try '
+                            'again.'),
+    'invalid_request': ('CLIENT_AUTHENTICATION_REQUIRED',
+                        'Google rejected the request. If Gmail has never '
+                        'connected on this machine, configure the Gmail client '
+                        'secret for your OAuth client, then try again.'),
+    'invalid_grant': ('AUTHORIZATION_EXPIRED',
+                      'Google would not accept this authorization. Start the '
+                      'connection again.'),
+    'unsupported_grant_type': ('AUTHORIZATION_EXPIRED',
+                               'Google would not accept this authorization. '
+                               'Start the connection again.'),
+    'invalid_scope': ('SCOPE_MISSING_REQUIRED',
+                      'Google did not grant Gmail read-only access. Connect '
+                      'again and approve the read-only permission.'),
+}
+
+
+def _standard_oauth_error(body):
+    """The RFC 6749 `error` identifier, if the body carries a known one.
+
+    Returns a bounded (code, message) pair or None. Nothing else from the
+    response is read, so no free text can escape.
+    """
+    try:
+        parsed = json_module.loads(body)
+    except ValueError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    identifier = parsed.get('error')
+    if not isinstance(identifier, str):
+        return None
+    return _OAUTH_ERROR_CODES.get(identifier.strip().lower())
+
+
 def _json_request(method, url, *, failure_code, total_timeout, data=None, bearer=None):
     status, content_type, body = _request(
         method, url, failure_code=failure_code, total_timeout=total_timeout,
         data=data, bearer=bearer)
     if status != 200:
-        # Google's own error text is never surfaced: it can restate the
-        # request, and a bounded ASTRA code is what callers act on.
+        # Google's own error *text* is never surfaced: it can restate the
+        # request. Its standard `error` identifier is a fixed token from a
+        # closed set, so it is mapped to a bounded ASTRA code that tells the
+        # user what to actually do -- which is what the opaque failure
+        # during live validation could not.
+        mapped = _standard_oauth_error(body)
+        if mapped is not None:
+            raise OAuthError(*mapped)
         raise OAuthError(failure_code,
                          'Google rejected the request. Start the connection again.')
     if 'application/json' not in content_type.lower():
@@ -738,11 +799,21 @@ def _json_request(method, url, *, failure_code, total_timeout, data=None, bearer
     return _strict_json_object(body, failure_code)
 
 
-def exchange_code(*, configured_client_id, code, verifier, redirect_uri):
+def exchange_code(*, configured_client_id, code, verifier, redirect_uri,
+                  client_secret=None):
     """Exchange a single-use authorization code for tokens.
 
     Never retried. The redirect URI is byte-identical to the one used in
     the authorization request, and the PKCE verifier is sent exactly once.
+
+    `client_secret` is included only when one is configured. Google's
+    installed-app documentation marks it optional, but live validation of
+    issue #44 proved this Desktop client enforces client authentication at
+    the token endpoint before it evaluates the grant at all: without a
+    secret it answered `400 invalid_request` naming the missing secret,
+    and with a deliberately wrong one `401 invalid_client`. PKCE is still
+    sent and still required -- the secret authenticates the client, it
+    does not replace proof of possession.
     """
     payload = {
         'client_id': configured_client_id,
@@ -751,6 +822,8 @@ def exchange_code(*, configured_client_id, code, verifier, redirect_uri):
         'grant_type': 'authorization_code',
         'redirect_uri': redirect_uri,
     }
+    if client_secret is not None:
+        payload['client_secret'] = client_secret.reveal()
     parsed = _json_request('POST', TOKEN_ENDPOINT, failure_code='TOKEN_EXCHANGE_FAILED',
                            total_timeout=TOTAL_TIMEOUT, data=payload)
     access = parsed.get('access_token')
@@ -773,6 +846,43 @@ def exchange_code(*, configured_client_id, code, verifier, redirect_uri):
         'refresh_token': Secret(refresh) if refresh and refresh.strip() else None,
         'granted_scopes': normalize_scopes(scope),
     }
+
+
+def refresh_access_token(*, configured_client_id, refresh_token, client_secret=None):
+    """Exchange a stored refresh token for a short-lived access token.
+
+    This is the credential layer completing its own contract: it proves a
+    stored refresh token is usable, and it is what makes a revoked
+    credential verifiably unusable. It performs **no** mailbox work -- no
+    message listing, no history sync, no parsing -- so issue #45 remains
+    unstarted; #45 will call this rather than reinvent it.
+
+    Returns a memory-only access token and the scopes Google reports for
+    it. The granted scope is re-validated by the caller on every refresh,
+    so a grant that widened after the fact cannot be used silently.
+    """
+    payload = {
+        'client_id': configured_client_id,
+        'grant_type': 'refresh_token',
+        'refresh_token': refresh_token.reveal(),
+    }
+    if client_secret is not None:
+        payload['client_secret'] = client_secret.reveal()
+    parsed = _json_request('POST', TOKEN_ENDPOINT, failure_code='TOKEN_REFRESH_FAILED',
+                           total_timeout=TOTAL_TIMEOUT, data=payload)
+    access = parsed.get('access_token')
+    if not isinstance(access, str) or not access.strip():
+        raise OAuthError('ACCESS_TOKEN_MISSING',
+                         'Google did not return a usable access token')
+    # A refresh response omits `scope` when the grant is unchanged, which is
+    # not an error -- the caller then relies on the scope recorded at
+    # connection time, which was validated then.
+    scope = parsed.get('scope')
+    if scope is not None and not isinstance(scope, str):
+        raise OAuthError('TOKEN_RESPONSE_INVALID',
+                         'Google reported an unexpected granted scope')
+    return {'access_token': Secret(access),
+            'granted_scopes': normalize_scopes(scope) if scope else None}
 
 
 def normalize_scopes(scope):

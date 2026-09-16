@@ -35,16 +35,26 @@ from tests.gmail_fixtures import (OTHER_EMAIL, SENTINEL_ACCESS, SENTINEL_CODE,
 
 pytestmark = pytest.mark.usefixtures('gmail_env')
 
+#: A synthetic OAuth *client* secret. Owner-authorized for issue #44 after
+#: live evidence proved this Desktop client enforces client authentication
+#: at the token endpoint. It is the same class of secret as a refresh token
+#: for leakage purposes, so it joins the sentinel set.
+SENTINEL_CLIENT_SECRET = 'astra-sentinel-clientsecret-6d3f81b904ae572c1fb8'
+
 #: Every value that must never appear in any persisted or returned artifact.
-SENTINELS = (SENTINEL_REFRESH, SENTINEL_ACCESS, SENTINEL_CODE)
+SENTINELS = (SENTINEL_REFRESH, SENTINEL_ACCESS, SENTINEL_CODE,
+             SENTINEL_CLIENT_SECRET)
 
 
 def connect(monkeypatch, **double):
     """Drive one full synthetic connection and return its transient values.
 
     `state` and `verifier` are captured here so the assertions can prove
-    they never appear anywhere afterwards.
+    they never appear anywhere afterwards. A client secret is configured
+    first, so every artifact scanned below was produced by a run that
+    actually held one.
     """
+    accounts.store_client_secret(oauth.Secret(SENTINEL_CLIENT_SECRET))
     install_google_double(monkeypatch, **double)
     attempt, url = oauth.attempts.start('PRIMARY', accounts._finalize,
                                         listener_factory=FakeListener)
@@ -461,6 +471,97 @@ def test_disconnect_is_not_a_data_erasure(monkeypatch):
         from sqlalchemy import delete
         db.execute(delete(Application).where(Application.job_id == job_id))
         db.execute(delete(Job).where(Job.id == job_id))
+
+
+def test_the_client_secret_never_reaches_any_persisted_artifact(monkeypatch, tmp_path):
+    """The full sweep, repeated specifically for the client credential."""
+    import backend.models as models
+    import backend.privacy as privacy
+    import backend.reliability as reliability
+    from backend.doctor import run_checks
+
+    monkeypatch.setattr(models, 'DATA', tmp_path)
+    session = connect(monkeypatch)
+    assert session['accepted'] is True
+    assert accounts.client_secret_status()['state'] == 'CONFIGURED'
+
+    # Database bytes, including the WAL.
+    assert_clean(_database_bytes(), 'the SQLite database')
+    # Diagnostics.
+    assert_clean(json.dumps(run_checks()), 'diagnostic output')
+    # Security events written during a run that held a client secret.
+    written = ''.join(path.read_text(encoding='utf-8', errors='replace')
+                      for path in tmp_path.rglob('*') if path.is_file())
+    assert written, 'the run must have recorded security events'
+    assert_clean(written, 'the security-event file')
+    # The private export.
+    monkeypatch.setattr(privacy, 'DATA', tmp_path)
+    assert_clean(privacy._export_data().body, 'the private export')
+    # A daily backup.
+    monkeypatch.setattr(reliability, 'DATA', tmp_path)
+    name = reliability.backup_database(force=True)
+    assert_clean((tmp_path / 'backups' / name).read_bytes(), 'a daily backup')
+    # Whole-integration status and the setup command's own output.
+    assert_clean(json.dumps(accounts.status()), 'the status payload')
+
+
+def test_the_client_secret_is_absent_from_the_repository_and_git_history():
+    """No fixture, test, doc or committed file may carry a real secret.
+
+    The sentinel is synthetic, so finding it in the test files themselves
+    is expected; what must not appear anywhere is a value shaped like a
+    real Google client secret.
+    """
+    import re
+    import subprocess
+    root = __import__('pathlib').Path('.')
+    # Google client secrets are conventionally prefixed GOCSPX-.
+    pattern = re.compile(rb'GOCSPX-[A-Za-z0-9_-]{10,}')
+    tracked = subprocess.check_output(['git', 'ls-files']).decode().split('\n')
+    for relative in tracked:
+        relative = relative.strip()
+        if not relative:
+            continue
+        path = root / relative
+        if path.is_file() and path.stat().st_size < 4_000_000:
+            assert not pattern.search(path.read_bytes()), \
+                f'a Google-shaped client secret appears in {relative}'
+    # And nothing in the branch's own diff against master either.
+    diff = subprocess.run(['git', 'diff', 'origin/master...HEAD'],
+                          capture_output=True).stdout
+    assert not pattern.search(diff)
+
+
+def test_the_client_secret_is_never_exposed_through_the_api(monkeypatch, client):
+    connect(monkeypatch)
+    bodies = []
+    for method, path in (('GET', '/api/gmail/status'),
+                         ('GET', '/api/gmail/accounts/primary/authorize'),
+                         ('GET', '/api/privacy'),
+                         ('GET', '/api/privacy/self-check'),
+                         ('GET', '/api/privacy/security-events')):
+        response = client.request(method, path)
+        bodies.append(response.text)
+    joined = '\n'.join(bodies)
+    assert_clean(joined, 'an API response body')
+    # The status endpoint reports only bounded state for the secret.
+    payload = client.get('/api/gmail/status').json()
+    assert set(payload['client_secret']) <= {'state', 'detail_code', 'setup_command'}
+    assert payload['client_secret']['state'] == 'CONFIGURED'
+
+
+def test_no_frontend_file_can_hold_or_request_a_client_secret():
+    """The secret is console-only: the UI never accepts or stores it."""
+    import pathlib
+    source = pathlib.Path('frontend/src/GmailConnection.tsx').read_text(encoding='utf-8')
+    executable = __import__('re').sub(r'/\*[\s\S]*?\*/', '', source)
+    executable = __import__('re').sub(r'^\s*//.*$', '', executable, flags=__import__('re').M)
+    # It may render whether one is configured, but never a value or an input.
+    assert 'client_secret?.state' in executable or 'client_secret' in executable
+    for forbidden in ('type="password"', 'setSecret', 'client_secret:',
+                      'localStorage', 'sessionStorage', 'indexedDB'):
+        assert forbidden not in executable, \
+            f'the Gmail panel must not contain {forbidden}'
 
 
 def test_the_existing_openai_credential_path_is_unchanged(monkeypatch, gmail_env):

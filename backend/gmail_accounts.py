@@ -44,6 +44,18 @@ from .security_events import record as security_event
 #: enumerable, independently deletable, and can never be confused with or
 #: overwritten by the existing AI-provider credential.
 CREDENTIAL_SERVICE = 'ASTRA-Gmail-OAuth'
+#: The OAuth *client* secret lives in its own keyring service, deliberately
+#: separate from the per-account refresh tokens in CREDENTIAL_SERVICE. They
+#: are different kinds of secret with different lifetimes: the client
+#: credential belongs to the installation's OAuth client and is shared by
+#: every account slot, while a refresh token belongs to one mailbox. Keeping
+#: them in separate namespaces means neither can be read, overwritten or
+#: deleted while operating on the other, and an audit of either namespace is
+#: unambiguous.
+CLIENT_CREDENTIAL_SERVICE = 'ASTRA-Gmail-OAuth-Client'
+CLIENT_SECRET_KEY = 'client-secret'
+#: Google client secrets are short; this only bounds obvious paste errors.
+CLIENT_SECRET_MAX_LENGTH = 512
 #: On Windows this is keyring's native Credential Manager backend, which
 #: protects the secret with DPAPI under the *current user* profile --
 #: never machine-wide. ADR-0007 requires CurrentUser scope explicitly.
@@ -244,6 +256,87 @@ def delete_all_credentials():
     return removed
 
 
+# ---------------------------------------------------------------------------
+# OAuth client secret
+# ---------------------------------------------------------------------------
+# Google's installed-app documentation marks `client_secret` optional and
+# states that installed apps cannot keep a secret confidential. Live
+# validation of issue #44 nevertheless proved this Desktop client enforces
+# client authentication at the token endpoint. Both facts are true at once,
+# and the design reflects both: a Desktop client secret is NOT a globally
+# confidential credential -- anyone who distributes the application
+# distributes it -- so ASTRA never treats possession of it as proof of
+# anything. It is still the Owner's configured credential for their own
+# Google Cloud project, so ASTRA protects it locally exactly as it protects
+# a refresh token: DPAPI-backed OS credential store, current user only, no
+# plaintext fallback anywhere. See docs/architecture/GMAIL_OAUTH.md.
+def store_client_secret(secret):
+    """Persist the OAuth client secret in the OS credential store.
+
+    `secret` is a `Secret`, so the value cannot be logged by the caller.
+    """
+    value = secret.reveal()
+    if not value.strip() or len(value) > CLIENT_SECRET_MAX_LENGTH:
+        raise OAuthError('CLIENT_SECRET_INVALID',
+                         'That does not look like a Google OAuth client '
+                         'secret. Nothing was stored.')
+    try:
+        credential_store().set_password(CLIENT_CREDENTIAL_SERVICE,
+                                        CLIENT_SECRET_KEY, value)
+    except OAuthError:
+        raise
+    except Exception:
+        security_event('GMAIL_CREDENTIAL_STORE_FAILED', result='WRITE_FAILED')
+        raise OAuthError('CREDENTIAL_STORE_FAILED',
+                         'The Gmail client secret could not be saved to the OS '
+                         'credential store. Nothing was stored.') from None
+    return True
+
+
+def read_client_secret():
+    """The configured client secret as a `Secret`, or None when unset."""
+    try:
+        value = credential_store().get_password(CLIENT_CREDENTIAL_SERVICE,
+                                                CLIENT_SECRET_KEY)
+    except OAuthError:
+        raise
+    except Exception:
+        security_event('GMAIL_CREDENTIAL_STORE_FAILED', result='READ_FAILED')
+        return None
+    return Secret(value) if value else None
+
+
+def delete_client_secret():
+    """Remove the stored client secret. Idempotent; never raises."""
+    try:
+        import keyring.errors
+        try:
+            credential_store().delete_password(CLIENT_CREDENTIAL_SERVICE,
+                                               CLIENT_SECRET_KEY)
+        except keyring.errors.PasswordDeleteError:
+            return False
+    except OAuthError:
+        return False
+    except Exception:
+        security_event('GMAIL_CREDENTIAL_STORE_FAILED', result='DELETE_FAILED')
+        return False
+    return True
+
+
+def client_secret_status():
+    """Bounded state only -- the value is never returned or described."""
+    try:
+        secret = read_client_secret()
+    except OAuthError as error:
+        return {'state': 'UNAVAILABLE', 'detail_code': error.code}
+    if secret is None:
+        return {'state': 'NOT_CONFIGURED',
+                'detail_code': 'CLIENT_SECRET_NOT_CONFIGURED',
+                'setup_command': 'python -m backend.gmail_setup'}
+    secret.clear()
+    return {'state': 'CONFIGURED', 'detail_code': 'OK'}
+
+
 def purge_all_local():
     """Remove every Gmail credential and account row.
 
@@ -261,6 +354,9 @@ def purge_all_local():
     from sqlalchemy import delete as sql_delete
     initialize_gmail_schema()
     removed = delete_all_credentials()
+    # The client credential is Gmail OAuth material too, so a full local
+    # erase takes it with the refresh tokens.
+    delete_client_secret()
     with Session.begin() as db:
         db.execute(sql_delete(GmailAccount))
     return removed
@@ -344,6 +440,7 @@ def status():
     return {'schema': 'gmail-oauth-v1' if ready else 'NOT_INITIALIZED',
             'requested_scopes': list(oauth.REQUESTED_SCOPES),
             'configuration': oauth.configuration_status(),
+            'client_secret': client_secret_status(),
             'credential_store': credential_store_status(),
             'read_only': True,
             'accounts': accounts}
@@ -392,8 +489,18 @@ def _finalize(*, attempt_id, slot, code, verifier, redirect_uri):
     """
     del attempt_id  # bounded status is tracked by the attempt manager
     configured = oauth.require_client_id()
-    tokens = oauth.exchange_code(configured_client_id=configured, code=code,
-                                 verifier=verifier, redirect_uri=redirect_uri)
+    # Sent only when configured. A client that does not enforce client
+    # authentication still works without one; a client that does enforce it
+    # returns a bounded CLIENT_AUTHENTICATION_REQUIRED telling the user to
+    # configure it, rather than an opaque transport failure.
+    client_secret = read_client_secret()
+    try:
+        tokens = oauth.exchange_code(configured_client_id=configured, code=code,
+                                     verifier=verifier, redirect_uri=redirect_uri,
+                                     client_secret=client_secret)
+    finally:
+        if client_secret is not None:
+            client_secret.clear()
     access = tokens['access_token']
     refresh = tokens['refresh_token']
     try:
@@ -526,7 +633,7 @@ def disconnect(slot):
         # Local deletion happens whatever Google said, including when
         # Google was unreachable, timed out, errored, or answered with
         # something malformed.
-        delete_credential(credential_key)
+        removal = {'refresh_token': delete_credential(credential_key)}
 
         with Session.begin() as db:
             row = db.scalar(select(GmailAccount).where(GmailAccount.slot == slot))
@@ -542,9 +649,42 @@ def disconnect(slot):
             row.sync_state = {}
             row.disconnected_at = now()
             row.last_remote_revocation = remote
+            remaining_connected = db.scalars(select(GmailAccount).where(
+                GmailAccount.status == CONNECTED)).all()
+
+        # The client secret belongs to the installation's OAuth client and is
+        # shared by every account slot, so it is removed once no account is
+        # connected any more -- never while another slot still needs it. With
+        # only PRIMARY enabled (OD-012) that means disconnecting it clears the
+        # client credential too, leaving no Gmail OAuth material behind.
+        if not remaining_connected:
+            secret_present = client_secret_status()['state'] == 'CONFIGURED'
+            removal['client_secret'] = delete_client_secret() if secret_present else True
+            removal['client_secret_absent_after'] = (
+                client_secret_status()['state'] != 'CONFIGURED')
+        else:
+            removal['client_secret'] = 'RETAINED_ANOTHER_ACCOUNT_CONNECTED'
+            removal['client_secret_absent_after'] = False
+        # An access token is memory-only and never stored, so there is
+        # nothing to delete -- recorded explicitly so the report is complete
+        # rather than silent about it.
+        removal['access_token'] = 'NEVER_STORED'
+        removal['credential_entry_absent_after'] = (
+            read_credential(credential_key) is None if credential_key else True)
+
+    incomplete = [name for name, outcome in removal.items()
+                  if name.endswith('_absent_after') and outcome is False]
     if was_connected:
         security_event('GMAIL_ACCOUNT_DISCONNECTED', slot=slot, result=remote)
+    if incomplete:
+        # Bounded: names the credential class that could not be confirmed
+        # removed, never a value, and never a keyring error string.
+        security_event('GMAIL_CREDENTIAL_STORE_FAILED', slot=slot,
+                       result='DELETE_FAILED')
     return {'slot': slot, 'local_disconnected': True, 'remote_revocation': remote,
             'was_connected': was_connected,
+            'credential_removal': removal,
+            'credential_removal_complete': not incomplete,
+            'credential_removal_incomplete': incomplete,
             'preserved': 'Application records, evidence and application history '
                          'are not deleted by disconnecting Gmail.'}

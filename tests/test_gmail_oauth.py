@@ -843,8 +843,11 @@ def test_token_exchange_bounds_the_response_size(monkeypatch):
     (200, b'{not valid json', 'application/json'),
     (200, b'["a","list"]', 'application/json'),
     (200, b'{"access_token":"x","scope":"y"}', None),
-    (400, b'{"error":"invalid_grant"}', 'application/json'),
-    (500, b'{"error":"backend_error"}', 'application/json'),
+    # Unmapped/absent standard identifiers stay generic. The six standard
+    # RFC 6749 identifiers map to bounded actionable codes instead, which
+    # `test_a_standard_oauth_error_maps_to_a_bounded_actionable_code` covers.
+    (400, b'{"error":"backend_error"}', 'application/json'),
+    (500, b'{"error":"something_unmapped"}', 'application/json'),
 ])
 def test_token_exchange_rejects_bad_content_type_json_shape_and_status(
         monkeypatch, status, content, content_type):
@@ -853,8 +856,8 @@ def test_token_exchange_rejects_bad_content_type_json_shape_and_status(
         exchange_now()
     assert raised.value.code == 'TOKEN_EXCHANGE_FAILED'
     # A raw Google error string never reaches the caller.
-    assert 'invalid_grant' not in str(raised.value)
     assert 'backend_error' not in str(raised.value)
+    assert 'something_unmapped' not in str(raised.value)
 
 
 def test_token_exchange_posts_form_fields_and_is_never_retried(monkeypatch):
@@ -1200,6 +1203,225 @@ def test_a_connected_account_records_only_non_secret_metadata(monkeypatch):
 
 
 # ===========================================================================
+# OAuth client secret (Owner-authorized, evidence-backed: this Desktop
+# client enforces client authentication at the token endpoint -- without a
+# secret Google answered 400 invalid_request naming the missing secret, and
+# with a wrong one 401 invalid_client)
+# ===========================================================================
+SENTINEL_CLIENT_SECRET = 'astra-sentinel-clientsecret-6d3f81b904ae572c1fb8'
+
+
+def test_the_client_secret_is_stored_in_its_own_keyring_namespace(gmail_env):
+    assert accounts.store_client_secret(oauth.Secret(SENTINEL_CLIENT_SECRET)) is True
+    assert accounts.CLIENT_CREDENTIAL_SERVICE == 'ASTRA-Gmail-OAuth-Client'
+    assert accounts.CLIENT_CREDENTIAL_SERVICE != accounts.CREDENTIAL_SERVICE
+    assert accounts.CLIENT_CREDENTIAL_SERVICE != 'LocalJobHunter'
+    stored = {(service, name) for (service, name) in gmail_env.store}
+    assert (accounts.CLIENT_CREDENTIAL_SERVICE, 'client-secret') in stored
+    # Round-trips through the OS-backed store, wrapped so it cannot be printed.
+    secret = accounts.read_client_secret()
+    assert isinstance(secret, oauth.Secret)
+    assert SENTINEL_CLIENT_SECRET not in repr(secret)
+    assert secret.reveal() == SENTINEL_CLIENT_SECRET
+
+
+def test_client_secret_status_never_reveals_or_describes_the_value(gmail_env):
+    assert accounts.client_secret_status()['state'] == 'NOT_CONFIGURED'
+    assert accounts.client_secret_status()['detail_code'] == 'CLIENT_SECRET_NOT_CONFIGURED'
+    accounts.store_client_secret(oauth.Secret(SENTINEL_CLIENT_SECRET))
+    status = accounts.client_secret_status()
+    assert status == {'state': 'CONFIGURED', 'detail_code': 'OK'}
+    assert SENTINEL_CLIENT_SECRET not in json.dumps(status)
+    assert SENTINEL_CLIENT_SECRET not in json.dumps(accounts.status())
+
+
+@pytest.mark.parametrize('bad', ['', '   ', 'x' * 513])
+def test_an_implausible_client_secret_is_refused(gmail_env, bad):
+    with pytest.raises(oauth.OAuthError) as raised:
+        accounts.store_client_secret(oauth.Secret(bad))
+    assert raised.value.code == 'CLIENT_SECRET_INVALID'
+    if bad.strip():
+        assert bad.strip() not in str(raised.value)
+    assert accounts.client_secret_status()['state'] == 'NOT_CONFIGURED'
+
+
+def test_a_credential_store_failure_while_saving_the_secret_is_bounded(gmail_env):
+    gmail_env.fail_set = True
+    with pytest.raises(oauth.OAuthError) as raised:
+        accounts.store_client_secret(oauth.Secret(SENTINEL_CLIENT_SECRET))
+    assert raised.value.code == 'CREDENTIAL_STORE_FAILED'
+    assert SENTINEL_CLIENT_SECRET not in str(raised.value)
+    assert SENTINEL_CLIENT_SECRET not in repr(raised.value)
+
+
+def test_the_token_exchange_includes_the_configured_secret(monkeypatch, gmail_env):
+    accounts.store_client_secret(oauth.Secret(SENTINEL_CLIENT_SECRET))
+    calls = install_google_double(monkeypatch)
+    attempt, _url, listener, _calls = start_attempt(finalizer=accounts._finalize)
+    assert listener.on_callback(callback_query(attempt)) is True
+    exchange = next(call for call in calls if call['url'] == oauth.TOKEN_ENDPOINT)
+    assert exchange['data']['client_secret'] == SENTINEL_CLIENT_SECRET
+    assert exchange['data']['code_verifier'], 'PKCE is still sent alongside it'
+    assert exchange['data']['grant_type'] == 'authorization_code'
+
+
+def test_the_token_exchange_omits_the_secret_when_none_is_configured(monkeypatch, gmail_env):
+    calls = install_google_double(monkeypatch)
+    attempt, _url, listener, _calls = start_attempt(finalizer=accounts._finalize)
+    assert listener.on_callback(callback_query(attempt)) is True
+    exchange = next(call for call in calls if call['url'] == oauth.TOKEN_ENDPOINT)
+    assert 'client_secret' not in exchange['data']
+
+
+def test_a_refresh_includes_the_secret_and_stays_read_only(monkeypatch, gmail_env):
+    accounts.store_client_secret(oauth.Secret(SENTINEL_CLIENT_SECRET))
+    calls = []
+
+    def double(method, url, *, failure_code, total_timeout, data=None, bearer=None):
+        calls.append({'url': url, 'data': data})
+        return {'access_token': SENTINEL_ACCESS, 'expires_in': 3599,
+                'scope': oauth.GMAIL_READONLY_SCOPE}
+
+    monkeypatch.setattr(oauth, '_json_request', double)
+    secret = accounts.read_client_secret()
+    result = oauth.refresh_access_token(
+        configured_client_id=SYNTHETIC_CLIENT_ID,
+        refresh_token=oauth.Secret(SENTINEL_REFRESH), client_secret=secret)
+    assert calls[0]['url'] == oauth.TOKEN_ENDPOINT
+    assert calls[0]['data']['grant_type'] == 'refresh_token'
+    assert calls[0]['data']['client_secret'] == SENTINEL_CLIENT_SECRET
+    assert calls[0]['data']['refresh_token'] == SENTINEL_REFRESH
+    assert result['granted_scopes'] == [oauth.GMAIL_READONLY_SCOPE]
+    assert isinstance(result['access_token'], oauth.Secret)
+    result['access_token'].clear()
+
+
+def test_a_refresh_without_a_scope_field_is_accepted_as_unchanged(monkeypatch):
+    monkeypatch.setattr(oauth, '_json_request', lambda *a, **k: {
+        'access_token': SENTINEL_ACCESS, 'expires_in': 3599})
+    result = oauth.refresh_access_token(
+        configured_client_id=SYNTHETIC_CLIENT_ID,
+        refresh_token=oauth.Secret(SENTINEL_REFRESH))
+    assert result['granted_scopes'] is None
+    result['access_token'].clear()
+
+
+def test_the_secret_is_only_ever_sent_to_the_exact_google_token_endpoint(monkeypatch):
+    """Enforced at the single transport chokepoint, not per call site."""
+    for url in (oauth.PROFILE_ENDPOINT, oauth.REVOCATION_ENDPOINT,
+                oauth.AUTHORIZATION_ENDPOINT, 'https://evil.example/token'):
+        with pytest.raises(oauth.OAuthError) as raised:
+            oauth._request('POST', url, failure_code='X', total_timeout=5,
+                           data={'client_secret': SENTINEL_CLIENT_SECRET})
+        assert raised.value.code == 'DESTINATION_NOT_ALLOWED'
+        assert SENTINEL_CLIENT_SECRET not in str(raised.value)
+    # Revocation and the profile lookup never carry one in the first place.
+    import pathlib
+    source = pathlib.Path('backend/gmail_oauth.py').read_text(encoding='utf-8')
+    revoke = source[source.index('def revoke_refresh_token'):]
+    assert 'client_secret' not in revoke[:revoke.index('\n\n\n')]
+
+
+@pytest.mark.parametrize('identifier,expected', [
+    ('invalid_client', 'CLIENT_AUTHENTICATION_REQUIRED'),
+    ('unauthorized_client', 'CLIENT_AUTHENTICATION_REQUIRED'),
+    ('invalid_request', 'CLIENT_AUTHENTICATION_REQUIRED'),
+    ('invalid_grant', 'AUTHORIZATION_EXPIRED'),
+    ('unsupported_grant_type', 'AUTHORIZATION_EXPIRED'),
+    ('invalid_scope', 'SCOPE_MISSING_REQUIRED'),
+])
+def test_a_standard_oauth_error_maps_to_a_bounded_actionable_code(
+        monkeypatch, identifier, expected):
+    """The opaque failure that live validation hit is now actionable."""
+    body = json.dumps({'error': identifier,
+                       'error_description': 'free text that must not surface '
+                                            'and may restate the request'}).encode()
+    mock_google(monkeypatch, responds(400, body))
+    with pytest.raises(oauth.OAuthError) as raised:
+        exchange_now()
+    assert raised.value.code == expected
+    assert 'free text' not in str(raised.value)
+    assert 'restate' not in str(raised.value)
+
+
+def test_an_unknown_or_absent_error_identifier_stays_generic(monkeypatch):
+    for body in (b'{"error":"something_new"}', b'{"error":123}', b'{}',
+                 b'not json at all'):
+        mock_google(monkeypatch, responds(400, body))
+        with pytest.raises(oauth.OAuthError) as raised:
+            exchange_now()
+        assert raised.value.code == 'TOKEN_EXCHANGE_FAILED'
+
+
+def test_an_incorrect_secret_surfaces_a_bounded_authentication_failure(
+        monkeypatch, gmail_env):
+    accounts.store_client_secret(oauth.Secret('astra-sentinel-wrong-secret-value'))
+    mock_google(monkeypatch, responds(401, json.dumps(
+        {'error': 'invalid_client',
+         'error_description': 'The OAuth client was not found.'}).encode()))
+    attempt, _url, listener, _calls = start_attempt(finalizer=accounts._finalize)
+    assert listener.on_callback(callback_query(attempt)) is False
+    status = oauth.attempts.status('PRIMARY')
+    assert status['result_code'] == 'CLIENT_AUTHENTICATION_REQUIRED'
+    assert _stored_credentials() == {}, 'nothing is stored on an auth failure'
+    assert _rows() == []
+    assert accounts.status()['accounts']['PRIMARY']['status'] == 'DISCONNECTED'
+
+
+def test_no_schema_column_can_hold_the_client_secret():
+    columns = set(accounts.GmailAccount.__table__.columns.keys())
+    for forbidden in ('client_secret', 'secret', 'client_credential'):
+        assert forbidden not in columns
+
+
+def test_the_setup_command_never_accepts_a_secret_as_an_argument(gmail_env, capsys):
+    from backend import gmail_setup
+    for argv in (['--secret=' + SENTINEL_CLIENT_SECRET],
+                 ['--secret', SENTINEL_CLIENT_SECRET], ['--nonsense']):
+        assert gmail_setup.main(argv) == 2
+        output = capsys.readouterr().out
+        assert SENTINEL_CLIENT_SECRET not in output
+    assert accounts.client_secret_status()['state'] == 'NOT_CONFIGURED'
+
+
+def test_the_setup_command_reports_bounded_status_and_removes(gmail_env, capsys):
+    from backend import gmail_setup
+    accounts.store_client_secret(oauth.Secret(SENTINEL_CLIENT_SECRET))
+    assert gmail_setup.main(['--status']) == 0
+    output = capsys.readouterr().out
+    assert 'CONFIGURED' in output
+    assert SENTINEL_CLIENT_SECRET not in output
+    assert gmail_setup.main(['--remove']) == 0
+    assert SENTINEL_CLIENT_SECRET not in capsys.readouterr().out
+    assert accounts.client_secret_status()['state'] == 'NOT_CONFIGURED'
+
+
+def test_the_setup_command_reads_only_from_a_hidden_console_prompt(monkeypatch, gmail_env, capsys):
+    from backend import gmail_setup
+    entered = {}
+
+    def fake_getpass(prompt=''):
+        entered['prompt'] = prompt
+        return SENTINEL_CLIENT_SECRET
+
+    monkeypatch.setattr(gmail_setup.getpass, 'getpass', fake_getpass)
+    assert gmail_setup.main([]) == 0
+    output = capsys.readouterr().out
+    # getpass reads the console directly, so the value is never echoed and
+    # cannot be piped in; and it is never printed back.
+    assert SENTINEL_CLIENT_SECRET not in output
+    assert 'hidden' in entered['prompt'].lower()
+    assert accounts.read_client_secret().reveal() == SENTINEL_CLIENT_SECRET
+
+
+def test_cancelling_the_setup_prompt_stores_nothing(monkeypatch, gmail_env):
+    from backend import gmail_setup
+    monkeypatch.setattr(gmail_setup.getpass, 'getpass', lambda prompt='': '   ')
+    assert gmail_setup.main([]) == 1
+    assert accounts.client_secret_status()['state'] == 'NOT_CONFIGURED'
+
+
+# ===========================================================================
 # Disconnect and revocation
 # ===========================================================================
 def test_disconnect_deletes_the_local_credential_on_successful_revocation(monkeypatch):
@@ -1359,6 +1581,83 @@ def test_disconnect_never_touches_application_records(monkeypatch):
         db.execute(__import__('sqlalchemy').delete(Job).where(Job.id == job_id))
 
 
+def test_disconnect_removes_the_refresh_token_and_the_client_secret(monkeypatch, gmail_env):
+    accounts.store_client_secret(oauth.Secret(SENTINEL_CLIENT_SECRET))
+    connect_primary(monkeypatch)
+    assert _stored_credentials(), 'connected with a stored refresh token'
+    assert accounts.client_secret_status()['state'] == 'CONFIGURED'
+    install_google_double(monkeypatch, revoke_status=200)
+    result = accounts.disconnect('PRIMARY')
+    assert result['local_disconnected'] is True
+    assert result['credential_removal_complete'] is True
+    assert result['credential_removal_incomplete'] == []
+    assert result['credential_removal']['access_token'] == 'NEVER_STORED'
+    assert result['credential_removal']['credential_entry_absent_after'] is True
+    assert result['credential_removal']['client_secret_absent_after'] is True
+    assert _stored_credentials() == {}
+    assert accounts.client_secret_status()['state'] == 'NOT_CONFIGURED'
+    # No Gmail OAuth material of any kind is left in either namespace.
+    assert not [key for key in gmail_env.store
+                if key[0] in (accounts.CREDENTIAL_SERVICE,
+                              accounts.CLIENT_CREDENTIAL_SERVICE)]
+
+
+def test_disconnect_retains_the_shared_secret_while_another_account_is_connected(
+        monkeypatch, gmail_env):
+    """The client credential is shared, so it outlives one slot's disconnect."""
+    accounts.store_client_secret(oauth.Secret(SENTINEL_CLIENT_SECRET))
+    connect_primary(monkeypatch)
+    accounts._bind_credential('SECONDARY',
+                              {'authorized_email': OTHER_EMAIL,
+                               'identity_key': oauth.normalize_identity(OTHER_EMAIL),
+                               'identity_kind': 'GMAIL_PROFILE_EMAIL'},
+                              [oauth.GMAIL_READONLY_SCOPE],
+                              oauth.Secret('astra-sentinel-secondary-refresh'))
+    install_google_double(monkeypatch, revoke_status=200)
+    result = accounts.disconnect('PRIMARY')
+    assert result['credential_removal']['client_secret'] == \
+        'RETAINED_ANOTHER_ACCOUNT_CONNECTED'
+    assert accounts.client_secret_status()['state'] == 'CONFIGURED'
+    # Disconnecting the last account then clears it.
+    result = accounts.disconnect('SECONDARY')
+    assert result['credential_removal']['client_secret_absent_after'] is True
+    assert accounts.client_secret_status()['state'] == 'NOT_CONFIGURED'
+
+
+def test_a_partial_credential_removal_failure_is_reported_and_bounded(
+        monkeypatch, gmail_env):
+    """A store that refuses deletion must not be reported as fully cleaned."""
+    accounts.store_client_secret(oauth.Secret(SENTINEL_CLIENT_SECRET))
+    connect_primary(monkeypatch)
+    install_google_double(monkeypatch, revoke_status=200)
+    gmail_env.fail_delete = True
+    result = accounts.disconnect('PRIMARY')
+    # Local access is still gone -- the row is disconnected and its key
+    # cleared, so nothing can find the residue -- but the report is honest
+    # that removal could not be confirmed.
+    assert result['local_disconnected'] is True
+    assert result['credential_removal_complete'] is False
+    assert set(result['credential_removal_incomplete']) == {
+        'credential_entry_absent_after', 'client_secret_absent_after'}
+    assert accounts.status()['accounts']['PRIMARY']['status'] == 'DISCONNECTED'
+    payload = json.dumps(result)
+    assert SENTINEL_CLIENT_SECRET not in payload
+    assert SENTINEL_REFRESH not in payload
+    assert 'synthetic keyring' not in payload, 'no store error text leaks'
+
+
+def test_full_local_deletion_also_removes_the_client_secret(monkeypatch, tmp_path, gmail_env):
+    import backend.privacy as privacy
+    accounts.store_client_secret(oauth.Secret(SENTINEL_CLIENT_SECRET))
+    connect_primary(monkeypatch)
+    monkeypatch.setattr(privacy, 'DATA', tmp_path)
+    monkeypatch.setattr(privacy, 'delete_credential', lambda name: None)
+    privacy.delete_data(privacy.DeleteRequest(
+        scope='all', confirmation='DELETE ALL LOCAL DATA'))
+    assert accounts.client_secret_status()['state'] == 'NOT_CONFIGURED'
+    assert _stored_credentials() == {}
+
+
 def test_an_unknown_slot_cannot_be_disconnected():
     with pytest.raises(oauth.OAuthError) as raised:
         accounts.disconnect('TERTIARY')
@@ -1434,13 +1733,19 @@ def test_status_reports_both_slots_the_gate_and_no_secret(monkeypatch):
     # the actual key names rather than as substrings, so a legitimate key
     # such as `detail_code` does not mask a real `code` field.
     for forbidden in ('refresh_token', 'access_token', 'token', 'code', 'client_id',
-                      'client_secret', 'credential_key', 'authorization_url',
+                      'credential_key', 'authorization_url',
                       'identity_key', 'code_verifier', 'code_challenge',
                       'oauth_state', 'redirect_uri'):
         assert forbidden not in _all_keys(state)
     # `state` appears only as bounded configuration/store state, never as an
     # OAuth state value.
     assert state['configuration']['state'] in ('CONFIGURED', 'NOT_CONFIGURED', 'INVALID')
+    # `client_secret` is a key, but it carries only bounded state -- never a
+    # value, and nothing that describes one.
+    assert set(state['client_secret']) <= {'state', 'detail_code', 'setup_command'}
+    assert state['client_secret']['state'] in ('CONFIGURED', 'NOT_CONFIGURED',
+                                               'UNAVAILABLE')
+    assert SENTINEL_CLIENT_SECRET not in json.dumps(state)
 
 
 def _all_keys(value):

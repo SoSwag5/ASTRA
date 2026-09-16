@@ -234,6 +234,27 @@ Implemented and covered by automated tests on
   fallback, and a Windows check that the backend is the native
   DPAPI-backed Credential Manager (`CurrentUser`, never
   `LocalMachine`).
+- **Amendment (Owner-authorized, live-verified): DPAPI-backed client-secret
+  support.** This ADR's Options and Rationale sections assumed PKCE would
+  remove the need for a client secret ("no client secret needed to be kept
+  confidential"). Live validation proved that assumption incomplete for this
+  client type: the Desktop OAuth client enforces client authentication at
+  Google's token endpoint before evaluating the grant — `400
+  invalid_request` naming the missing secret without one, `401
+  invalid_client` with a deliberately wrong one. The Owner authorized
+  narrow support on that evidence. The ADR's *intent* is preserved rather
+  than reversed: a Desktop client secret is **not** treated as a globally
+  confidential credential (anyone who distributes the app distributes it,
+  and Google says as much), PKCE is unchanged and still required as proof
+  of possession, and the secret is protected locally by exactly the
+  mechanism this ADR already mandates for refresh tokens — DPAPI under
+  `CurrentUser`, no plaintext fallback. It is entered only through a hidden
+  console prompt (`python -m backend.gmail_setup`), never a command-line
+  argument, a file, or the web UI; stored in its own keyring namespace
+  separate from the per-account refresh tokens; sent only to the token
+  endpoint, enforced at the single transport chokepoint; and removed when
+  the last account disconnects or on full local deletion. See
+  `docs/architecture/GMAIL_OAUTH.md` "Client secret".
 - Negative tests proving high-entropy sentinel tokens are absent from
   application logs, captured stdout/stderr, the security-event file,
   the SQLite database bytes (including `-wal`/`-shm`), the private

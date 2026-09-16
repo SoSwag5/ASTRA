@@ -48,6 +48,13 @@ exceptions matters more than a clean slogan.
   user account) — never written as plaintext by ASTRA, `.env`, logs, or API responses. If a
   native credential store is unavailable, ASTRA refuses rather than falling back
   to plaintext.
+- **Gmail OAuth client secret:** the **Windows Credential Manager** (DPAPI,
+  CurrentUser), under its own namespace `ASTRA-Gmail-OAuth-Client`, separate
+  from the per-account tokens below. Entered only at a hidden console prompt
+  (`python -m backend.gmail_setup`) — never as a command argument, never in a
+  file, never in the web UI or your browser. Sent only to Google's token
+  endpoint. Removed when the last Gmail account disconnects, and by "Delete
+  All Local Data".
 - **Gmail refresh token:** the same **Windows Credential Manager** (DPAPI,
   CurrentUser), under a separate service namespace `ASTRA-Gmail-OAuth`. It is
   never written to the database, a settings file, a token file, browser

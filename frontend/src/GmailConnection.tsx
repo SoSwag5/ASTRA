@@ -59,6 +59,11 @@ const MESSAGES:Record<string,string>={
  PERSISTENCE_FAILED:'The connection could not be saved, so the stored token was removed again. Nothing was connected.',
  CLIENT_NOT_CONFIGURED:'Set up a Gmail OAuth client for your own Google Cloud project first.',
  CLIENT_ID_INVALID:'The configured Gmail OAuth client ID is not valid. Re-copy it from your Google Cloud project.',
+ CLIENT_SECRET_NOT_CONFIGURED:'Your Google OAuth client also needs its client secret configured on this computer before Gmail can connect.',
+ CLIENT_SECRET_INVALID:'That did not look like a Google OAuth client secret. Nothing was stored.',
+ CLIENT_AUTHENTICATION_REQUIRED:'Google rejected ASTRA’s client authentication. Configure or re-enter the client secret for your OAuth client, then try again.',
+ AUTHORIZATION_EXPIRED:'Google would not accept that authorization. Start the connection again.',
+ TOKEN_REFRESH_FAILED:'ASTRA could not renew access with the stored connection. Reconnect Gmail.',
  SECONDARY_NOT_ENABLED:'The second Gmail account is not enabled yet.',
  LISTENER_UNAVAILABLE:'A local callback port could not be opened. Close other applications and try again.',
 };
@@ -102,6 +107,9 @@ export function GmailConnection({api}:{api:Api}){
  if(!info)return <section className="panel spaced"><h2>Gmail connection</h2>{error?<p role="alert" className="errorbar">{error}</p>:<p role="status">Loading Gmail connection status…</p>}</section>;
  const configured=info.configuration?.state==='CONFIGURED';
  const storeReady=info.credential_store?.state==='OS_SECURE_STORE';
+ // The client secret is never entered, displayed or held in the browser --
+ // only whether the backend has one is ever known here.
+ const secretReady=info.client_secret?.state==='CONFIGURED';
  const connected=primary?.status==='CONNECTED';
  return <section className="panel spaced">
   <h2>Gmail connection</h2>
@@ -109,6 +117,7 @@ export function GmailConnection({api}:{api:Api}){
   {error&&<p role="alert" className="errorbar">{error}</p>}
   {!configured&&<p className="notice">{describe(info.configuration?.detail_code)||'A Gmail OAuth client is not configured yet.'} Set <code dir="ltr">{info.configuration?.environment_variable}</code> to the client ID of a Desktop App OAuth client in your own Google Cloud project, then restart ASTRA. See the Gmail OAuth setup guide in the documentation.</p>}
   {configured&&!storeReady&&<p className="notice">{describe(info.credential_store?.detail_code)}</p>}
+  {configured&&storeReady&&!secretReady&&<p className="notice">{describe(info.client_secret?.detail_code)||'Your OAuth client secret is not configured yet.'} Run <code dir="ltr">{info.client_secret?.setup_command}</code> in a terminal on this computer; it asks for the secret at a hidden prompt and stores it in your operating system’s credential store. It is never typed into this page and never stored by your browser.</p>}
   <h3>Primary account</h3>
   <p role="status">
    {connected?<>Connected as <strong dir="ltr">{primary.authorized_email}</strong> — the address Google confirmed was authorized. Read-only access granted {primary.connected_at?'on '+primary.connected_at.slice(0,10):''}.</>
@@ -118,7 +127,7 @@ export function GmailConnection({api}:{api:Api}){
   {attempt&&<p role="status" className="notice">{describe(attempt.result_code)||'Connection attempt in progress.'}{attempt.status==='PENDING'&&attempt.expires_in_seconds>0&&<> This attempt expires in about {Math.ceil(attempt.expires_in_seconds/60)} minute(s).</>}</p>}
   {pendingUrl&&attempt?.status==='PENDING'&&<p><a href={pendingUrl} target="_blank" rel="noopener noreferrer">Continue to Google ↗</a> — if the consent page did not open automatically.</p>}
   <div className="actions spaced">
-   {!connected&&<button className="secondary" disabled={busy||!configured||!storeReady||attempt?.status==='PENDING'} onClick={connect}>Connect Gmail (read-only)</button>}
+   {!connected&&<button className="secondary" disabled={busy||!configured||!storeReady||!secretReady||attempt?.status==='PENDING'} onClick={connect}>Connect Gmail (read-only)</button>}
    {attempt?.status==='PENDING'&&<button className="secondary" disabled={busy} onClick={cancel}>Cancel connection attempt</button>}
    {connected&&<button className="secondary" disabled={busy} onClick={disconnect}>Disconnect Gmail</button>}
   </div>
