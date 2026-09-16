@@ -123,8 +123,13 @@ covers these flows.
     (Gmail OAuth) and external-data (job providers) handling paths.
   - **SAMM:** no claimed change; not currently tracked with dated evidence
     for this project.
-  - **SBOM:** a Gmail API client library dependency will need lockfile
-    hashes and an SBOM update at implementation (R-04 applies).
+  - **SBOM:** anticipated that a Gmail API client library dependency would
+    need lockfile hashes and an SBOM update at implementation (R-04
+    applies). **Outcome at issue #44: no dependency was added.** The
+    authorization flow is implemented against already-pinned `httpx`/
+    `httpcore` plus the Python standard library, so the lockfile, SBOM
+    inputs and dependency-review evidence are unchanged. Re-evaluate if
+    issue #45 introduces a Gmail client library.
   - **SLSA:** no build/provenance impact — no new build/release artifact
     type is introduced.
 - **Negative tests and review:** enumerated per abuse case above. Per
@@ -135,11 +140,39 @@ covers these flows.
   evidence (including these negative tests) is required before the
   described controls may be relied upon in the v1.1 release evidence pack
   (issue #48), regardless of the ADR's status field.
+- **Implementation status of the OAuth-callback abuse case (issue #44,
+  `feature/44-gmail-oauth`, not merged):** the enumerated negative tests for
+  that one abuse case now **exist and pass** — incorrect `state` rejected,
+  missing `state` rejected, duplicate `state` rejected, replayed callback
+  rejected, expired/cancelled/superseded attempts rejected, concurrent
+  callbacks producing exactly one terminal result, and a credential that
+  cannot be attached to a conflicting Gmail account record. PKCE S256, the
+  loopback-only ephemeral listener, one-shot callback consumption and
+  post-exchange identity binding are implemented as described. Two caveats:
+  this covers the authorization/credential layer only, and **no live Google
+  consent-screen run has been performed**, so the assumption below about
+  Google's documented behaviour is still only documentation-verified. Every
+  other abuse case in the table above remains **Pending** — issues #45-#47
+  have not started. See `docs/architecture/GMAIL_OAUTH.md`.
+- **Google documentation verified (2026-09-16), not live-verified:** the
+  installed-app flow, Gmail scope classification, revocation endpoint and
+  `users.getProfile` contract were each checked against Google's current
+  published references during #44. One finding materially affects this
+  delta's account-mix-up control: at the `gmail.readonly` scope,
+  `users.getProfile` returns **no opaque immutable subject identifier** —
+  only `emailAddress`. Identity binding therefore uses the authenticated
+  address, which is authoritative but **not immutable**. Requesting an
+  OpenID/`userinfo.email` scope purely to obtain one was rejected as
+  contrary to minimization. Recorded as a residual limitation, not resolved.
 - **Remaining assumptions and recheck triggers:** assumes Google's OAuth
-  infrastructure and API behave as documented (not independently verified
-  here); assumes Windows DPAPI (or the OS-backed equivalent chosen at
-  implementation) provides the protection ADR-0007 describes — to be
-  confirmed during implementation, not assumed permanently. Recheck this
+  infrastructure and API behave as documented (verified against current
+  published documentation during #44, but **not** independently verified
+  against live behaviour); assumes Windows DPAPI (or the OS-backed
+  equivalent chosen at implementation) provides the protection ADR-0007
+  describes — #44 enforces that the selected keyring backend is the native
+  DPAPI-backed Windows Credential Manager under `CurrentUser` and fails
+  closed otherwise, but the protection property itself is Microsoft's, not
+  independently verified here. Recheck this
   delta if: a broader Gmail scope than read-only is ever requested; AI-based
   email classification is added (see the abuse-case table); ASTRA adds a
   third external mailbox provider; or the provider-adapter list grows to

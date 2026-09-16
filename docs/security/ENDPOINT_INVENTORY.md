@@ -2,6 +2,17 @@
 
 Statically extracted decorator paths; router prefixes must be composed from APIRouter definitions. main.py mounts all private routers behind the common guard.
 
+Router prefixes: `campaign.py` → `/api/campaign`, `privacy.py` → `/api/privacy`,
+`recall_api.py` → `/api/recall`, `search_workspace.py` → `/api/search`,
+`source_catalog.py` → `/api/search`, `gmail_api.py` → `/api/gmail`.
+
+`gmail_api.py` (issue #44) is the Gmail OAuth credential layer. `{slug}` is
+validated against a fixed two-value slot map (`primary`/`secondary`); it is
+the only caller input, and a caller cannot select a Google endpoint, a scope,
+a callback host, a client ID or a credential key. State changes are POST;
+no response carries a token field. `secondary` is gated and returns
+`SECONDARY_NOT_ENABLED` (OD-012). See `docs/architecture/GMAIL_OAUTH.md`.
+
 | Module | Method | Decorator path | Handler |
 |---|---|---|---|
 | campaign.py | GET |  | overview |
@@ -11,6 +22,11 @@ Statically extracted decorator paths; router prefixes must be composed from APIR
 | campaign.py | POST | /backup | backup |
 | campaign.py | GET | /windows-schedule | get_windows_schedule |
 | campaign.py | POST | /windows-schedule | set_windows_schedule |
+| gmail_api.py | GET | /status | gmail_status |
+| gmail_api.py | POST | /accounts/{slug}/authorize | start_authorization |
+| gmail_api.py | GET | /accounts/{slug}/authorize | authorization_status |
+| gmail_api.py | POST | /accounts/{slug}/authorize/cancel | cancel_authorization |
+| gmail_api.py | POST | /accounts/{slug}/disconnect | disconnect_account |
 | main.py | GET | /api/health | health |
 | main.py | GET | /api/dashboard | dashboard |
 | main.py | GET | /api/profile | profile |

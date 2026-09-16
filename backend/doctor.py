@@ -89,6 +89,22 @@ def run_checks():
         _check(results, 'credential_backend', 'WARNING', f'{type(e).__name__}',
                'A native OS credential store is required for OpenAI features; other modes work without it')
 
+    # 3b. Gmail integration (issue #44): bounded connection state only.
+    # Never reads, reports or counts a refresh token, and never names the
+    # authorized mailbox -- only whether each slot is connected.
+    try:
+        from .gmail_accounts import status as gmail_status
+        state = gmail_status()
+        slots = ', '.join(f"{slot.lower()}={entry['status']}"
+                          for slot, entry in state['accounts'].items())
+        _check(results, 'gmail_integration', 'PASS',
+               f"client {state['configuration']['state'].lower()}; {slots}",
+               '' if state['configuration']['state'] == 'CONFIGURED'
+               else 'Optional: configure a Gmail OAuth client to connect a mailbox')
+    except Exception as e:
+        _check(results, 'gmail_integration', 'WARNING', f'{type(e).__name__}',
+               'Gmail connection state could not be inspected')
+
     # 4. Localhost binding
     bind = os.getenv('BIND_HOST', '127.0.0.1')
     token = bool(os.getenv('APP_TOKEN'))
