@@ -217,3 +217,16 @@ Establishes the privacy-minimization boundary the v1.1 threat-model
 delta's data-flow section depends on. No SLSA/CycloneDX impact.
 Contributes to newly-applicable ASVS data-protection/privacy
 requirements alongside ADR-0007 (see the threat-model delta).
+
+## Issue #45 implementation update (2026-09-17)
+
+The authorization foundation merged via PR #66. The Owner-authorized #45
+continuation now implements the message-read and minimized evidence boundary;
+see [Gmail sync](../GMAIL_SYNC.md) for the exact query, limits, schema,
+authentication policy, API, retention and limitations. The fixtures and
+negative tests are fictional. No application reconciliation/state changes,
+secondary sync or live mailbox validation are included.
+
+Evidence is **self-verification**, not independent acceptance. R-17 remains
+OPEN; no risk residual is accepted here. The older authorization-only evidence
+above describes the #44 scope at that time and is not a current surface inventory.

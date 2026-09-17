@@ -83,3 +83,13 @@ no response carries a token field. `secondary` is gated and returns
 | source_catalog.py | POST | /portals/{source_id}/checked | checked |
 | source_catalog.py | POST | /portals | add_portal |
 | source_catalog.py | PUT | /portals/{source_id} | configure_portal |
+
+## Issue #45 Gmail evidence routes
+
+All inherit the existing private API guard and no-store response policy.
+
+| Module | Method | Route | Handler |
+|---|---|---|---|
+| gmail_api.py | GET | /api/gmail/sync/status | sync_status |
+| gmail_api.py | GET | /api/gmail/confirmations | confirmations |
+| gmail_api.py | POST | /api/gmail/accounts/{slug}/sync | synchronize |

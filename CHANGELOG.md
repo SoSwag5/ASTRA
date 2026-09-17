@@ -8,6 +8,10 @@ when a release is approved; this file does not establish that a release exists.
 
 ### Added
 
+- PRIMARY Gmail bounded incremental read-only sync and deterministic initial
+  application-confirmation evidence, with minimized storage, hostile-content
+  controls and fictional privacy/spoofing regressions (#45).
+
 - Release Governance v1: session handoff, change classification, ADRs, release
   evidence, security decision templates, GitHub contribution templates, and an
   evidence-based roadmap.

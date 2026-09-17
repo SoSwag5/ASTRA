@@ -1,6 +1,6 @@
 # ASTRA project state
 
-**Snapshot date:** 2026-09-16 (Asia/Dubai), refreshed after #43 merged and #44 implementation opened for review
+**Snapshot date:** 2026-09-17 (Asia/Dubai), refreshed for #45 implementation continuation
 **Rule:** This is a handoff snapshot, not a substitute for live verification.
 Refresh it at session end when repository or release state changes.
 
@@ -145,33 +145,22 @@ evidence chain and run URLs.
   [PR #65](https://github.com/SoSwag5/ASTRA/pull/65) (squash commit
   `ad39e54925fe17286ae03e5866d4ea1cc1259094`), with post-merge CI and
   Scorecard green.
-  Issue **#44** (Gmail OAuth + two-account architecture) is
-  **IMPLEMENTED AND LIVE-VALIDATED (SELF-VERIFIED)** on
-  `feature/44-gmail-oauth`, based on
-  `ad39e54925fe17286ae03e5866d4ea1cc1259094`, head
-  `24a17f47831e2649b0f801027fe7f9a19474ebf4`. The final isolated end-to-end
-  live Google OAuth validation returned **PASS**: requested and
-  Google-returned granted scope were both exactly
-  `https://www.googleapis.com/auth/gmail.readonly` (Google's official
-  definition: "View your email messages and settings"), with no broader
-  authorization requested or granted; PKCE S256, state binding, numeric
-  loopback, strict callback validation, DPAPI credential storage, refresh,
-  disconnect, remote revocation, rejected revoked-token reuse, credential
-  cleanup and identity-remanence purge all passed, and the credential/
-  privacy leak scan returned zero findings. Manual consent-screen pixels
-  were **not** preserved; the authoritative evidence is the machine-verified
-  authorization request, Google's returned granted scope, the successful
-  metadata-only Gmail call and Google's official scope definition.
-  **This result is self-verified: the Owner explicitly accepted it and
-  waived an additional independent review for #44, so it must not be
-  described as independently reviewed** — unlike #37-#42, which each
-  carried independent Codex review. No Google OAuth verification, public
-  restricted-scope distribution approval, certification or production
-  rollout approval is claimed, and R-16 remains OPEN (its residual is an
-  Owner risk decision, unchanged by this work). Issues #45-#48 remain not
-  started under the approved 12-issue backlog ("v1.1 — Discovery &
-  Application Intelligence" milestone, issues #37-#48); **#45 is
-  unstarted.**
+  Issue **#44** is **COMPLETE, MERGED and CLOSED** via
+  [PR #66](https://github.com/SoSwag5/ASTRA/pull/66), squash commit
+  `c53eb4e1f26f90087b1ca6522db9bbf71e63a463`. Its live OAuth validation
+  passed (self-verified; independent review explicitly waived by the Owner
+  for #44 only). Manual consent-screen pixels were not retained; no Google
+  verification, wider distribution approval or residual-risk acceptance is
+  claimed. R-16 remains OPEN.
+  Issue **#45** is **IMPLEMENTED, LOCALLY SELF-VERIFIED**, on
+  `feature/45-gmail-sync-confirmation-parsing`, based on that #44 squash.
+  Codex is the Owner-authorized continuation implementation owner. The
+  inherited six-file partial implementation was audited and repaired; see
+  [Gmail sync](../architecture/GMAIL_SYNC.md) for architecture, limitations
+  and the fictional verification corpus. #45 has no live mailbox validation.
+  It remains OPEN pending review/merge; #46-#48 remain not started. No
+  application reconciliation, secondary sync or application-state mutation
+  has been added.
 - Governance integration advances `master` from the frozen release commit without
   moving or modifying the immutable v1.0.0 tag, source, or artifacts.
 
@@ -222,14 +211,20 @@ or merged.
 | [#40](https://github.com/SoSwag5/ASTRA/issues/40) | Closed. Normalization + conservative cross-provider deduplication merged via [PR #57](https://github.com/SoSwag5/ASTRA/pull/57) (squash commit `b1f754997afe84798f0ab19ee552a89a03de2098`). | Additive `JobObservation` provenance table (`backend/models.py`); `Job` remains the stable canonical row; versioned normalization (`backend/normalization.py`) and conservative dedupe hierarchy (`backend/deduplication.py`) with fingerprint-only evidence always `CANDIDATE`, never a destructive `MATCH`; indexed candidate lookup; non-transitive-bridge protection; forward-safe additive migration with `legacy_incomplete` backfill (no historical consolidation); ADR-0010 Accepted. Independent review confirmed six remediation findings fixed, Owner-authorized merge. |
 | [#41](https://github.com/SoSwag5/ASTRA/issues/41) | Closed. Eligibility + explainable ranking merged via [PR #59](https://github.com/SoSwag5/ASTRA/pull/59) (squash commit `3faebd370a5e4566cb5e02f1a0eabdb38622b60b`). | `backend/assessment.py` (domain/seniority/geography assessment, six-code hard-reject taxonomy, seven-component provisional scoring, score means ranking priority not probability) and `backend/experience.py` (scoped experience-clause parsing); discovery now persists every structurally valid posting through #40 before assessing it, hiding a hard reject via the existing `SKIP` status rather than skipping persistence; `evaluate_legacy()` retained for `SHADOW`/`LEGACY` rollback and #42 shadow-comparison evidence; no schema/migration change (`Job.analysis['fit_assessment']`). A remediation commit fixed six independently-found issues before a final independent APPROVE and Owner-authorized merge. `backend/normalization.py`/`backend/deduplication.py`/provider transport/frontend untouched. |
 | [#42](https://github.com/SoSwag5/ASTRA/issues/42) | **Closed.** Deterministic evaluation + calibration harness merged via [PR #61](https://github.com/SoSwag5/ASTRA/pull/61) (squash commit `fab8acda48d65f1a03ae1b97465369ec4742957a`), [PR #63](https://github.com/SoSwag5/ASTRA/pull/63) (Owner-adjudicated reference snapshot) and [PR #64](https://github.com/SoSwag5/ASTRA/pull/64) (squash commit `68d79edaaaf09e12aa24e090e7192709d65ba646`, squash-merge-safe provenance). | Offline evaluation only: 80-case corpus with Owner-adjudicated reference labels. The quality gate remains `PROPOSED` / `INSUFFICIENT_DATA` pending eligibility-sample and corpus expansion — **no gate has passed**. Candidate policies are exploratory; no production calibration was adopted. `docs/evaluation/fit_evaluation_provenance_v1.json` pins the SHA-256 of `backend/{assessment,career_tracks,deduplication,discovery,evaluation,experience,models,normalization,policy,recall,services}.py`; those files must not be edited without regenerating that manifest under Owner authorization. |
-| [#44](https://github.com/SoSwag5/ASTRA/issues/44) | **IMPLEMENTED AND LIVE-VALIDATED (SELF-VERIFIED).** Gmail OAuth credential foundation via [PR #66](https://github.com/SoSwag5/ASTRA/pull/66), based on `ad39e54925fe17286ae03e5866d4ea1cc1259094`, head `24a17f47831e2649b0f801027fe7f9a19474ebf4`. Final live OAuth validation **PASS**. Five live rounds found three genuine defects (callback parameter policy rejecting Google's real `iss`; token-response `Content-Encoding` unhandled; Gmail identity left in the row and recoverable from the SQLite WAL after disconnect) plus one Owner-authorized architecture change (this Desktop client enforces client authentication at the token endpoint, proven by a bounded probe using a deliberately invalid code: `400 invalid_request` without a secret, `401 invalid_client` with a wrong one), and hosted CodeQL found two alerts in the feature's own code (clear-text logging of sensitive data; stack-trace exposure) — all fixed at the root, none suppressed or scanned around. **Self-verified: the Owner explicitly waived an additional independent review for #44; this is not an independently reviewed result.** | Authorization/credential layer only — **no** Gmail sync, mailbox scan, message/thread persistence, parsing, confirmation classification, evidence record, application matching, transition or reconciliation (those are #45-#47, not started). New `backend/gmail_oauth.py` (fixed Google endpoints, PKCE S256, 256-bit single-use `state` consumed atomically before exchange, ephemeral loopback-only listener, hardened non-redirecting/proxy-ignoring transport with no code-exchange retry, granted-scope validation, `users/me/profile` identity binding), `backend/gmail_accounts.py` (two-slot `gmail_accounts` metadata table, native OS credential store under the dedicated `ASTRA-Gmail-OAuth` namespace with no plaintext fallback, connect/disconnect services) and `backend/gmail_api.py` (five routes behind the existing guard). Exactly `gmail.readonly`; a **broader-than-requested** grant is rejected before storage. `PRIMARY` only; `SECONDARY` is architected but gated with a stable `SECONDARY_NOT_ENABLED` (OD-012). **No schema change to `backend/models.py`** — it is a SHA-256-pinned #42 provenance input, so the new table is declared and initialized additively from `backend/gmail_accounts.py` (same precedent as #43 leaving pinned `recall.py` untouched); a test recomputes the pinned hash to hold that boundary. **No dependency added.** 143 new tests (1184 total, 0 regressions against a 1041 baseline), including sentinel-absence proofs across logs, security events, SQLite bytes, exports, backups, diagnostics, API bodies and exception strings. R-16 stays **OPEN**: no live consent-screen run has been performed and no independent review has accepted the residual. Google verification / restricted-scope distribution is **not** claimed. See [`docs/architecture/GMAIL_OAUTH.md`](../architecture/GMAIL_OAUTH.md). |
+| [#44](https://github.com/SoSwag5/ASTRA/issues/44) | Closed; merged via [PR #66](https://github.com/SoSwag5/ASTRA/pull/66), squash `c53eb4e1f26f90087b1ca6522db9bbf71e63a463`. | Live OAuth PASS, self-verified; the Owner waived independent review for #44. R-16 remains OPEN. See [Gmail OAuth](../architecture/GMAIL_OAUTH.md). |
+| [#45](https://github.com/SoSwag5/ASTRA/issues/45) | Implemented; local self-verification passed on `feature/45-gmail-sync-confirmation-parsing`; OPEN, unmerged. | 1,442 backend tests passed, one existing duplicate-case skip; 154 focused #45 tests passed. PRIMARY bounded read-only sync and deterministic initial-confirmation evidence only. No live validation. See [Gmail sync](../architecture/GMAIL_SYNC.md); hosted results belong to the exact PR head. |
 | [#43](https://github.com/SoSwag5/ASTRA/issues/43) | **Closed.** Discovery funnel telemetry merged to `master` via [PR #65](https://github.com/SoSwag5/ASTRA/pull/65) (squash commit `ad39e54925fe17286ae03e5866d4ea1cc1259094`); post-merge CI and Scorecard green. | New `backend/discovery_telemetry.py` owns one versioned contract (`discovery-telemetry-v1`) persisted in the existing `AutomationRun.report` JSON — **no schema change or migration**. Monotonic funnel `FETCHED → STRUCTURALLY_VALID → CANONICAL_UNIQUE → LOCATION_COMPATIBLE → ELIGIBILITY_NOT_INCOMPATIBLE → RELEVANT → NEW`, derived from explicit stage membership and checked by an invariant validator, never clamped. `DISPLAYED`/`SAVED`/`APPLIED` are reported separately as engagement outcomes; `DISPLAYED` is explicitly `UNAVAILABLE` because ASTRA records no display event. Provider failure, truthful zero, partial completion and skipped sources stay distinguishable. Retention is exactly 90 days. Read-only local API at `/api/search/telemetry*`. #41 decision behaviour, #40 identity/dedupe, provider transport and #42 evidence are unchanged; `backend/recall.py` was deliberately left untouched because it is a provenance-pinned #42 input. See [`docs/architecture/DISCOVERY_TELEMETRY.md`](../architecture/DISCOVERY_TELEMETRY.md). |
 
 ## Git and collaboration snapshot
 
 - Canonical remote: `https://github.com/SoSwag5/ASTRA.git`.
 - Protected default branch: `master`.
-- Final integration base: `81ad2d38869980fe854d92f26a9ae16b774f58a6`.
+- Current #45 integration base: `c53eb4e1f26f90087b1ca6522db9bbf71e63a463`.
+- Active implementation owner: Codex, continuing the Owner-authorized
+  `feature/45-gmail-sync-confirmation-parsing` branch in the existing checkout.
+  This work is self-verification; independent #45 review remains separate.
+- The following governance worktree details are historical context, not the
+  active #45 implementation location.
 - Governance worktree: separate local checkout `astra-release-governance-v1`.
 - Governance branch: `governance/release-governance-v1`.
 - Original governance commit `f2307be` is preserved locally on
@@ -260,37 +255,11 @@ or merged.
 
 ## Exact next action
 
-Governance v1 is merged; the four post-release documentation corrections
-(#24-#27) are complete; the v1.1 mission, architecture, backlog, three ADRs,
-and threat-model delta are all Owner-approved (OD-011 through OD-018).
-Issue #37 (Discovery Query Planner), issue #38 (common job-provider
-framework + Greenhouse migration), issue #39 (Lever + Ashby provider
-migration), issue #40 (Normalization + conservative cross-provider
-deduplication), and issue #41 (Eligibility + Explainable Ranking) are all
-complete and merged to `master` (PR #51, PR #53, PR #55, PR #57, PR #59).
-ADR-0010 is Accepted. Issue #42 (Discovery evaluation harness) is **COMPLETE
-and CLOSED** (PR #61, PR #63, PR #64); the quality gate remains PROPOSED and
-`INSUFFICIENT_DATA` pending corpus expansion and approval, and no production
-calibration was adopted. Issue #43 (Discovery funnel telemetry) is **COMPLETE
-and merged** (PR #65, squash commit `ad39e549`). Issue #44 (Gmail OAuth +
-two-account architecture) is **IMPLEMENTED AND LIVE-VALIDATED
-(SELF-VERIFIED)** on `feature/44-gmail-oauth` via PR #66; the final live
-OAuth validation returned **PASS**. Three things are explicitly *not*
-established by that work: an independent review (the Owner waived it for
-#44, so the result is self-verified only and must not be described as
-independently reviewed), preserved manual consent-screen pixels (the
-granted scope is evidenced instead by the machine-verified authorization
-request, the granted scope Google returned, the successful metadata-only
-Gmail call and Google's official scope definition), and any Google OAuth
-verification or restricted-scope distribution approval. R-16 remains OPEN:
-its controls are implemented and live-verified, but accepting the residual
-is a separate Owner risk decision. Issues #45-#48 have
-not started. Governance v1 rules
-continue to apply (dedicated feature branch, no
-direct push to `master`, focused scope, tests, independent review before
-Owner-authorized merge). Workable remains **NEEDS OWNER/PERMISSION DECISION**
-(a technically accessible public widget endpoint, but no official Workable
-documentation establishing it as a supported integration surface) and is not
-registered as a provider. The rebased `hardening/l2-r13-r14` branch (issue #33) remains
-parked for v1.2 and awaits independent review before a PR is opened — not
-touched by v1.1 implementation.
+Local #45 regression, security, frontend, SCA and publication checks passed.
+Push the reviewed feature commit and open its PR against `master` under the
+Owner's instruction; monitor hosted checks to terminal conclusions and record
+the exact commit/tree and PR evidence in the session handoff.
+Leave the PR unmerged and #45 open for the Owner's decision. Do not start #46.
+Independent review has not been performed for #45; the #44 waiver is not a
+waiver for later work. No live mailbox call is authorized by this continuation.
+The separate v1.2 hardening and research worktrees remain untouched.

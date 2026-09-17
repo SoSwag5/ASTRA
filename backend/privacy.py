@@ -118,6 +118,8 @@ def delete_data(request:DeleteRequest):
             # action in backend/gmail_accounts.py.
             from .gmail_accounts import purge_all_local
             purge_all_local()
+            from .gmail_sync import purge_all_confirmations
+            purge_all_confirmations()
         # Preflight all paths before removing anything. A filesystem failure is surfaced,
         # never reported as success; retry can finish the idempotent deletion.
         for path in files: path.unlink()
