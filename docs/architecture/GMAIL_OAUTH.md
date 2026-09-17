@@ -21,7 +21,9 @@ Two things this status does **not** mean:
   approval, certification, or production rollout approval is claimed.**
   See [Distribution limits](#distribution-and-verification-limits).
 
-Issue **#45 remains unstarted.**
+Issue #44 is merged via PR #66 (`c53eb4e`). Issue #45 adds the separate
+[read-only sync and confirmation layer](GMAIL_SYNC.md); its tests use fictional
+mail only and do not extend the live-validation claim above.
 
 **Live-validation log.** Live runs against a real Desktop client in a
 dedicated Google Cloud project found **three defects** plus one required
@@ -111,8 +113,9 @@ are the reason the controls read as they now do.
 Scope of issue #44 is the **authorization and credential layer only**. No
 Gmail message listing, history synchronization, mailbox scan, message or
 thread persistence, parsing, confirmation classification, evidence record,
-application matching, transition or reconciliation exists yet; those are
-issues #45-#47.
+application matching, transition or reconciliation was part of #44.
+See [Gmail sync](GMAIL_SYNC.md) for the later #45 implementation;
+reconciliation and dashboard work remain deferred.
 
 ## Files
 
@@ -378,8 +381,8 @@ one hardened client:
 | TLS | Standard verification against the system trust store; `check_hostname` on, `CERT_REQUIRED`. Never disabled. |
 | Redirects | `follow_redirects=False`. A 3xx is a bounded error, never a hop elsewhere. |
 | Proxies | `trust_env=False` — no `HTTP(S)_PROXY`/`NO_PROXY`/`SSLKEYLOGFILE` inheritance. ASTRA has no approved proxy policy. |
-| DNS/hosts redirection | After connecting, the peer address must be globally routable; a poisoned answer pointing at loopback, a private range or a metadata address is refused. No extra DNS lookup is made, so there is no unbounded resolution step. |
-| Deadlines | Bounded connect/read/write/pool timeouts; 30s total per call, 8s for revocation. |
+| DNS/hosts redirection | Bounded DNS resolution validates every returned address and pins a public IP before dialing; TLS still authenticates the original Google hostname. The connected peer must also be globally routable. |
+| Deadlines | 30s absolute network budget per call, 8s for revocation; #45 adds bounded pinned DNS and deadline-aware socket/TLS operations. |
 | Response size | 256 KB cap on the bytes actually **on the wire**, enforced while streaming rather than after buffering. `iter_raw()` is used rather than `iter_bytes()` precisely so a small compressed body cannot inflate past the cap before it is measured. |
 | Response encoding | `Accept-Encoding: identity` is requested, because an uncompressed token/profile/revocation response has no downside. That is a preference, not a guarantee, so `gzip` and `deflate` (zlib-wrapped or raw) are decoded within the same size bound; any other codec, a corrupt stream, or a body that expands past the cap is refused. |
 | Response shape | Expected status, `application/json` content type, and a strict JSON-object check. |

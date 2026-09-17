@@ -271,6 +271,8 @@ async def lifespan(app):
     # docstring. Idempotent and safe on an existing database.
     from .gmail_accounts import initialize_gmail_schema
     initialize_gmail_schema()
+    from .gmail_sync import initialize_sync_schema
+    initialize_sync_schema()
     if os.getenv('BIND_HOST','127.0.0.1') not in ('127.0.0.1','localhost') and not os.getenv('APP_TOKEN'): raise RuntimeError('APP_TOKEN required for public binding')
     # A process restart cannot finish an earlier in-memory scan.
     if task_lock.acquire(False):

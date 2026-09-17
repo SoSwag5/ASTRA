@@ -47,6 +47,8 @@ verified against httpx==0.28.1 / httpcore==1.0.9 and asserted by
 `test_oauth_transport_dependency_versions_are_pinned`.
 """
 import base64
+import contextvars
+import logging
 import hashlib
 import ipaddress
 import json as json_module
@@ -66,6 +68,20 @@ import httpx
 
 PINNED_HTTPX_VERSION = '0.28.1'
 PINNED_HTTPCORE_VERSION = '1.0.9'
+
+_PRIVATE_TRANSPORT = contextvars.ContextVar('gmail_private_transport', default=False)
+
+
+class _PrivateTransportFilter(logging.Filter):
+    def filter(self, record):
+        return not _PRIVATE_TRANSPORT.get()
+
+
+# HTTPcore debug events can include upstream response headers. Suppress the
+# library trace only inside this thread/context's credential/mailbox request.
+for _logger_name in ('httpx', 'httpcore.connection', 'httpcore.http11',
+                     'httpcore.http2', 'httpcore.proxy', 'httpcore.socks'):
+    logging.getLogger(_logger_name).addFilter(_PrivateTransportFilter())
 
 # ---------------------------------------------------------------------------
 # Fixed Google endpoints and scope. Never caller-controlled, never read from
@@ -337,6 +353,13 @@ MESSAGES = {
                                     'stored.',
     'CALLBACK_PROVIDER_ERROR': 'Google reported that access was not granted.',
     'CALLBACK_REPLAYED': 'That response was already used and cannot be reused.',
+    # Mailbox synchronization (issue #45). The read path reuses this
+    # authored-message table so a sync failure is reported exactly like
+    # every other Gmail failure: a stable code plus ASTRA's own text,
+    # never an exception string or a Google payload.
+    'ACCOUNT_NOT_CONNECTED': 'That Gmail account is not connected. Connect it '
+                             'in Privacy & Local Data first.',
+    'SYNC_ALREADY_RUNNING': 'A Gmail sync is already running for that account.',
 }
 
 #: Returned when a code has no authored message. Deliberately generic: an
@@ -666,18 +689,14 @@ class _FixedHostBackend(httpcore.NetworkBackend):
 
     The authoritative control that a request cannot be answered by some
     other endpoint is TLS certificate verification against the fixed
-    hostname (enabled, with the system trust store).  This backend adds
-    two cheap, non-blocking checks on top: the requested host must be one
-    of ASTRA's three fixed Google hosts, and the address actually
-    connected to must be globally routable -- so a poisoned DNS answer or
-    a hosts-file entry pointing at loopback, a private range, or a cloud
-    metadata address is refused at connect time rather than relying on
-    the TLS handshake alone.  No extra DNS lookup is performed, so there
-    is no unbounded resolution step.
+    hostname using the system trust store. Production clients additionally
+    resolve within a bounded budget and pin a validated public address before
+    dialing. Both the requested hostname and the actual peer are checked.
     """
 
-    def __init__(self):
+    def __init__(self, budget=None):
         self._inner = httpcore.SyncBackend()
+        self._budget = budget
 
     def connect_tcp(self, host, port, timeout=None, local_address=None,
                     socket_options=None):
@@ -685,8 +704,13 @@ class _FixedHostBackend(httpcore.NetworkBackend):
             raise OAuthError('DESTINATION_NOT_ALLOWED',
                              'Gmail OAuth requests only ever contact Google '
                              'over HTTPS')
+        target = host
+        if self._budget is not None:
+            from .job_providers.transport import _resolve_and_pin
+            target = _resolve_and_pin(host, port, self._budget.clamped_timeout(CONNECT_TIMEOUT))
+            timeout = self._budget.clamped_timeout(CONNECT_TIMEOUT)
         stream = self._inner.connect_tcp(
-            host, port, timeout=timeout if timeout is not None else CONNECT_TIMEOUT,
+            target, port, timeout=timeout if timeout is not None else CONNECT_TIMEOUT,
             local_address=local_address, socket_options=socket_options)
         sock = stream.get_extra_info('socket')
         try:
@@ -703,6 +727,12 @@ class _FixedHostBackend(httpcore.NetworkBackend):
                 raise OAuthError('DESTINATION_NOT_ALLOWED',
                                  'A Gmail OAuth endpoint resolved to a '
                                  'non-routable address and was refused')
+        if self._budget is not None:
+            from .job_providers.transport import _DeadlineStream
+            if self._budget.remaining() <= 0:
+                stream.close()
+                self._budget.check()
+            return _DeadlineStream(stream, self._budget)
         return stream
 
     def connect_unix_socket(self, path, timeout=None, socket_options=None):
@@ -714,10 +744,16 @@ class _FixedHostBackend(httpcore.NetworkBackend):
 
 
 class _PinnedTransport(httpx.HTTPTransport):
-    def __init__(self):
+    def __init__(self, total_timeout=None):
+        from .job_providers.transport import Budget
+        # create_default_context() honors SSLKEYLOGFILE independently of
+        # HTTPX trust_env. Build the verifying context explicitly so mailbox
+        # TLS session secrets cannot be written through that environment hook.
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        context.load_default_certs()
         self._pool = httpcore.ConnectionPool(
-            ssl_context=ssl.create_default_context(),
-            network_backend=_FixedHostBackend(),
+            ssl_context=context,
+            network_backend=_FixedHostBackend(Budget(total_timeout) if total_timeout is not None else None),
             retries=0,
             max_connections=4,
         )
@@ -735,7 +771,7 @@ def _client(total_timeout):
       SSL context built above; it is never disabled.
     """
     return httpx.Client(
-        transport=_PinnedTransport(),
+        transport=_PinnedTransport(total_timeout),
         trust_env=False,
         follow_redirects=False,
         timeout=httpx.Timeout(connect=min(CONNECT_TIMEOUT, total_timeout),
@@ -748,26 +784,40 @@ def _client(total_timeout):
     )
 
 
-def _read_bounded(response, failure_code):
-    """Read at most MAX_RESPONSE_BYTES of wire bytes, then decode them.
+def _read_bounded(response, failure_code, max_bytes=None, oversize_code=None):
+    """Read at most `max_bytes` of wire bytes, then decode them.
 
     `iter_raw()` is used rather than `iter_bytes()` so the cap applies to
     the bytes actually on the wire, before any expansion -- httpx's
     decoding stream would happily inflate a small compressed body past
     the cap first. That means this function owns the `Content-Encoding`
     step itself.
+
+    `max_bytes` defaults to MAX_RESPONSE_BYTES, which is every #44 call.
+    Issue #45 passes its own, larger, still-fixed cap for one Gmail
+    message payload: a credential response and a mailbox message are
+    different size classes, and raising the shared constant to suit the
+    larger one would have loosened the bound on the token exchange too.
+    The value is always an ASTRA constant -- never derived from a
+    response header, a caller's request, or anything Google sent.
     """
+    limit = MAX_RESPONSE_BYTES if max_bytes is None else max_bytes
+    # Defaults to `failure_code`, so every #44 caller keeps the exact code
+    # it raised before. Issue #45 passes its own so "the message was too
+    # big" stays distinguishable from "the request failed" without having
+    # to match on message text.
+    too_large = failure_code if oversize_code is None else oversize_code
     raw = bytearray()
     for chunk in response.iter_raw():
         raw.extend(chunk)
-        if len(raw) > MAX_RESPONSE_BYTES:
-            raise OAuthError(failure_code,
+        if len(raw) > limit:
+            raise OAuthError(too_large,
                              'A Google response exceeded the allowed size')
     return _decode_body(bytes(raw), response.headers.get('content-encoding', ''),
-                        failure_code)
+                        failure_code, max_bytes=limit, oversize_code=too_large)
 
 
-def _decode_body(raw, encoding, failure_code):
+def _decode_body(raw, encoding, failure_code, max_bytes=None, oversize_code=None):
     """Decode a Content-Encoding body within the same size bound.
 
     ASTRA asks for `Accept-Encoding: identity` because an uncompressed
@@ -785,6 +835,8 @@ def _decode_body(raw, encoding, failure_code):
     cap was hit, and the total is re-checked after `flush()`. A small
     compressed body cannot expand into an unbounded allocation.
     """
+    limit = MAX_RESPONSE_BYTES if max_bytes is None else max_bytes
+    too_large = failure_code if oversize_code is None else oversize_code
     name = (encoding or '').strip().lower()
     if name in ('', 'identity'):
         return raw
@@ -798,17 +850,17 @@ def _decode_body(raw, encoding, failure_code):
     for wbits in windows:
         decompressor = zlib.decompressobj(wbits)
         try:
-            decoded = decompressor.decompress(raw, MAX_RESPONSE_BYTES + 1)
+            decoded = decompressor.decompress(raw, limit + 1)
             if decompressor.unconsumed_tail:
-                raise OAuthError(failure_code,
+                raise OAuthError(too_large,
                                  'A Google response exceeded the allowed size')
             decoded += decompressor.flush()
         except OAuthError:
             raise
         except zlib.error:
             continue
-        if len(decoded) > MAX_RESPONSE_BYTES:
-            raise OAuthError(failure_code,
+        if len(decoded) > limit:
+            raise OAuthError(too_large,
                              'A Google response exceeded the allowed size')
         return decoded
     raise OAuthError(failure_code, 'A Google response could not be decompressed')
@@ -817,20 +869,22 @@ def _decode_body(raw, encoding, failure_code):
 def _strict_json_object(body, failure_code):
     try:
         parsed = json_module.loads(body)
-    except ValueError:
+    except (ValueError, RecursionError):
         raise OAuthError(failure_code, 'A Google response was not valid JSON') from None
     if not isinstance(parsed, dict):
         raise OAuthError(failure_code, 'A Google response had an unexpected shape')
     return parsed
 
 
-def _request(method, url, *, failure_code, total_timeout, data=None, bearer=None):
+def _request(method, url, *, failure_code, total_timeout, data=None, bearer=None,
+             max_bytes=None, oversize_code=None):
     """One bounded, non-redirecting HTTPS request to a fixed Google URL.
 
     Never logs the request or the response, never puts a token in a query
     string, and never lets a raw upstream body or header reach an
     exception message.
     """
+    from .job_providers.transport import TransportError
     if urlsplit(url).hostname not in ALLOWED_HOSTS or not url.startswith('https://'):
         raise OAuthError('DESTINATION_NOT_ALLOWED',
                          'Gmail OAuth requests only ever contact Google over HTTPS')
@@ -846,6 +900,7 @@ def _request(method, url, *, failure_code, total_timeout, data=None, bearer=None
     headers = {}
     if bearer is not None:
         headers['Authorization'] = 'Bearer ' + bearer.reveal()
+    private_context = _PRIVATE_TRANSPORT.set(True)
     try:
         with _client(total_timeout) as client:
             with client.stream(method, url, data=data, headers=headers) as response:
@@ -855,13 +910,18 @@ def _request(method, url, *, failure_code, total_timeout, data=None, bearer=None
                                      'which is not followed for credentials')
                 status = response.status_code
                 content_type = response.headers.get('content-type', '')
-                body = _read_bounded(response, failure_code)
+                body = _read_bounded(response, failure_code, max_bytes=max_bytes,
+                                     oversize_code=oversize_code)
     except OAuthError:
         raise
     except httpx.TimeoutException:
         raise OAuthError(failure_code, 'A Google request timed out') from None
     except httpx.HTTPError:
         raise OAuthError(failure_code, 'A Google request could not be completed') from None
+    except TransportError:
+        raise OAuthError(failure_code, 'A Google request exceeded its transport limits') from None
+    finally:
+        _PRIVATE_TRANSPORT.reset(private_context)
     return status, content_type, body
 
 
@@ -911,10 +971,11 @@ def _standard_oauth_error(body):
     return _OAUTH_ERROR_CODES.get(identifier.strip().lower())
 
 
-def _json_request(method, url, *, failure_code, total_timeout, data=None, bearer=None):
+def _json_request(method, url, *, failure_code, total_timeout, data=None, bearer=None,
+                  max_bytes=None):
     status, content_type, body = _request(
         method, url, failure_code=failure_code, total_timeout=total_timeout,
-        data=data, bearer=bearer)
+        data=data, bearer=bearer, max_bytes=max_bytes)
     if status != 200:
         # Google's own error *text* is never surfaced: it can restate the
         # request. Its standard `error` identifier is a fixed token from a
@@ -986,8 +1047,7 @@ def refresh_access_token(*, configured_client_id, refresh_token, client_secret=N
     This is the credential layer completing its own contract: it proves a
     stored refresh token is usable, and it is what makes a revoked
     credential verifiably unusable. It performs **no** mailbox work -- no
-    message listing, no history sync, no parsing -- so issue #45 remains
-    unstarted; #45 will call this rather than reinvent it.
+    message listing, no history sync, no parsing -- and is reused by issue #45.
 
     Returns a memory-only access token and the scopes Google reports for
     it. The granted scope is re-validated by the caller on every refresh,
@@ -1014,7 +1074,7 @@ def refresh_access_token(*, configured_client_id, refresh_token, client_secret=N
         raise OAuthError('TOKEN_RESPONSE_INVALID',
                          'Google reported an unexpected granted scope')
     return {'access_token': Secret(access),
-            'granted_scopes': normalize_scopes(scope) if scope else None}
+            'granted_scopes': normalize_scopes(scope) if scope is not None else None}
 
 
 def normalize_scopes(scope):

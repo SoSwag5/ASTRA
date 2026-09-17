@@ -28,6 +28,7 @@ additive schema initialization -- no existing table, column or index is
 altered, so an existing database upgrades by gaining one new table.
 """
 import os
+import hashlib
 import secrets
 import threading
 
@@ -450,6 +451,96 @@ def status():
             'credential_store': credential_store_status(),
             'read_only': True,
             'accounts': accounts}
+
+
+# ---------------------------------------------------------------------------
+# Mailbox access for issue #45
+# ---------------------------------------------------------------------------
+def access_token_for(slot):
+    """Refresh authorization for an enabled connected slot and return (Secret, opaque_account_id).
+
+    Validate the effective grant on every refresh and recheck the connection before
+    returning. The caller clears the access token. No mailbox body is accessed here."""
+    oauth.require_enabled_slot(slot)
+    configured = oauth.require_client_id()
+    with Session() as db:
+        row = db.scalar(select(GmailAccount).where(GmailAccount.slot == slot))
+        if row is None or row.status != CONNECTED:
+            raise OAuthError('ACCOUNT_NOT_CONNECTED',
+                             oauth.message_for('ACCOUNT_NOT_CONNECTED'))
+        credential_key, account_id = row.credential_key, evidence_account_id(row)
+        recorded_scopes = list(row.granted_scopes or [])
+
+    refresh = read_credential(credential_key)
+    if refresh is None:
+        # Metadata says connected but the credential is gone. `status()`
+        # already reports DISCONNECTED_INCONSISTENT for this; the read
+        # path must refuse rather than proceed without a credential.
+        raise OAuthError('ACCOUNT_NOT_CONNECTED',
+                         oauth.message_for('ACCOUNT_NOT_CONNECTED'))
+    client_secret = None
+    try:
+        client_secret = read_client_secret()
+        tokens = oauth.refresh_access_token(configured_client_id=configured,
+                                            refresh_token=refresh,
+                                            client_secret=client_secret)
+    finally:
+        refresh.clear()
+        if client_secret is not None:
+            client_secret.clear()
+
+    # A refresh response omits `scope` when the grant is unchanged, in
+    # which case the scope validated at connection time still applies.
+    granted = recorded_scopes if tokens['granted_scopes'] is None else tokens['granted_scopes']
+    access = tokens['access_token']
+    if tokens.get('refresh_token') is not None:
+        tokens['refresh_token'].clear()
+    try:
+        oauth.validate_granted_scopes(granted)
+    except OAuthError as error:
+        access.clear()
+        security_event('GMAIL_OAUTH_SCOPE_MISMATCH', slot=slot, result=error.code)
+        raise
+
+    with Session.begin() as db:
+        row = db.scalar(select(GmailAccount).where(GmailAccount.slot == slot))
+        if row is not None and row.status == CONNECTED and evidence_account_id(row) == account_id:
+            row.last_validated_at = now()
+        else:
+            access.clear()
+            raise OAuthError('ACCOUNT_NOT_CONNECTED', oauth.message_for('ACCOUNT_NOT_CONNECTED'))
+    return access, account_id
+
+
+def evidence_account_id(row):
+    """Opaque connection identity; never reuse evidence/cursors across grants.
+
+    The credential handle has fresh local randomness on every connection.
+    Its digest is not an address, token or usable credential-store handle.
+    """
+    return hashlib.sha256(row.credential_key.encode('ascii')).hexdigest()
+
+
+def require_connection(db, slot, account_id):
+    row = db.scalar(select(GmailAccount).where(GmailAccount.slot == slot))
+    if row is None or row.status != CONNECTED or evidence_account_id(row) != account_id:
+        raise OAuthError('ACCOUNT_NOT_CONNECTED', oauth.message_for('ACCOUNT_NOT_CONNECTED'))
+    return row
+
+
+def read_sync_state(slot):
+    """This account's Gmail sync cursor, or `{}` when there is none.
+
+    The cursor is per-account by construction -- it lives on that
+    account's own row -- so one mailbox's progress can never be applied
+    to another. Connect clears it (a reconnect must not resume a cursor
+    belonging to a mailbox that previously occupied the slot) and
+    disconnect clears it (ADR-0008).
+    """
+    with Session() as db:
+        row = db.scalar(select(GmailAccount).where(GmailAccount.slot == slot))
+        state = row.sync_state if row is not None and isinstance(row.sync_state, dict) else {}
+    return state
 
 
 # ---------------------------------------------------------------------------

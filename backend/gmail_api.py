@@ -20,11 +20,13 @@ Contract rules this router enforces:
 - The authorization URL is returned once to the trusted local frontend so
   it can open the system browser. It is never logged and never stored.
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from . import gmail_accounts as accounts
 from . import gmail_oauth as oauth
+from . import gmail_sync as sync
+from . import gmail_messages as messages
 from .gmail_oauth import ACCOUNT_SLOTS, OAuthError
 
 router = APIRouter(prefix='/api/gmail')
@@ -53,12 +55,14 @@ def _bounded_error(error):
     `py/stack-trace-exposure` rule flagged the earlier `str(error)`
     version on exactly that basis.
     """
-    status = 409 if error.code in ('SECONDARY_NOT_ENABLED', 'IDENTITY_ALREADY_CONNECTED') else 400
+    code = error.code if error.code in oauth.MESSAGES or error.code in messages.READ_ERROR_CODES else 'UNKNOWN_ERROR'
+    status = 409 if code in ('SECONDARY_NOT_ENABLED', 'IDENTITY_ALREADY_CONNECTED', 'SYNC_ALREADY_RUNNING') else 400
     if error.code in ('CLIENT_NOT_CONFIGURED', 'CLIENT_ID_INVALID',
                       'CREDENTIAL_STORE_UNAVAILABLE'):
         status = 503
-    return JSONResponse({'detail': oauth.message_for(error.code),
-                         'code': error.code}, status,
+    detail = messages.message_for(code) if code in messages.READ_ERROR_CODES else oauth.message_for(code)
+    return JSONResponse({'detail': detail,
+                         'code': code}, status,
                         headers={'Cache-Control': 'no-store'})
 
 
@@ -125,3 +129,34 @@ def disconnect_account(slug: str):
         return accounts.disconnect(slot)
     except OAuthError as error:
         return _bounded_error(error)
+
+
+@router.get('/sync/status')
+def sync_status():
+    try:
+        return sync.sync_status()
+    except Exception:
+        return _bounded_error(OAuthError('GMAIL_SYNC_FAILED', 'Unavailable'))
+
+
+@router.get('/confirmations')
+def confirmations(limit: int = Query(default=50, ge=1, le=200)):
+    try:
+        return sync.list_confirmations(limit=limit)
+    except Exception:
+        return _bounded_error(OAuthError('GMAIL_SYNC_FAILED', 'Unavailable'))
+
+
+@router.post('/accounts/{slug}/sync')
+def synchronize(slug: str):
+    slot = _slot(slug)
+    # Coordinate with deletion, exports, discovery and other processes.
+    from .main import task_lock
+    if not task_lock.acquire(False):
+        return _bounded_error(OAuthError('SYNC_ALREADY_RUNNING', 'Busy'))
+    try:
+        return sync.sync_account(slot)
+    except OAuthError as error:
+        return _bounded_error(error)
+    finally:
+        task_lock.release()

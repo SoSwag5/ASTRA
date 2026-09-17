@@ -44,6 +44,10 @@ _CONTROL = re.compile(r'[\x00-\x1f\x7f]')
 MAX_BYTES = 1_000_000
 
 SEVERITY = {
+    'GMAIL_SYNC_STARTED': 'NOTICE',
+    'GMAIL_SYNC_COMPLETED': 'NOTICE',
+    'GMAIL_SYNC_FAILED': 'WARNING',
+    'GMAIL_MESSAGE_SKIPPED': 'NOTICE',
     'ACCESS_REJECTED': 'WARNING',
     'INVALID_ORIGIN_BLOCKED': 'WARNING',
     'CSRF_REJECTED': 'WARNING',
@@ -67,6 +71,10 @@ SEVERITY = {
 #: original constant, so every pre-existing event records byte-identically.
 DEFAULT_REASON = 'Security control blocked an operation'
 REASONS = {
+    'GMAIL_SYNC_STARTED': 'Bounded read-only Gmail sync started',
+    'GMAIL_SYNC_COMPLETED': 'Bounded read-only Gmail sync finished',
+    'GMAIL_SYNC_FAILED': 'Bounded read-only Gmail sync failed',
+    'GMAIL_MESSAGE_SKIPPED': 'Gmail message could not be parsed within limits',
     'GMAIL_OAUTH_ATTEMPT_STARTED': 'Gmail authorization attempt started',
     'GMAIL_OAUTH_CALLBACK_REJECTED': 'Gmail OAuth callback rejected',
     'GMAIL_OAUTH_ATTEMPT_ENDED': 'Gmail authorization attempt ended without connecting',
@@ -83,6 +91,10 @@ _SLOTS = frozenset({'PRIMARY', 'SECONDARY'})
 #: shared set makes the complete vocabulary reviewable in one place; a value
 #: outside it is dropped rather than written.
 _GMAIL_RESULTS = frozenset({
+    'INITIAL', 'INCREMENTAL', 'RESET_CONSERVATIVE', 'COMPLETED', 'INCOMPLETE',
+    'GMAIL_READ_FAILED', 'GMAIL_READ_UNAUTHORIZED', 'GMAIL_READ_FORBIDDEN',
+    'GMAIL_READ_RATE_LIMITED', 'GMAIL_READ_NOT_FOUND', 'GMAIL_RESPONSE_INVALID',
+    'GMAIL_MESSAGE_TOO_LARGE', 'GMAIL_DESTINATION_NOT_ALLOWED', 'GMAIL_PARSE_FAILED',
     'STARTED', 'CONNECTED', 'CANCELLED', 'EXPIRED', 'SUPERSEDED', 'INVALIDATED',
     'INVALIDATED_BY_DISCONNECT', 'CONNECTION_FAILED',
     'CALLBACK_INVALID', 'CALLBACK_STATE_MISSING', 'CALLBACK_STATE_MISMATCH',

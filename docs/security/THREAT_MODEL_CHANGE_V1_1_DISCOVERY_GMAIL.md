@@ -208,3 +208,25 @@ Also registers the new OAuth-callback abuse case (state/PKCE/loopback/
 identity-binding) under **R-16** rather than as a separate risk ID — it is
 a threat against the same asset (the OAuth credential) as the rest of
 R-16, mitigated by the controls in ADR-0007's Decision section.
+
+## Issue #45 implementation delta (2026-09-17)
+
+The #44 foundation is merged via PR #66. The bounded mailbox read path now
+exists, documented in [Gmail sync](../architecture/GMAIL_SYNC.md). It adds no
+dependency and no Gmail mutation/AI/reconciliation path. Receiver-header trust,
+per-grant evidence identity, capped query pagination, malformed input, public
+URL minimization, body non-retention, disconnect retention and full erasure are
+exercised with fictional fixtures. Transport deadlines now include bounded DNS,
+pinned dialing and each TLS/read/write operation; private transport debug
+traces are suppressed per context. No parked v1.2 code was merged.
+
+These are implemented controls with self-verification, not an independent
+review, live mailbox accuracy result, or residual-risk acceptance. Earlier
+planning/pending statements above are historical. R-16/R-17/R-18 stay OPEN;
+#46 reconciliation and #48 release assurance are not implemented by #45.
+
+Framework delta: SSDF implementation/verification evidence expands through
+adversarial input and privacy regressions. ASVS input validation, output
+handling, sensitive-data storage/logging and API access boundaries are exercised
+by the #45 suites; no clause or level claim is newly asserted. SAMM/SLSA claims
+are unchanged. No dependency, lockfile, SBOM input or release artifact changed.
