@@ -1442,3 +1442,307 @@ def test_summary_api_is_complete_without_any_prior_detail_read():
     assert summary['total'] == 2
     assert summary['applications_total'] == 2
     assert summary['complete'] is True
+
+
+# ---------------------------------------------------------------------------
+# Remediation: `limit` bounds the whole reconciliation run
+# ---------------------------------------------------------------------------
+def make_unresolved_evidence(index, *, confidence='MEDIUM'):
+    """Evidence reconciled once with no candidate: an unresolved, unattached
+    NEEDS_REVIEW item."""
+    evidence_id = make_evidence(confidence=confidence,
+                                company=f'Unaffiliated Holdings {index}',
+                                message_id=f'fictional-unresolved-{index}',
+                                url='')
+    result = reconcile(evidence_id)
+    assert result.decision == reconciliation.DECISION_NEEDS_REVIEW
+    assert result.application_id is None
+    return evidence_id
+
+
+def make_pending_evidence(index, *, confidence='MEDIUM'):
+    """Evidence that has never been reconciled at all."""
+    return make_evidence(confidence=confidence,
+                         company=f'Untouched Holdings {index}',
+                         message_id=f'fictional-pending-{index}', url='')
+
+
+def queue_sizes():
+    with Session() as db:
+        pending = db.scalars(
+            select(sync.GmailConfirmation.id)
+            .outerjoin(reconciliation.GmailApplicationLink,
+                       reconciliation.GmailApplicationLink.gmail_confirmation_id
+                       == sync.GmailConfirmation.id)
+            .where(reconciliation.GmailApplicationLink.id.is_(None))).all()
+        unresolved = db.scalars(
+            select(reconciliation.GmailApplicationLink.gmail_confirmation_id)
+            .where(reconciliation.GmailApplicationLink.decision
+                   == reconciliation.DECISION_NEEDS_REVIEW,
+                   reconciliation.GmailApplicationLink.application_id.is_(None))).all()
+    return list(pending), list(unresolved)
+
+
+def test_two_pending_plus_two_unresolved_with_limit_two_process_two_total():
+    """The reviewed defect: each queue applied the limit independently, so a
+    run could do twice the requested work."""
+    make_unresolved_evidence(1)
+    make_unresolved_evidence(2)
+    make_pending_evidence(3)
+    make_pending_evidence(4)
+    assert [len(part) for part in queue_sizes()] == [2, 2]
+
+    summary = reconciliation.reconcile_pending(limit=2)
+    total = summary['considered'] + summary['revisited']
+    assert total <= 2, f'requested 2, processed {total}'
+    assert total == 2
+    assert summary['processed'] == total
+    assert summary['limit'] == 2
+    # Round-robin: both queues advanced, neither monopolized the budget.
+    assert summary['considered'] == 1
+    assert summary['revisited'] == 1
+
+
+@pytest.mark.parametrize('requested', [1, 2, 3, 4, 5, 8])
+def test_the_total_processed_never_exceeds_the_requested_limit(requested):
+    for index in range(1, 5):
+        make_unresolved_evidence(index)
+    for index in range(5, 9):
+        make_pending_evidence(index)
+    summary = reconciliation.reconcile_pending(limit=requested)
+    total = summary['considered'] + summary['revisited']
+    assert total <= requested, f'requested {requested}, processed {total}'
+    assert summary['processed'] == total
+    assert summary['limit'] == requested
+
+
+def test_limit_of_one_processes_exactly_one_eligible_item():
+    make_unresolved_evidence(1)
+    make_pending_evidence(2)
+    summary = reconciliation.reconcile_pending(limit=1)
+    assert summary['considered'] + summary['revisited'] == 1
+    assert summary['processed'] == 1
+
+
+def test_limit_of_one_still_processes_when_only_one_queue_has_work():
+    """Spare capacity is not wasted on an empty queue."""
+    make_unresolved_evidence(1)
+    assert queue_sizes()[0] == []
+    summary = reconciliation.reconcile_pending(limit=1)
+    assert summary['revisited'] == 1 and summary['considered'] == 0
+    assert summary['processed'] == 1
+
+
+def test_an_empty_queue_yields_its_whole_share_to_the_other():
+    for index in range(1, 5):
+        make_pending_evidence(index)
+    summary = reconciliation.reconcile_pending(limit=4)
+    assert summary['considered'] == 4 and summary['revisited'] == 0
+    assert summary['processed'] == 4
+
+
+def test_the_default_limit_never_processes_more_than_max_run_evidence(monkeypatch):
+    monkeypatch.setattr(reconciliation, 'MAX_RUN_EVIDENCE', 3)
+    for index in range(1, 6):
+        make_unresolved_evidence(index)
+    for index in range(6, 11):
+        make_pending_evidence(index)
+    # Default argument, and an explicit request far above the ceiling.
+    for summary in (reconciliation.reconcile_pending(),
+                    reconciliation.reconcile_pending(limit=10_000)):
+        total = summary['considered'] + summary['revisited']
+        assert total <= reconciliation.MAX_RUN_EVIDENCE, total
+        assert summary['limit'] == reconciliation.MAX_RUN_EVIDENCE
+
+
+def test_both_queues_make_progress_across_repeated_runs():
+    """Neither queue starves the other: a backlog on one side still leaves
+    room for the other in every run."""
+    for index in range(1, 4):
+        make_unresolved_evidence(index)
+    for index in range(4, 7):
+        make_pending_evidence(index)
+    seen_considered = seen_revisited = 0
+    for _ in range(3):
+        summary = reconciliation.reconcile_pending(limit=2)
+        assert summary['considered'] + summary['revisited'] <= 2
+        seen_considered += summary['considered']
+        seen_revisited += summary['revisited']
+    assert seen_considered > 0, 'new confirmations never progressed'
+    assert seen_revisited > 0, 'unresolved items never progressed'
+    # The pending queue drains; nothing is left permanently unreconciled.
+    assert queue_sizes()[0] == []
+
+
+def test_a_sustained_stream_of_new_confirmations_does_not_starve_revisits():
+    make_unresolved_evidence(1)
+    make_unresolved_evidence(2)
+    revisited = 0
+    for round_number in range(3):
+        # New evidence keeps arriving between runs.
+        make_pending_evidence(10 + round_number * 2)
+        make_pending_evidence(11 + round_number * 2)
+        summary = reconciliation.reconcile_pending(limit=2)
+        assert summary['considered'] + summary['revisited'] <= 2
+        revisited += summary['revisited']
+    assert revisited > 0, 'unresolved items were starved by new confirmations'
+
+
+def test_a_large_unresolved_backlog_does_not_block_new_confirmations():
+    for index in range(1, 9):
+        make_unresolved_evidence(index)
+    make_pending_evidence(20)
+    summary = reconciliation.reconcile_pending(limit=2)
+    assert summary['considered'] + summary['revisited'] <= 2
+    assert summary['considered'] == 1, 'new confirmation was blocked'
+
+
+def test_no_confirmation_is_processed_through_both_paths_in_one_run():
+    """A review item this run creates must not also be revisited by it."""
+    make_pending_evidence(1)
+    make_pending_evidence(2)
+    summary = reconciliation.reconcile_pending(limit=10)
+    assert summary['considered'] == 2
+    assert summary['revisited'] == 0
+    assert summary['processed'] == 2
+
+
+def test_bounded_runs_never_duplicate_links_transitions_or_applications():
+    for index in range(1, 4):
+        make_unresolved_evidence(index)
+    for index in range(4, 7):
+        make_pending_evidence(index)
+    application_id, _ = make_application()
+    with Session() as db:
+        confirmations_before = len(db.scalars(select(sync.GmailConfirmation)).all())
+    for _ in range(6):
+        reconciliation.reconcile_pending(limit=2)
+    with Session() as db:
+        links = db.scalars(select(reconciliation.GmailApplicationLink)).all()
+        assert len(links) == confirmations_before
+        assert len({link.gmail_confirmation_id for link in links}) == len(links)
+        assert len(db.scalars(select(sync.GmailConfirmation)).all()) == confirmations_before
+        assert len(db.scalars(select(Application)).all()) == 1
+        transitions = db.scalars(select(states.ApplicationStateTransition).where(
+            states.ApplicationStateTransition.application_id == application_id)).all()
+    assert len({row.sequence for row in transitions}) == len(transitions)
+    assert reconciliation.needs_review()['count'] == len(
+        [link for link in links
+         if link.decision == reconciliation.DECISION_NEEDS_REVIEW])
+
+
+def test_low_evidence_is_unaffected_by_the_shared_budget():
+    application_id, _ = make_application()
+    force_state(application_id, states.SAVED)
+    low = make_evidence(confidence='LOW', message_id='fictional-low-1')
+    make_unresolved_evidence(2)
+    summary = reconciliation.reconcile_pending(limit=4)
+    assert summary['considered'] + summary['revisited'] <= 4
+    assert reconciliation.link_for(low)['decision'] == reconciliation.DECISION_NO_ACTION
+    assert reconciliation.link_for(low)['reason_code'] == (
+        reconciliation.REASON_LOW_CONFIDENCE)
+    assert current_state(application_id) == states.SAVED
+    assert low not in [item['gmail_confirmation_id']
+                       for item in reconciliation.needs_review()['items']]
+    # LOW is never revisited either, whatever the budget.
+    for _ in range(3):
+        assert all(item['gmail_confirmation_id'] != low
+                   for item in reconciliation.needs_review()['items'])
+        reconciliation.reconcile_pending(limit=4)
+
+
+def test_resolved_rejected_and_attached_items_are_not_revisited():
+    attached_target, _ = make_application()
+    attached = make_evidence(confidence='MEDIUM', message_id='fictional-attached')
+    assert reconcile(attached).application_id == attached_target
+
+    confirmed_target, _ = make_application(company='Contoso Robotics')
+    confirmed = make_evidence(confidence='MEDIUM', company='Contoso Robotics',
+                              message_id='fictional-confirmed', url='')
+    confirmed_result = reconcile(confirmed)
+    assert reconciliation.confirm_review(confirmed_result.link_id)['ok']
+
+    rejected = make_unresolved_evidence(9)
+    rejected_link = reconciliation.link_for(rejected)['id']
+    assert reconciliation.reject_review(rejected_link)['ok']
+
+    summary = reconciliation.reconcile_pending(limit=reconciliation.MAX_RUN_EVIDENCE)
+    assert summary['revisited'] == 0, 'a settled item was revisited'
+    assert summary['considered'] == 0
+    assert reconciliation.link_for(attached)['application_id'] == attached_target
+    assert reconciliation.link_for(confirmed)['decision'] == (
+        reconciliation.DECISION_USER_CONFIRMED)
+    assert reconciliation.link_for(rejected)['decision'] == (
+        reconciliation.DECISION_USER_REJECTED)
+
+
+def test_the_four_earlier_defects_remain_fixed_under_a_bounded_run():
+    """One consolidated guard so the bound fix cannot silently regress them."""
+    # 1. Contradictory requisition URLs still never auto-link.
+    conflicted, _ = make_application(
+        apply_url='https://boards.greenhouse.io/northwind/jobs/111')
+    conflict_evidence = make_evidence(
+        url='https://boards.greenhouse.io/northwind/jobs/999',
+        message_id='fictional-bound-conflict')
+    # 3. Unmatched MEDIUM evidence is still queued, not consumed.
+    unmatched = make_evidence(confidence='MEDIUM', company='Unaffiliated Holdings 1',
+                              message_id='fictional-bound-unmatched', url='')
+    summary = reconciliation.reconcile_pending(limit=reconciliation.MAX_RUN_EVIDENCE)
+    assert summary['considered'] + summary['revisited'] == summary['processed']
+    assert reconciliation.link_for(conflict_evidence)['reason_code'] == (
+        reconciliation.REASON_URL_CONFLICT)
+    assert current_state(conflicted) != states.APPLIED
+    unmatched_link = reconciliation.link_for(unmatched)
+    assert unmatched_link['decision'] == reconciliation.DECISION_NEEDS_REVIEW
+    assert unmatched_link['application_id'] is None
+
+    # 2. A first manual status change is still a USER_ACTION.
+    job_id = make_untracked_job(company='Fabrikam Systems')
+    status_action(job_id, 'APPLIED')
+    with Session() as db:
+        application = db.scalar(select(Application).where(
+            Application.job_id == job_id))
+    rows = history_rows(application.id)
+    assert rows[0].source_category == states.SOURCE_LEGACY_MIGRATION
+    assert rows[-1].source_category == states.SOURCE_USER_ACTION
+
+    # 4. Summaries still account for every application without a detail read.
+    legacy = make_legacy_application(company='Tailspin Toys')
+    overview = states.state_summary()
+    assert overview['complete'] is True
+    assert overview['total'] == overview['applications_total']
+    assert states.transition_history(legacy) is not None
+    assert states.transition_history(999_999) is None
+
+
+def test_reconcile_api_honours_the_requested_batch_size():
+    """The caller-visible batch-size contract, through the real route."""
+    from fastapi.testclient import TestClient
+    from backend.main import app
+    make_unresolved_evidence(1)
+    make_unresolved_evidence(2)
+    make_pending_evidence(3)
+    make_pending_evidence(4)
+    with TestClient(app) as client:
+        response = client.post('/api/applications/state/reconcile',
+                               json={'limit': 2})
+        assert response.status_code == 200
+        body = response.json()
+    total = body['considered'] + body['revisited']
+    assert total <= 2, f'API requested 2, processed {total}'
+    assert body['processed'] == total
+    assert body['limit'] == 2
+
+
+def test_reconcile_api_still_rejects_out_of_range_batch_sizes():
+    from fastapi.testclient import TestClient
+    from backend.main import app
+    with TestClient(app) as client:
+        assert client.post('/api/applications/state/reconcile',
+                           json={'limit': 0}).status_code == 400
+        assert client.post('/api/applications/state/reconcile',
+                           json={'limit': reconciliation.MAX_RUN_EVIDENCE + 1}
+                           ).status_code == 400
+        default = client.post('/api/applications/state/reconcile', json={})
+        assert default.status_code == 200
+        assert default.json()['limit'] == reconciliation.MAX_RUN_EVIDENCE

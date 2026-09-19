@@ -665,6 +665,50 @@ def revisit_confirmation(db, row, link):
     return _decide(db, row, link, target)
 
 
+def _interleave(pending, unresolved, budget):
+    """The work one run will do, as `(confirmation_id, is_revisit)` pairs.
+
+    `budget` is the bound on the **whole run**, not on either queue. The two
+    queues are drained round-robin so neither can starve the other: a
+    sustained stream of new confirmations still leaves roughly half of each
+    run's budget for unresolved review items, and a large unresolved backlog
+    still leaves roughly half for new confirmations. Whatever one queue
+    cannot use, the other takes, so a single non-empty queue gets the entire
+    budget rather than half of it.
+
+    New confirmations take the first slot. That matters only when the budget
+    is 1 and both queues have work: evidence that has never been reconciled
+    has produced nothing the user can see at all, whereas an unresolved
+    review item is already in the queue and `confirm_review()` re-evaluates
+    candidates by itself, so revisiting is a convenience rather than the only
+    route. A budget of 1 with both queues permanently non-empty is therefore
+    the one case where a queue can wait indefinitely, and it waits on the
+    side that is still reachable by hand.
+
+    Ordering within each queue is unchanged and deterministic, and the two
+    sources are disjoint by construction -- a confirmation either has a link
+    row or does not. The `seen` set makes that explicit rather than implied,
+    so no confirmation is processed twice in one run.
+    """
+    order, seen = [], set()
+    queues = ((iter(pending), False), (iter(unresolved), True))
+    exhausted = 0
+    while len(order) < budget and exhausted < len(queues):
+        exhausted = 0
+        for source, is_revisit in queues:
+            if len(order) >= budget:
+                break
+            for confirmation_id in source:
+                if confirmation_id in seen:
+                    continue
+                seen.add(confirmation_id)
+                order.append((confirmation_id, is_revisit))
+                break
+            else:
+                exhausted += 1
+    return order
+
+
 def reconcile_pending(*, limit=MAX_RUN_EVIDENCE):
     """Reconcile undecided confirmations and revisit unresolved review items.
 
@@ -672,13 +716,22 @@ def reconcile_pending(*, limit=MAX_RUN_EVIDENCE):
     background reconciliation. Each piece of evidence is decided in its own
     transaction, so one failure cannot roll back decisions already durably
     recorded for earlier evidence.
+
+    `limit` bounds the **total** evidence rows this run processes --
+    `considered + revisited` never exceeds it -- and is itself clamped to
+    `MAX_RUN_EVIDENCE`. The two queues share that one budget; see
+    `_interleave()` for how it is divided.
     """
     initialize_reconciliation_schema()
     bounded = max(1, min(int(limit), MAX_RUN_EVIDENCE))
-    summary = {'schema': SCHEMA_VERSION, 'considered': 0, 'revisited': 0,
+    summary = {'schema': SCHEMA_VERSION, 'limit': bounded, 'processed': 0,
+               'considered': 0, 'revisited': 0,
                'linked': 0, 'needs_review': 0, 'no_action': 0,
                'by_reason': {}}
     with Session() as db:
+        # Each query reads at most one run's worth of identifiers, and the
+        # snapshot is taken before any processing, so a review item this run
+        # creates is not also revisited by the same run.
         pending = db.scalars(
             select(GmailConfirmation.id)
             .outerjoin(GmailApplicationLink,
@@ -695,6 +748,7 @@ def reconcile_pending(*, limit=MAX_RUN_EVIDENCE):
 
     def tally(result, revisited):
         summary['revisited' if revisited else 'considered'] += 1
+        summary['processed'] += 1
         if result.decision in (DECISION_LINKED, DECISION_USER_CONFIRMED):
             summary['linked'] += 1
         elif result.decision == DECISION_NEEDS_REVIEW:
@@ -704,23 +758,20 @@ def reconcile_pending(*, limit=MAX_RUN_EVIDENCE):
         summary['by_reason'][result.reason_code] = summary['by_reason'].get(
             result.reason_code, 0) + 1
 
-    for confirmation_id in pending:
+    for confirmation_id, is_revisit in _interleave(pending, unresolved, bounded):
         with Session.begin() as db:
             row = db.get(GmailConfirmation, confirmation_id)
             if row is None:
                 continue
-            result = reconcile_confirmation(db, row)
-        tally(result, revisited=False)
-
-    for confirmation_id in unresolved:
-        with Session.begin() as db:
-            row = db.get(GmailConfirmation, confirmation_id)
-            link = db.scalar(select(GmailApplicationLink).where(
-                GmailApplicationLink.gmail_confirmation_id == confirmation_id))
-            if row is None or link is None or link.decision != DECISION_NEEDS_REVIEW:
-                continue
-            result = revisit_confirmation(db, row, link)
-        tally(result, revisited=True)
+            if not is_revisit:
+                result = reconcile_confirmation(db, row)
+            else:
+                link = db.scalar(select(GmailApplicationLink).where(
+                    GmailApplicationLink.gmail_confirmation_id == confirmation_id))
+                if link is None or link.decision != DECISION_NEEDS_REVIEW:
+                    continue
+                result = revisit_confirmation(db, row, link)
+        tally(result, is_revisit)
     return summary
 
 

@@ -293,6 +293,37 @@ Reconciliation is **explicitly invoked**, exactly like #45's sync. There is no
 scheduler and no background reconciliation. It shares the existing
 cross-process task lock with discovery, export, deletion and Gmail sync.
 
+### One budget for the whole run
+
+`reconcile_pending(limit=...)` bounds the **total** number of evidence rows a
+run processes: `considered + revisited` never exceeds the requested limit, and
+the request is itself clamped to `MAX_RUN_EVIDENCE`. The run reports `limit`
+and `processed` alongside the counts so a caller can see the bound was kept.
+
+An earlier revision applied the limit to each queue separately, so a run could
+process up to twice what was asked for. The two queues now share one budget,
+drained **round-robin**:
+
+- Neither queue can starve the other. A sustained stream of new confirmations
+  still leaves roughly half of each run's budget for unresolved review items,
+  and a large unresolved backlog still leaves roughly half for new
+  confirmations.
+- Whatever one queue cannot use, the other takes, so a single non-empty queue
+  gets the whole budget rather than half of it.
+- Ordering within each queue is unchanged and deterministic: new confirmations
+  by `gmail_confirmations.id`, unresolved items by `gmail_application_links.id`.
+- New confirmations take the first slot. This matters only at a budget of 1
+  with both queues non-empty: evidence that has never been reconciled has
+  produced nothing the user can see at all, whereas an unresolved review item
+  is already in the queue and `confirm_review()` re-evaluates candidates by
+  itself, so revisiting is a convenience rather than the only route. That is
+  the one case where a queue can wait indefinitely, and it waits on the side
+  that remains reachable by hand.
+- Both snapshots are read before any processing and the two sources are
+  disjoint by construction — a confirmation either has a link row or does not —
+  so a review item a run creates is never also revisited by that same run, and
+  no confirmation is processed twice in one run.
+
 ## Schema and migration
 
 Three additive tables, declared against the shared SQLAlchemy `Base` in their
@@ -436,7 +467,7 @@ directly** — a caller cannot name a target state over the API.
 | `GET /api/applications/state/summary` | Counts per state, plus the declared transition table |
 | `GET /api/applications/state/reconciliation` | Fixed reconciliation parameters and decision counts |
 | `GET /api/applications/state/needs-review` | Needs Review queue (bounded to 200) |
-| `POST /api/applications/state/reconcile` | Explicit bounded reconciliation run |
+| `POST /api/applications/state/reconcile` | Explicit reconciliation run; `limit` bounds the total rows processed across both queues |
 | `POST /api/applications/state/needs-review/{id}/confirm` | User confirms a review item |
 | `POST /api/applications/state/needs-review/{id}/reject` | User rejects a review item |
 
@@ -569,6 +600,15 @@ reproduced defects. All four were fixed on this branch:
    Needs Review, could not be confirmed, and was never revisited. HIGH and
    MEDIUM evidence that cannot be linked is now a resolvable review item, and
    `reconcile_pending()` revisits unresolved unattached items.
+
+A second independent review of `f0382e6` reproduced one further defect, also
+fixed on this branch:
+
+5. **A run could process twice the requested limit.** `reconcile_pending()`
+   applied `limit` to the new-confirmation query and the unresolved-review
+   query independently, so `limit=2` processed four rows. The two queues now
+   share one budget, drained round-robin, and `considered + revisited` never
+   exceeds the requested limit.
 4. **Summaries and histories were order-dependent.** A legacy application was
    invisible until its detail view happened to be opened. `ensure_all_states()`
    read-repair makes every read complete and order-independent, and a
