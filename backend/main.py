@@ -273,6 +273,13 @@ async def lifespan(app):
     initialize_gmail_schema()
     from .gmail_sync import initialize_sync_schema
     initialize_sync_schema()
+    # Issue #46: additive canonical application-state, transition-history and
+    # Gmail reconciliation tables. Owned here for the same reason as #44/#45 --
+    # backend/models.py is a SHA-256-pinned #42 evaluation-provenance input.
+    # Idempotent; existing applications are bootstrapped lazily on first
+    # contact, never by a bulk rewrite at startup.
+    from .application_reconciliation import initialize_reconciliation_schema
+    initialize_reconciliation_schema()
     if os.getenv('BIND_HOST','127.0.0.1') not in ('127.0.0.1','localhost') and not os.getenv('APP_TOKEN'): raise RuntimeError('APP_TOKEN required for public binding')
     # A process restart cannot finish an earlier in-memory scan.
     if task_lock.acquire(False):
@@ -530,7 +537,18 @@ def job_action(id:int,action:str,data:dict={}):
         elif action=='cv': result=serialize(generate_cv(db,j))
         elif action=='cover': result=serialize(cover(db,j))
         elif action=='prepare': result=serialize(prepare(db,j))
-        elif action=='status': result=serialize(set_status(db,j,data.get('status','')))
+        elif action=='status':
+            # Issue #46: the legacy workflow status still moves exactly as
+            # before (compatibility projection), and the same user assertion
+            # is then offered to the authoritative state service, which either
+            # records the canonical transition with its provenance or records
+            # a bounded reason why it is not permitted. The handler invents no
+            # transition rule of its own.
+            from .application_state import prime_state,record_legacy_assertion,SOURCE_USER_ACTION
+            prime_state(db,db.scalar(select(Application).where(Application.job_id==j.id)))
+            application=set_status(db,j,data.get('status',''))
+            record_legacy_assertion(db,application,data.get('status',''),source_category=SOURCE_USER_ACTION,asserted_by='USER')
+            result=serialize(application)
         elif action=='browser': result=run_browser(db,j,data.get('mode','ASSISTED'),data.get('dry_run',True))
         elif action=='ai':
             p=candidate(db)
@@ -673,6 +691,8 @@ from .recall_api import router as recall_router
 app.include_router(recall_router)
 from .gmail_api import router as gmail_router
 app.include_router(gmail_router)
+from .application_state_api import router as application_state_router
+app.include_router(application_state_router)
 dist=Path(__file__).resolve().parents[1]/'frontend'/'dist'
 @app.get('/demo',include_in_schema=False)
 def demo_page():

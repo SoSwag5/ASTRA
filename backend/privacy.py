@@ -11,6 +11,11 @@ from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from sqlalchemy import select, delete, text
 from .models import *
+# Issue #46: imported for its side effect of registering the canonical
+# application-state tables on `Base.metadata`, so the private export and the
+# record counts below include them wherever this module is used, not only when
+# something else happened to import them first.
+from . import application_state as _application_state  # noqa: F401
 
 router=APIRouter(prefix='/api/privacy')
 POLICY_VERSION='2026-09-11'
@@ -23,6 +28,25 @@ PRIVACY_COPY={
     'deletion':'Deletion removes app-managed records, derived documents, tracker copies, backups and browser-session files for the selected scope. Delete All Local Data also removes saved API credentials and Gmail connection tokens; it does not call Google to revoke access, which is what Disconnect does. Downloaded/exported copies, original uploads outside the app, cloud-provider retention and employer records cannot be erased here. SSD recovery, OS backups and synced folders may retain copies.',
     'export':'Exports contain private information and are unencrypted. Browser sessions, API credentials and Gmail connection tokens are excluded. Keep exports somewhere you control.'
 }
+
+def ensure_additive_schemas():
+    """Create the additive #44/#45/#46 tables if a caller reached privacy
+    controls without the app lifespan having created them.
+
+    Export, record counts and deletion all enumerate `Base.metadata`, which
+    includes every additively declared table as soon as its module is
+    imported. Ensuring the tables exist keeps those three paths total: an
+    export never silently omits a declared table, and a deletion never fails
+    part-way because one table was missing. Idempotent and additive; it
+    creates nothing that startup would not create anyway.
+    """
+    # The same three initializers the app lifespan runs, in the same order:
+    # accounts (#44), evidence (#45), then canonical state and reconciliation
+    # (#46), which references the evidence table.
+    from .gmail_accounts import initialize_gmail_schema
+    initialize_gmail_schema()
+    from .application_reconciliation import initialize_reconciliation_schema
+    initialize_reconciliation_schema()
 
 def managed_files():
     root=DATA.resolve()
@@ -58,6 +82,7 @@ def managed_files():
 
 @router.get('')
 def privacy_info():
+    ensure_additive_schemas()
     with Session() as db:
         return {'policy_version':POLICY_VERSION,'storage_path':str(DATA),'copy':PRIVACY_COPY,
                 'counts':{table.name:db.scalar(select(__import__('sqlalchemy').func.count()).select_from(table)) for table in Base.metadata.sorted_tables},
@@ -79,6 +104,7 @@ async def export_data():
         return await run_in_threadpool(_export_data)
 
 def _export_data():
+    ensure_additive_schemas()
     from .main import task_lock
     if not task_lock.acquire(False): raise HTTPException(409,'Wait for the current scan or task to finish')
     try:
@@ -103,6 +129,7 @@ class DeleteRequest(BaseModel):
 def delete_data(request:DeleteRequest):
     expected={'cv':'DELETE CV','history':'DELETE APPLICATION HISTORY','all':'DELETE ALL LOCAL DATA'}[request.scope]
     if request.confirmation!=expected: raise ValueError('Type '+expected+' to confirm this deletion')
+    ensure_additive_schemas()
     from .main import task_lock
     if not task_lock.acquire(False): raise HTTPException(409,'Wait for the current scan or task to finish')
     try:
@@ -118,6 +145,11 @@ def delete_data(request:DeleteRequest):
             # action in backend/gmail_accounts.py.
             from .gmail_accounts import purge_all_local
             purge_all_local()
+            # Issue #46: reconciliation links reference Gmail evidence, so they
+            # are released before the evidence they point at. Order matters --
+            # SQLite enforces foreign keys (PRAGMA foreign_keys=ON).
+            from .application_reconciliation import purge_all_links
+            purge_all_links()
             from .gmail_sync import purge_all_confirmations
             purge_all_confirmations()
         # Preflight all paths before removing anything. A filesystem failure is surfaced,
@@ -126,6 +158,20 @@ def delete_data(request:DeleteRequest):
         removed_models={ResumeVersion,CoverLetter,ApplicationQuestion,BrowserRun,ApplicationEvent,AutomationRun,WorkbookSync}
         if request.scope in ('cv','all'): removed_models|={Skill,Employment,Education,Certification,Project,ApprovedAnswer,CandidateProfile}
         if request.scope in ('history','all'): removed_models|={Recruiter,FollowUp,Interview,Application}
+        # Issue #46: canonical application state, its append-only transition
+        # history and application-linked reconciliation records are application
+        # history and go with it. They are listed explicitly rather than
+        # inferred, and `reversed(sorted_tables)` deletes them before the
+        # `applications` rows they reference. Gmail evidence itself is NOT
+        # listed: #45's lifecycle is unchanged -- disconnect preserves evidence
+        # and only the full local erase above removes it -- so deleting an
+        # application relationship never deletes unrelated Gmail evidence.
+        if request.scope in ('history','all'):
+            from .application_state import ApplicationStateRecord,ApplicationStateTransition
+            from .application_reconciliation import GmailApplicationLink,purge_links_for_applications
+            removed_models|={ApplicationStateRecord,ApplicationStateTransition}
+            if request.scope=='all': removed_models|={GmailApplicationLink}
+            else: purge_links_for_applications()
         # JobObservation (issue #40) shares Job's lifecycle -- it is
         # job-posting provenance, not candidate data, so it is kept for
         # 'cv'/'history' scope exactly like Job itself, and only removed

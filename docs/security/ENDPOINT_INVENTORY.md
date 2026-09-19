@@ -4,7 +4,8 @@ Statically extracted decorator paths; router prefixes must be composed from APIR
 
 Router prefixes: `campaign.py` → `/api/campaign`, `privacy.py` → `/api/privacy`,
 `recall_api.py` → `/api/recall`, `search_workspace.py` → `/api/search`,
-`source_catalog.py` → `/api/search`, `gmail_api.py` → `/api/gmail`.
+`source_catalog.py` → `/api/search`, `gmail_api.py` → `/api/gmail`,
+`application_state_api.py` → `/api/applications`.
 
 `gmail_api.py` (issue #44) is the Gmail OAuth credential layer. `{slug}` is
 validated against a fixed two-value slot map (`primary`/`secondary`); it is
@@ -93,3 +94,22 @@ All inherit the existing private API guard and no-store response policy.
 | gmail_api.py | GET | /api/gmail/sync/status | sync_status |
 | gmail_api.py | GET | /api/gmail/confirmations | confirmations |
 | gmail_api.py | POST | /api/gmail/accounts/{slug}/sync | synchronize |
+
+## Issue #46 application-state and reconciliation routes
+
+All inherit the existing private API guard and no-store response policy.
+`application_state_api.py` → `/api/applications`. Identifiers are bounded
+positive integers and the reconciliation batch size is range-checked; no route
+accepts a target state, so a caller cannot set an application's canonical state
+directly. See `docs/architecture/APPLICATION_STATE.md`.
+
+| Module | Method | Route | Handler |
+|---|---|---|---|
+| application_state_api.py | GET | /api/applications/{application_id}/state | application_state |
+| application_state_api.py | GET | /api/applications/{application_id}/state/history | application_history |
+| application_state_api.py | GET | /api/applications/state/summary | summary |
+| application_state_api.py | GET | /api/applications/state/reconciliation | reconciliation_status |
+| application_state_api.py | GET | /api/applications/state/needs-review | review_queue |
+| application_state_api.py | POST | /api/applications/state/reconcile | reconcile |
+| application_state_api.py | POST | /api/applications/state/needs-review/{link_id}/confirm | confirm |
+| application_state_api.py | POST | /api/applications/state/needs-review/{link_id}/reject | reject |

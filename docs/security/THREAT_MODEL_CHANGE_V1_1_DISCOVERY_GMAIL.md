@@ -230,3 +230,62 @@ adversarial input and privacy regressions. ASVS input validation, output
 handling, sensitive-data storage/logging and API access boundaries are exercised
 by the #45 suites; no clause or level claim is newly asserted. SAMM/SLSA claims
 are unchanged. No dependency, lockfile, SBOM input or release artifact changed.
+
+## Issue #46 implementation note (reconciliation and application state)
+
+#46 implements the two abuse cases this delta registered under R-18 —
+*duplicate/reconciliation manipulation* and *status-evidence spoofing*. See
+[Application state](../architecture/APPLICATION_STATE.md) for the as-built
+design.
+
+Controls now implemented against those abuse cases:
+
+- **Multi-field matching, not a single guessable field.** A merge requires the
+  normalized employer to agree *and* at least two further independent
+  corroborations among role, application-date proximity, application-URL
+  identity and source platform — at least three independent fields. Comparison
+  is deterministic normalized-key equality and a fixed 14-day window; a field
+  with no usable value on either side contributes nothing rather than acting as
+  a wildcard. No AI, embedding similarity, web lookup or mailbox search is
+  used.
+- **Ambiguity never mutates.** More than one strong candidate produces a
+  bounded Needs Review decision and a `APPLICATION_RECONCILIATION_CONFLICT`
+  security event. No application is mutated and none is created.
+- **Nothing is ever created from evidence.** Reconciliation links to an
+  existing application or leaves the evidence unmatched and reviewable, so an
+  unsolicited or spoofed message cannot conjure a record and an existing
+  manually recorded application cannot be duplicated.
+- **Confidence-bounded transitions.** `APPLIED` is the only canonical state an
+  automated source may set — at HIGH confidence only, and only on a unique
+  strong match — because #45 parses no later-stage message. MEDIUM produces a
+  review item with no mutation; LOW never mutates. A later-stage state is
+  unreachable from any automated path at any confidence.
+- **Manual authority.** A weaker automated signal can neither downgrade nor
+  re-assert a state a manual source established, enforced both by the
+  forward-only transition table and by an explicit manual-authority check.
+- **Provable transitions.** Every accepted change appends an immutable history
+  row identifying who or what asserted it, the source category, confidence,
+  Gmail account/message/parser identity, bounded evidence tokens, field
+  agreement, both timestamps and a bounded reason code.
+- **Bounded logging.** The two new security-event types use fixed reason text
+  and a `result` field restricted to the refusal-reason vocabulary. No company
+  name, role, subject, URL, email address, message identifier or exception
+  string can reach the log through this path.
+
+These are implemented controls with self-verification, not an independent
+review, a live mailbox validation, a measured real-world reconciliation
+accuracy result, or a residual-risk acceptance. **R-18 remains OPEN**, and the
+residual identified in the abuse-case table above is unchanged: an attacker who
+already knows the user's real application details could still force a false
+merge, and a spoof satisfying #45's HIGH-confidence signals could still be
+accepted. Multi-field matching raises the cost; it does not eliminate the abuse
+case. R-16 and R-17 are unaffected by #46. The parked v1.2 tamper-evident
+logging work (OD-015) was not pulled forward.
+
+Framework delta: SSDF implementation/verification evidence expands through the
+state-machine, reconciliation, migration and deletion regressions. ASVS input
+validation, output handling, sensitive-data storage/logging and API access
+boundaries are exercised by the #46 suites; no clause or level claim is newly
+asserted. SAMM/SLSA claims are unchanged. No dependency, lockfile, SBOM input
+or release artifact changed, and no evaluation-provenance-pinned file was
+modified.

@@ -167,6 +167,11 @@ def track(job_id:int,data:TrackInput):
         if not job:raise HTTPException(404)
         app=db.scalar(select(Application).where(Application.job_id==job_id))
         if not app:app=Application(job_id=job_id,tracking={});db.add(app);db.flush()
+        # Issue #46: bootstrap the canonical state from where this application
+        # actually is, before the lines below overwrite the legacy fields the
+        # bootstrap reads. See application_state.prime_state().
+        from .application_state import prime_state
+        prime_state(db,app)
         details=dict(app.tracking or {});old=details.get('stage',app.status)
         when=parse_date(data.date).isoformat() if data.date else now()
         if data.stage=='APPLIED' and not app.applied_date:
@@ -185,6 +190,14 @@ def track(job_id:int,data:TrackInput):
             if key in data.model_fields_set:details[key]=getattr(data,key)
         details['last_activity']=now();app.tracking=details
         if data.stage and old!=data.stage:record_event(db,app,data.stage,data.notes,when,stage=data.stage)
+        if data.stage:
+            # Issue #46: the campaign stage remains the compatibility field the
+            # existing UI reads; the authoritative canonical state is derived
+            # from this same user assertion by the state service, which owns
+            # the transition rules and the append-only history. A stage with no
+            # canonical meaning (NO_RESPONSE) asserts nothing and is skipped.
+            from .application_state import record_legacy_assertion,SOURCE_USER_ACTION
+            record_legacy_assertion(db,app,data.stage,source_category=SOURCE_USER_ACTION,asserted_by='USER',occurred_at=when)
         if data.event_type:record_event(db,app,data.event_type,data.notes,when)
         elif data.notes and (not data.stage or old==data.stage):record_event(db,app,'NOTE',data.notes,when)
         follow_date=data.followup_date or ((parse_date(when)+timedelta(days=settings(db)['followup_days'])).isoformat() if data.stage=='APPLIED' and not db.scalar(select(FollowUp).where(FollowUp.application_id==app.id)) else '')

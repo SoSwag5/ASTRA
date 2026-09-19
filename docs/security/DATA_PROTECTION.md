@@ -7,6 +7,7 @@ Authorization: in private mode the intended consumer is the local owner; all app
 |---|---|---|
 | Restricted | Credentials/API tokens | Native OS credential store; no plaintext fallback; do not log/export; revoke at issuer if exposed |
 | Private | Profile, CV, applications, job notes, database, workbook and backups | Local storage and DACL; OS disk encryption recommended but unverified; no release inclusion; user-controlled retention and app-scoped deletion |
+| Private, minimized | Canonical application state, append-only transition history and Gmail reconciliation decisions (issue #46) | Bounded tokens, identifiers and timestamps only; no email body, HTML, MIME, snippet, authentication header, secret, query-bearing URL or exception text. Included in private export and SQLite backups. Removed by Delete Application History (with application-linked reconciliation records) and by Delete All Local Data; Delete CV leaves them. Gmail evidence itself follows #45's separate lifecycle |
 | Private outbound | Selected job text/skills and AI response | Explicit per-request cloud consent; fixed provider; text may contain user data; rules mode sends none |
 | Operational | Fixed security event taxonomy and counts | UTC JSONL, bounded rotation; same OS access boundary; no paths, filenames, URLs or prompt text; no immutable storage guarantee |
 | Public reviewed | Source, fictional fixtures, standards mappings, release metadata | Publication scan plus manual content review; SHA manifest, validated SBOM and future signed provenance |
