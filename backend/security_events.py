@@ -142,7 +142,8 @@ def _application_bounded():
             reasons = set(REFUSAL_REASONS)
         except Exception:
             reasons = set()
-        _APPLICATION_RESULTS = frozenset(reasons | {'AMBIGUOUS_MATCH', 'UNKNOWN'})
+        _APPLICATION_RESULTS = frozenset(
+            reasons | {'AMBIGUOUS_MATCH', 'URL_IDENTITY_CONFLICT', 'UNKNOWN'})
     return {'result': _APPLICATION_RESULTS}
 
 

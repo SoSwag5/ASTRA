@@ -248,6 +248,17 @@ Controls now implemented against those abuse cases:
   with no usable value on either side contributes nothing rather than acting as
   a wildcard. No AI, embedding similarity, web lookup or mailbox search is
   used.
+- **A contradictory requisition URL is decisive.** When both records resolve to
+  a job-specific posting identity and those identities differ, the records name
+  two different postings and automatic linking is blocked outright — agreement
+  on employer, title, approximate date and platform cannot outweigh it, because
+  those four are exactly what two genuinely separate applications to the same
+  employer share. This closes the case where an attacker (or a coincidence)
+  knows the guessable fields but not the posting. The contradiction test is
+  deliberately narrow: a generic careers root, tenant root, login or search
+  page establishes no identity and contradicts nothing, and two spellings of
+  one posting normalize equal. Resolving a contradiction is offered to the user
+  as a review decision, never taken by ASTRA.
 - **Ambiguity never mutates.** More than one strong candidate produces a
   bounded Needs Review decision and a `APPLICATION_RECONCILIATION_CONFLICT`
   security event. No application is mutated and none is created.

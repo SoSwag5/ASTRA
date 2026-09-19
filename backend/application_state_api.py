@@ -67,9 +67,17 @@ def application_state(application_id: int):
 @router.get('/{application_id}/state/history')
 def application_history(application_id: int,
                         limit: int = Query(default=200, ge=1, le=200)):
-    """The append-only transition history for one application."""
-    return {'application_id': _identifier(application_id),
-            'history': states.transition_history(application_id, limit=limit)}
+    """The append-only transition history for one application.
+
+    404 means no such application. An application that exists but has never
+    been initialized returns its history instead, initializing it first, so
+    the two cases stay distinguishable and the answer does not depend on
+    whether the detail view was opened earlier.
+    """
+    history = states.transition_history(_identifier(application_id), limit=limit)
+    if history is None:
+        raise HTTPException(404)
+    return {'application_id': application_id, 'history': history}
 
 
 @router.post('/state/reconcile')

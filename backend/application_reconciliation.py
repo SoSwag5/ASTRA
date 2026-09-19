@@ -106,13 +106,17 @@ REASON_TRANSITION_REFUSED = 'STATE_SERVICE_REFUSED_TRANSITION'
 REASON_USER_CONFIRMED = 'USER_CONFIRMED_EVIDENCE'
 REASON_USER_REJECTED = 'USER_REJECTED_EVIDENCE'
 REASON_LINK_NOT_REVIEWABLE = 'LINK_NOT_IN_REVIEW_STATE'
+#: Both sides named a job-specific requisition URL and they are different
+#: postings. That is positive evidence of two distinct applications, not
+#: merely absent agreement, so it blocks automatic linking outright.
+REASON_URL_CONFLICT = 'CONTRADICTORY_APPLICATION_URL_IDENTITY'
 REASON_CODES = (REASON_HIGH_UNIQUE_MATCH, REASON_MEDIUM_NEEDS_REVIEW,
                 REASON_AMBIGUOUS, REASON_LOW_CONFIDENCE, REASON_NO_STRONG_MATCH,
                 REASON_SINGLE_FIELD_ONLY, REASON_NO_CANDIDATES,
                 REASON_STATE_UNSUPPORTED, REASON_EVIDENCE_INVALID,
                 REASON_TRANSITION_REFUSED,
                 REASON_USER_CONFIRMED, REASON_USER_REJECTED,
-                REASON_LINK_NOT_REVIEWABLE)
+                REASON_LINK_NOT_REVIEWABLE, REASON_URL_CONFLICT)
 
 #: Detected states this module knows how to act on, mapped to the canonical
 #: state they propose. #45 produces only the first; the deferred later-stage
@@ -233,24 +237,53 @@ def purge_links_for_applications():
 class Candidate:
     """One existing application considered for one piece of evidence."""
 
-    __slots__ = ('application_id', 'job_id', 'fields')
+    __slots__ = ('application_id', 'job_id', 'fields', 'conflicts')
 
-    def __init__(self, application_id, job_id, fields):
+    def __init__(self, application_id, job_id, fields, conflicts=()):
         self.application_id = application_id
         self.job_id = job_id
         self.fields = fields
+        #: Fields on which the two records positively **contradict** each
+        #: other. Distinct from a field that simply did not agree: absence of
+        #: agreement is no information, a contradiction is information.
+        self.conflicts = set(conflicts)
 
     @property
     def corroborations(self):
         return sorted(self.fields - {FIELD_COMPANY})
 
     @property
-    def strong(self):
-        """A strong match: the employer agrees and at least two other
-        independent fields agree with it. One field alone is never enough,
-        and the employer alone is never enough either."""
+    def corroborated(self):
+        """The employer agrees and at least two other independent fields
+        agree with it. One field alone is never enough, and the employer
+        alone is never enough either. This is the *agreement* test; it says
+        nothing about contradictions."""
         return (FIELD_COMPANY in self.fields
                 and len(self.corroborations) >= REQUIRED_CORROBORATIONS)
+
+    @property
+    def strong(self):
+        """Strong enough for ASTRA to link the records by itself.
+
+        Requires corroboration **and** the absence of any contradiction. A
+        contradictory requisition URL is decisive: no amount of agreement on
+        employer, title, date or platform can outweigh two records naming
+        different postings, because those four fields are exactly what two
+        genuinely separate applications to the same employer would share.
+        """
+        return self.corroborated and not self.conflicts
+
+    @property
+    def confirmable(self):
+        """Strong enough for the *user* to link the records.
+
+        A contradiction blocks automatic linking but must not make the
+        review item unactionable -- the user is the only party who can say
+        whether two postings are the same application, and a review queue
+        whose items cannot be resolved is the defect this distinction
+        exists to avoid.
+        """
+        return self.corroborated
 
 
 def _platform_for(row):
@@ -286,15 +319,28 @@ def _job_url_identities(job):
     return identities
 
 
-def agreeing_fields(db, row, application, job):
-    """The set of independent fields on which evidence and record agree.
+def compare_fields(db, row, application, job):
+    """`(agreeing, conflicting)` fields between evidence and one record.
 
     Every comparison is exact equality of a deterministic key, or a fixed
     date window. A field whose value is missing or unusable on either side
     contributes nothing -- it never counts as agreement and never counts as
     disagreement, so absent information cannot manufacture a match.
+
+    Exactly one field can *contradict*: the application URL. Both sides must
+    produce a job-specific identity for that to happen, which is what keeps
+    the comparison conservative. `normalize_url_for_identity()` returns
+    `None` for a generic careers root, a login/portal page or a search page,
+    so such a URL establishes no identity and therefore contradicts nothing.
+    Two spellings of the same posting normalize to the same key and agree.
+
+    Company, role, date and platform are deliberately *not* treated as
+    contradictions. Two different applications to the same employer routinely
+    differ in title or date without either record being wrong, so a
+    mismatch there is weak evidence, not a contradiction.
     """
     fields = set()
+    conflicts = set()
 
     evidence_company = employer_key(row.detected_company or '')
     job_company = employer_key(job.company or '')
@@ -315,15 +361,27 @@ def agreeing_fields(db, row, application, job):
 
     evidence_url = (normalize_url_for_identity(row.application_url)
                     if row.application_url else None)
-    if evidence_url and evidence_url in _job_url_identities(job):
-        fields.add(FIELD_URL)
+    job_urls = _job_url_identities(job)
+    if evidence_url and job_urls:
+        # Both records establish a requisition identity, so this comparison
+        # is decisive either way.
+        if evidence_url in job_urls:
+            fields.add(FIELD_URL)
+        else:
+            conflicts.add(FIELD_URL)
 
     platform = _platform_for(row)
     expected = PLATFORM_FAMILIES.get(platform)
     if expected and expected & _job_platform_families(db, job):
         fields.add(FIELD_PLATFORM)
 
-    return fields
+    return fields, conflicts
+
+
+def agreeing_fields(db, row, application, job):
+    """Only the agreeing fields. Retained for callers that do not need to
+    distinguish a contradiction from a simple absence of agreement."""
+    return compare_fields(db, row, application, job)[0]
 
 
 def find_candidates(db, row):
@@ -343,8 +401,11 @@ def find_candidates(db, row):
         .where(Job.normalized_employer_key == evidence_company)
         .order_by(Application.id)
         .limit(MAX_CANDIDATES)).all()
-    return [Candidate(application.id, job.id, agreeing_fields(db, row, application, job))
-            for application, job in pairs]
+    candidates = []
+    for application, job in pairs:
+        fields, conflicts = compare_fields(db, row, application, job)
+        candidates.append(Candidate(application.id, job.id, fields, conflicts))
+    return candidates
 
 
 # ---------------------------------------------------------------------------
@@ -451,8 +512,33 @@ def reconcile_confirmation(db, row):
         return _result(row, _resolve(db, link, decision=DECISION_NO_ACTION,
                                      reason_code=REASON_EVIDENCE_INVALID))
 
+    return _decide(db, row, link, target)
+
+
+def _unlinkable_reason(candidates, conflicted, best):
+    """The bounded reason why nothing could be linked automatically."""
+    if conflicted:
+        # Positive evidence of two distinct postings outweighs the agreement
+        # on employer, title, date and platform that any two applications to
+        # the same employer would share.
+        return REASON_URL_CONFLICT
+    if not candidates:
+        return REASON_NO_CANDIDATES
+    if best is not None and len(best.fields) <= 1:
+        return REASON_SINGLE_FIELD_ONLY
+    return REASON_NO_STRONG_MATCH
+
+
+def _decide(db, row, link, target):
+    """Evaluate this evidence against current records and record the outcome.
+
+    Also used to revisit an unresolved review item, so a decision reached
+    before the matching application existed is not final.
+    """
     candidates = find_candidates(db, row)
     strong = [candidate for candidate in candidates if candidate.strong]
+    conflicted = [candidate for candidate in candidates
+                  if candidate.corroborated and candidate.conflicts]
     best = max((candidate for candidate in candidates),
                key=lambda candidate: len(candidate.fields), default=None)
     observed = sorted(best.fields) if best else []
@@ -476,18 +562,24 @@ def reconcile_confirmation(db, row):
             candidate_count=len(candidates), strong_candidate_count=len(strong)))
 
     if not strong:
-        if not candidates:
-            reason = REASON_NO_CANDIDATES
-        elif best is not None and len(best.fields) <= 1:
-            reason = REASON_SINGLE_FIELD_ONLY
-        else:
-            reason = REASON_NO_STRONG_MATCH
-        # Unmatched evidence is retained and reviewable. It is never turned
-        # into a fabricated job or application.
+        reason = _unlinkable_reason(candidates, conflicted, best)
+        if reason == REASON_URL_CONFLICT:
+            security_event('APPLICATION_RECONCILIATION_CONFLICT',
+                           result='URL_IDENTITY_CONFLICT')
+        # A single corroborated-but-contradicted candidate is offered to the
+        # user as the proposed target; only they can say whether two postings
+        # are one application. Anything less specific is left unattached.
+        proposed = conflicted[0] if len(conflicted) == 1 else None
+        # HIGH and MEDIUM evidence that could not be linked stays **visible
+        # and resolvable** rather than being consumed as an unrecoverable
+        # NO_ACTION: the matching application may simply not exist yet, and
+        # `confirm_review()` re-evaluates candidates at confirmation time.
+        # Nothing is mutated and nothing is created here either way.
         return _result(row, _resolve(
-            db, link, decision=DECISION_NO_ACTION, reason_code=reason,
-            matched_fields=observed, candidate_count=len(candidates),
-            strong_candidate_count=0))
+            db, link, decision=DECISION_NEEDS_REVIEW, reason_code=reason,
+            application_id=proposed.application_id if proposed else None,
+            matched_fields=sorted(proposed.fields) if proposed else observed,
+            candidate_count=len(candidates), strong_candidate_count=0))
 
     match = strong[0]
     if row.confidence != states.HIGH:
@@ -551,8 +643,30 @@ def _apply_match(db, row, link, match, target, *, source_category, asserted_by,
 # ---------------------------------------------------------------------------
 # Runs and review operations
 # ---------------------------------------------------------------------------
+def revisit_confirmation(db, row, link):
+    """Re-evaluate one unresolved review item against current records.
+
+    A decision reached when no matching application existed must not be
+    final: the user may save or record that application afterwards. Only
+    items still awaiting review **and not yet attached to an application**
+    are revisited, so a decision the user is already looking at cannot be
+    swapped underneath them.
+
+    Re-evaluation goes through exactly the same `_decide()` path as the
+    first pass, so the automatic-linking rules are identical -- HIGH with a
+    unique uncontradicted match links, MEDIUM proposes a target for the user
+    to confirm, and a contradiction still blocks automatic linking. It
+    updates the one existing link row and never creates a second, so repeated
+    runs cannot duplicate links, transitions or review items.
+    """
+    target = DETECTED_STATE_TO_CANONICAL.get(row.detected_state)
+    if target is None:
+        return _result(row, link)
+    return _decide(db, row, link, target)
+
+
 def reconcile_pending(*, limit=MAX_RUN_EVIDENCE):
-    """Reconcile every confirmation that has no decision yet. Bounded.
+    """Reconcile undecided confirmations and revisit unresolved review items.
 
     Explicitly invoked, exactly like #45's sync: there is no scheduler and no
     background reconciliation. Each piece of evidence is decided in its own
@@ -561,7 +675,7 @@ def reconcile_pending(*, limit=MAX_RUN_EVIDENCE):
     """
     initialize_reconciliation_schema()
     bounded = max(1, min(int(limit), MAX_RUN_EVIDENCE))
-    summary = {'schema': SCHEMA_VERSION, 'considered': 0,
+    summary = {'schema': SCHEMA_VERSION, 'considered': 0, 'revisited': 0,
                'linked': 0, 'needs_review': 0, 'no_action': 0,
                'by_reason': {}}
     with Session() as db:
@@ -572,13 +686,15 @@ def reconcile_pending(*, limit=MAX_RUN_EVIDENCE):
             .where(GmailApplicationLink.id.is_(None))
             .order_by(GmailConfirmation.id)
             .limit(bounded)).all()
-    for confirmation_id in pending:
-        with Session.begin() as db:
-            row = db.get(GmailConfirmation, confirmation_id)
-            if row is None:
-                continue
-            result = reconcile_confirmation(db, row)
-        summary['considered'] += 1
+        unresolved = db.scalars(
+            select(GmailApplicationLink.gmail_confirmation_id)
+            .where(GmailApplicationLink.decision == DECISION_NEEDS_REVIEW,
+                   GmailApplicationLink.application_id.is_(None))
+            .order_by(GmailApplicationLink.id)
+            .limit(bounded)).all()
+
+    def tally(result, revisited):
+        summary['revisited' if revisited else 'considered'] += 1
         if result.decision in (DECISION_LINKED, DECISION_USER_CONFIRMED):
             summary['linked'] += 1
         elif result.decision == DECISION_NEEDS_REVIEW:
@@ -587,6 +703,24 @@ def reconcile_pending(*, limit=MAX_RUN_EVIDENCE):
             summary['no_action'] += 1
         summary['by_reason'][result.reason_code] = summary['by_reason'].get(
             result.reason_code, 0) + 1
+
+    for confirmation_id in pending:
+        with Session.begin() as db:
+            row = db.get(GmailConfirmation, confirmation_id)
+            if row is None:
+                continue
+            result = reconcile_confirmation(db, row)
+        tally(result, revisited=False)
+
+    for confirmation_id in unresolved:
+        with Session.begin() as db:
+            row = db.get(GmailConfirmation, confirmation_id)
+            link = db.scalar(select(GmailApplicationLink).where(
+                GmailApplicationLink.gmail_confirmation_id == confirmation_id))
+            if row is None or link is None or link.decision != DECISION_NEEDS_REVIEW:
+                continue
+            result = revisit_confirmation(db, row, link)
+        tally(result, revisited=True)
     return summary
 
 
@@ -657,8 +791,17 @@ def confirm_review(link_id, *, application_id=None):
     chain back to the message that prompted it stays intact.
 
     `application_id` may name the application the user chose when the item
-    was ambiguous. It must be one of the candidates that actually matched
-    strongly; the user resolves an ambiguity, they do not bypass matching.
+    was ambiguous, or the application that did not exist when the evidence
+    was first reconciled. It must be a candidate that actually corroborates
+    -- the employer plus at least two further independent fields -- so the
+    user resolves an ambiguity or a contradiction rather than bypassing
+    matching altogether. When the item names no target and exactly one
+    corroborating candidate exists, that one is used.
+
+    A candidate whose requisition URL contradicts the evidence is offered
+    here even though it is never linked automatically: deciding whether two
+    postings are one application is precisely the judgement only the user
+    can make.
     """
     initialize_reconciliation_schema()
     with Session.begin() as db:
@@ -675,9 +818,12 @@ def confirm_review(link_id, *, application_id=None):
         if target is None:
             return {'ok': False, 'reason_code': REASON_STATE_UNSUPPORTED}
 
-        chosen = application_id or link.application_id
         candidates = {candidate.application_id: candidate
-                      for candidate in find_candidates(db, row) if candidate.strong}
+                      for candidate in find_candidates(db, row)
+                      if candidate.confirmable}
+        chosen = application_id or link.application_id
+        if chosen is None and len(candidates) == 1:
+            chosen = next(iter(candidates))
         match = candidates.get(chosen)
         if match is None:
             return {'ok': False, 'reason_code': REASON_NO_STRONG_MATCH,

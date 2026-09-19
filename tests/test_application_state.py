@@ -386,9 +386,13 @@ def test_a_single_matching_field_never_merges_records():
                                          date_found='2026-01-05T09:00:00+00:00')
     evidence_id = make_evidence()
     result = reconcile(evidence_id)
-    assert result.decision == reconciliation.DECISION_NO_ACTION
+    # Never merged and never mutated. It stays reviewable rather than being
+    # consumed, but it is not linked to anything.
+    assert result.application_id is None
+    assert result.decision != reconciliation.DECISION_LINKED
     assert result.reason_code == reconciliation.REASON_SINGLE_FIELD_ONLY
     assert result.matched_fields == [states.FIELD_COMPANY]
+    assert result.strong_candidate_count == 0
     assert current_state(application_id) != states.APPLIED
 
 
@@ -399,9 +403,11 @@ def test_two_agreeing_fields_are_still_not_a_strong_match():
                                          date_found='2026-01-05T09:00:00+00:00')
     evidence_id = make_evidence()
     result = reconcile(evidence_id)
-    assert result.decision == reconciliation.DECISION_NO_ACTION
+    assert result.application_id is None
+    assert result.decision != reconciliation.DECISION_LINKED
     assert result.reason_code == reconciliation.REASON_NO_STRONG_MATCH
     assert sorted(result.matched_fields) == [states.FIELD_COMPANY, states.FIELD_ROLE]
+    assert result.strong_candidate_count == 0
     assert current_state(application_id) != states.APPLIED
 
 
@@ -436,7 +442,8 @@ def test_unmatched_evidence_never_fabricates_a_job_or_application():
         applications = len(db.scalars(select(Application)).all())
     evidence_id = make_evidence(company='Unknown Holdings')
     result = reconcile(evidence_id)
-    assert result.decision == reconciliation.DECISION_NO_ACTION
+    assert result.decision != reconciliation.DECISION_LINKED
+    assert result.application_id is None
     with Session() as db:
         assert len(db.scalars(select(Job)).all()) == jobs
         assert len(db.scalars(select(Application)).all()) == applications
@@ -508,8 +515,11 @@ def test_malformed_or_unsafe_urls_never_become_identity_evidence(url):
     evidence_id = make_evidence(url=url, role='Payroll Administrator',
                                 received_at='2026-01-05T09:00:00+00:00')
     result = reconcile(evidence_id)
+    # An unusable URL establishes no identity, so it neither agrees nor
+    # contradicts -- and it certainly never links anything by itself.
     assert states.FIELD_URL not in result.matched_fields
-    assert result.decision == reconciliation.DECISION_NO_ACTION
+    assert result.decision != reconciliation.DECISION_LINKED
+    assert result.reason_code != reconciliation.REASON_URL_CONFLICT
 
 
 def test_date_proximity_is_bounded():
@@ -521,7 +531,7 @@ def test_date_proximity_is_bounded():
                         message_id='fictional-message-far', url='')
     far_result = reconcile(far)
     assert states.FIELD_DATE not in far_result.matched_fields
-    assert far_result.decision == reconciliation.DECISION_NO_ACTION
+    assert far_result.decision != reconciliation.DECISION_LINKED
     assert current_state(application_id) != states.APPLIED
 
     near = make_evidence(received_at='2026-08-03T09:00:00+00:00',
@@ -877,3 +887,558 @@ def test_summary_and_history_reads_are_bounded_and_explain_authority():
     assert len(history) <= states.MAX_LISTED_TRANSITIONS
     result = states.state_of(application_id)
     assert result['legacy']['authoritative_field'] == 'application_states.current_state'
+
+
+# ---------------------------------------------------------------------------
+# Remediation: contradictory requisition URLs block automatic linking
+# ---------------------------------------------------------------------------
+def test_conflicting_requisition_urls_never_auto_link():
+    """Employer, title, date and platform all agree -- which is exactly what
+    two separate applications to the same employer share -- but the two
+    records name different postings. That contradiction is decisive."""
+    application_id, _ = make_application(
+        apply_url='https://boards.greenhouse.io/northwind/jobs/111')
+    evidence_id = make_evidence(
+        url='https://boards.greenhouse.io/northwind/jobs/999')
+    result = reconcile(evidence_id)
+    assert result.decision == reconciliation.DECISION_NEEDS_REVIEW
+    assert result.reason_code == reconciliation.REASON_URL_CONFLICT
+    assert result.strong_candidate_count == 0
+    assert current_state(application_id) != states.APPLIED
+    assert not any(row.source_category == states.SOURCE_GMAIL_PARSER
+                   for row in history_rows(application_id))
+    # The other four fields did agree; they simply cannot outweigh it.
+    assert {states.FIELD_COMPANY, states.FIELD_ROLE, states.FIELD_DATE,
+            states.FIELD_PLATFORM} <= set(result.matched_fields)
+    assert states.FIELD_URL not in result.matched_fields
+
+
+def test_conflicting_urls_are_a_contradiction_not_a_missing_field():
+    """A contradicted candidate corroborates but is never strong."""
+    application_id, job_id = make_application(
+        apply_url='https://boards.greenhouse.io/northwind/jobs/111')
+    evidence_id = make_evidence(
+        url='https://boards.greenhouse.io/northwind/jobs/999')
+    with Session.begin() as db:
+        row = db.get(sync.GmailConfirmation, evidence_id)
+        candidates = reconciliation.find_candidates(db, row)
+    assert len(candidates) == 1
+    candidate = candidates[0]
+    assert candidate.conflicts == {states.FIELD_URL}
+    assert candidate.corroborated is True
+    assert candidate.strong is False
+    # The user may still resolve it; only ASTRA is barred from deciding.
+    assert candidate.confirmable is True
+
+
+def test_a_url_conflict_review_item_is_resolvable_by_the_user():
+    application_id, _ = make_application(
+        apply_url='https://boards.greenhouse.io/northwind/jobs/111')
+    evidence_id = make_evidence(
+        url='https://boards.greenhouse.io/northwind/jobs/999')
+    result = reconcile(evidence_id)
+    assert result.application_id == application_id, 'the target is proposed'
+    outcome = reconciliation.confirm_review(result.link_id)
+    assert outcome['ok'] and outcome['applied']
+    assert current_state(application_id) == states.APPLIED
+    row = history_rows(application_id)[-1]
+    assert row.source_category == states.SOURCE_USER_CONFIRMED_GMAIL
+
+
+@pytest.mark.parametrize('spelling', [
+    'https://boards.greenhouse.io/northwind/jobs/4821',
+    'HTTPS://Boards.Greenhouse.IO/northwind/jobs/4821',
+    'https://boards.greenhouse.io/northwind/jobs/4821/',
+    'https://boards.greenhouse.io/northwind/jobs/4821?utm_source=newsletter',
+    'https://boards.greenhouse.io/northwind/jobs/4821/?trk=alert&ref=mail',
+])
+def test_superficially_different_spellings_of_one_posting_still_link(spelling):
+    """Normalization decides identity, so formatting differences agree
+    rather than contradicting."""
+    application_id, _ = make_application(apply_url=FICTIONAL_URL)
+    evidence_id = make_evidence(url=spelling)
+    result = reconcile(evidence_id)
+    assert result.decision == reconciliation.DECISION_LINKED
+    assert states.FIELD_URL in result.matched_fields
+    assert result.reason_code == reconciliation.REASON_HIGH_UNIQUE_MATCH
+    assert current_state(application_id) == states.APPLIED
+
+
+@pytest.mark.parametrize('generic', [
+    'https://boards.greenhouse.io/',
+    'https://boards.greenhouse.io/northwind',
+    'https://careers.example.com/login',
+    'https://careers.example.com/search',
+])
+def test_generic_roots_establish_no_identity_and_contradict_nothing(generic):
+    """A careers root, tenant root, login or search page is not a
+    requisition, so it must neither agree nor contradict."""
+    application_id, _ = make_application(apply_url=generic)
+    evidence_id = make_evidence(url=FICTIONAL_URL)
+    result = reconcile(evidence_id)
+    assert result.reason_code != reconciliation.REASON_URL_CONFLICT
+    with Session.begin() as db:
+        row = db.get(sync.GmailConfirmation, evidence_id)
+        candidate = reconciliation.find_candidates(db, row)[0]
+    assert candidate.conflicts == set()
+    # Conservative either way: the remaining fields still decide.
+    assert states.FIELD_URL not in candidate.fields
+
+
+def test_evidence_without_a_url_never_conflicts():
+    application_id, _ = make_application(
+        apply_url='https://boards.greenhouse.io/northwind/jobs/111')
+    evidence_id = make_evidence(url='')
+    result = reconcile(evidence_id)
+    assert result.reason_code != reconciliation.REASON_URL_CONFLICT
+    # Company, role, date and platform still agree, so this links normally.
+    assert result.decision == reconciliation.DECISION_LINKED
+    assert current_state(application_id) == states.APPLIED
+
+
+def test_url_conflict_does_not_block_a_different_uncontradicted_application():
+    """Two applications to one employer: the contradicted one is excluded,
+    the matching one links. A conflict narrows, it does not paralyse."""
+    conflicting, _ = make_application(
+        apply_url='https://boards.greenhouse.io/northwind/jobs/111')
+    matching, _ = make_application(apply_url=FICTIONAL_URL)
+    evidence_id = make_evidence(url=FICTIONAL_URL)
+    result = reconcile(evidence_id)
+    assert result.decision == reconciliation.DECISION_LINKED
+    assert result.application_id == matching
+    assert current_state(matching) == states.APPLIED
+    assert current_state(conflicting) != states.APPLIED
+
+
+# ---------------------------------------------------------------------------
+# Remediation: the first manual status change is a user action, not migration
+# ---------------------------------------------------------------------------
+def make_untracked_job(*, company='Fabrikam Systems', title='SOC Analyst',
+                       status='FOUND'):
+    """A Job with no Application at all -- the pre-#46 starting point."""
+    from backend.normalization import employer_key
+    with Session.begin() as db:
+        job = Job(company=company, title=title, source='Manual', status=status,
+                  normalized_employer_key=employer_key(company) or '',
+                  date_found=APPLIED_AT)
+        db.add(job)
+        db.flush()
+        return job.id
+
+
+def status_action(job_id, status):
+    """Drive the real job status route, guards and all."""
+    from fastapi.testclient import TestClient
+    from backend.main import app
+    with TestClient(app) as client:
+        response = client.post(f'/api/jobs/{job_id}/status', json={'status': status})
+        assert response.status_code == 200, response.text
+        return response.json()
+
+
+@pytest.mark.parametrize('legacy_status,expected', [
+    ('APPLIED', states.APPLIED),
+    ('READY_TO_APPLY', states.SAVED),
+    ('INTERVIEW', states.INTERVIEW),
+    ('REJECTED', states.REJECTED),
+    ('OFFER', states.OFFER),
+])
+def test_first_manual_status_change_is_recorded_as_a_user_action(legacy_status,
+                                                                 expected):
+    job_id = make_untracked_job()
+    with Session() as db:
+        assert db.scalar(select(Application).where(
+            Application.job_id == job_id)) is None, 'no application yet'
+
+    status_action(job_id, legacy_status)
+
+    with Session() as db:
+        application = db.scalar(select(Application).where(
+            Application.job_id == job_id))
+    assert application is not None
+    rows = history_rows(application.id)
+
+    # The bootstrap records where the job actually was, from the job's own
+    # workflow status, which the action had not yet touched.
+    assert rows[0].source_category == states.SOURCE_LEGACY_MIGRATION
+    assert rows[0].new_state == states.DISCOVERED
+    assert states.TOKEN_PRE_ACTION_STATE in rows[0].evidence_tokens
+
+    # The user's change is the user's change.
+    assert rows[-1].source_category == states.SOURCE_USER_ACTION
+    assert rows[-1].asserted_by == 'USER'
+    assert rows[-1].previous_state == states.DISCOVERED
+    assert rows[-1].new_state == expected
+    assert rows[-1].reason_code == states.REASON_USER_ACTION
+    assert any(row.source_category == states.SOURCE_USER_ACTION for row in rows)
+    assert not any(row.source_category == states.SOURCE_LEGACY_MIGRATION
+                   and row.new_state == expected for row in rows)
+
+    # It carries manual authority, and legacy and canonical agree.
+    with Session() as db:
+        record = db.scalar(select(states.ApplicationStateRecord).where(
+            states.ApplicationStateRecord.application_id == application.id))
+    assert record.current_state == expected
+    assert record.source_category == states.SOURCE_USER_ACTION
+    assert record.manual_ordinal == states.ORDINAL[expected]
+    assert states.canonical_for_legacy(application.status) == record.current_state
+
+
+@pytest.mark.parametrize('legacy_status,expected', [
+    ('INTERVIEW', states.INTERVIEW), ('OFFER', states.OFFER),
+    ('REJECTED', states.REJECTED),
+])
+def test_a_post_submission_first_action_records_that_submission_was_implied(
+        legacy_status, expected):
+    """ASTRA never saw a submission, so the history says the user's
+    assertion implies one rather than pretending ASTRA observed it."""
+    job_id = make_untracked_job()
+    status_action(job_id, legacy_status)
+    with Session() as db:
+        application = db.scalar(select(Application).where(
+            Application.job_id == job_id))
+    row = history_rows(application.id)[-1]
+    assert row.new_state == expected
+    assert states.TOKEN_SUBMISSION_IMPLIED in row.evidence_tokens
+
+
+def test_a_manually_created_state_cannot_be_reasserted_by_gmail_evidence():
+    """The regression this defect actually mattered for: manual_ordinal was
+    left unset, so automated evidence could re-assert the user's own state."""
+    job_id = make_untracked_job(company=FICTIONAL_COMPANY, title=FICTIONAL_ROLE)
+    status_action(job_id, 'APPLIED')
+    with Session() as db:
+        application = db.scalar(select(Application).where(
+            Application.job_id == job_id))
+        application.applied_date = APPLIED_AT
+        job = db.get(Job, job_id)
+        job.apply_url = FICTIONAL_URL
+        job.job_url = FICTIONAL_URL
+        job.source = 'Greenhouse'
+        db.commit()
+    depth = len(history_rows(application.id))
+    evidence_id = make_evidence()
+    reconcile(evidence_id)
+    assert len(history_rows(application.id)) == depth, 'no automated re-assertion'
+    link = reconciliation.link_for(evidence_id)
+    assert link['reason_code'] == reconciliation.REASON_TRANSITION_REFUSED
+
+
+def test_second_manual_status_change_appends_a_second_user_action():
+    job_id = make_untracked_job()
+    status_action(job_id, 'APPLIED')
+    status_action(job_id, 'INTERVIEW')
+    with Session() as db:
+        application = db.scalar(select(Application).where(
+            Application.job_id == job_id))
+    rows = history_rows(application.id)
+    user_rows = [row for row in rows if row.source_category == states.SOURCE_USER_ACTION]
+    assert [row.new_state for row in user_rows] == [states.APPLIED, states.INTERVIEW]
+    assert current_state(application.id) == states.INTERVIEW
+
+
+def test_campaign_tracking_on_an_untracked_job_is_also_a_user_action():
+    """The same defect class on the other legacy write path."""
+    from backend.campaign import TrackInput, track
+    job_id = make_untracked_job()
+    track(job_id, TrackInput(stage='APPLIED', cv_version='SOC v3',
+                             date=APPLIED_AT))
+    with Session() as db:
+        application = db.scalar(select(Application).where(
+            Application.job_id == job_id))
+    rows = history_rows(application.id)
+    assert rows[0].new_state == states.DISCOVERED
+    assert rows[0].source_category == states.SOURCE_LEGACY_MIGRATION
+    assert rows[-1].source_category == states.SOURCE_USER_ACTION
+    assert rows[-1].new_state == states.APPLIED
+    assert current_state(application.id) == states.APPLIED
+
+
+# ---------------------------------------------------------------------------
+# Remediation: unlinkable MEDIUM evidence stays reviewable and resolvable
+# ---------------------------------------------------------------------------
+def test_medium_evidence_with_no_candidate_stays_in_needs_review():
+    evidence_id = make_evidence(confidence='MEDIUM', company='Unaffiliated Holdings')
+    result = reconcile(evidence_id)
+    assert result.decision == reconciliation.DECISION_NEEDS_REVIEW
+    assert result.reason_code == reconciliation.REASON_NO_CANDIDATES
+    assert result.application_id is None
+    queue = reconciliation.needs_review()
+    assert [item['gmail_confirmation_id'] for item in queue['items']] == [evidence_id]
+    assert queue['items'][0]['application_id'] is None
+
+
+def test_medium_evidence_with_no_candidate_never_creates_anything():
+    with Session() as db:
+        jobs = len(db.scalars(select(Job)).all())
+        applications = len(db.scalars(select(Application)).all())
+    reconcile(make_evidence(confidence='MEDIUM', company='Unaffiliated Holdings'))
+    with Session() as db:
+        assert len(db.scalars(select(Job)).all()) == jobs
+        assert len(db.scalars(select(Application)).all()) == applications
+
+
+def test_a_matching_application_created_later_is_picked_up_deterministically():
+    evidence_id = make_evidence(confidence='MEDIUM')
+    result = reconcile(evidence_id)
+    assert result.reason_code == reconciliation.REASON_NO_CANDIDATES
+    assert result.application_id is None
+
+    # The user saves the application afterwards.
+    application_id, _ = make_application()
+
+    summary = reconciliation.reconcile_pending()
+    assert summary['revisited'] == 1
+    assert summary['considered'] == 0
+    link = reconciliation.link_for(evidence_id)
+    assert link['decision'] == reconciliation.DECISION_NEEDS_REVIEW
+    assert link['reason_code'] == reconciliation.REASON_MEDIUM_NEEDS_REVIEW
+    assert link['application_id'] == application_id
+    # Still no mutation: MEDIUM waits for the user.
+    assert current_state(application_id) != states.APPLIED
+
+    outcome = reconciliation.confirm_review(link['id'])
+    assert outcome['ok'] and outcome['applied']
+    assert current_state(application_id) == states.APPLIED
+    row = history_rows(application_id)[-1]
+    assert row.source_category == states.SOURCE_USER_CONFIRMED_GMAIL
+    assert row.gmail_confirmation_id == evidence_id
+
+
+def test_high_evidence_unmatched_then_matched_links_on_the_next_run():
+    evidence_id = make_evidence(confidence='HIGH')
+    assert reconcile(evidence_id).reason_code == reconciliation.REASON_NO_CANDIDATES
+    application_id, _ = make_application()
+    summary = reconciliation.reconcile_pending()
+    assert summary['revisited'] == 1 and summary['linked'] == 1
+    assert current_state(application_id) == states.APPLIED
+    link = reconciliation.link_for(evidence_id)
+    assert link['decision'] == reconciliation.DECISION_LINKED
+
+
+def test_a_user_may_confirm_unmatched_medium_evidence_directly():
+    """No `reconcile_pending` in between: confirmation re-evaluates
+    candidates itself, so the queue item is actionable as soon as a target
+    exists."""
+    evidence_id = make_evidence(confidence='MEDIUM')
+    result = reconcile(evidence_id)
+    application_id, _ = make_application()
+    outcome = reconciliation.confirm_review(result.link_id)
+    assert outcome['ok'] and outcome['applied']
+    assert current_state(application_id) == states.APPLIED
+
+
+def test_confirming_unmatched_evidence_rejects_an_invalid_target():
+    unrelated, _ = make_application(company='Contoso Robotics',
+                                    title='Payroll Administrator')
+    evidence_id = make_evidence(confidence='MEDIUM')
+    result = reconcile(evidence_id)
+    outcome = reconciliation.confirm_review(result.link_id,
+                                            application_id=unrelated)
+    assert outcome['ok'] is False
+    assert outcome['reason_code'] == reconciliation.REASON_NO_STRONG_MATCH
+    assert current_state(unrelated) != states.APPLIED
+    # Rejected targets leave the item reviewable rather than consuming it.
+    assert reconciliation.needs_review()['count'] == 1
+
+
+def test_revisiting_is_idempotent_and_never_duplicates():
+    evidence_id = make_evidence(confidence='MEDIUM')
+    reconcile(evidence_id)
+    application_id, _ = make_application()
+    for _ in range(3):
+        reconciliation.reconcile_pending()
+    with Session() as db:
+        assert len(db.scalars(select(reconciliation.GmailApplicationLink)).all()) == 1
+        assert len(db.scalars(select(Application)).all()) == 1
+    assert reconciliation.needs_review()['count'] == 1
+    # Three revisits changed nothing, so the application is still untouched.
+    assert history_rows(application_id) == []
+    outcome = reconciliation.confirm_review(reconciliation.link_for(evidence_id)['id'])
+    assert outcome['applied']
+    settled = [(row.source_category, row.new_state)
+               for row in history_rows(application_id)]
+    assert settled == [(states.SOURCE_LEGACY_MIGRATION, states.DISCOVERED),
+                       (states.SOURCE_USER_CONFIRMED_GMAIL, states.APPLIED)]
+    # Once resolved it is no longer revisited.
+    summary = reconciliation.reconcile_pending()
+    assert summary['revisited'] == 0 and summary['considered'] == 0
+    assert [(row.source_category, row.new_state)
+            for row in history_rows(application_id)] == settled
+
+
+def test_an_attached_review_item_is_not_revisited_underneath_the_user():
+    """A MEDIUM item already proposing a target must not have that target
+    swapped by a later run."""
+    application_id, _ = make_application()
+    evidence_id = make_evidence(confidence='MEDIUM')
+    result = reconcile(evidence_id)
+    assert result.application_id == application_id
+    summary = reconciliation.reconcile_pending()
+    assert summary['revisited'] == 0
+    assert reconciliation.link_for(evidence_id)['application_id'] == application_id
+
+
+def test_low_evidence_is_still_never_queued_after_the_change():
+    application_id, _ = make_application()
+    force_state(application_id, states.SAVED)
+    evidence_id = make_evidence(confidence='LOW')
+    result = reconcile(evidence_id)
+    assert result.decision == reconciliation.DECISION_NO_ACTION
+    assert result.reason_code == reconciliation.REASON_LOW_CONFIDENCE
+    assert reconciliation.needs_review()['count'] == 0
+    assert current_state(application_id) == states.SAVED
+    # And it is not revisited either, however the records change.
+    make_application(company='Northwind Analytics')
+    summary = reconciliation.reconcile_pending()
+    assert summary['revisited'] == 0
+    assert reconciliation.needs_review()['count'] == 0
+
+
+def test_rejected_review_items_are_not_revisited():
+    evidence_id = make_evidence(confidence='MEDIUM')
+    result = reconcile(evidence_id)
+    assert reconciliation.reject_review(result.link_id)['ok']
+    make_application()
+    summary = reconciliation.reconcile_pending()
+    assert summary['revisited'] == 0
+    assert reconciliation.link_for(evidence_id)['decision'] == (
+        reconciliation.DECISION_USER_REJECTED)
+
+
+# ---------------------------------------------------------------------------
+# Remediation: summaries and histories are complete and order-independent
+# ---------------------------------------------------------------------------
+def make_legacy_application(*, company='Contoso Robotics', stage='APPLIED',
+                            status='APPLIED'):
+    """A pre-#46 application: legacy columns only, no canonical state row."""
+    application_id, _ = make_application(company=company, status=status,
+                                         stage=stage)
+    with Session.begin() as db:
+        db.execute(delete(states.ApplicationStateTransition).where(
+            states.ApplicationStateTransition.application_id == application_id))
+        db.execute(delete(states.ApplicationStateRecord).where(
+            states.ApplicationStateRecord.application_id == application_id))
+    assert current_state(application_id) is None, 'starts uninitialized'
+    return application_id
+
+
+def test_summary_counts_legacy_applications_before_any_detail_read():
+    first = make_legacy_application(company='Contoso Robotics')
+    second = make_legacy_application(company='Fabrikam Systems', stage='SHORTLISTED',
+                                     status='READY_TO_APPLY')
+    summary = states.state_summary()
+    assert summary['applications_total'] == 2
+    assert summary['total'] == 2
+    assert summary['pending_initialization'] == 0
+    assert summary['complete'] is True
+    assert summary['states'][states.APPLIED] == 1
+    assert summary['states'][states.SAVED] == 1
+    # And it did not depend on reading either detail view first.
+    assert current_state(first) == states.APPLIED
+    assert current_state(second) == states.SAVED
+
+
+def test_summary_is_stable_across_repeated_reads():
+    make_legacy_application()
+    make_legacy_application(company='Fabrikam Systems')
+    first = states.state_summary()
+    for _ in range(3):
+        assert states.state_summary()['states'] == first['states']
+        assert states.state_summary()['total'] == first['total']
+    with Session() as db:
+        assert len(db.scalars(select(states.ApplicationStateRecord)).all()) == 2
+        assert len(db.scalars(select(states.ApplicationStateTransition)).all()) == 2
+
+
+def test_history_of_a_legacy_application_needs_no_prior_detail_read():
+    application_id = make_legacy_application()
+    history = states.transition_history(application_id)
+    assert len(history) == 1
+    assert history[0]['source_category'] == states.SOURCE_LEGACY_MIGRATION
+    assert history[0]['new_state'] == states.APPLIED
+    # Repeated reads are idempotent, not cumulative.
+    for _ in range(3):
+        assert len(states.transition_history(application_id)) == 1
+
+
+def test_detail_read_after_summary_reports_the_same_state():
+    application_id = make_legacy_application()
+    summary = states.state_summary()
+    detail = states.state_of(application_id)
+    assert detail['state']['current_state'] == states.APPLIED
+    assert states.state_summary()['states'] == summary['states']
+    assert len(detail['history']) == 1
+
+
+def test_a_nonexistent_application_stays_distinguishable():
+    existing = make_legacy_application()
+    assert states.transition_history(existing) is not None
+    assert states.transition_history(999_999) is None
+    assert states.state_of(999_999) is None
+    # An existing-but-uninitialized application is NOT treated as missing.
+    other = make_legacy_application(company='Fabrikam Systems')
+    assert states.transition_history(other) == states.transition_history(other)
+    assert len(states.transition_history(other)) == 1
+
+
+def test_backfill_is_idempotent_and_reports_what_it_did():
+    make_legacy_application()
+    make_legacy_application(company='Fabrikam Systems')
+    assert states.uninitialized_count() == 2
+    assert states.ensure_all_states() == 2
+    assert states.uninitialized_count() == 0
+    assert states.ensure_all_states() == 0
+    with Session() as db:
+        assert len(db.scalars(select(states.ApplicationStateTransition)).all()) == 2
+
+
+def test_backfill_never_attributes_a_user_action_to_migration():
+    """It only ever runs for applications no user action has touched."""
+    job_id = make_untracked_job()
+    status_action(job_id, 'APPLIED')
+    with Session() as db:
+        application = db.scalar(select(Application).where(
+            Application.job_id == job_id))
+    before = [(row.sequence, row.source_category) for row in history_rows(application.id)]
+    assert states.ensure_all_states() == 0
+    assert [(row.sequence, row.source_category)
+            for row in history_rows(application.id)] == before
+    assert any(source == states.SOURCE_USER_ACTION for _, source in before)
+
+
+def test_summary_reports_incompleteness_rather_than_a_short_total(monkeypatch):
+    """If more applications exist than one call initializes, the reader is
+    told the breakdown is partial instead of being given a wrong total."""
+    make_legacy_application()
+    make_legacy_application(company='Fabrikam Systems')
+    monkeypatch.setattr(states, 'MAX_BACKFILL', 1)
+    summary = states.state_summary()
+    assert summary['applications_total'] == 2
+    assert summary['pending_initialization'] == 1
+    assert summary['complete'] is False
+    assert summary['total'] == 1
+
+
+def test_history_api_distinguishes_missing_from_uninitialized():
+    from fastapi.testclient import TestClient
+    from backend.main import app
+    application_id = make_legacy_application()
+    with TestClient(app) as client:
+        found = client.get(f'/api/applications/{application_id}/state/history')
+        assert found.status_code == 200
+        assert len(found.json()['history']) == 1
+        assert client.get('/api/applications/999999/state/history').status_code == 404
+        assert client.get('/api/applications/999999/state').status_code == 404
+
+
+def test_summary_api_is_complete_without_any_prior_detail_read():
+    from fastapi.testclient import TestClient
+    from backend.main import app
+    make_legacy_application()
+    make_legacy_application(company='Fabrikam Systems')
+    with TestClient(app) as client:
+        summary = client.get('/api/applications/state/summary').json()
+    assert summary['total'] == 2
+    assert summary['applications_total'] == 2
+    assert summary['complete'] is True

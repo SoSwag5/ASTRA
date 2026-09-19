@@ -71,9 +71,16 @@ ORDINAL = {state: index for index, state in enumerate(STATES)}
 #: States from which no transition leaves. `CLOSED` is the single sink.
 TERMINAL = frozenset({CLOSED})
 
-#: States that can only be reached after an application was actually
-#: submitted. An employer cannot view, assess, interview, reject or make an
-#: offer on an application that was never sent.
+#: States that only exist once an application was actually submitted.
+#: Reaching one of these from DISCOVERED or SAVED is permitted and means the
+#: submission happened outside ASTRA and was simply never recorded here -- the
+#: user is correcting ASTRA's record, not claiming an impossible history. The
+#: transition carries `SUBMISSION_IMPLIED_BY_LATER_STATE` so the audit trail
+#: says so explicitly rather than implying ASTRA observed a submission.
+#:
+#: This is deliberately **not** a security control. What stops fabricated
+#: later-stage evidence is `AUTOMATED_TARGET_STATES` plus the confidence gate
+#: and the manual-authority check, none of which this set participates in.
 POST_SUBMISSION = frozenset({VIEWED, ASSESSMENT, INTERVIEW, OFFER, REJECTED})
 
 #: **The transition table.** Complete and explicit: every canonical state is
@@ -83,16 +90,23 @@ POST_SUBMISSION = frozenset({VIEWED, ASSESSMENT, INTERVIEW, OFFER, REJECTED})
 #: * Normal progress is DISCOVERED -> SAVED -> APPLIED.
 #: * Forward skips are legitimate: DISCOVERED -> APPLIED (applied without
 #:   ever shortlisting), APPLIED -> INTERVIEW (invited without a recorded
-#:   "viewed" signal), APPLIED -> OFFER, VIEWED -> INTERVIEW.
+#:   "viewed" signal), APPLIED -> OFFER, VIEWED -> INTERVIEW, and
+#:   DISCOVERED/SAVED -> a post-submission state (the user recording a stage
+#:   for an application they submitted outside ASTRA and never tracked here).
 #: * Nothing moves to a lower ordinal: there is no silent regression.
 #: * A self-transition is not a transition and is never recorded.
-#: * `OFFER` and `REJECTED` are terminal outcomes that may only be closed.
+#: * `OFFER` and `REJECTED` are terminal outcomes that may only be closed --
+#:   this is why the table stays explicit rather than being derived from the
+#:   ordinal, since `OFFER` and `REJECTED` are adjacent ordinals that must not
+#:   reach each other.
 #: * `CLOSED` has no outgoing transition at all.
 #: * `CLOSED` is reachable from every other state, because abandoning or
 #:   archiving an application is always legitimate.
 PERMITTED = {
-    DISCOVERED: frozenset({SAVED, APPLIED, CLOSED}),
-    SAVED:      frozenset({APPLIED, CLOSED}),
+    DISCOVERED: frozenset({SAVED, APPLIED, VIEWED, ASSESSMENT, INTERVIEW,
+                           OFFER, REJECTED, CLOSED}),
+    SAVED:      frozenset({APPLIED, VIEWED, ASSESSMENT, INTERVIEW,
+                           OFFER, REJECTED, CLOSED}),
     APPLIED:    frozenset({VIEWED, ASSESSMENT, INTERVIEW, OFFER, REJECTED, CLOSED}),
     VIEWED:     frozenset({ASSESSMENT, INTERVIEW, OFFER, REJECTED, CLOSED}),
     ASSESSMENT: frozenset({INTERVIEW, OFFER, REJECTED, CLOSED}),
@@ -201,12 +215,19 @@ TOKEN_LEGACY_STATUS_DERIVED = 'LEGACY_STATUS_DERIVED'
 TOKEN_LEGACY_JOB_STATUS_DERIVED = 'LEGACY_JOB_STATUS_DERIVED'
 TOKEN_LEGACY_NO_EVIDENCE = 'LEGACY_NO_EVIDENCE'
 TOKEN_APPLIED_DATE_PRESENT = 'LEGACY_APPLIED_DATE_PRESENT'
+#: The bootstrap used the state the caller observed immediately *before* its
+#: own edit, instead of re-reading columns that edit had already changed.
+TOKEN_PRE_ACTION_STATE = 'LEGACY_PRE_ACTION_STATE'
+#: A post-submission state was reached from DISCOVERED or SAVED. ASTRA never
+#: observed the submission; the user's assertion implies it happened.
+TOKEN_SUBMISSION_IMPLIED = 'SUBMISSION_IMPLIED_BY_LATER_STATE'
 TOKEN_OCCURRED_AT_INVALID = 'OCCURRED_AT_INVALID'
 TOKEN_OCCURRED_AT_FUTURE = 'OCCURRED_AT_CLAMPED_NOT_FUTURE'
 OWN_TOKENS = frozenset({TOKEN_LEGACY_STAGE_DERIVED, TOKEN_LEGACY_STATUS_DERIVED,
                         TOKEN_LEGACY_JOB_STATUS_DERIVED, TOKEN_LEGACY_NO_EVIDENCE,
                         TOKEN_APPLIED_DATE_PRESENT, TOKEN_OCCURRED_AT_INVALID,
-                        TOKEN_OCCURRED_AT_FUTURE})
+                        TOKEN_OCCURRED_AT_FUTURE, TOKEN_PRE_ACTION_STATE,
+                        TOKEN_SUBMISSION_IMPLIED})
 
 MAX_EVIDENCE_TOKENS = 24
 MAX_TOKEN_CHARS = 64
@@ -608,9 +629,23 @@ def _derive_legacy_state(db, application):
     return state, tokens, occurred_at or application.created_at or now()
 
 
-def _write_bootstrap(db, application):
-    """Create the projection and its single bootstrap history row."""
-    state, tokens, occurred_at = _derive_legacy_state(db, application)
+def _write_bootstrap(db, application, derive_from=None):
+    """Create the projection and its single bootstrap history row.
+
+    `derive_from` is a canonical state the caller observed immediately before
+    its own edit. It exists because a legacy path writes the new stage into
+    `Application.tracking`/`Application.status`/`Job.status` and only then
+    hands the assertion over: deriving at that point would read the value the
+    user's action had just written and record the user's change as a legacy
+    migration. When the caller supplies the earlier state, the bootstrap
+    records where the application actually was and the user's change is then a
+    genuine transition on top of it.
+    """
+    if derive_from in STATES:
+        state, tokens = derive_from, [TOKEN_PRE_ACTION_STATE]
+        occurred_at = application.created_at or now()
+    else:
+        state, tokens, occurred_at = _derive_legacy_state(db, application)
     bounded = _bounded_tokens(tokens)
     transition = ApplicationStateTransition(
         application_id=application.id, sequence=1, previous_state='',
@@ -649,13 +684,16 @@ def ensure_schema(bind=None):
         initialize_application_state_schema(bind)
 
 
-def ensure_state(db, application):
+def ensure_state(db, application, derive_from=None):
     """Return the projection for `application`, bootstrapping it if absent.
 
     Idempotent and safe against a concurrent bootstrap: the unique index on
     `application_id` makes a lost race an `IntegrityError` that resolves by
     re-reading the winner's row, so two callers can never produce two
     projections or two bootstrap history rows.
+
+    `derive_from` is honoured only when this call actually creates the
+    projection; an application that already has one is never re-derived.
     """
     record = db.scalar(select(ApplicationStateRecord).where(
         ApplicationStateRecord.application_id == application.id))
@@ -663,7 +701,7 @@ def ensure_state(db, application):
         return record
     savepoint = db.begin_nested()
     try:
-        record = _write_bootstrap(db, application)
+        record = _write_bootstrap(db, application, derive_from)
         savepoint.commit()
         return record
     except IntegrityError:
@@ -685,7 +723,8 @@ def assert_state(db, application, new_state, *, source_category,
                  asserted_by='USER', confidence='', reason_code=None,
                  gmail_account_id='', gmail_message_id='',
                  gmail_confirmation_id=0, parser_id='', evidence_tokens=(),
-                 field_agreement=(), occurred_at='', clock=None):
+                 field_agreement=(), occurred_at='', clock=None,
+                 bootstrap_from=None):
     """Attempt one canonical transition. The **only** way state changes.
 
     Returns a `StateDecision`; it never raises for a refused transition,
@@ -720,7 +759,7 @@ def assert_state(db, application, new_state, *, source_category,
 
     with _write_lock:
         ensure_schema(db.connection())
-        record = ensure_state(db, application)
+        record = ensure_state(db, application, bootstrap_from)
         previous = record.current_state
 
         if previous == new_state:
@@ -761,6 +800,12 @@ def assert_state(db, application, new_state, *, source_category,
                                      sequence=record.sequence)
 
         tokens = list(evidence_tokens or ())
+        if new_state in POST_SUBMISSION and ORDINAL[previous] < ORDINAL[APPLIED]:
+            # The application reached a post-submission stage without APPLIED
+            # ever being recorded. That is legitimate -- it was submitted
+            # outside ASTRA -- but the history says so explicitly rather than
+            # letting a later reader infer that ASTRA observed a submission.
+            tokens.append(TOKEN_SUBMISSION_IMPLIED)
         occurrence = _occurrence(occurred_at, tokens, clock)
         sequence = record.sequence + 1
         transition = ApplicationStateTransition(
@@ -853,7 +898,10 @@ def prime_state(db, application):
     Priming first means the bootstrap records where the application actually
     was, and the user's change is recorded as the user's own transition.
 
-    Tolerates `None` (nothing existed to bootstrap) and never raises.
+    Tolerates `None` and never raises. `None` is the case where the legacy
+    path is about to *create* the application, so there is nothing to prime;
+    that caller passes `bootstrap_from` to `record_legacy_assertion()`
+    instead, which is the same fix applied one step later.
     """
     if application is None or not getattr(application, 'id', 0):
         return None
@@ -861,9 +909,31 @@ def prime_state(db, application):
     return ensure_state(db, application)
 
 
+def pre_action_state(db, job, application):
+    """The canonical state an application is in *before* a legacy edit.
+
+    For an application that already exists this is simply its current
+    canonical state (or what the legacy columns say, if it has never been
+    bootstrapped). For a job with no application yet -- the case that
+    produced a `LEGACY_MIGRATION` row for a brand-new user action -- it is
+    derived from the job's own workflow status, which the edit has not
+    touched yet. Returns `DISCOVERED` rather than `None` when nothing is
+    derivable, because a job ASTRA knows about has at least been discovered.
+    """
+    if application is not None and getattr(application, 'id', 0):
+        record = db.scalar(select(ApplicationStateRecord).where(
+            ApplicationStateRecord.application_id == application.id))
+        if record is not None:
+            return record.current_state
+        state, _, _ = _derive_legacy_state(db, application)
+        return state
+    return canonical_for_legacy(getattr(job, 'status', '')) or DISCOVERED
+
+
 def record_legacy_assertion(db, application, legacy_value, *, source_category,
                             asserted_by='USER', occurred_at='',
-                            reason_code=REASON_USER_ACTION):
+                            reason_code=REASON_USER_ACTION,
+                            bootstrap_from=None):
     """Project a legacy stage/status change onto the canonical model.
 
     Called by the pre-existing paths (`campaign.track`, the job status
@@ -873,6 +943,12 @@ def record_legacy_assertion(db, application, legacy_value, *, source_category,
     ensures the canonical model sees every publicly reachable state change
     and either records it or records why it could not.
 
+    `bootstrap_from` is the canonical state the application was in before
+    this action, for the case where the legacy path created the application
+    itself. Without it the bootstrap would read the row the action just
+    created -- already in the requested state -- and record a brand-new user
+    action as `LEGACY_MIGRATION` with no manual authority.
+
     Returns a `StateDecision`, or `None` when the legacy value carries no
     canonical meaning (`SKIP`, `FAILED`, `NO_RESPONSE`).
     """
@@ -881,7 +957,74 @@ def record_legacy_assertion(db, application, legacy_value, *, source_category,
         return None
     return assert_state(db, application, state, source_category=source_category,
                         asserted_by=asserted_by, reason_code=reason_code,
-                        occurred_at=occurred_at)
+                        occurred_at=occurred_at, bootstrap_from=bootstrap_from)
+
+
+# ---------------------------------------------------------------------------
+# Initialization of pre-existing applications
+# ---------------------------------------------------------------------------
+#: Applications bootstrapped per `ensure_all_states()` call. ASTRA is a local
+#: single-user product, so this is far above any realistic backlog; it exists
+#: so a pathological database cannot make one request unbounded.
+MAX_BACKFILL = 5_000
+
+
+def uninitialized_count(db=None):
+    """How many existing applications still have no canonical state row."""
+    from sqlalchemy import func
+    def _count(session):
+        return session.scalar(
+            select(func.count()).select_from(Application)
+            .outerjoin(ApplicationStateRecord,
+                       ApplicationStateRecord.application_id == Application.id)
+            .where(ApplicationStateRecord.id.is_(None))) or 0
+    if db is not None:
+        return _count(db)
+    with Session() as session:
+        return _count(session)
+
+
+def ensure_all_states(*, limit=MAX_BACKFILL):
+    """Bootstrap every application that has no canonical state row yet.
+
+    This is the read-repair that makes the read models order-independent.
+    Before it existed, a legacy application was invisible to the summary and
+    to its own history until something happened to open its detail view,
+    so dashboard counts depended on browsing order.
+
+    It is deterministic (each application bootstraps from its own legacy
+    columns, by the same rules as any single bootstrap), idempotent (an
+    application that already has a projection is skipped, and the unique
+    index makes a concurrent double-bootstrap impossible) and auditable
+    (each one writes exactly one `LEGACY_MIGRATION` history row). It never
+    attributes a user action to migration, because it only ever runs for
+    applications no user action has touched.
+
+    Returns the number initialized. Each application is committed in its own
+    transaction, so a failure part-way leaves the ones already done intact
+    and a later call finishes the rest.
+    """
+    ensure_schema()
+    bounded = max(0, min(int(limit), MAX_BACKFILL))
+    if not bounded:
+        return 0
+    with Session() as db:
+        pending = db.scalars(
+            select(Application.id)
+            .outerjoin(ApplicationStateRecord,
+                       ApplicationStateRecord.application_id == Application.id)
+            .where(ApplicationStateRecord.id.is_(None))
+            .order_by(Application.id)
+            .limit(bounded)).all()
+    initialized = 0
+    for application_id in pending:
+        with Session.begin() as db:
+            application = db.get(Application, application_id)
+            if application is None:
+                continue
+            if ensure_state(db, application) is not None:
+                initialized += 1
+    return initialized
 
 
 # ---------------------------------------------------------------------------
@@ -943,10 +1086,21 @@ def state_of(application_id):
 
 
 def transition_history(application_id, *, limit=MAX_LISTED_TRANSITIONS):
-    """Bounded append-only history for one application."""
+    """Bounded append-only history for one application.
+
+    Returns `None` when no such application exists, which is what keeps a
+    nonexistent identifier distinguishable from an existing application that
+    has not been initialized yet -- the latter returns its bootstrap row.
+    An existing application is initialized here if needed, so its history
+    never depends on whether its detail view was opened first.
+    """
     ensure_schema()
     bounded = max(1, min(int(limit), MAX_LISTED_TRANSITIONS))
-    with Session() as db:
+    with Session.begin() as db:
+        application = db.get(Application, application_id)
+        if application is None:
+            return None
+        ensure_state(db, application)
         rows = db.scalars(
             select(ApplicationStateTransition)
             .where(ApplicationStateTransition.application_id == application_id)
@@ -956,19 +1110,35 @@ def transition_history(application_id, *, limit=MAX_LISTED_TRANSITIONS):
 
 
 def state_summary():
-    """Counts per canonical state. The bounded read #47 needs for a dashboard."""
+    """Counts per canonical state. The bounded read #47 needs for a dashboard.
+
+    Every existing application is initialized first, so the total accounts
+    for all of them rather than only the ones some earlier request happened
+    to open. `applications_total` and `pending_initialization` are reported
+    alongside the counts so the answer stays truthful even in the
+    pathological case where more applications exist than one call will
+    initialize -- the reader can see that the breakdown is incomplete
+    instead of being quietly given a short total.
+    """
     ensure_schema()
+    ensure_all_states()
     from sqlalchemy import func
     with Session() as db:
         rows = db.execute(
             select(ApplicationStateRecord.current_state, func.count())
             .group_by(ApplicationStateRecord.current_state)).all()
+        applications_total = db.scalar(
+            select(func.count()).select_from(Application)) or 0
+        pending = uninitialized_count(db)
     counts = {state: 0 for state in STATES}
     for state, count in rows:
         if state in counts:
             counts[state] = count
     return {'schema': SCHEMA_VERSION, 'states': counts,
             'total': sum(counts.values()),
+            'applications_total': applications_total,
+            'pending_initialization': pending,
+            'complete': pending == 0,
             'authoritative_field': 'application_states.current_state',
             'transition_table': {state: sorted(targets)
                                  for state, targets in PERMITTED.items()}}

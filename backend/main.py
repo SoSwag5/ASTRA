@@ -544,10 +544,19 @@ def job_action(id:int,action:str,data:dict={}):
             # records the canonical transition with its provenance or records
             # a bounded reason why it is not permitted. The handler invents no
             # transition rule of its own.
-            from .application_state import prime_state,record_legacy_assertion,SOURCE_USER_ACTION
-            prime_state(db,db.scalar(select(Application).where(Application.job_id==j.id)))
+            from .application_state import prime_state,pre_action_state,record_legacy_assertion,SOURCE_USER_ACTION
+            existing=db.scalar(select(Application).where(Application.job_id==j.id))
+            # Capture where this application was BEFORE set_status() rewrites
+            # Application.status/Job.status. When no Application exists yet,
+            # set_status() creates one already in the requested state, so a
+            # first-ever bootstrap taken afterwards would read the user's own
+            # edit back and record a brand-new user action as LEGACY_MIGRATION
+            # with no manual authority. The captured state is handed to the
+            # state service as the bootstrap baseline instead.
+            before=pre_action_state(db,j,existing)
+            prime_state(db,existing)
             application=set_status(db,j,data.get('status',''))
-            record_legacy_assertion(db,application,data.get('status',''),source_category=SOURCE_USER_ACTION,asserted_by='USER')
+            record_legacy_assertion(db,application,data.get('status',''),source_category=SOURCE_USER_ACTION,asserted_by='USER',bootstrap_from=before)
             result=serialize(application)
         elif action=='browser': result=run_browser(db,j,data.get('mode','ASSISTED'),data.get('dry_run',True))
         elif action=='ai':

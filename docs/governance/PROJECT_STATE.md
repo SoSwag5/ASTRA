@@ -1,6 +1,6 @@
 # ASTRA project state
 
-**Snapshot date:** 2026-09-19 (Asia/Dubai), refreshed for #46 implementation
+**Snapshot date:** 2026-09-19 (Asia/Dubai), refreshed for #46 review remediation
 **Rule:** This is a handoff snapshot, not a substitute for live verification.
 Refresh it at session end when repository or release state changes.
 
@@ -161,14 +161,20 @@ evidence chain and run URLs.
   [Gmail sync](../architecture/GMAIL_SYNC.md) for architecture, limitations
   and the fictional verification corpus. #45 had **no live mailbox
   validation** and **no independent review**; R-16 and R-17 remain OPEN.
-  Issue **#46** is **IMPLEMENTED, LOCALLY SELF-VERIFIED**, on
+  Issue **#46** is **IMPLEMENTED AND REMEDIATED, LOCALLY SELF-VERIFIED**, on
   `feature/46-application-reconciliation-state-model`, based on that #45
-  squash. Claude Code is the Owner-authorized implementation owner. This is
-  **implementation and self-verification**, with **no live mailbox
-  validation** and **no independent review yet**. **R-18 remains OPEN** and
-  **no residual-risk acceptance or release approval is implied**. #46.2, #47
-  and #48 are **not started**, and no v1.2, merge, tag or release work was
-  performed.
+  squash, and open as [PR #68](https://github.com/SoSwag5/ASTRA/pull/68).
+  Claude Code is the Owner-authorized implementation owner. An independent
+  review of the first candidate `150a45a` returned **CHANGES REQUIRED** on
+  four reproduced defects (conflicting requisition URLs auto-linking; the
+  first manual status change recorded as legacy migration; unmatched
+  MEDIUM evidence consumed as an unrecoverable no-action; order-dependent
+  state summaries and histories). All four are fixed on the same branch with
+  regression coverage. This remains **implementation and self-verification**,
+  with **no live mailbox validation** and **no independent review yet** of the
+  remediated commit. **R-18 remains OPEN** and **no residual-risk acceptance
+  or release approval is implied**. #46.2, #47 and #48 are **not started**,
+  and no v1.2, merge, tag or release work was performed.
 - Governance integration advances `master` from the frozen release commit without
   moving or modifying the immutable v1.0.0 tag, source, or artifacts.
 
@@ -221,7 +227,7 @@ or merged.
 | [#42](https://github.com/SoSwag5/ASTRA/issues/42) | **Closed.** Deterministic evaluation + calibration harness merged via [PR #61](https://github.com/SoSwag5/ASTRA/pull/61) (squash commit `fab8acda48d65f1a03ae1b97465369ec4742957a`), [PR #63](https://github.com/SoSwag5/ASTRA/pull/63) (Owner-adjudicated reference snapshot) and [PR #64](https://github.com/SoSwag5/ASTRA/pull/64) (squash commit `68d79edaaaf09e12aa24e090e7192709d65ba646`, squash-merge-safe provenance). | Offline evaluation only: 80-case corpus with Owner-adjudicated reference labels. The quality gate remains `PROPOSED` / `INSUFFICIENT_DATA` pending eligibility-sample and corpus expansion — **no gate has passed**. Candidate policies are exploratory; no production calibration was adopted. `docs/evaluation/fit_evaluation_provenance_v1.json` pins the SHA-256 of `backend/{assessment,career_tracks,deduplication,discovery,evaluation,experience,models,normalization,policy,recall,services}.py`; those files must not be edited without regenerating that manifest under Owner authorization. |
 | [#44](https://github.com/SoSwag5/ASTRA/issues/44) | Closed; merged via [PR #66](https://github.com/SoSwag5/ASTRA/pull/66), squash `c53eb4e1f26f90087b1ca6522db9bbf71e63a463`. | Live OAuth PASS, self-verified; the Owner waived independent review for #44. R-16 remains OPEN. See [Gmail OAuth](../architecture/GMAIL_OAUTH.md). |
 | [#45](https://github.com/SoSwag5/ASTRA/issues/45) | **Closed.** Bounded read-only Gmail sync and confirmation evidence merged via [PR #67](https://github.com/SoSwag5/ASTRA/pull/67) (squash commit `11a69b0921d55072aa4f552a0319320ab73d6741`); post-merge CI and Scorecard green. | PRIMARY bounded read-only sync and deterministic initial-confirmation evidence only; `gmail_confirmations` is additive and leaves the pinned `models.py` untouched. **No live mailbox validation and no independent review**; R-16 and R-17 remain OPEN. See [Gmail sync](../architecture/GMAIL_SYNC.md). |
-| [#46](https://github.com/SoSwag5/ASTRA/issues/46) | Implemented; local self-verification passed on `feature/46-application-reconciliation-state-model`; **OPEN, unmerged, awaiting independent review and Owner-authorized merge.** | Additive `backend/application_state.py` (canonical states, the single permitted-transition table, the append-only `application_state_transitions` history and the `application_states` projection), `backend/application_reconciliation.py` (deterministic multi-field Gmail matching, `gmail_application_links`) and `backend/application_state_api.py` (bounded reads plus the user's confirm/reject). `application_states.current_state` is authoritative; `Job.status`, `Application.status` and `Application.tracking['stage']` remain compatibility projections. Campaign tracking, the job status action, the browser-confirmation path and Gmail reconciliation all funnel through one state service; existing and tracker-imported applications are bootstrapped truthfully and lazily on first contact. **No evaluation-provenance-pinned file was modified** (`backend/models.py`, `backend/policy.py`, `backend/services.py` hashes still match `docs/evaluation/fit_evaluation_provenance_v1.json`). This is **implementation and self-verification**: **no live mailbox validation**, **no independent review yet**, **R-18 remains OPEN**, and **no residual-risk acceptance or release approval is implied**. See [Application state](../architecture/APPLICATION_STATE.md); hosted results belong to the exact PR head. |
+| [#46](https://github.com/SoSwag5/ASTRA/issues/46) | Implemented and remediated after an independent CHANGES REQUIRED verdict on `150a45a`; local self-verification passed on `feature/46-application-reconciliation-state-model`; **OPEN, unmerged, awaiting a fresh independent exact-SHA review and Owner-authorized merge.** | Additive `backend/application_state.py` (canonical states, the single permitted-transition table, the append-only `application_state_transitions` history and the `application_states` projection), `backend/application_reconciliation.py` (deterministic multi-field Gmail matching, `gmail_application_links`) and `backend/application_state_api.py` (bounded reads plus the user's confirm/reject). `application_states.current_state` is authoritative; `Job.status`, `Application.status` and `Application.tracking['stage']` remain compatibility projections. Campaign tracking, the job status action, the browser-confirmation path and Gmail reconciliation all funnel through one state service; existing and tracker-imported applications are bootstrapped truthfully and lazily on first contact. **No evaluation-provenance-pinned file was modified** (`backend/models.py`, `backend/policy.py`, `backend/services.py` hashes still match `docs/evaluation/fit_evaluation_provenance_v1.json`). Review remediation on the same branch fixed four independently reproduced defects: a contradictory job-specific requisition URL now blocks automatic linking instead of merely withholding agreement; the first manual status change on a previously untracked job is recorded as a `USER_ACTION` with manual authority rather than `LEGACY_MIGRATION`; HIGH/MEDIUM evidence that cannot be linked stays a resolvable Needs Review item and unresolved unattached items are revisited; and `ensure_all_states()` read-repair makes summaries and histories complete and order-independent, with a nonexistent application still distinguishable from an uninitialized one. This is **implementation and self-verification**: **no live mailbox validation**, **no independent review yet** of the remediated commit, **R-18 remains OPEN**, and **no residual-risk acceptance or release approval is implied**. See [Application state](../architecture/APPLICATION_STATE.md); hosted results belong to the exact PR head. |
 | [#43](https://github.com/SoSwag5/ASTRA/issues/43) | **Closed.** Discovery funnel telemetry merged to `master` via [PR #65](https://github.com/SoSwag5/ASTRA/pull/65) (squash commit `ad39e54925fe17286ae03e5866d4ea1cc1259094`); post-merge CI and Scorecard green. | New `backend/discovery_telemetry.py` owns one versioned contract (`discovery-telemetry-v1`) persisted in the existing `AutomationRun.report` JSON — **no schema change or migration**. Monotonic funnel `FETCHED → STRUCTURALLY_VALID → CANONICAL_UNIQUE → LOCATION_COMPATIBLE → ELIGIBILITY_NOT_INCOMPATIBLE → RELEVANT → NEW`, derived from explicit stage membership and checked by an invariant validator, never clamped. `DISPLAYED`/`SAVED`/`APPLIED` are reported separately as engagement outcomes; `DISPLAYED` is explicitly `UNAVAILABLE` because ASTRA records no display event. Provider failure, truthful zero, partial completion and skipped sources stay distinguishable. Retention is exactly 90 days. Read-only local API at `/api/search/telemetry*`. #41 decision behaviour, #40 identity/dedupe, provider transport and #42 evidence are unchanged; `backend/recall.py` was deliberately left untouched because it is a provenance-pinned #42 input. See [`docs/architecture/DISCOVERY_TELEMETRY.md`](../architecture/DISCOVERY_TELEMETRY.md). |
 
 ## Git and collaboration snapshot
@@ -266,14 +272,17 @@ or merged.
 
 ## Exact next action
 
-#46 local regression, security/privacy, frontend, SCA and publication checks
-passed on `feature/46-application-reconciliation-state-model`. The feature
-commit is pushed and its pull request against `master` is open with hosted
-checks inspected on the exact candidate head.
+#46 review remediation is complete on
+`feature/46-application-reconciliation-state-model`. All four independently
+reproduced defects are fixed with regression coverage; local regression,
+security/privacy, frontend, SCA and publication checks passed; the remediation
+commit is pushed to the existing [PR #68](https://github.com/SoSwag5/ASTRA/pull/68)
+and hosted checks were inspected individually on the exact head.
 
-Leave the PR unmerged and #46 open for the Owner's decision. This is
-**implementation and self-verification**: there has been **no live mailbox
-validation** and **no independent review yet**. **R-18 remains OPEN.** **No
+Obtain a **fresh independent review of the exact remediated commit**. Leave the
+PR unmerged and #46 open for the Owner's decision. This is **implementation and
+self-verification**: there has been **no live mailbox validation** and **no
+independent review yet** of the remediated commit. **R-18 remains OPEN.** **No
 residual-risk acceptance or release approval is implied**, and no claim is made
 about real-world Gmail parsing or reconciliation accuracy.
 

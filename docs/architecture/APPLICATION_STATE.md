@@ -2,6 +2,9 @@
 
 Implementation owner: Claude Code, on `feature/46-application-reconciliation-state-model`
 from `11a69b0921d55072aa4f552a0319320ab73d6741` (merged #45 / PR #67).
+Revised after an independent review of `150a45a` returned CHANGES REQUIRED;
+the four reproduced defects and their fixes are described in their sections
+below and summarised under "Review remediation".
 This is **implementation and self-verification**, not an independent review.
 **No live mailbox validation** has been performed. **No independent review yet.**
 **R-18 remains OPEN.** **No residual-risk acceptance or release approval is
@@ -51,8 +54,8 @@ from a state's row is forbidden.
 
 | From | Permitted targets |
 |---|---|
-| `DISCOVERED` | `SAVED`, `APPLIED`, `CLOSED` |
-| `SAVED` | `APPLIED`, `CLOSED` |
+| `DISCOVERED` | `SAVED`, `APPLIED`, `VIEWED`, `ASSESSMENT`, `INTERVIEW`, `OFFER`, `REJECTED`, `CLOSED` |
+| `SAVED` | `APPLIED`, `VIEWED`, `ASSESSMENT`, `INTERVIEW`, `OFFER`, `REJECTED`, `CLOSED` |
 | `APPLIED` | `VIEWED`, `ASSESSMENT`, `INTERVIEW`, `OFFER`, `REJECTED`, `CLOSED` |
 | `VIEWED` | `ASSESSMENT`, `INTERVIEW`, `OFFER`, `REJECTED`, `CLOSED` |
 | `ASSESSMENT` | `INTERVIEW`, `OFFER`, `REJECTED`, `CLOSED` |
@@ -69,15 +72,27 @@ Properties this table encodes, each covered by its own test:
 - **No regression.** Every permitted target has a strictly higher ordinal than
   its source, so an earlier state is unreachable.
 - A self-transition is not a transition and is never recorded.
-- `OFFER` and `REJECTED` may only be closed.
+- `OFFER` and `REJECTED` may only be closed. This is why the table stays
+  explicit rather than being derived from the ordinal: `OFFER` and `REJECTED`
+  are adjacent ordinals that must not reach each other.
 - `CLOSED` is terminal with no outgoing transition, and is reachable from every
   other state (abandoning or archiving an application is always legitimate).
-- `VIEWED`, `ASSESSMENT`, `INTERVIEW`, `OFFER` and `REJECTED` are unreachable
-  from `DISCOVERED` and `SAVED`: an employer cannot act on an application that
-  was never submitted.
+- A post-submission state **is** reachable from `DISCOVERED` and `SAVED`. The
+  user is then recording a stage for an application they submitted outside
+  ASTRA and never tracked here — they are correcting ASTRA's record, not
+  claiming an impossible history. The transition carries
+  `SUBMISSION_IMPLIED_BY_LATER_STATE` so the audit trail says the submission
+  was implied by the user's assertion rather than observed by ASTRA.
 
-All 81 ordered state pairs — permitted and forbidden — are covered by a
-fixture-driven regression in `tests/test_application_state.py`.
+  An earlier revision forbade these pairs. That was removed because it was
+  **not** a security control — what actually bounds automated evidence is
+  `AUTOMATED_TARGET_STATES`, the confidence gate and the manual-authority
+  check, none of which the restriction participated in — while it did cause
+  the canonical state and the legacy status columns to diverge whenever a user
+  recorded an interview or rejection on a job they had not marked applied.
+
+All 81 ordered state pairs — the 35 permitted and the 46 forbidden — are
+covered by a fixture-driven regression in `tests/test_application_state.py`.
 
 Every state change in the codebase goes through
 `application_state.assert_state()`. API handlers, reconciliation and the
@@ -185,16 +200,70 @@ cannot manufacture a match.
 independent corroborations**, so it always rests on at least three independent
 fields. A single agreeing field never merges records; two are not enough either.
 
+### Contradiction is not the same as absent agreement
+
+Exactly one field can positively **contradict**: the application URL. When both
+records resolve to a job-specific requisition identity and those identities
+differ, the records name two different postings, and that outweighs every other
+field. Employer, title, approximate date and source platform are exactly what
+two genuinely separate applications to the same employer would share, so no
+amount of agreement there can restore a strong match. A contradicted candidate
+is never linked automatically.
+
+Contradiction is deliberately narrow. `normalize_url_for_identity()` returns
+`None` for a generic careers root, a tenant root, a login/portal page or a
+search page, so such a URL establishes no identity and contradicts nothing.
+Two spellings of the same posting — differing in scheme case, host case, a
+trailing slash, or tracking parameters — normalize to the same key and agree.
+Company, role, date and platform are never treated as contradictions, because
+two applications to one employer routinely differ there without either record
+being wrong.
+
+A contradicted candidate is still **confirmable**: it is offered to the user as
+a review item with the proposed target attached. Deciding whether two postings
+are one application is precisely the judgement only the user can make, and a
+review queue whose items cannot be resolved is the failure this distinction
+exists to avoid.
+
 | Situation | Outcome |
 |---|---|
 | Exactly one strong match, HIGH | Link the evidence and apply `APPLIED` |
 | Exactly one strong match, MEDIUM | `NEEDS_REVIEW`; no mutation |
 | More than one strong match | `NEEDS_REVIEW` (`AMBIGUOUS_MULTIPLE_STRONG_MATCHES`); no mutation, nothing created |
-| One agreeing field only | `NO_ACTION` (`SINGLE_FIELD_AGREEMENT_ONLY`) |
-| Some agreement, not strong | `NO_ACTION` (`NO_SUFFICIENTLY_STRONG_MATCH`) |
-| No candidate | `NO_ACTION` (`NO_CANDIDATE_APPLICATION`); evidence retained and reviewable |
+| Corroborated but contradictory requisition URL | `NEEDS_REVIEW` (`CONTRADICTORY_APPLICATION_URL_IDENTITY`), target proposed; never linked automatically |
+| One agreeing field only | `NEEDS_REVIEW` (`SINGLE_FIELD_AGREEMENT_ONLY`), unattached |
+| Some agreement, not strong | `NEEDS_REVIEW` (`NO_SUFFICIENTLY_STRONG_MATCH`), unattached |
+| No candidate | `NEEDS_REVIEW` (`NO_CANDIDATE_APPLICATION`), unattached |
 | LOW confidence | `NO_ACTION` (`LOW_CONFIDENCE_NEVER_MUTATES`) |
 | Unsupported detected state | `NO_ACTION` (`DETECTED_STATE_NOT_SUPPORTED`) |
+
+### Unlinkable evidence stays resolvable
+
+HIGH and MEDIUM evidence that could not be linked becomes a **review item**,
+not an unrecoverable `NO_ACTION`. The matching application very often simply
+does not exist yet — the user saves or records it after the confirmation
+arrives — and a decision taken before it existed must not be final.
+
+Two mechanisms keep that deterministic:
+
+- `confirm_review()` re-evaluates candidates at confirmation time, so an item
+  becomes actionable as soon as a valid target exists, with no reconciliation
+  run in between. When the item names no target and exactly one corroborating
+  candidate exists, that one is used; otherwise the user names it explicitly.
+  A target that does not corroborate is refused, leaving the item reviewable.
+- `reconcile_pending()` also revisits review items that are **still awaiting
+  review and not yet attached to an application**, through the same decision
+  path as the first pass. HIGH with a now-unique uncontradicted match links;
+  MEDIUM attaches the proposed target without mutating anything. An item
+  already proposing a target is never revisited, so it cannot be swapped
+  underneath a user who is looking at it, and a rejected or resolved item is
+  never revisited at all.
+
+Only the one existing link row is ever updated, so repeated runs cannot
+duplicate links, transitions or review items.
+
+LOW is unchanged: it never mutates state and never enters the queue, because
+#45 caps the generic fallback at LOW precisely because it verified nothing.
 
 **Reconciliation never creates a `Job` or an `Application`.** Unmatched
 evidence stays unmatched. An existing manually recorded application is
@@ -272,6 +341,47 @@ edit would derive the state from the value that edit had just written, record
 the user's change as `LEGACY_MIGRATION`, and leave `manual_ordinal` unset so a
 later automated signal could re-assert it.
 
+Priming is not enough on its own when the legacy path **creates** the
+application, which is what the job status route does for a job that was never
+tracked. There is nothing to prime, `set_status()` creates the row already in
+the requested state, and the bootstrap would then read the user's own edit back.
+Those callers capture `pre_action_state()` *before* their edit — the
+application's current canonical state, or, when no application exists, the
+job's own workflow status — and pass it as `bootstrap_from`. The bootstrap then
+records where the application actually was, tagged `LEGACY_PRE_ACTION_STATE`,
+and the user's change is a genuine `USER_ACTION` transition on top of it with
+manual authority set. Both the job status route and campaign tracking do this.
+
+### Read-repair: complete, order-independent read models
+
+An application that has never been touched has no projection row. Left alone,
+that made the read models depend on browsing order: the summary counted only
+applications something had previously opened, and an application's own history
+was empty until its detail view was read.
+
+`ensure_all_states()` is the read-repair. `state_summary()`,
+`transition_history()` and `state_of()` all run it (or the single-application
+equivalent) before answering, so every answer accounts for every application
+regardless of what was read first. It is deterministic (each application
+bootstraps from its own legacy columns by the same rules as any single
+bootstrap), idempotent (an application that already has a projection is
+skipped, and the unique index makes a concurrent double-bootstrap impossible),
+auditable (each writes exactly one `LEGACY_MIGRATION` row) and bounded
+(`MAX_BACKFILL`, with each application committed in its own transaction so a
+partial failure leaves the completed ones intact). It never attributes a user
+action to migration, because it only ever runs for applications no user action
+has touched.
+
+`state_summary()` reports `applications_total`, `pending_initialization` and
+`complete` alongside the counts, so in the pathological case where more
+applications exist than one call initializes the reader is told the breakdown
+is partial instead of being quietly handed a short total.
+
+A nonexistent application stays distinguishable from an existing but
+uninitialized one: `transition_history()` and `state_of()` return `None` for an
+identifier that does not exist (the API answers 404), while an existing
+application returns its history, initializing it first if needed.
+
 ### Rollback
 
 Rolling back to pre-#46 code is supported: the older paths never referenced
@@ -322,7 +432,7 @@ directly** — a caller cannot name a target state over the API.
 | Route | Purpose |
 |---|---|
 | `GET /api/applications/{id}/state` | Canonical state, history, legacy compatibility view |
-| `GET /api/applications/{id}/state/history` | Append-only history (bounded to 200) |
+| `GET /api/applications/{id}/state/history` | Append-only history (bounded to 200); 404 when no such application |
 | `GET /api/applications/state/summary` | Counts per state, plus the declared transition table |
 | `GET /api/applications/state/reconciliation` | Fixed reconciliation parameters and decision counts |
 | `GET /api/applications/state/needs-review` | Needs Review queue (bounded to 200) |
@@ -373,7 +483,7 @@ Two bounded event types extend `backend/security_events.py`:
 | `APPLICATION_STATE_TRANSITION_REJECTED` | An automated transition was refused by the state rules |
 
 Both use fixed reason text and a `result` field bounded to the refusal-reason
-vocabulary plus `AMBIGUOUS_MATCH`. No company name, role, subject, URL, email
+vocabulary plus `AMBIGUOUS_MATCH` and `URL_IDENTITY_CONFLICT`. No company name, role, subject, URL, email
 address, message identifier or exception string can reach the log through this
 path; unknown fields and out-of-vocabulary values are dropped, which is
 asserted by test. The parked v1.2 tamper-evident logging work
@@ -386,9 +496,12 @@ causing an incorrect application-state transition*. This change provides
 treatment evidence for the two abuse cases the threat-model delta names:
 
 - *Duplicate/reconciliation manipulation.* Matching requires at least three
-  independent agreeing fields, never one guessable field; ambiguity produces a
-  review item rather than a merge; nothing is ever created; and every decision
-  carries a bounded reason code and field-agreement metadata.
+  independent agreeing fields, never one guessable field; a contradictory
+  requisition URL blocks automatic linking outright, so an attacker who knows
+  the employer, role and approximate date still cannot force a merge onto a
+  posting the evidence does not name; ambiguity produces a review item rather
+  than a merge; nothing is ever created; and every decision carries a bounded
+  reason code and field-agreement metadata.
 - *Status-evidence spoofing.* `APPLIED` is the only state an automated source
   may set, at HIGH confidence only, and only on a unique strong match; a weaker
   automated signal can neither downgrade nor upgrade past a manually confirmed
@@ -416,6 +529,16 @@ is implied.**
   differently in ASTRA than in the confirmation email will not agree, and the
   evidence stays unmatched rather than being guessed at. This favours precision
   over recall, deliberately.
+- Because unlinkable HIGH/MEDIUM evidence is now queued rather than dropped, a
+  mailbox containing many confirmations for applications ASTRA does not track
+  produces a correspondingly long review queue. That is the honest state of
+  affairs — the alternative was discarding them silently — but the queue's
+  presentation and any bulk dismissal belong to #47, not here.
+- Contradiction is detected only on the application URL. Two applications to
+  one employer that differ only in title or date are not contradicted, and can
+  still reach a strong match on employer, date and platform if their titles
+  agree. Requisition-level identity is the only signal conservative enough to
+  treat as decisive.
 - The 14-day date window and the "employer plus two corroborations" threshold
   are engineering judgements, not calibrated values. No dataset supports them.
 - Cross-grant reconciliation is not claimed: #45 starts a new evidence
@@ -427,6 +550,29 @@ is implied.**
   (Owner Decision 2), so an evidence row could in principle match the
   "wrong one" of two pre-#40 duplicates. It would then be ambiguous and go to
   review, not be merged.
+
+## Review remediation
+
+An independent review of `150a45a` returned CHANGES REQUIRED with four
+reproduced defects. All four were fixed on this branch:
+
+1. **Conflicting requisition URLs auto-linked.** Excluding `APPLICATION_URL`
+   from the agreeing fields let the remaining four satisfy the threshold.
+   Contradiction is now modelled separately from absent agreement and blocks
+   automatic linking; the item is offered to the user instead.
+2. **The first manual status change was recorded as `LEGACY_MIGRATION`.** For a
+   job with no application, priming was a no-op and the bootstrap read back the
+   state the user's own action had just written. Callers now capture
+   `pre_action_state()` before their edit and pass it as `bootstrap_from`, so
+   the change is a `USER_ACTION` transition with manual authority.
+3. **Unmatched MEDIUM evidence was consumed as `NO_ACTION`.** It never reached
+   Needs Review, could not be confirmed, and was never revisited. HIGH and
+   MEDIUM evidence that cannot be linked is now a resolvable review item, and
+   `reconcile_pending()` revisits unresolved unattached items.
+4. **Summaries and histories were order-dependent.** A legacy application was
+   invisible until its detail view happened to be opened. `ensure_all_states()`
+   read-repair makes every read complete and order-independent, and a
+   nonexistent identifier stays distinguishable from an uninitialized one.
 
 ## Verification
 

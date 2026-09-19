@@ -480,3 +480,74 @@ def test_no_route_sets_a_state_directly():
         for method in route.methods:
             if method in ('POST', 'PUT', 'PATCH', 'DELETE'):
                 assert 'reconcile' in route.path or 'needs-review' in route.path, route.path
+
+
+# ---------------------------------------------------------------------------
+# Remediation: the new conflict outcome stays bounded
+# ---------------------------------------------------------------------------
+def test_url_conflict_security_event_is_bounded(tmp_path, monkeypatch):
+    """A contradictory requisition URL is worth an event, but the event may
+    name neither the employer, the role, nor either URL."""
+    from backend import models, security_events
+    monkeypatch.setattr(models, 'DATA', tmp_path)
+    from backend.normalization import employer_key
+    company = 'Northwind Analytics'
+    with Session.begin() as db:
+        job = Job(company=company, title='SOC Analyst', source='Greenhouse',
+                  apply_url='https://boards.greenhouse.io/northwind/jobs/111',
+                  job_url='https://boards.greenhouse.io/northwind/jobs/111',
+                  normalized_employer_key=employer_key(company) or '',
+                  date_found='2026-08-01T09:00:00+00:00', status='FOUND')
+        db.add(job)
+        db.flush()
+        db.add(Application(job_id=job.id, status='FOUND',
+                           applied_date='2026-08-01T09:00:00+00:00'))
+        db.flush()
+        row = sync.GmailConfirmation(
+            account_slot='PRIMARY', gmail_account_id='fictional-account-id',
+            gmail_message_id='fictional-url-conflict', sender='noreply@greenhouse.io',
+            subject='Thank you for applying to ' + company,
+            received_at='2026-08-01T09:04:00+00:00', detected_company=company,
+            detected_role='SOC Analyst', detected_state='APPLICATION_CONFIRMED',
+            confidence='HIGH', parser_id='greenhouse-confirmation-v1',
+            evidence_signals=['SENDER_DOMAIN'],
+            application_url='https://boards.greenhouse.io/northwind/jobs/999')
+        db.add(row)
+        db.flush()
+        evidence_id = row.id
+
+    result = reconcile(evidence_id)
+    assert result.reason_code == reconciliation.REASON_URL_CONFLICT
+
+    events = [event for event in security_events.tail(200)
+              if event['event'] == 'APPLICATION_RECONCILIATION_CONFLICT']
+    assert events, 'the conflict must be observable'
+    latest = events[-1]
+    assert latest['fields'] == {'result': 'URL_IDENTITY_CONFLICT'}
+    assert latest['reason'] in security_events.REASONS.values()
+    blob = json.dumps(latest)
+    for forbidden in (company, 'SOC Analyst', 'greenhouse.io', 'jobs/111',
+                      'jobs/999', 'noreply@'):
+        assert forbidden not in blob
+
+
+def test_review_queue_exposes_no_field_beyond_45s_minimized_evidence():
+    """Unlinkable evidence is now queued rather than dropped, so the queue's
+    own shape is worth pinning."""
+    seed(confidence='MEDIUM')
+    with Session() as db:
+        evidence_id = db.scalar(select(sync.GmailConfirmation.id))
+    reconcile(evidence_id)
+    queue = reconciliation.needs_review()
+    assert queue['count'] == 1
+    item = queue['items'][0]
+    assert set(item) == {'id', 'gmail_confirmation_id', 'application_id',
+                         'decision', 'reason_code', 'confidence',
+                         'matched_fields', 'candidate_count',
+                         'strong_candidate_count', 'transition_id',
+                         'resolved_at', 'evidence'}
+    assert set(item['evidence']) == {'detected_company', 'detected_role',
+                                     'detected_state', 'received_at',
+                                     'parser_id', 'application_url',
+                                     'subject', 'sender'}
+    clean(queue)
