@@ -35,6 +35,12 @@ def clean_state():
     reconciliation.initialize_reconciliation_schema()
     with Session.begin() as db:
         db.execute(delete(reconciliation.GmailApplicationLink))
+        # Durable scheduler state must not leak between tests, or rotation
+        # and queue alternation would depend on execution order.
+        scheduler = db.get(reconciliation.ReconciliationScheduler, 1)
+        if scheduler is not None:
+            scheduler.attempt_sequence = 0
+            scheduler.next_queue = reconciliation.QUEUE_PENDING
         db.execute(delete(states.ApplicationStateTransition))
         db.execute(delete(states.ApplicationStateRecord))
         db.execute(delete(sync.GmailConfirmation))
@@ -1740,6 +1746,523 @@ def test_reconcile_api_still_rejects_out_of_range_batch_sizes():
     with TestClient(app) as client:
         assert client.post('/api/applications/state/reconcile',
                            json={'limit': 0}).status_code == 400
+        assert client.post('/api/applications/state/reconcile',
+                           json={'limit': reconciliation.MAX_RUN_EVIDENCE + 1}
+                           ).status_code == 400
+        default = client.post('/api/applications/state/reconcile', json={})
+        assert default.status_code == 200
+        assert default.json()['limit'] == reconciliation.MAX_RUN_EVIDENCE
+
+
+# ---------------------------------------------------------------------------
+# Remediation: durable reconciliation scheduling (rotation + queue pointer)
+# ---------------------------------------------------------------------------
+def rotation_stamp(confirmation_id):
+    """The durable scheduler stamp on one confirmation's link, or None."""
+    with Session() as db:
+        link = db.scalar(select(reconciliation.GmailApplicationLink).where(
+            reconciliation.GmailApplicationLink.gmail_confirmation_id
+            == confirmation_id))
+        return link.revisit_sequence if link else None
+
+
+def scheduler_pointer():
+    with Session() as db:
+        return db.get(reconciliation.ReconciliationScheduler, 1).next_queue
+
+
+def unresolved_order():
+    """The revisit queue exactly as the scheduler would select it."""
+    with Session() as db:
+        return db.scalars(
+            select(reconciliation.GmailApplicationLink.gmail_confirmation_id)
+            .join(sync.GmailConfirmation,
+                  sync.GmailConfirmation.id
+                  == reconciliation.GmailApplicationLink.gmail_confirmation_id)
+            .where(reconciliation.GmailApplicationLink.decision
+                   == reconciliation.DECISION_NEEDS_REVIEW,
+                   reconciliation.GmailApplicationLink.application_id.is_(None))
+            .order_by(reconciliation.GmailApplicationLink.revisit_sequence,
+                      reconciliation.GmailApplicationLink.id)).all()
+
+
+def matching_application_for(index):
+    """An Application that strongly matches `make_unresolved_evidence(index)`."""
+    return make_application(company=f'Unaffiliated Holdings {index}',
+                            title=FICTIONAL_ROLE, source='Greenhouse',
+                            apply_url='', applied_date=APPLIED_AT,
+                            date_found=APPLIED_AT)
+
+
+# --- A. The exact starvation defect -----------------------------------------
+def test_an_old_unmatched_item_cannot_starve_a_later_actionable_one():
+    """The reviewed defect: ordering by link id alone re-selected the same
+    two unmatched items forever, so the third was never reached even after it
+    became actionable."""
+    first = make_unresolved_evidence(1)
+    second = make_unresolved_evidence(2)
+    third = make_unresolved_evidence(3)
+    matching_application_for(3)
+    assert reconciliation.link_for(third)['application_id'] is None
+
+    reached_on = None
+    for run in range(1, 5):
+        summary = reconciliation.reconcile_pending(limit=2)
+        assert summary['considered'] + summary['revisited'] <= 2
+        if reached_on is None and reconciliation.link_for(third)['application_id']:
+            reached_on = run
+    assert reached_on is not None, 'the third item was never reached'
+    assert reached_on <= 2, f'reached only on run {reached_on}'
+    assert reconciliation.link_for(third)['application_id'] is not None
+
+    # The two unmatched items did not monopolize: every item was attempted.
+    assert rotation_stamp(first) > 0
+    assert rotation_stamp(second) > 0
+    assert rotation_stamp(third) > 0
+
+
+def test_a_touched_item_moves_to_the_back_of_the_rotation():
+    order_before = [make_unresolved_evidence(index) for index in (1, 2, 3)]
+    assert list(unresolved_order()) == order_before
+    reconciliation.reconcile_pending(limit=1)
+    # The one just attempted is now last; the rest kept their relative order.
+    assert list(unresolved_order()) == order_before[1:] + order_before[:1]
+
+
+# --- B. A backlog larger than one run ---------------------------------------
+def test_every_unresolved_item_is_attempted_within_the_calculated_runs(monkeypatch):
+    """Backlog U with r revisit slots per run: every item within ceil(U / r)."""
+    monkeypatch.setattr(reconciliation, 'MAX_RUN_EVIDENCE', 2)
+    backlog = [make_unresolved_evidence(index) for index in range(1, 8)]
+    assert queue_sizes()[0] == [], 'pending empty, so every slot is a revisit'
+    total, per_run = len(backlog), 2
+    required = -(-total // per_run)  # ceil
+    for _ in range(required):
+        summary = reconciliation.reconcile_pending(limit=per_run)
+        assert summary['considered'] + summary['revisited'] <= per_run
+    stamps = {identifier: rotation_stamp(identifier) for identifier in backlog}
+    assert all(stamp > 0 for stamp in stamps.values()), (
+        f'not every item attempted within {required} runs: {stamps}')
+    # Strictly increasing stamps: no two items share a rotation position.
+    assert len(set(stamps.values())) == len(stamps)
+
+
+# --- C. limit=1 alternation across real process restarts --------------------
+ALTERNATION_SETUP = r'''
+from backend.models import *
+from backend import application_reconciliation as rec
+from backend import gmail_sync as sync
+initialize()
+rec.initialize_reconciliation_schema()
+def evidence(index, company):
+    with Session.begin() as db:
+        row = sync.GmailConfirmation(
+            account_slot='PRIMARY', gmail_account_id='fictional-account-id',
+            gmail_message_id='fictional-message-%d' % index,
+            sender='noreply@greenhouse.io', subject='Thank you for applying',
+            received_at='2026-08-01T09:04:00+00:00', detected_company=company,
+            detected_role='SOC Analyst', detected_state='APPLICATION_CONFIRMED',
+            confidence='MEDIUM', parser_id='greenhouse-confirmation-v1',
+            evidence_signals=['SENDER_DOMAIN'], application_url='')
+        db.add(row); db.flush(); return row.id
+for index in (1, 2, 3):
+    identifier = evidence(index, 'Unaffiliated Holdings %d' % index)
+    with Session.begin() as db:
+        rec.reconcile_confirmation(db, db.get(sync.GmailConfirmation, identifier))
+for index in (4, 5, 6, 7):
+    evidence(index, 'Untouched Holdings %d' % index)
+'''
+
+ALTERNATION_RUN = r'''
+from backend.models import *
+from backend import application_reconciliation as rec
+rec.initialize_reconciliation_schema()
+summary = rec.reconcile_pending(limit=1)
+assert summary['considered'] + summary['revisited'] <= 1
+print('R' if summary['revisited'] else ('P' if summary['considered'] else '-'))
+'''
+
+
+def _subprocess(tmp_path, script):
+    """Run a script in a fresh interpreter against isolated storage."""
+    import os
+    import subprocess
+    import sys
+    data = tmp_path / 'data'
+    env = {**os.environ, 'PYTHONPATH': os.getcwd(),
+           'HUNTER_DATA_DIR': str(data),
+           'DATABASE_URL': f'sqlite:///{data / "isolated.db"}',
+           'APP_TOKEN': '',
+           'PYTHON_KEYRING_BACKEND': 'keyring.backends.fail.Keyring'}
+    result = subprocess.run([sys.executable, '-c', script], capture_output=True,
+                            text=True, env=env, timeout=180)
+    assert result.returncode == 0, result.stdout + result.stderr
+    return result.stdout.strip()
+
+
+def test_limit_one_alternates_across_real_process_restarts(tmp_path):
+    """Each run is a separate OS process, so nothing in memory can be
+    carrying the alternation."""
+    _subprocess(tmp_path, ALTERNATION_SETUP)
+    served = [_subprocess(tmp_path, ALTERNATION_RUN) for _ in range(6)]
+    assert 'P' in served, f'pending never served: {served}'
+    assert 'R' in served, f'unresolved never served: {served}'
+    assert served == ['P', 'R', 'P', 'R', 'P', 'R'], served
+
+
+def test_the_queue_pointer_is_durable_not_process_local():
+    make_unresolved_evidence(1)
+    make_pending_evidence(2)
+    before = scheduler_pointer()
+    reconciliation.reconcile_pending(limit=1)
+    after = scheduler_pointer()
+    assert before in reconciliation.QUEUES and after in reconciliation.QUEUES
+    assert after != before, 'the durable pointer did not advance'
+    # Nothing module-level is holding it.
+    assert not any(name.startswith('_last') or name.endswith('_toggle')
+                   for name in vars(reconciliation))
+
+
+# --- D / E. Sustained backlogs on either side -------------------------------
+def test_a_sustained_unresolved_backlog_still_lets_pending_progress():
+    for index in range(1, 7):
+        make_unresolved_evidence(index)
+    processed_pending = 0
+    for round_number in range(4):
+        make_pending_evidence(20 + round_number)
+        summary = reconciliation.reconcile_pending(limit=2)
+        assert summary['considered'] + summary['revisited'] <= 2
+        processed_pending += summary['considered']
+    assert processed_pending > 0, 'pending evidence was blocked by the backlog'
+    assert queue_sizes()[0] == [], 'pending did not drain'
+
+
+def test_a_sustained_pending_stream_still_lets_unresolved_progress():
+    tracked = [make_unresolved_evidence(index) for index in (1, 2)]
+    for round_number in range(4):
+        make_pending_evidence(30 + round_number * 2)
+        make_pending_evidence(31 + round_number * 2)
+        summary = reconciliation.reconcile_pending(limit=2)
+        assert summary['considered'] + summary['revisited'] <= 2
+    assert all(rotation_stamp(identifier) > 0 for identifier in tracked), (
+        'unresolved items were starved by the pending stream')
+
+
+# --- F. Deterministic ordering under ties -----------------------------------
+def test_tied_rotation_stamps_break_deterministically_by_id():
+    identifiers = [make_unresolved_evidence(index) for index in (1, 2, 3)]
+    with Session.begin() as db:
+        for identifier in identifiers:
+            link = db.scalar(select(reconciliation.GmailApplicationLink).where(
+                reconciliation.GmailApplicationLink.gmail_confirmation_id
+                == identifier))
+            link.revisit_sequence = 7  # a deliberate tie
+    assert list(unresolved_order()) == identifiers, 'ties must fall back to id'
+    # The same state must always yield the same next selection.
+    for _ in range(3):
+        assert list(unresolved_order()) == identifiers
+
+
+def test_rotation_stamps_are_unique_and_strictly_increasing():
+    for index in range(1, 5):
+        make_unresolved_evidence(index)
+    reconciliation.reconcile_pending(limit=4)
+    with Session() as db:
+        stamps = db.scalars(select(
+            reconciliation.GmailApplicationLink.revisit_sequence)).all()
+    assert len(set(stamps)) == len(stamps), f'stamps tied: {stamps}'
+    assert min(stamps) > 0
+
+
+# --- G. Lifecycle exclusions ------------------------------------------------
+def test_settled_attached_and_missing_items_are_never_revisited():
+    attached_target, _ = make_application()
+    attached = make_evidence(confidence='MEDIUM', message_id='fictional-attached')
+    assert reconcile(attached).application_id == attached_target
+
+    confirmed_target, _ = make_application(company='Contoso Robotics')
+    confirmed = make_evidence(confidence='MEDIUM', company='Contoso Robotics',
+                              message_id='fictional-confirmed', url='')
+    assert reconciliation.confirm_review(reconcile(confirmed).link_id)['ok']
+
+    rejected = make_unresolved_evidence(8)
+    assert reconciliation.reject_review(
+        reconciliation.link_for(rejected)['id'])['ok']
+
+    linked_target, _ = make_application(company='Tailspin Toys')
+    linked = make_evidence(confidence='HIGH', company='Tailspin Toys',
+                           message_id='fictional-linked', url='')
+    assert reconcile(linked).decision == reconciliation.DECISION_LINKED
+
+    low = make_evidence(confidence='LOW', message_id='fictional-low')
+    assert reconcile(low).decision == reconciliation.DECISION_NO_ACTION
+
+    eligible_only = list(unresolved_order())
+    for settled in (attached, confirmed, rejected, linked, low):
+        assert settled not in eligible_only, settled
+
+    summary = reconciliation.reconcile_pending(limit=reconciliation.MAX_RUN_EVIDENCE)
+    assert summary['revisited'] == 0
+    assert summary['considered'] == 0
+    assert reconciliation.link_for(confirmed)['decision'] == (
+        reconciliation.DECISION_USER_CONFIRMED)
+    assert reconciliation.link_for(rejected)['decision'] == (
+        reconciliation.DECISION_USER_REJECTED)
+    assert reconciliation.link_for(linked)['decision'] == (
+        reconciliation.DECISION_LINKED)
+    assert reconciliation.link_for(low)['decision'] == (
+        reconciliation.DECISION_NO_ACTION)
+    assert reconciliation.link_for(attached)['application_id'] == attached_target
+
+
+def test_an_item_settled_between_planning_and_processing_is_skipped_not_counted(
+        monkeypatch):
+    """A concurrent resolution must not be processed, and must not be
+    reported as work done."""
+    target, _ = make_application(company='Contoso Robotics')
+    settled = make_evidence(confidence='MEDIUM', company='Contoso Robotics',
+                            message_id='fictional-settled', url='')
+    link_id = reconcile(settled).link_id
+    assert reconciliation.confirm_review(link_id)['ok']
+    # Force a stale plan naming an item that is no longer eligible, plus one
+    # whose evidence does not exist at all.
+    monkeypatch.setattr(reconciliation, '_plan',
+                        lambda pending, unresolved, budget, start: [
+                            (settled, True), (999_999, True)])
+    summary = reconciliation.reconcile_pending(limit=4)
+    assert summary['revisited'] == 0
+    assert summary['processed'] == 0
+    assert summary['skipped'] == 2
+    assert reconciliation.link_for(settled)['decision'] == (
+        reconciliation.DECISION_USER_CONFIRMED)
+
+
+def test_a_stale_plan_entry_cannot_hold_a_slot_run_after_run(monkeypatch):
+    """A row that somehow stays selectable is stamped anyway, so it rotates
+    to the back instead of blocking the queue forever."""
+    stuck = make_unresolved_evidence(1)
+    before = rotation_stamp(stuck)
+    monkeypatch.setattr(reconciliation, '_plan',
+                        lambda pending, unresolved, budget, start: [(stuck, True)])
+    # Make it ineligible so the run takes the skip branch.
+    with Session.begin() as db:
+        link = db.scalar(select(reconciliation.GmailApplicationLink).where(
+            reconciliation.GmailApplicationLink.gmail_confirmation_id == stuck))
+        link.decision = reconciliation.DECISION_USER_REJECTED
+    summary = reconciliation.reconcile_pending(limit=1)
+    assert summary['skipped'] == 1 and summary['processed'] == 0
+    assert rotation_stamp(stuck) > before, 'skipped row kept its queue position'
+
+
+def test_repeated_no_op_retries_are_not_reported_as_progress():
+    """`revisited` counts attempts; `revisits_changed` counts real change."""
+    make_unresolved_evidence(1)
+    first = reconciliation.reconcile_pending(limit=1)
+    assert first['revisited'] == 1
+    assert first['revisits_changed'] == 0, 'nothing actually changed'
+    matching_application_for(1)
+    second = reconciliation.reconcile_pending(limit=1)
+    if second['revisited']:
+        assert second['revisits_changed'] == 1
+    else:
+        third = reconciliation.reconcile_pending(limit=1)
+        assert third['revisits_changed'] == 1
+
+
+# --- H. Crash and retry -----------------------------------------------------
+def test_a_failure_part_way_through_a_run_leaves_committed_work_valid():
+    for index in range(1, 5):
+        make_unresolved_evidence(index)
+    matching_application_for(4)
+
+    calls = {'count': 0}
+    real = reconciliation.revisit_confirmation
+
+    def failing(db, row, link):
+        calls['count'] += 1
+        if calls['count'] == 3:
+            raise RuntimeError('synthetic mid-run failure')
+        return real(db, row, link)
+
+    reconciliation.revisit_confirmation = failing
+    try:
+        with pytest.raises(RuntimeError, match='synthetic mid-run failure'):
+            reconciliation.reconcile_pending(limit=4)
+    finally:
+        reconciliation.revisit_confirmation = real
+
+    # Committed work survives and never exceeded the budget.
+    with Session() as db:
+        links = db.scalars(select(reconciliation.GmailApplicationLink)).all()
+        stamped = [link for link in links if link.revisit_sequence > 0]
+        assert len(stamped) <= 4
+        assert len(links) == len({link.gmail_confirmation_id for link in links})
+    assert calls['count'] <= 4
+
+    # The rest is eventually reached, and the actionable item is resolved.
+    for _ in range(6):
+        reconciliation.reconcile_pending(limit=2)
+    with Session() as db:
+        links = db.scalars(select(reconciliation.GmailApplicationLink)).all()
+        assert all(link.revisit_sequence > 0 for link in links)
+        assert len(links) == len({link.gmail_confirmation_id for link in links})
+        assert len(db.scalars(select(Application)).all()) == 1
+        transitions = db.scalars(select(states.ApplicationStateTransition)).all()
+    assert len({(row.application_id, row.sequence) for row in transitions}) == len(
+        transitions), 'history sequence numbers duplicated'
+
+
+def test_a_partial_run_leaves_the_pointer_where_the_last_commit_put_it():
+    make_unresolved_evidence(1)
+    make_pending_evidence(2)
+    real = reconciliation.reconcile_confirmation
+
+    def failing(db, row):
+        raise RuntimeError('synthetic failure before any pending commit')
+
+    start = scheduler_pointer()
+    reconciliation.reconcile_confirmation = failing
+    try:
+        with pytest.raises(RuntimeError):
+            reconciliation.reconcile_pending(limit=2)
+    finally:
+        reconciliation.reconcile_confirmation = real
+    # Whatever committed, the pointer is consistent and still a valid token.
+    assert scheduler_pointer() in reconciliation.QUEUES
+    # The run is resumable and still bounded.
+    summary = reconciliation.reconcile_pending(limit=2)
+    assert summary['considered'] + summary['revisited'] <= 2
+    assert start in reconciliation.QUEUES
+
+
+# --- I. Original issue #46 protections, under the scheduler -----------------
+def test_issue_46_protections_hold_under_durable_scheduling():
+    # Contradictory job-specific URLs never auto-link.
+    conflicted, _ = make_application(
+        apply_url='https://boards.greenhouse.io/northwind/jobs/111')
+    conflict = make_evidence(url='https://boards.greenhouse.io/northwind/jobs/999',
+                             message_id='fictional-sched-conflict')
+    # Multi-field agreement is required: company alone never merges.
+    weak_target, _ = make_application(company='Contoso Robotics',
+                                      title='Payroll Administrator',
+                                      source='Manual', apply_url='',
+                                      applied_date='2026-01-05T09:00:00+00:00',
+                                      date_found='2026-01-05T09:00:00+00:00')
+    weak = make_evidence(company='Contoso Robotics',
+                         message_id='fictional-sched-weak', url='')
+    # LOW never mutates or enters review.
+    low_target, _ = make_application(company='Tailspin Toys')
+    low = make_evidence(confidence='LOW', company='Tailspin Toys',
+                        message_id='fictional-sched-low', url='')
+
+    for _ in range(4):
+        summary = reconciliation.reconcile_pending(limit=2)
+        assert summary['processed'] == summary['considered'] + summary['revisited']
+
+    assert reconciliation.link_for(conflict)['reason_code'] == (
+        reconciliation.REASON_URL_CONFLICT)
+    assert current_state(conflicted) != states.APPLIED
+    assert reconciliation.link_for(weak)['application_id'] is None
+    assert current_state(weak_target) != states.APPLIED
+    assert reconciliation.link_for(low)['decision'] == (
+        reconciliation.DECISION_NO_ACTION)
+    assert current_state(low_target) != states.APPLIED
+    assert low not in [item['gmail_confirmation_id']
+                       for item in reconciliation.needs_review()['items']]
+
+    # Unmatched MEDIUM evidence stays visible and resolvable.
+    unmatched = make_unresolved_evidence(1)
+    assert unmatched in [item['gmail_confirmation_id']
+                         for item in reconciliation.needs_review()['items']]
+
+    # Automated evidence cannot override stronger manual authority, and no
+    # duplicate Application is created.
+    manual_job = make_untracked_job(company='Fabrikam Systems')
+    status_action(manual_job, 'INTERVIEW')
+    with Session() as db:
+        manual = db.scalar(select(Application).where(
+            Application.job_id == manual_job))
+        jobs_before = len(db.scalars(select(Job)).all())
+        apps_before = len(db.scalars(select(Application)).all())
+    rows = history_rows(manual.id)
+    assert rows[-1].source_category == states.SOURCE_USER_ACTION
+    make_evidence(company='Fabrikam Systems', message_id='fictional-sched-manual',
+                  url='')
+    for _ in range(4):
+        reconciliation.reconcile_pending(limit=4)
+    assert current_state(manual.id) == states.INTERVIEW
+    with Session() as db:
+        assert len(db.scalars(select(Job)).all()) == jobs_before
+        assert len(db.scalars(select(Application)).all()) == apps_before
+
+    # Summaries and histories stay complete and order-independent.
+    legacy = make_legacy_application(company='Litware Media')
+    overview = states.state_summary()
+    assert overview['complete'] is True
+    assert overview['total'] == overview['applications_total']
+    assert states.transition_history(legacy) is not None
+    assert states.transition_history(999_999) is None
+
+
+# --- J. Public API contract -------------------------------------------------
+def test_reconcile_api_reports_truthfully_and_makes_progress():
+    from fastapi.testclient import TestClient
+    from backend.main import app
+    first = make_unresolved_evidence(1)
+    second = make_unresolved_evidence(2)
+    third = make_unresolved_evidence(3)
+    matching_application_for(3)
+    with TestClient(app) as client:
+        reached = False
+        for _ in range(4):
+            response = client.post('/api/applications/state/reconcile',
+                                   json={'limit': 2})
+            assert response.status_code == 200
+            body = response.json()
+            total = body['considered'] + body['revisited']
+            assert total <= 2, f'API requested 2, processed {total}'
+            assert body['processed'] == total
+            assert body['limit'] == 2
+            assert set(body) >= {'limit', 'processed', 'considered', 'revisited',
+                                 'revisits_changed', 'skipped', 'linked',
+                                 'needs_review', 'no_action', 'by_reason'}
+            assert sum(body['by_reason'].values()) == body['processed']
+            if reconciliation.link_for(third)['application_id']:
+                reached = True
+    assert reached, 'the actionable item was never reached through the API'
+    assert all(rotation_stamp(identifier) > 0
+               for identifier in (first, second, third))
+
+
+def test_reconcile_api_limit_one_alternates_across_separate_requests():
+    from fastapi.testclient import TestClient
+    from backend.main import app
+    make_unresolved_evidence(1)
+    make_unresolved_evidence(2)
+    for index in (3, 4, 5, 6):
+        make_pending_evidence(index)
+    served = []
+    with TestClient(app) as client:
+        for _ in range(6):
+            body = client.post('/api/applications/state/reconcile',
+                               json={'limit': 1}).json()
+            assert body['considered'] + body['revisited'] <= 1
+            served.append('R' if body['revisited'] else
+                          ('P' if body['considered'] else '-'))
+    assert 'P' in served and 'R' in served, served
+    assert served == ['P', 'R', 'P', 'R', 'P', 'R'], served
+
+
+def test_reconcile_api_rejects_invalid_batch_sizes_unchanged():
+    from fastapi.testclient import TestClient
+    from backend.main import app
+    with TestClient(app) as client:
+        assert client.post('/api/applications/state/reconcile',
+                           json={'limit': 0}).status_code == 400
+        assert client.post('/api/applications/state/reconcile',
+                           json={'limit': -1}).status_code == 400
+        assert client.post('/api/applications/state/reconcile',
+                           json={'limit': 'two'}).status_code == 400
         assert client.post('/api/applications/state/reconcile',
                            json={'limit': reconciliation.MAX_RUN_EVIDENCE + 1}
                            ).status_code == 400

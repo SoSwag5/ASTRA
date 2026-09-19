@@ -127,7 +127,13 @@ def test_transition_history_has_no_column_for_message_content():
         'id', 'created_at', 'updated_at', 'gmail_confirmation_id',
         'application_id', 'decision', 'reason_code', 'confidence',
         'matched_fields', 'candidate_count', 'strong_candidate_count',
-        'transition_id', 'resolved_at', 'schema_version'}
+        'transition_id', 'resolved_at', 'revisit_sequence', 'schema_version'}
+    # The scheduler row is operational rotation state only: a counter and a
+    # two-value queue token. It can hold nothing derived from a message.
+    assert {column.name for column
+            in reconciliation.ReconciliationScheduler.__table__.columns} == {
+        'id', 'created_at', 'updated_at', 'attempt_sequence', 'next_queue',
+        'schema_version'}
     assert {column.name for column
             in states.ApplicationStateRecord.__table__.columns} == {
         'id', 'created_at', 'updated_at', 'application_id', 'current_state',
@@ -551,3 +557,117 @@ def test_review_queue_exposes_no_field_beyond_45s_minimized_evidence():
                                      'parser_id', 'application_url',
                                      'subject', 'sender'}
     clean(queue)
+
+
+# ---------------------------------------------------------------------------
+# Remediation: durable scheduler state stays bounded and non-personal
+# ---------------------------------------------------------------------------
+def test_scheduler_row_holds_only_bounded_operational_values(tmp_path, monkeypatch):
+    from backend import models, privacy
+    for module in (privacy, models):
+        monkeypatch.setattr(module, 'DATA', tmp_path)
+    _, _, evidence_id = seed(hostile=True)
+    reconciliation.reconcile_pending(limit=4)
+    with Session() as db:
+        scheduler = db.get(reconciliation.ReconciliationScheduler, 1)
+        assert scheduler is not None
+        assert isinstance(scheduler.attempt_sequence, int)
+        assert scheduler.next_queue in reconciliation.QUEUES
+        assert scheduler.schema_version == reconciliation.SCHEMA_VERSION
+        clean(json.dumps({'attempt_sequence': scheduler.attempt_sequence,
+                          'next_queue': scheduler.next_queue,
+                          'schema_version': scheduler.schema_version}))
+        # The rotation stamp is a bare integer; it can encode nothing.
+        stamps = db.scalars(select(
+            reconciliation.GmailApplicationLink.revisit_sequence)).all()
+        assert all(isinstance(stamp, int) for stamp in stamps)
+
+
+def test_export_and_counts_include_the_scheduler_table(tmp_path, monkeypatch):
+    from backend import models, privacy
+    for module in (privacy, models):
+        monkeypatch.setattr(module, 'DATA', tmp_path)
+    _, _, evidence_id = seed()
+    reconcile(evidence_id)
+    counts = privacy.privacy_info()['counts']
+    assert counts['reconciliation_scheduler'] == 1
+    exported = privacy._export_data()
+    with zipfile.ZipFile(io.BytesIO(exported.body)) as archive:
+        records = json.loads(archive.read('records.json'))
+    assert 'reconciliation_scheduler' in records
+    assert records['reconciliation_scheduler'][0]['next_queue'] in (
+        reconciliation.QUEUES)
+    clean(json.dumps(records['reconciliation_scheduler']))
+    clean(json.dumps(records['gmail_application_links']))
+
+
+def test_history_deletion_leaves_the_scheduler_counter_alone(tmp_path, monkeypatch):
+    """The counter is operational state, not application history."""
+    from backend import models, privacy
+    for module in (privacy, models):
+        monkeypatch.setattr(module, 'DATA', tmp_path)
+    _, _, evidence_id = seed()
+    reconciliation.reconcile_pending(limit=4)
+    with Session() as db:
+        before = db.get(reconciliation.ReconciliationScheduler, 1).attempt_sequence
+    assert before > 0
+    privacy.delete_data(privacy.DeleteRequest(
+        scope='history', confirmation='DELETE APPLICATION HISTORY'))
+    with Session() as db:
+        scheduler = db.get(reconciliation.ReconciliationScheduler, 1)
+        assert scheduler is not None and scheduler.attempt_sequence == before
+
+
+def test_full_erase_resets_the_scheduler_with_the_links(tmp_path, monkeypatch):
+    from backend import models, privacy
+    for module in (privacy, models):
+        monkeypatch.setattr(module, 'DATA', tmp_path)
+    seed()
+    reconciliation.reconcile_pending(limit=4)
+    with Session() as db:
+        assert db.get(reconciliation.ReconciliationScheduler, 1).attempt_sequence > 0
+    privacy.delete_data(privacy.DeleteRequest(
+        scope='all', confirmation='DELETE ALL LOCAL DATA'))
+    with Session() as db:
+        assert db.scalars(select(reconciliation.GmailApplicationLink)).all() == []
+        scheduler = db.get(reconciliation.ReconciliationScheduler, 1)
+        # Reset, not orphaned: the counter never outlives the stamps it made.
+        assert scheduler.attempt_sequence == 0
+        assert scheduler.next_queue == reconciliation.QUEUE_PENDING
+
+
+def test_reconciliation_schema_upgrade_is_additive_and_idempotent():
+    """A database that predates the scheduler gains the column, index, table
+    and seed row without losing a decision."""
+    from sqlalchemy import inspect, text
+    from backend.models import engine
+    _, _, evidence_id = seed()
+    reconcile(evidence_id)
+    with Session() as db:
+        before = db.scalar(select(reconciliation.GmailApplicationLink.decision))
+    with engine.begin() as connection:
+        connection.execute(text('DROP TABLE IF EXISTS reconciliation_scheduler'))
+        # SQLite refuses to drop a column an index depends on, which is also
+        # why the real upgrade adds the column before creating the index.
+        connection.execute(text(
+            'DROP INDEX IF EXISTS ix_gmail_application_link_rotation'))
+        connection.execute(text(
+            'ALTER TABLE gmail_application_links DROP COLUMN revisit_sequence'))
+    assert 'revisit_sequence' not in {
+        column['name'] for column
+        in inspect(engine).get_columns('gmail_application_links')}
+
+    for _ in range(2):  # idempotent
+        reconciliation.initialize_reconciliation_schema()
+    columns = {column['name'] for column
+               in inspect(engine).get_columns('gmail_application_links')}
+    assert 'revisit_sequence' in columns
+    assert inspect(engine).has_table('reconciliation_scheduler')
+    with Session() as db:
+        scheduler = db.get(reconciliation.ReconciliationScheduler, 1)
+        assert scheduler.attempt_sequence == 0
+        assert scheduler.next_queue == reconciliation.QUEUE_PENDING
+        # The pre-existing decision survived untouched and starts unrotated.
+        link = db.scalar(select(reconciliation.GmailApplicationLink))
+        assert link.decision == before
+        assert link.revisit_sequence == 0

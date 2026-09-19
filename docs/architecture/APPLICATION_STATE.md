@@ -293,40 +293,82 @@ Reconciliation is **explicitly invoked**, exactly like #45's sync. There is no
 scheduler and no background reconciliation. It shares the existing
 cross-process task lock with discovery, export, deletion and Gmail sync.
 
-### One budget for the whole run
+### One budget for the whole run, and durable fairness
 
 `reconcile_pending(limit=...)` bounds the **total** number of evidence rows a
 run processes: `considered + revisited` never exceeds the requested limit, and
 the request is itself clamped to `MAX_RUN_EVIDENCE`. The run reports `limit`
 and `processed` alongside the counts so a caller can see the bound was kept.
 
-An earlier revision applied the limit to each queue separately, so a run could
-process up to twice what was asked for. The two queues now share one budget,
-drained **round-robin**:
+Two earlier revisions got this wrong in different ways, and both are worth
+recording because the second looked correct:
 
-- Neither queue can starve the other. A sustained stream of new confirmations
-  still leaves roughly half of each run's budget for unresolved review items,
-  and a large unresolved backlog still leaves roughly half for new
-  confirmations.
-- Whatever one queue cannot use, the other takes, so a single non-empty queue
-  gets the whole budget rather than half of it.
-- Ordering within each queue is unchanged and deterministic: new confirmations
-  by `gmail_confirmations.id`, unresolved items by `gmail_application_links.id`.
-- New confirmations take the first slot. This matters only at a budget of 1
-  with both queues non-empty: evidence that has never been reconciled has
-  produced nothing the user can see at all, whereas an unresolved review item
-  is already in the queue and `confirm_review()` re-evaluates candidates by
-  itself, so revisiting is a convenience rather than the only route. That is
-  the one case where a queue can wait indefinitely, and it waits on the side
-  that remains reachable by hand.
-- Both snapshots are read before any processing and the two sources are
-  disjoint by construction — a confirmation either has a link row or does not —
-  so a review item a run creates is never also revisited by that same run, and
-  no confirmation is processed twice in one run.
+1. The limit was applied to each queue separately, so a run could process up
+   to twice what was asked for.
+2. The shared budget was correct, but the revisit queue was ordered by
+   `gmail_application_links.id`. An unmatched item keeps its id, so the oldest
+   unmatched items were re-selected on every run and later items were never
+   reached — even after one of them became actionable. A non-zero `revisited`
+   count looked like progress while the same rows were retried forever.
+
+Fairness is now **durable**, held in the database rather than in any
+process-local value, so it survives separate API requests, process restarts
+and several workers sharing one local database.
+
+**Within the revisit queue — rotation.** `gmail_application_links` carries
+`revisit_sequence`, the value of a single monotonic counter
+(`reconciliation_scheduler.attempt_sequence`) in force the last time a run
+touched that row. The queue is ordered by `(revisit_sequence, id)`, and every
+item a run touches is stamped with a fresh value, which moves it to the back.
+An item can therefore never be re-selected ahead of one that has waited
+longer.
+
+*Why this terminates:* the counter is strictly increasing and allocated inside
+the processing transaction, so no two rows ever share a stamp and the ordering
+is total. With `U` eligible items and `r` revisit slots per run, every item is
+attempted within `ceil(U / r)` runs — at worst `U` runs, when a run gives
+revisits only one slot. A row that is selected but turns out ineligible is
+stamped anyway before being skipped, so it cannot hold a slot run after run.
+
+**Between queues — a durable pointer.** `reconciliation_scheduler.next_queue`
+records which queue gets the next slot. It is advanced once per *processed*
+item, inside that item's own transaction, so a crash leaves it exactly where
+the last commit put it. Slots alternate from that pointer, and when the
+preferred queue is empty the other takes the slot, so a single non-empty queue
+still receives the whole budget.
+
+This replaces an earlier documented exception which said that at `limit=1`
+new confirmations would always win and the revisit queue could wait
+indefinitely. **That exception no longer applies and the claim is withdrawn.**
+At `limit=1` consecutive runs alternate, which
+`test_limit_one_alternates_across_real_process_restarts` demonstrates across
+six separate operating-system processes.
+
+**Within the pending queue.** A confirmation leaves that queue permanently
+once processed — it gains a link row — so ordering by `gmail_confirmations.id`
+already gives eventual progress: the item at position `k` is reached within
+`ceil(k / p)` runs for `p` pending slots per run.
+
+**No duplicate processing.** Both snapshots are read before any processing and
+the two sources are disjoint by construction — a confirmation either has a
+link row or does not — so a review item a run creates is never also revisited
+by that same run, and an explicit `seen` set makes that guarantee visible.
+
+**Only eligible items are revisited.** The selection joins the evidence table
+and filters to `decision = NEEDS_REVIEW` with a null `application_id`, and the
+same conditions are re-checked inside the processing transaction. Linked,
+no-action, user-confirmed, user-rejected, attached, deleted and concurrently
+settled rows are all excluded, and a row that becomes ineligible between
+planning and processing is counted as `skipped`, never as processed.
+
+**Truthful counters.** `processed` equals `considered + revisited` and never
+exceeds `limit`. `skipped` counts rows that were selected but not processed.
+`revisits_changed` counts only revisits that actually changed the durable
+decision, so repeated no-op retries cannot be read as queue progress.
 
 ## Schema and migration
 
-Three additive tables, declared against the shared SQLAlchemy `Base` in their
+Four additive tables, declared against the shared SQLAlchemy `Base` in their
 own modules:
 
 | Table | Purpose |
@@ -334,6 +376,7 @@ own modules:
 | `application_states` | Current-state projection, one row per application |
 | `application_state_transitions` | Append-only history |
 | `gmail_application_links` | One reconciliation decision per Gmail confirmation |
+| `reconciliation_scheduler` | One row of durable scheduling state: a monotonic `attempt_sequence` counter and the `next_queue` pointer |
 
 `backend/models.py`, `backend/policy.py` and `backend/services.py` are
 SHA-256-pinned #42 evaluation-provenance inputs. **None of them was modified.**
@@ -341,6 +384,25 @@ The tables and their idempotent initializers live in
 `backend/application_state.py` and `backend/application_reconciliation.py`,
 the same convention #44 and #45 used. No existing table, column, index or row
 is altered, so a pre-#46 database upgrades by gaining tables.
+
+The scheduler arrived after `gmail_application_links` already existed on this
+branch, so its upgrade is explicitly additive and idempotent:
+`initialize_reconciliation_schema()` adds `revisit_sequence INTEGER NOT NULL
+DEFAULT 0` when the column is absent, creates the
+`(revisit_sequence, id)` rotation index, creates the scheduler table and seeds
+its single row. Every pre-existing link therefore starts at 0 — "never touched
+by the scheduler" — so the first run after the upgrade rotates through the
+whole existing backlog in id order exactly as a fresh install would. Nothing
+is rewritten and no decision changes.
+
+The scheduler row holds no personal data: a counter and a two-value queue
+token, both asserted by test. It follows `Base.metadata`, so it is included in
+the private export and in SQLite backups like every other declared table.
+`DELETE APPLICATION HISTORY` removes application-linked reconciliation records
+and leaves the counter alone — it is operational state, not application
+history. `DELETE ALL LOCAL DATA` removes the links and **resets** the
+scheduler row to its initial values, so the counter never outlives the stamps
+it produced.
 
 ### Legacy bootstrap
 
@@ -601,14 +663,20 @@ reproduced defects. All four were fixed on this branch:
    MEDIUM evidence that cannot be linked is now a resolvable review item, and
    `reconcile_pending()` revisits unresolved unattached items.
 
-A second independent review of `f0382e6` reproduced one further defect, also
-fixed on this branch:
+Two further review rounds each reproduced one more defect, both fixed on this
+branch:
 
 5. **A run could process twice the requested limit.** `reconcile_pending()`
    applied `limit` to the new-confirmation query and the unresolved-review
    query independently, so `limit=2` processed four rows. The two queues now
-   share one budget, drained round-robin, and `considered + revisited` never
-   exceeds the requested limit.
+   share one budget, and `considered + revisited` never exceeds the requested
+   limit.
+6. **The revisit queue starved.** Ordering by `gmail_application_links.id`
+   re-selected the same oldest unmatched items on every run, so a later item
+   was never reached even once it became actionable. The queue is now rotated
+   by a durable `revisit_sequence` stamp, and queue alternation is held in a
+   durable pointer, so fairness survives restarts and `limit=1` alternates
+   instead of favouring one side.
 4. **Summaries and histories were order-dependent.** A legacy application was
    invisible until its detail view happened to be opened. `ensure_all_states()`
    read-repair makes every read complete and order-independent, and a

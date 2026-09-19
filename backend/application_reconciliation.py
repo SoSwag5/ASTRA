@@ -162,6 +162,16 @@ class GmailApplicationLink(Record, Base):
     #: `application_state_transitions.id` created by this decision, or 0.
     transition_id: Mapped[int] = mapped_column(default=0)
     resolved_at: Mapped[str] = mapped_column(default=now)
+    #: Scheduler rotation stamp: the `ReconciliationScheduler.attempt_sequence`
+    #: value in force the last time a run touched this row. 0 means the
+    #: scheduler has never touched it, which puts it first in the rotation.
+    #:
+    #: This is deliberately **not** `resolved_at`. `resolved_at` records when a
+    #: *decision* was reached, including one the user reached, and rewriting it
+    #: on a no-op retry would make that field lie. It is also a timestamp, and
+    #: two rows stamped in the same run can share one; an integer allocated
+    #: from a single durable counter never ties, so ordering by it is total.
+    revisit_sequence: Mapped[int] = mapped_column(default=0)
     schema_version: Mapped[str] = mapped_column(default=SCHEMA_VERSION)
 
     __table_args__ = (
@@ -169,7 +179,41 @@ class GmailApplicationLink(Record, Base):
               unique=True),
         Index('ix_gmail_application_link_application', 'application_id'),
         Index('ix_gmail_application_link_decision', 'decision'),
+        # The revisit queue's exact ordering key, so rotation stays cheap as
+        # the backlog grows.
+        Index('ix_gmail_application_link_rotation', 'revisit_sequence', 'id'),
     )
+
+
+#: The two queues a run draws from. Persisted as `next_queue`, so alternation
+#: survives separate requests, restarts and several worker processes.
+QUEUE_PENDING = 'PENDING'
+QUEUE_UNRESOLVED = 'UNRESOLVED'
+QUEUES = (QUEUE_PENDING, QUEUE_UNRESOLVED)
+
+
+class ReconciliationScheduler(Record, Base):
+    """One row. The durable state that makes reconciliation fair.
+
+    Two fields, both bounded integers/tokens and neither derived from message
+    content:
+
+    * `attempt_sequence` -- a monotonic counter. Every item a run touches is
+      stamped with a fresh value, and the revisit queue is ordered by that
+      stamp, so a touched item goes to the back. This is what stops the oldest
+      unmatched items from being re-selected forever while later ones are
+      never reached.
+    * `next_queue` -- which queue gets the next slot. Alternation therefore
+      lives in the database rather than in a process-local toggle, so it holds
+      across separate API requests, process restarts and concurrent workers,
+      and in particular makes `limit=1` alternate instead of permanently
+      favouring one queue.
+    """
+    __tablename__ = 'reconciliation_scheduler'
+
+    attempt_sequence: Mapped[int] = mapped_column(default=0)
+    next_queue: Mapped[str] = mapped_column(default=QUEUE_PENDING)
+    schema_version: Mapped[str] = mapped_column(default=SCHEMA_VERSION)
 
 
 def initialize_reconciliation_schema():
@@ -181,7 +225,9 @@ def initialize_reconciliation_schema():
     """
     gmail_sync.initialize_sync_schema()
     states.initialize_application_state_schema()
-    Base.metadata.create_all(engine, tables=[GmailApplicationLink.__table__])
+    Base.metadata.create_all(engine, tables=[GmailApplicationLink.__table__,
+                                             ReconciliationScheduler.__table__])
+    from sqlalchemy import inspect
     with engine.begin() as connection:
         connection.execute(text(
             'CREATE UNIQUE INDEX IF NOT EXISTS uq_gmail_application_link_confirmation '
@@ -192,6 +238,23 @@ def initialize_reconciliation_schema():
         connection.execute(text(
             'CREATE INDEX IF NOT EXISTS ix_gmail_application_link_decision '
             'ON gmail_application_links (decision)'))
+        # Additive upgrade for a database created before the scheduler existed.
+        # Every existing link starts at 0, meaning "never touched by the
+        # scheduler", so the first run after the upgrade rotates through the
+        # whole backlog in id order exactly as a fresh install would.
+        existing = {column['name'] for column
+                    in inspect(connection).get_columns('gmail_application_links')}
+        if 'revisit_sequence' not in existing:
+            connection.execute(text(
+                'ALTER TABLE gmail_application_links '
+                'ADD COLUMN revisit_sequence INTEGER NOT NULL DEFAULT 0'))
+        connection.execute(text(
+            'CREATE INDEX IF NOT EXISTS ix_gmail_application_link_rotation '
+            'ON gmail_application_links (revisit_sequence, id)'))
+    with Session.begin() as db:
+        if db.get(ReconciliationScheduler, 1) is None:
+            db.add(ReconciliationScheduler(id=1, attempt_sequence=0,
+                                           next_queue=QUEUE_PENDING))
 
 
 def schema_ready():
@@ -214,6 +277,13 @@ def purge_all_links():
         return
     with Session.begin() as db:
         db.execute(sql_delete(GmailApplicationLink))
+        # The rotation stamps are gone with the links, so the counter that
+        # produced them carries no meaning either. Resetting keeps the
+        # scheduler's state consistent with the data it schedules.
+        scheduler = db.get(ReconciliationScheduler, 1)
+        if scheduler is not None:
+            scheduler.attempt_sequence = 0
+            scheduler.next_queue = QUEUE_PENDING
 
 
 def purge_links_for_applications():
@@ -665,72 +735,122 @@ def revisit_confirmation(db, row, link):
     return _decide(db, row, link, target)
 
 
-def _interleave(pending, unresolved, budget):
+def _scheduler(db):
+    """The single durable scheduler row, created if a caller races ahead."""
+    row = db.get(ReconciliationScheduler, 1)
+    if row is None:
+        row = ReconciliationScheduler(id=1, attempt_sequence=0,
+                                      next_queue=QUEUE_PENDING)
+        db.add(row)
+        db.flush()
+    return row
+
+
+def _next_stamp(db):
+    """Allocate the next rotation stamp. Strictly increasing, never tied.
+
+    Allocated inside the caller's write transaction. SQLite serializes
+    writers, so two concurrent runs cannot hand out the same value, and the
+    stamp is durable the moment that transaction commits.
+    """
+    row = _scheduler(db)
+    row.attempt_sequence += 1
+    db.flush()
+    return row.attempt_sequence
+
+
+def _advance_queue(db):
+    """Move the durable pointer to the other queue."""
+    row = _scheduler(db)
+    row.next_queue = (QUEUE_UNRESOLVED if row.next_queue == QUEUE_PENDING
+                      else QUEUE_PENDING)
+    db.flush()
+
+
+def _plan(pending, unresolved, budget, start_queue):
     """The work one run will do, as `(confirmation_id, is_revisit)` pairs.
 
-    `budget` is the bound on the **whole run**, not on either queue. The two
-    queues are drained round-robin so neither can starve the other: a
-    sustained stream of new confirmations still leaves roughly half of each
-    run's budget for unresolved review items, and a large unresolved backlog
-    still leaves roughly half for new confirmations. Whatever one queue
-    cannot use, the other takes, so a single non-empty queue gets the entire
-    budget rather than half of it.
+    `budget` bounds the **whole run**, not either queue. Slots alternate
+    between the queues, beginning with `start_queue`, which comes from the
+    durable pointer rather than from anything held in memory. When the
+    preferred queue has nothing left the other takes the slot, so a single
+    non-empty queue receives the entire budget instead of half of it.
 
-    New confirmations take the first slot. That matters only when the budget
-    is 1 and both queues have work: evidence that has never been reconciled
-    has produced nothing the user can see at all, whereas an unresolved
-    review item is already in the queue and `confirm_review()` re-evaluates
-    candidates by itself, so revisiting is a convenience rather than the only
-    route. A budget of 1 with both queues permanently non-empty is therefore
-    the one case where a queue can wait indefinitely, and it waits on the
-    side that is still reachable by hand.
-
-    Ordering within each queue is unchanged and deterministic, and the two
-    sources are disjoint by construction -- a confirmation either has a link
-    row or does not. The `seen` set makes that explicit rather than implied,
-    so no confirmation is processed twice in one run.
+    Both input lists are already ordered by their own durable keys, so the
+    same database state always produces the same plan. The two sources are
+    disjoint by construction -- a confirmation either has a link row or does
+    not -- and `seen` makes that explicit, so no confirmation is planned
+    twice in one run.
     """
-    order, seen = [], set()
-    queues = ((iter(pending), False), (iter(unresolved), True))
-    exhausted = 0
-    while len(order) < budget and exhausted < len(queues):
-        exhausted = 0
-        for source, is_revisit in queues:
-            if len(order) >= budget:
-                break
-            for confirmation_id in source:
+    sources = {QUEUE_PENDING: iter(pending), QUEUE_UNRESOLVED: iter(unresolved)}
+    order, seen, preferred = [], set(), start_queue
+    while len(order) < budget:
+        took = False
+        # Try the preferred queue first, then the other one.
+        for queue in (preferred, QUEUE_UNRESOLVED if preferred == QUEUE_PENDING
+                      else QUEUE_PENDING):
+            for confirmation_id in sources[queue]:
                 if confirmation_id in seen:
                     continue
                 seen.add(confirmation_id)
-                order.append((confirmation_id, is_revisit))
+                order.append((confirmation_id, queue == QUEUE_UNRESOLVED))
+                took = True
                 break
-            else:
-                exhausted += 1
+            if took:
+                break
+        if not took:
+            break  # both queues exhausted
+        preferred = (QUEUE_UNRESOLVED if preferred == QUEUE_PENDING
+                     else QUEUE_PENDING)
     return order
+
+
+def _link_snapshot(link):
+    """The parts of a decision a revisit could meaningfully change."""
+    return (link.decision, link.reason_code, link.application_id,
+            link.transition_id)
 
 
 def reconcile_pending(*, limit=MAX_RUN_EVIDENCE):
     """Reconcile undecided confirmations and revisit unresolved review items.
 
-    Explicitly invoked, exactly like #45's sync: there is no scheduler and no
-    background reconciliation. Each piece of evidence is decided in its own
+    Explicitly invoked, exactly like #45's sync: there is no scheduler thread
+    and no background reconciliation. Each item is decided in its own
     transaction, so one failure cannot roll back decisions already durably
-    recorded for earlier evidence.
+    recorded for earlier items, and the run resumes cleanly next time.
 
-    `limit` bounds the **total** evidence rows this run processes --
+    `limit` bounds the **total** rows this run processes --
     `considered + revisited` never exceeds it -- and is itself clamped to
-    `MAX_RUN_EVIDENCE`. The two queues share that one budget; see
-    `_interleave()` for how it is divided.
+    `MAX_RUN_EVIDENCE`.
+
+    Fairness is durable, not per-process:
+
+    * **Between queues.** Slots alternate from a pointer stored in
+      `reconciliation_scheduler.next_queue`, advanced once per processed item
+      inside that item's own transaction. Alternation therefore survives
+      separate requests, restarts and multiple workers, and holds at
+      `limit=1`, where each run serves the queue the previous run did not.
+    * **Within the revisit queue.** Items are ordered by
+      `(revisit_sequence, id)` and every item a run touches is stamped with a
+      fresh, strictly increasing sequence, which moves it to the back. An
+      unmatched item can therefore never be re-selected ahead of an item that
+      has waited longer. With a backlog of `U` eligible items and at least
+      one revisit slot per run, every item is attempted within `U` runs, and
+      within `ceil(U / r)` runs when `r` slots go to revisits.
+    * **Within the pending queue.** A confirmation leaves that queue
+      permanently once processed -- it gains a link row -- so ordering by
+      `gmail_confirmations.id` already gives eventual progress: the item at
+      position `k` is reached within `ceil(k / p)` runs for `p` pending slots
+      per run.
     """
     initialize_reconciliation_schema()
     bounded = max(1, min(int(limit), MAX_RUN_EVIDENCE))
     summary = {'schema': SCHEMA_VERSION, 'limit': bounded, 'processed': 0,
-               'considered': 0, 'revisited': 0,
-               'linked': 0, 'needs_review': 0, 'no_action': 0,
+               'considered': 0, 'revisited': 0, 'revisits_changed': 0,
+               'skipped': 0, 'linked': 0, 'needs_review': 0, 'no_action': 0,
                'by_reason': {}}
     with Session() as db:
-        # Each query reads at most one run's worth of identifiers, and the
-        # snapshot is taken before any processing, so a review item this run
+        # Snapshots are read before any processing, so a review item this run
         # creates is not also revisited by the same run.
         pending = db.scalars(
             select(GmailConfirmation.id)
@@ -739,16 +859,27 @@ def reconcile_pending(*, limit=MAX_RUN_EVIDENCE):
             .where(GmailApplicationLink.id.is_(None))
             .order_by(GmailConfirmation.id)
             .limit(bounded)).all()
+        # Only genuinely eligible items: still awaiting review, not yet
+        # attached to an application, and with their evidence still present.
+        # The inner join means an orphaned link can never occupy a slot.
         unresolved = db.scalars(
             select(GmailApplicationLink.gmail_confirmation_id)
+            .join(GmailConfirmation,
+                  GmailConfirmation.id == GmailApplicationLink.gmail_confirmation_id)
             .where(GmailApplicationLink.decision == DECISION_NEEDS_REVIEW,
                    GmailApplicationLink.application_id.is_(None))
-            .order_by(GmailApplicationLink.id)
+            .order_by(GmailApplicationLink.revisit_sequence,
+                      GmailApplicationLink.id)
             .limit(bounded)).all()
+        start_queue = _scheduler(db).next_queue
+        if start_queue not in QUEUES:
+            start_queue = QUEUE_PENDING
 
-    def tally(result, revisited):
+    def tally(result, revisited, changed):
         summary['revisited' if revisited else 'considered'] += 1
         summary['processed'] += 1
+        if revisited and changed:
+            summary['revisits_changed'] += 1
         if result.decision in (DECISION_LINKED, DECISION_USER_CONFIRMED):
             summary['linked'] += 1
         elif result.decision == DECISION_NEEDS_REVIEW:
@@ -758,20 +889,45 @@ def reconcile_pending(*, limit=MAX_RUN_EVIDENCE):
         summary['by_reason'][result.reason_code] = summary['by_reason'].get(
             result.reason_code, 0) + 1
 
-    for confirmation_id, is_revisit in _interleave(pending, unresolved, bounded):
+    for confirmation_id, is_revisit in _plan(pending, unresolved, bounded,
+                                             start_queue):
+        outcome = None
         with Session.begin() as db:
             row = db.get(GmailConfirmation, confirmation_id)
-            if row is None:
-                continue
-            if not is_revisit:
-                result = reconcile_confirmation(db, row)
-            else:
-                link = db.scalar(select(GmailApplicationLink).where(
-                    GmailApplicationLink.gmail_confirmation_id == confirmation_id))
-                if link is None or link.decision != DECISION_NEEDS_REVIEW:
+            link = db.scalar(select(GmailApplicationLink).where(
+                GmailApplicationLink.gmail_confirmation_id == confirmation_id))
+            if is_revisit:
+                if link is None or link.decision != DECISION_NEEDS_REVIEW \
+                        or link.application_id is not None or row is None:
+                    # Settled, attached or deleted between the snapshot and
+                    # now. It is not processed and is not counted as such --
+                    # but it is stamped, so a row that somehow stays
+                    # selectable can never hold a slot run after run.
+                    if link is not None:
+                        link.revisit_sequence = _next_stamp(db)
+                    summary['skipped'] += 1
                     continue
+                before = _link_snapshot(link)
                 result = revisit_confirmation(db, row, link)
-        tally(result, is_revisit)
+                link.revisit_sequence = _next_stamp(db)
+                outcome = (result, _link_snapshot(link) != before)
+            else:
+                if row is None:
+                    summary['skipped'] += 1
+                    continue
+                result = reconcile_confirmation(db, row)
+                fresh = db.scalar(select(GmailApplicationLink).where(
+                    GmailApplicationLink.gmail_confirmation_id == confirmation_id))
+                if fresh is not None:
+                    # Stamp the new link too, so it joins the rotation at the
+                    # back rather than jumping ahead of items already waiting.
+                    fresh.revisit_sequence = _next_stamp(db)
+                outcome = (result, True)
+            # Advanced only for work actually done, inside that work's own
+            # transaction, so a crash leaves the pointer exactly where the
+            # last committed item put it.
+            _advance_queue(db)
+        tally(outcome[0], is_revisit, outcome[1])
     return summary
 
 
