@@ -8,6 +8,17 @@ when a release is approved; this file does not establish that a release exists.
 
 ### Added
 
+- One authoritative application-state model with an explicit permitted-transition
+  table, an append-only transition history carrying manual/automated provenance,
+  and conservative deterministic multi-field reconciliation of Gmail
+  confirmation evidence. `APPLIED` is the only state an automated signal may
+  set, at HIGH confidence and a unique strong match only; a contradictory
+  requisition URL blocks automatic linking outright; HIGH and MEDIUM evidence
+  that cannot be linked stays resolvable in a Needs Review queue and LOW never
+  mutates state. Additive schema; existing applications are bootstrapped
+  truthfully and the read models are order-independent. No live mailbox
+  validation and no independent review; R-18 remains OPEN (#46).
+
 - PRIMARY Gmail bounded incremental read-only sync and deterministic initial
   application-confirmation evidence, with minimized storage, hostile-content
   controls and fictional privacy/spoofing regressions (#45).

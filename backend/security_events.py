@@ -26,6 +26,10 @@ Gmail OAuth taxonomy (issue #44 / ADR-0007):
   GMAIL_REMOTE_REVOCATION_FAILED  CWE-613  Google-side revocation did not succeed
   GMAIL_CREDENTIAL_STORE_FAILED   CWE-522  OS credential store unavailable or write/read failed
 
+Application-state taxonomy (issue #46 / R-18):
+  APPLICATION_RECONCILIATION_CONFLICT  CWE-345 Gmail evidence matched ambiguously; no state changed
+  APPLICATION_STATE_TRANSITION_REJECTED CWE-841 an automated transition was refused by the state rules
+
 Bounded fields: `record()` normally discards every caller-supplied field,
 because free text, URLs and filenames can carry PII or secrets. BOUNDED_FIELDS
 is the one narrow exception: a field is persisted only when the event declares
@@ -65,6 +69,8 @@ SEVERITY = {
     'GMAIL_ACCOUNT_DISCONNECTED': 'NOTICE',
     'GMAIL_REMOTE_REVOCATION_FAILED': 'WARNING',
     'GMAIL_CREDENTIAL_STORE_FAILED': 'ERROR',
+    'APPLICATION_RECONCILIATION_CONFLICT': 'WARNING',
+    'APPLICATION_STATE_TRANSITION_REJECTED': 'NOTICE',
 }
 
 #: Authored, fixed reason text per event. Events without an entry keep the
@@ -84,6 +90,8 @@ REASONS = {
     'GMAIL_ACCOUNT_DISCONNECTED': 'Gmail account disconnected locally',
     'GMAIL_REMOTE_REVOCATION_FAILED': 'Gmail remote revocation did not succeed',
     'GMAIL_CREDENTIAL_STORE_FAILED': 'Gmail credential store operation failed',
+    'APPLICATION_RECONCILIATION_CONFLICT': 'Gmail evidence could not be reconciled to a single application',
+    'APPLICATION_STATE_TRANSITION_REJECTED': 'Automated application-state transition refused',
 }
 
 _SLOTS = frozenset({'PRIMARY', 'SECONDARY'})
@@ -115,10 +123,34 @@ _GMAIL_BOUNDED = {'slot': _SLOTS, 'result': _GMAIL_RESULTS}
 BOUNDED_FIELDS = {event: _GMAIL_BOUNDED for event in SEVERITY
                   if event.startswith('GMAIL_')}
 
+#: Issue #46. The complete outcome vocabulary an application-state event may
+#: record: the reconciliation ambiguity token plus every refusal reason the
+#: state service can return. Built from `application_state` itself, imported
+#: lazily so this telemetry module keeps no import-time dependency on the
+#: application layer, and frozen at first use. A company name, role, subject,
+#: URL, email address, message identifier or exception string is not a member
+#: of this set and is therefore dropped, exactly like any other unbounded
+#: value reaching `record()`.
+_APPLICATION_RESULTS = None
+
+
+def _application_bounded():
+    global _APPLICATION_RESULTS
+    if _APPLICATION_RESULTS is None:
+        try:
+            from .application_state import REFUSAL_REASONS
+            reasons = set(REFUSAL_REASONS)
+        except Exception:
+            reasons = set()
+        _APPLICATION_RESULTS = frozenset(
+            reasons | {'AMBIGUOUS_MATCH', 'URL_IDENTITY_CONFLICT', 'UNKNOWN'})
+    return {'result': _APPLICATION_RESULTS}
+
 
 def _bounded(event, fields):
     """Keep only allowlisted field names whose values are allowlisted tokens."""
-    allowed = BOUNDED_FIELDS.get(event)
+    allowed = (_application_bounded() if event.startswith('APPLICATION_')
+               else BOUNDED_FIELDS.get(event))
     if not allowed:
         return {}
     return {name: value for name, value in fields.items()
