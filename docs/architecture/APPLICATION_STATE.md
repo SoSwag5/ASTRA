@@ -2,11 +2,16 @@
 
 Implementation owner: Claude Code, on `feature/46-application-reconciliation-state-model`
 from `11a69b0921d55072aa4f552a0319320ab73d6741` (merged #45 / PR #67).
-Revised after an independent review of `150a45a` returned CHANGES REQUIRED;
-the four reproduced defects and their fixes are described in their sections
-below and summarised under "Review remediation".
-This is **implementation and self-verification**, not an independent review.
-**No live mailbox validation** has been performed. **No independent review yet.**
+Revised across three independent review rounds; the reproduced defects and
+their fixes are described in their sections below and summarised under
+"Review remediation".
+Independent review of the final candidate `006e9111a196e940d8d11163548ef642c2007e5c`
+returned **APPROVE**, and the work merged to `master` via
+[PR #68](https://github.com/SoSwag5/ASTRA/pull/68) as squash commit
+`7ecd0b78277f67db0a44db176db467bcfb1f5a17`.
+Review and testing were offline and deterministic: **no live mailbox
+validation** has been performed, and **real-world reconciliation accuracy
+remains unmeasured**.
 **R-18 remains OPEN.** **No residual-risk acceptance or release approval is
 implied.** #46.2, #47 and #48 are not started.
 
@@ -614,7 +619,8 @@ is implied.**
 - **No live mailbox validation.** Every test uses fictional evidence rows
   constructed directly in an isolated database. Nothing here measures
   real-world reconciliation accuracy, and no such claim is made.
-- **No independent review yet.** This is implementation and self-verification.
+- **No independent review of live behaviour.** Independent review of
+  `006e911` returned APPROVE on the code and its offline evidence only.
 - Only `APPLIED` can arrive automatically, because #45 parses nothing else.
   `VIEWED`, `ASSESSMENT`, `INTERVIEW`, `OFFER` and `REJECTED` are reachable only
   by the user's own action until a parser exists for them.
