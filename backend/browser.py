@@ -114,7 +114,16 @@ def _run(db,j,mode,dry_run,fixture):
                 page.locator(adapter.submit_selector()).click(timeout=10000)
                 page.locator(adapter.success_selector()).wait_for(state='visible',timeout=15000)
                 after=shots/f'{run.id}_after.png'; screenshot(page,after); run.screenshot_after=str(after.relative_to(DATA)); a.confirmation=page.locator(adapter.success_selector()).inner_text()[:500]
-                set_status(db,j,'APPLIED'); run.step='confirmed'
+                from .application_state import prime_state
+                prime_state(db,a)
+                application=set_status(db,j,'APPLIED'); run.step='confirmed'
+                # Issue #46: a browser-confirmed submission is the user's own
+                # action (they drove the browser), so it carries manual
+                # authority in the canonical model. External browser submission
+                # is disabled in this release, but the path is routed through
+                # the state service rather than left as a future bypass.
+                from .application_state import record_legacy_assertion,SOURCE_BROWSER_CONFIRMATION,REASON_BROWSER_CONFIRMED
+                record_legacy_assertion(db,application,'APPLIED',source_category=SOURCE_BROWSER_CONFIRMATION,asserted_by='BROWSER',reason_code=REASON_BROWSER_CONFIRMED)
             db.commit(); context.close()
     except Exception as exc:
         run.error=('Browser operation failed: '+str(exc).split('\n')[0])[:500]; run.retryable=not a.submission_attempted and not isinstance(exc,ValueError)
