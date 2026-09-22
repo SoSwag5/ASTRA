@@ -314,8 +314,204 @@ with Session() as db:
     run = db.get(AutomationRun, run_id)
     beta = db.scalar(select(JobSource).where(JobSource.board == 'beta'))
     alpha = db.scalar(select(JobSource).where(JobSource.board == 'alpha'))
-    assert run.report['scope_changed_sources'] == [beta.id]
+    assert run.report['scope_changed_sources'] == [{'id': beta.id, 'name': 'Fixture beta', 'change': 'EDITED'}]
+    assert run.status == 'PARTIAL'                        # the confirmed scope was not completed
+    assert [e['outcome'] for e in run.report['scope_accounting']] == ['FETCHED', 'NOT_FETCHED_SCOPE_CHANGED']
     assert run.report['scope']['locations'] == ['Abu Dhabi', 'Al Ain']
     assert alpha.details['mode'] == 'MANUAL'              # a manual run is recorded as manual
 assert network_calls == []
+""")
+
+
+# --- Independent review remediation (A1-A3) --------------------------------
+
+def test_preview_display_and_token_binding_come_from_one_snapshot(tmp_path):
+    """A1: a concurrent edit landing while the preview is being built can
+    never make the page show one scope while the token binds another."""
+    isolated(tmp_path, PRELUDE + r"""
+import backend.scan_control as sc
+initialize(); add_sources('alpha')
+with Session.begin() as db:
+    row = db.get(Settings, 1); row.value = {**row.value, 'locations': ['Dubai']}
+real_settings = sc.settings
+calls = []
+def settings_then_concurrent_edit(db):
+    value = real_settings(db)
+    calls.append(1)
+    # Another request commits right after the settings were read and before
+    # the sources are read: a new source and a different location.
+    with Session.begin() as other:
+        row = other.get(Settings, 1); row.value = {**row.value, 'locations': ['Riyadh']}
+        other.add(JobSource(name='Fixture late', adapter='lever', board='late', enabled=True))
+    return value
+sc.settings = settings_then_concurrent_edit
+with TestClient(m.app) as c:
+    preview = c.post('/api/scan/preview', json={}).json()
+    sc.settings = real_settings
+    bound = sc._previews[preview['token']]
+    assert calls == [1]                                   # settings read exactly once
+    assert preview['scope']['locations'] == ['Dubai'] == bound['cfg']['locations']
+    # The late source is invisible to the whole preview snapshot, display and binding alike.
+    assert [s['name'] for s in preview['scope']['sources']] == ['Fixture alpha']
+    assert sorted(bound['source_defs']) == preview['scope']['source_ids']
+    # The concurrent edit is caught at confirmation.
+    r = c.post('/api/scan/start', json={'token': preview['token']})
+    assert r.status_code == 409 and r.json()['scope_changed'] is True
+assert discover_runs() == [] and fetches == [] and network_calls == []
+""")
+
+
+def test_every_confirmed_source_is_accounted_for_when_disabled_or_deleted_after_start(tmp_path):
+    """A2: a confirmed source disabled or deleted just after confirmation is
+    not fetched, and progress and the final report name it."""
+    isolated(tmp_path, PRELUDE + r"""
+import backend.scan_control as sc
+from backend import discovery_telemetry as t
+initialize(); add_sources('alpha', 'beta', 'gamma')
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    confirmation = sc.confirm(token)                      # exactly what /start does first
+    assert isinstance(confirmation, sc.ScanConfirmation)
+    with Session.begin() as db:                           # "just after /start", before the worker runs
+        db.scalar(select(JobSource).where(JobSource.board == 'beta')).enabled = False
+        db.delete(db.scalar(select(JobSource).where(JobSource.board == 'gamma')))
+    result = m.task('discover', confirmation=confirmation)
+assert fetches == ['alpha'], fetches
+report = result['report']
+assert result['status'] == 'PARTIAL'
+assert report['scope_changed_sources'] == [
+    {'id': 2, 'name': 'Fixture beta', 'change': 'DISABLED'},
+    {'id': 3, 'name': 'Fixture gamma', 'change': 'DELETED'}]
+assert [(e['id'], e['outcome']) for e in report['scope_accounting']] == [
+    (1, 'FETCHED'), (2, 'NOT_FETCHED_SCOPE_CHANGED'), (3, 'NOT_FETCHED_SCOPE_CHANGED')]
+assert report['confirmed_scope'] == {'sources_confirmed': 3, 'sources_fetched': 1,
+                                     'sources_failed': 0, 'sources_not_fetched': 2}
+assert report['progress']['sources_total'] == 3 and report['progress']['sources_not_fetched'] == 2
+states = {s['source_name']: s['attempt_state'] for s in report[t.REPORT_KEY]['sources']}
+assert states == {'Fixture alpha': t.ATTEMPTED, 'Fixture beta': t.SKIPPED_SCOPE_CHANGED,
+                  'Fixture gamma': t.SKIPPED_SCOPE_CHANGED}, states
+t.validate(report[t.REPORT_KEY])
+assert not m.task_lock.locked() and network_calls == []
+""")
+
+
+def test_disabled_mid_run_is_named_in_live_progress(tmp_path):
+    isolated(tmp_path, PRELUDE + r"""
+initialize(); add_sources('alpha', 'beta')
+gate.clear()
+with TestClient(m.app) as c:
+    run_id = c.post('/api/scan/start',
+                    json={'token': c.post('/api/scan/preview', json={}).json()['token']}).json()['run_id']
+    assert wait_for(lambda: len(fetches) == 1)
+    with Session.begin() as db:
+        db.scalar(select(JobSource).where(JobSource.board == 'beta')).enabled = False
+    gate.set()
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+assert last['status'] == 'PARTIAL' and fetches == ['alpha']
+assert last['progress']['sources_total'] == 2 and last['progress']['sources_done'] == 1
+assert last['progress']['scope_changed_sources'] == [{'id': 2, 'name': 'Fixture beta', 'change': 'DISABLED'}]
+assert last['scope_changed_sources'] == last['progress']['scope_changed_sources']
+""")
+
+
+def test_task_discover_requires_a_valid_single_use_confirmation(tmp_path):
+    """A3: the internal task('discover') boundary enforces the Owner's rule."""
+    isolated(tmp_path, PRELUDE + r"""
+import backend.scan_control as sc
+initialize(); add_sources('alpha')
+# No confirmation, a look-alike object, and a hand-built confirmation are all refused.
+assert m.task('discover')['refused'] is True
+assert m.task('discover', scheduled_run=True)['refused'] is True
+class Fake:
+    run_id = 1; source_ids = (1,)
+    def claim(self): return True
+assert m.task('discover', confirmation=Fake())['refused'] is True
+try:
+    sc.ScanConfirmation(object(), 1, [1], {}, {}, threading.Event(), False)
+    raise SystemExit('a confirmation was created outside confirm()')
+except PermissionError:
+    pass
+assert discover_runs() == [] and fetches == [] and not m.task_lock.locked()
+
+# A real confirmation runs once; replaying it is refused and cannot release the lock twice.
+token = sc.preview(sc.PreviewRequest())['token']
+confirmation = sc.confirm(token)
+assert m.task_lock.locked()                               # confirm() holds the lock for the run
+first = m.task('discover', confirmation=confirmation)
+assert first['status'] == 'COMPLETED' and not m.task_lock.locked()
+assert m.task('discover', confirmation=confirmation)['refused'] is True
+assert fetches == ['alpha'] and len(discover_runs()) == 1
+# A confirmation cannot be used to run a different task.
+try:
+    m.task('report', confirmation=confirmation); raise SystemExit('accepted')
+except ValueError:
+    pass
+assert not m.task_lock.locked() and network_calls == []
+""")
+
+
+def test_expired_token_is_refused(tmp_path):
+    isolated(tmp_path, PRELUDE + r"""
+import backend.scan_control as sc
+from datetime import timedelta
+initialize(); add_sources('alpha')
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    real = sc._utc
+    sc._utc = lambda: real() + sc.PREVIEW_TTL + timedelta(seconds=1)
+    r = c.post('/api/scan/start', json={'token': token})
+    sc._utc = real
+    assert r.status_code == 409 and 'expired' in r.json()['detail']
+    assert c.post('/api/scan/start', json={'token': token}).status_code == 409   # pruned, not revived
+assert discover_runs() == [] and fetches == [] and not m.task_lock.locked()
+""")
+
+
+def test_two_concurrent_starts_start_exactly_one_run(tmp_path):
+    isolated(tmp_path, PRELUDE + r"""
+initialize(); add_sources('alpha')
+gate.clear()
+with TestClient(m.app) as c:
+    same = c.post('/api/scan/preview', json={}).json()['token']
+    other = c.post('/api/scan/preview', json={}).json()['token']
+    barrier = threading.Barrier(3)
+    results = []
+    def press(token):
+        barrier.wait(); results.append(c.post('/api/scan/start', json={'token': token}))
+    threads = [threading.Thread(target=press, args=(tok,)) for tok in (same, same, other)]
+    for th in threads: th.start()
+    for th in threads: th.join(20)
+    codes = sorted(r.status_code for r in results)
+    assert codes == [200, 409, 409], codes
+    assert wait_for(lambda: len(fetches) == 1)
+    gate.set()
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+assert len(discover_runs()) == 1 and fetches == ['alpha'] and not m.task_lock.locked()
+""")
+
+
+def test_start_is_refused_while_another_process_holds_the_lock(tmp_path):
+    isolated(tmp_path, PRELUDE + r"""
+import subprocess, sys
+initialize(); add_sources('alpha')
+holder = subprocess.Popen([sys.executable, '-c',
+    'import sys\nfrom backend.reliability import ProcessLock\n'
+    'p=ProcessLock(); assert p.acquire(False); print("held", flush=True); sys.stdin.readline()'],
+    stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+assert holder.stdout.readline().strip() == 'held'
+try:
+    with TestClient(m.app) as c:
+        token = c.post('/api/scan/preview', json={}).json()['token']
+        r = c.post('/api/scan/start', json={'token': token})
+        assert r.status_code == 409 and r.json()['busy'] is True
+        assert discover_runs() == [] and fetches == []
+        holder.stdin.write('\n'); holder.stdin.flush(); holder.wait(20)
+        # The same confirmation can be used once the other process has finished.
+        r = c.post('/api/scan/start', json={'token': token})
+        assert r.status_code == 200, r.json()
+        assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+finally:
+    if holder.poll() is None: holder.kill()
+assert len(discover_runs()) == 1 and fetches == ['alpha'] and not m.task_lock.locked()
 """)

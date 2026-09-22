@@ -16,6 +16,16 @@ each source fetch, so no further source is fetched after a stop request.
 Tokens live in memory only, so a restart invalidates every pending
 confirmation: a page left open across a restart cannot start a scan without a
 fresh preview.
+
+The scope a preview DISPLAYS and the scope its token BINDS are built from one
+read of sources and settings inside a single SQLite read transaction, so a
+concurrent edit can never make the page show one scope while the token holds
+another.
+
+``confirm()`` turns a valid token into a ``ScanConfirmation``: the only object
+``main.task('discover')`` accepts. It is single use, carries the confirmed
+source ids, their definitions and the settings, and only this module can
+create one.
 """
 import hashlib
 import json
@@ -23,6 +33,7 @@ import secrets
 import statistics
 import threading
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
@@ -68,12 +79,29 @@ def _digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, default=str).encode()).hexdigest()
 
 
+def _read_snapshot(db):
+    """Open an explicit SQLite read transaction on this session's connection.
+
+    The pysqlite driver runs each SELECT in its own implicit snapshot, so two
+    reads could otherwise straddle a concurrent commit. Inside BEGIN (WAL
+    mode) every read sees the same committed state until the session closes
+    and rolls the read transaction back.
+    """
+    db.connection().exec_driver_sql('BEGIN')
+
+
+def _digests(defs, cfg):
+    return _digest({str(k): v for k, v in defs.items()}), _digest(cfg)
+
+
 def _binding(db, source_ids):
-    """Current definitions of the scoped sources plus the full settings."""
+    """Current definitions of the scoped sources plus the full settings, read
+    in one snapshot."""
+    _read_snapshot(db)
     rows = {s.id: s for s in db.scalars(select(JobSource).where(JobSource.id.in_(source_ids)))}
     defs = {sid: source_definition(rows[sid]) if sid in rows else None for sid in source_ids}
     cfg = settings(db)
-    return defs, cfg, _digest({str(k): v for k, v in defs.items()}), _digest(cfg)
+    return (defs, cfg) + _digests(defs, cfg)
 
 
 def _utc():
@@ -118,6 +146,13 @@ def _estimate(db, sources):
 
 
 def _scope(db, source_id):
+    """Scope, workload and binding from ONE read of sources and settings.
+
+    What the page displays (scope) and what the token binds (defs, cfg) are
+    derived from the same objects, read in the same snapshot, so they cannot
+    disagree.
+    """
+    _read_snapshot(db)
     cfg = settings(db)
     query = select(JobSource).where(JobSource.enabled == True, JobSource.adapter != 'manual')  # noqa: E712
     if source_id is not None:
@@ -136,7 +171,8 @@ def _scope(db, source_id):
         'locations': list(cfg.get('locations', [])),
         'single_source': source_id is not None,
     }
-    return scope, _estimate(db, sources)
+    defs = {s.id: source_definition(s) for s in sources}
+    return scope, _estimate(db, sources), defs, cfg
 
 
 def _busy(run):
@@ -151,8 +187,8 @@ def preview(data: PreviewRequest):
         running = _active_run(db)
         if running is not None:
             return _busy(running)
-        scope, workload = _scope(db, data.source_id)
-        defs, cfg, defs_digest, cfg_digest = _binding(db, scope['source_ids'])
+        scope, workload, defs, cfg = _scope(db, data.source_id)
+    defs_digest, cfg_digest = _digests(defs, cfg)
     token = secrets.token_urlsafe(32)
     expires = _utc() + PREVIEW_TTL
     with _guard:
@@ -166,23 +202,83 @@ def preview(data: PreviewRequest):
             'scope': scope, 'workload': workload}
 
 
-def _run(run_id, source_ids, event, source_defs, cfg):
+_ISSUER = object()
+
+
+class ScanConfirmation:
+    """Proof that the Owner confirmed one previewed scope.
+
+    Only ``confirm()`` creates one; ``main.task('discover')`` refuses to run
+    without it, and ``claim()`` makes it single use. Whoever holds a
+    confirmation also holds ``task_lock``: ``confirm()`` acquires it and the
+    task releases it.
+    """
+
+    def __init__(self, issuer, run_id, source_ids, source_defs, cfg, cancel, single_source):
+        if issuer is not _ISSUER:
+            raise PermissionError('Only a confirmed Start Scan can authorise discovery')
+        self.run_id = run_id
+        self.source_ids = tuple(source_ids)
+        self.source_defs = dict(source_defs)
+        self.cfg = cfg
+        self.cancel = cancel
+        self.single_source = single_source
+        self.trigger = TRIGGER
+        self._claimed = False
+        self._claim_lock = threading.Lock()
+
+    def claim(self):
+        with self._claim_lock:
+            if self._claimed:
+                return False
+            self._claimed = True
+            return True
+
+
+def missing_source(source_id, definition):
+    """Stand-in for a confirmed source deleted after confirmation, so the run
+    still reports it by id and by its confirmed name."""
+    definition = definition or {}
+    return SimpleNamespace(id=source_id, name=definition.get('name') or 'Deleted source %d' % source_id,
+                           adapter=definition.get('adapter') or 'unknown')
+
+
+def _run(confirmation):
     from .main import task
     try:
-        task('discover', trigger=TRIGGER, run_id=run_id, cancel=event, lock_held=True,
-             source_ids=set(source_ids), source_defs=source_defs, cfg_snapshot=cfg)
+        task('discover', confirmation=confirmation)
     finally:
         with _guard:
-            _cancel.pop(run_id, None)
+            _cancel.pop(confirmation.run_id, None)
 
 
 @router.post('/start')
 def start(data: StartRequest):
     """Start exactly one scan for one confirmed preview."""
+    confirmation = confirm(data.token)
+    if not isinstance(confirmation, ScanConfirmation):
+        return confirmation
+    try:
+        threading.Thread(target=_run, args=(confirmation,),
+                         name='astra-manual-scan-%d' % confirmation.run_id, daemon=True).start()
+    except Exception:
+        from .main import task_lock
+        task_lock.release()
+        raise
+    return {'started': True, 'run_id': confirmation.run_id}
+
+
+def confirm(token):
+    """Turn a valid preview token into a ScanConfirmation.
+
+    Returns a 409 JSONResponse instead when the token is unknown, expired or
+    already used, when the scope changed since the preview, or when a scan is
+    running. On success, task_lock is held and a RUNNING AutomationRun exists.
+    """
     from .main import task_lock
     with _guard:
         _prune(_utc())
-        pending = _previews.get(data.token)
+        pending = _previews.get(token)
         if pending is None:
             return JSONResponse({'detail': 'This scan preview has expired or is unknown. '
                                            'Review the scope again before starting.'}, 409)
@@ -194,7 +290,7 @@ def start(data: StartRequest):
         if (defs_digest, cfg_digest) != (pending['defs_digest'], pending['cfg_digest']):
             # Sources or settings changed since the preview. The Owner confirmed
             # the previewed scope, not this one, so nothing starts.
-            del _previews[data.token]
+            del _previews[token]
             return JSONResponse({'detail': 'Your sources or search settings changed after this preview. '
                                            'Review the scope again before starting.',
                                  'scope_changed': True}, 409)
@@ -216,13 +312,11 @@ def start(data: StartRequest):
             pending['run_id'] = run_id
             event = threading.Event()
             _cancel[run_id] = event
-            threading.Thread(target=_run, args=(run_id, scope['source_ids'], event,
-                                               pending['source_defs'], pending['cfg']),
-                             name='astra-manual-scan-%d' % run_id, daemon=True).start()
+            return ScanConfirmation(_ISSUER, run_id, scope['source_ids'], pending['source_defs'],
+                                    pending['cfg'], event, scope['single_source'])
         except Exception:
             task_lock.release()
             raise
-    return {'started': True, 'run_id': run_id}
 
 
 @router.post('/cancel')
@@ -248,7 +342,9 @@ def _view(run):
             'cancel_requested_at': report.get('cancel_requested_at'),
             'cancelled': report.get('cancelled'), 'error': report.get('error'),
             'discovered': report.get('discovered'), 'duplicates': report.get('duplicates'),
-            'failures': report.get('failures')}
+            'failures': report.get('failures'),
+            'scope_changed_sources': report.get('scope_changed_sources', []),
+            'scope_accounting': report.get('scope_accounting')}
 
 
 @router.get('/status')

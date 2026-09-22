@@ -99,12 +99,13 @@ def _isolated(tmp_path, script):
 
 def test_lever_orchestration_mixed_record_commits_valid_job(tmp_path):
     """Real end-to-end reproduction of finding 1 through
-    main.task('discover') -> provider -> compatibility -> ingestion: a
+    main.task('discover') (confirmed Start Scan) -> provider -> compatibility -> ingestion: a
     credential-bearing sibling row must never roll back the valid job in
     the same source's run."""
     _isolated(tmp_path, r'''
 from backend.models import *
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 import backend.job_providers.lever as lever_mod
 initialize()
 with Session.begin() as db:
@@ -112,7 +113,7 @@ with Session.begin() as db:
 good = {'id':'1','text':'SOC Analyst','hostedUrl':'https://jobs.lever.co/lv-co/1','categories':{'location':'Dubai'},'description':'SIEM'}
 bad = {'id':'2','text':'SOC Analyst 2','hostedUrl':'https://user:pass@jobs.lever.co/lv-co/2','categories':{'location':'Dubai'},'description':'SIEM'}
 lever_mod.fetch_json = lambda url, budget, **kw: [good, bad]
-r = m.task('discover')
+r = confirmed_discover()
 assert r['status'] == 'COMPLETED', r
 source_report = r['report']['sources'][0]
 assert source_report['error'] == '', source_report
@@ -129,6 +130,7 @@ def test_ashby_orchestration_mixed_record_commits_valid_job(tmp_path):
     _isolated(tmp_path, r'''
 from backend.models import *
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 import backend.job_providers.ashby as ashby_mod
 initialize()
 with Session.begin() as db:
@@ -136,7 +138,7 @@ with Session.begin() as db:
 good = {'id':'1','title':'SOC Analyst','jobUrl':'https://jobs.ashbyhq.com/as-co/1','location':'Dubai'}
 bad = {'id':'2','title':'SOC Analyst 2','jobUrl':'https://user:pass@jobs.ashbyhq.com/as-co/2','location':'Dubai'}
 ashby_mod.fetch_json = lambda url, budget, **kw: {'jobs': [good, bad]}
-r = m.task('discover')
+r = confirmed_discover()
 assert r['status'] == 'COMPLETED', r
 source_report = r['report']['sources'][0]
 assert source_report['error'] == '', source_report

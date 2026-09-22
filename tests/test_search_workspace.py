@@ -5,6 +5,7 @@ def test_discovery_and_tracking(tmp_path):
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 import backend.main as main
+from tests.scan_harness import confirmed_discover
 from backend.models import *
 with TestClient(main.app) as c:
     with Session.begin() as db:
@@ -23,7 +24,7 @@ with TestClient(main.app) as c:
     # both carry a real native id (as any genuine Lever posting would) so
     # they are correctly recognized as duplicates on the rescan below.
     main.discover=lambda *args:[{'company':'Fixture','title':'SOC Analyst','location':'Dubai','description':'SOC SIEM Python','source':'Lever','source_job_id':'fixture1','job_url':'https://jobs.lever.co/fixture/one'}, {'company':'Fixture','title':'Accountant','location':'Dubai','source':'Lever','source_job_id':'fixture2','job_url':'https://jobs.lever.co/fixture/two'}]
-    r=main.task('discover')
+    r=confirmed_discover()
     assert r['report']['discovered']==2 and r['report']['filtered']==0
     jobs=c.get('/api/jobs').json()
     job=next(j for j in jobs if j['title']=='SOC Analyst')
@@ -34,7 +35,7 @@ with TestClient(main.app) as c:
     assert c.post(f"/api/jobs/{job['id']}/analyze").status_code==200
     assert next(j for j in c.get('/api/jobs').json() if j['id']==job['id'])['analysis']['saved']
     app=c.post(f"/api/jobs/{job['id']}/status",json={'status':'APPLIED'}).json()
-    r=main.task('discover')
+    r=confirmed_discover()
     assert r['report']['duplicates']==2 and r['report']['discovered']==0
     assert next(j for j in c.get('/api/jobs').json() if j['id']==job['id'])['status']=='APPLIED'
     assert c.get('/api/search/overview').json()['sources'][0]['result']['duplicates']==2
@@ -47,7 +48,7 @@ with TestClient(main.app) as c:
     assert not c.get('/api/search/tracking').json()[0]['due']
     def broken(*args): raise ValueError('Source unavailable')
     main.discover=broken
-    r=main.task('discover')
+    r=confirmed_discover()
     assert r['status']=='PARTIAL' and r['report']['failures']==1
     assert next(j for j in c.get('/api/jobs').json() if j['id']==job['id'])['status']=='APPLIED'
     assert c.put('/api/settings',json={'discovery_enabled':False}).status_code==200

@@ -121,10 +121,11 @@ def test_invalid_item_is_isolated_and_does_not_abort_the_source(tmp_path):
  isolated(tmp_path,r'''
 from backend.models import *
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 initialize()
 with Session.begin() as db:db.add(JobSource(name='Synthetic failure',adapter='lever',board='fixture',enabled=True))
 m.discover=lambda *args:[{'title':'SOC Analyst','location':'Dubai','description':'SIEM','job_url':'https://example.com/1','source':'Lever','source_job_id':'1'},{'title':'SOC Analyst','location':'Dubai','description':'SIEM','job_url':'file://invalid','source':'Lever','source_job_id':'2'},{'title':'Director SOC','location':'Dubai','description':'10 years experience','source':'Lever','source_job_id':'3'}]
-r=m.task('discover');assert r['status']=='COMPLETED',r
+r=confirmed_discover();assert r['status']=='COMPLETED',r
 assert r['report']['funnel']['counts']['fetched']==3
 assert r['report']['discovered']==2
 assert [x['disposition'] for x in r['report']['decisions']]==['NEW','INVALID_JOB','NEW']
@@ -155,6 +156,7 @@ def test_no_catchup_and_headless_entry_point_is_a_noop(tmp_path):
 from backend.models import *
 from datetime import datetime,timedelta,timezone
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 import sys
 from scripts.discovery_once import main
 initialize()
@@ -182,6 +184,7 @@ def test_failed_task_keeps_history_and_releases_lock(tmp_path):
  isolated(tmp_path,r'''
 from backend.models import initialize
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 initialize()
 r=m.task('invalid',trigger='MANUAL')
 assert r['status']=='FAILED'
@@ -197,12 +200,13 @@ def test_offline_source_is_a_reported_failure_not_a_success(tmp_path):
  isolated(tmp_path,r'''
 from backend.models import *
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 initialize()
 with Session.begin() as db:
  db.add(JobSource(name='Offline fixture',adapter='lever',board='fixture',enabled=True))
 def offline(*args):raise ConnectionError('Synthetic offline condition')
 m.discover=offline
-r=m.task('discover',trigger='MANUAL_START')
+r=confirmed_discover()
 assert r['status']=='PARTIAL'
 with Session() as db:
  run=db.query(AutomationRun).one();assert run.status=='PARTIAL' and run.report['failures']==1
@@ -217,6 +221,7 @@ def test_isolated_flow_and_no_network_paste(tmp_path):
 from fastapi.testclient import TestClient
 from backend.main import app
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 from backend.models import *
 from sqlalchemy import select
 with TestClient(app) as c:
@@ -224,7 +229,7 @@ with TestClient(app) as c:
   db.add(CandidateProfile(name='Synthetic',raw_text='SOC SIEM Linux'))
   db.add(JobSource(name='Synthetic',adapter='lever',board='fixture',enabled=True))
  m.discover=lambda *args:[{'title':'SOC Analyst L1','company':'Synthetic','location':'Dubai','description':'1-3 years experience. SOC SIEM','job_url':'https://example.com/1','source':'Lever','source_job_id':'1'},{'title':'Director SOC','location':'Dubai','description':'10 years experience','source':'Lever','source_job_id':'2'}]
- run=m.task('discover');assert run['status']=='COMPLETED',run
+ run=confirmed_discover();assert run['status']=='COMPLETED',run
  assert run['report']['funnel']['counts']['fetched']==2
  # Issue #41: both postings are structurally valid and neither is hard-
  # rejected (a 1-3 year requirement is normal early-career territory, and
@@ -239,6 +244,6 @@ with TestClient(app) as c:
  assert c.post(f'/api/recall/jobs/{jid}/feedback',json={'decision':'NOT_FOR_ME','reason':'too senior'}).status_code==200
  assert len(c.get('/api/recall').json()['recommendations'])==1
  assert c.put('/api/recall/policy',json={'policy':'STRICT'}).status_code==200
- assert m.task('discover')['report']['discovered']==0
+ assert confirmed_discover()['report']['discovered']==0
  with Session() as db:assert db.query(Application).count()==0
 ''')

@@ -89,5 +89,7 @@ with Session.begin() as db:
 def forbidden(*args):raise AssertionError('Should not contact a source')
 main.discover=forbidden
 result=task('discover',scheduled_run=True)
-assert result['report']['scanned']==0 and result['report']['failures']==0
+# Discovery is manual-only: a scheduled call is refused and nothing is fetched or recorded.
+assert result.get('refused') is True,result
+with Session() as db: assert db.query(AutomationRun).count()==0
 ''')
