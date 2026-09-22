@@ -2,8 +2,17 @@
 
 No network, no database writes that matter (set HUNTER_DATA_DIR to a scratch
 directory), no live scan. Reads local posting snapshots that are NOT in the
-repository, recorded role understandings, and imported Owner labels. Holdout
-items are skipped before any file of theirs is opened.
+repository, recorded role understandings, and imported Owner labels.
+
+Holdout boundary, precisely:
+- The items file is parsed once. Only rows whose split is 'development' are
+  kept; for every other row only its item_id is retained, to refuse it below.
+  No other field of a holdout row is used, printed or written.
+- The run refuses to start if the labels or the understandings name any
+  non-development item.
+- Snapshot files are opened only through _read_snapshot(), which refuses any
+  id outside the development split. The output records every snapshot
+  opened and the number of holdout snapshots opened (always 0).
 
 Usage:
   python scripts/shadow_role_eval.py --items FROZEN.json --snapshots DIR \
@@ -57,23 +66,38 @@ def main():
     for name in ('items', 'snapshots', 'understandings', 'labels', 'profile', 'preferences', 'out'):
         ap.add_argument('--' + name, required=True)
     a = ap.parse_args()
-    items = json.loads(Path(a.items).read_text(encoding='utf-8'))['items']
+    all_items = json.loads(Path(a.items).read_text(encoding='utf-8'))['items']
+    items = [it for it in all_items if it.get('split') == 'development']
+    dev_ids = {it['item_id'] for it in items}
+    holdout_ids = {str(it.get('item_id')) for it in all_items if it.get('split') != 'development'}
+    del all_items
     understandings = json.loads(Path(a.understandings).read_text(encoding='utf-8'))['items']
     labels = json.loads(Path(a.labels).read_text(encoding='utf-8'))['labels']
+    for name, keys in (('labels', labels), ('understandings', understandings)):
+        outside = sorted(set(keys) - dev_ids)
+        if outside:
+            sys.exit(f'refusing to run: {name} name {len(outside)} item(s) outside the development split '
+                     f'(holdout or unknown); the holdout must stay untouched')
+    opened = []
+
+    def _read_snapshot(item_id):
+        if item_id not in dev_ids:
+            raise PermissionError('snapshot outside the development split')
+        opened.append(item_id)
+        return (Path(a.snapshots) / f'{item_id}.txt').read_text(encoding='utf-8')
+
     fixture = json.loads(Path(a.profile).read_text(encoding='utf-8'))
     prefs = json.loads(Path(a.preferences).read_text(encoding='utf-8'))
     cfg = {**DEFAULTS, **fixture['career_config']}
 
     rows, excluded = [], []
     for it in items:
-        if it['split'] != 'development':
-            continue  # holdout: never opened
         k = it['item_id']
         label = labels.get(k)
         if label is None or not label.get('use_for_fit_scoring', True):
             excluded.append({'item_id': k, 'reason': (label or {}).get('exclusion_reason', 'no Owner label')})
             continue
-        text = (Path(a.snapshots) / f'{k}.txt').read_text(encoding='utf-8')
+        text = _read_snapshot(k)
         location = it['engine_input_location'] if 'engine_input_location' in it else (it.get('location_stated') or '')
         job = {'title': it['title'] or '', 'company': it['employer'], 'location': location, 'description': text,
                'job_url': it['official_url'], 'source': it['platform'],
@@ -128,7 +152,11 @@ def main():
     out = {'artifact': 'discovery_46_2c_shadow_eval', 'policy_version': ru.POLICY_VERSION,
            'schema_version': ru.SCHEMA_VERSION, 'clock': CLOCK.isoformat(), 'preferences': prefs,
            'profile_fixture': fixture.get('source'), 'items_scored': n, 'excluded': excluded,
-           'network_lookups_attempted': _lookups, 'metrics': metrics, 'rows': rows}
+           'network_lookups_attempted': _lookups,
+           'holdout_boundary': {'holdout_items_seen': len(holdout_ids), 'holdout_fields_used': 'item_id only, to refuse',
+                                'snapshots_opened': sorted(opened),
+                                'holdout_snapshots_opened': len(set(opened) & holdout_ids)},
+           'metrics': metrics, 'rows': rows}
     Path(a.out).write_text(json.dumps(out, indent=1, ensure_ascii=False) + '\n', encoding='utf-8', newline='\n')
     print(json.dumps(metrics, indent=1))
 
