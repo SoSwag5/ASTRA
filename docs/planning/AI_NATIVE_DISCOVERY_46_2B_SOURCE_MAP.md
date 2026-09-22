@@ -43,8 +43,8 @@ None of these UAE employers uses Greenhouse, Lever or Ashby, so no row is covere
 | UAE University | Education | https://jobs.uaeu.ac.ae/ | Custom portal | Listings load client-side ("Loading..." in the served page); there is no documented public feed and no reviewed reader. | — | Al Ain | 2026-09-22T12:05:40+00:00 |
 | Emirates Group | Aviation | https://www.emiratesgroupcareers.com/ | Avature | Job search runs on Avature: /careers is robots-disallowed, and the marketplace redirects to a login page. | — | Dubai | 2026-09-22T12:04:43+00:00 |
 | Burjeel Holdings | Healthcare | https://burjeelholdings.com/careers/ | Custom (Nuxt) | The vacancy list is rendered client-side (VacanciesList component); there is no documented feed and no reviewed reader. | — | Abu Dhabi, Al Ain, Dubai | 2026-09-22T12:08:06+00:00 |
-| Masdar | Energy | https://masdar.ae/en/careers | SmartRecruiters | Postings are on SmartRecruiters, whose API access terms are unsettled (Owner decision). ASTRA makes no SmartRecruiters calls. | — | Abu Dhabi | 2026-09-22T07:50:10Z |
-| Etihad Airways | Aviation | https://careers.etihad.com | SmartRecruiters | Postings are on SmartRecruiters, whose API access terms are unsettled (Owner decision). ASTRA makes no SmartRecruiters calls. | — | Abu Dhabi | 2026-09-22T07:50:16Z |
+| Masdar | Energy | https://masdar.ae/en/careers | SmartRecruiters | Postings are on SmartRecruiters, whose API access terms are unsettled (Owner decision). No SmartRecruiters API calls were made during this research; ASTRA's existing adapter can fetch enabled sources after scan confirmation. | — | Abu Dhabi | 2026-09-22T07:50:10Z |
+| Etihad Airways | Aviation | https://careers.etihad.com | SmartRecruiters | Postings are on SmartRecruiters, whose API access terms are unsettled (Owner decision). No SmartRecruiters API calls were made during this research; ASTRA's existing adapter can fetch enabled sources after scan confirmation. | — | Abu Dhabi | 2026-09-22T07:50:16Z |
 
 Notes on individual rows:
 

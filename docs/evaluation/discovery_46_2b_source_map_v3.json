@@ -69,7 +69,7 @@
    "platform": "SuccessFactors CSB",
    "outcome": "MANUAL_LINK",
    "access_method": "SAP SuccessFactors Career Site Builder, server-rendered; robots permits /job/ and /search/",
-   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters was excluded from this research while its access terms are unsettled). A new reader needs a reviewed access basis first.",
    "uae_role_examples": [
     {
      "title": "IT Support Specialist - Emirati",
@@ -102,7 +102,7 @@
    "platform": "SuccessFactors CSB",
    "outcome": "MANUAL_LINK",
    "access_method": "SAP SuccessFactors Career Site Builder; robots permits /job/ and /search/",
-   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters was excluded from this research while its access terms are unsettled). A new reader needs a reviewed access basis first.",
    "uae_role_examples": [
     {
      "title": "Junior PLM Software Analyst - Contractual",
@@ -135,7 +135,7 @@
    "platform": "Oracle Recruiting Cloud",
    "outcome": "MANUAL_LINK",
    "access_method": "Oracle Recruiting Cloud public candidate feed (no robots.txt)",
-   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters was excluded from this research while its access terms are unsettled). A new reader needs a reviewed access basis first.",
    "uae_role_examples": [],
    "locations": "Abu Dhabi, Al Ain",
    "evidence_at": "2026-09-22",
@@ -149,7 +149,7 @@
    "platform": "Oracle Recruiting Cloud",
    "outcome": "MANUAL_LINK",
    "access_method": "Careers link in the official nmc.ae menu (read 2026-09-22T12:39:23Z) points to Oracle Recruiting Cloud site CX_1; landing page robots-permitted, HTTP 200 at 2026-09-22T12:39:47Z (CX_1001: HTTP 200 at 12:39:51Z). No requisition was opened.",
-   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters was excluded from this research while its access terms are unsettled). A new reader needs a reviewed access basis first.",
    "uae_role_examples": [],
    "locations": "Abu Dhabi, Dubai",
    "evidence_at": "2026-09-22T12:39:47Z",
@@ -176,7 +176,7 @@
    "platform": "Oracle Recruiting Cloud",
    "outcome": "MANUAL_LINK",
    "access_method": "Oracle Recruiting Cloud public candidate feed",
-   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters was excluded from this research while its access terms are unsettled). A new reader needs a reviewed access basis first.",
    "uae_role_examples": [],
    "locations": "Dubai (global board)",
    "evidence_at": "2026-09-22",
@@ -190,7 +190,7 @@
    "platform": "Oracle Recruiting Cloud",
    "outcome": "MANUAL_LINK",
    "access_method": "Oracle Recruiting Cloud public candidate feed",
-   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters was excluded from this research while its access terms are unsettled). A new reader needs a reviewed access basis first.",
    "uae_role_examples": [
     {
      "title": "Associate Technical Support Engineer",
@@ -211,7 +211,7 @@
    "platform": "Oracle Recruiting Cloud",
    "outcome": "MANUAL_LINK",
    "access_method": "Oracle Recruiting Cloud public candidate feed",
-   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters was excluded from this research while its access terms are unsettled). A new reader needs a reviewed access basis first.",
    "uae_role_examples": [
     {
      "title": "Senior Engineer, QA Automation",
@@ -232,7 +232,7 @@
    "platform": "Oracle Recruiting Cloud",
    "outcome": "MANUAL_LINK",
    "access_method": "Careers portal links to Oracle Recruiting Cloud site CX_1 (hcld.fa.em2); robots permits the candidate feed",
-   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters was excluded from this research while its access terms are unsettled). A new reader needs a reviewed access basis first.",
    "uae_role_examples": [
     {
      "title": "Automation DevOps Engineer (Injaz-TECH Architecture and DevOps)",
@@ -265,7 +265,7 @@
    "platform": "Phenom",
    "outcome": "MANUAL_LINK",
    "access_method": "Phenom career site; robots permits job and search pages, disallows */apply",
-   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first. Availability cannot be established by a permitted route (apply step is robots-excluded and behind sign-in).",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters was excluded from this research while its access terms are unsettled). A new reader needs a reviewed access basis first. Availability cannot be established by a permitted route (apply step is robots-excluded and behind sign-in).",
    "uae_role_examples": [
     {
      "title": "Security Engineer (DFIR Lab)",
@@ -292,7 +292,7 @@
    "platform": "Phenom",
    "outcome": "MANUAL_LINK",
    "access_method": "Phenom career site; search page server-renders results",
-   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters was excluded from this research while its access terms are unsettled). A new reader needs a reviewed access basis first.",
    "uae_role_examples": [
     {
      "title": "Manager IDAM",
@@ -313,7 +313,7 @@
    "platform": "Phenom",
    "outcome": "MANUAL_LINK",
    "access_method": "Phenom career site (linked from careers.airarabia.com); robots permits search and job pages",
-   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters was excluded from this research while its access terms are unsettled). A new reader needs a reviewed access basis first.",
    "uae_role_examples": [],
    "locations": "Sharjah HQ; IT roles seen are in Pune and Colombo",
    "evidence_at": "2026-09-22T12:07:22+00:00",
@@ -327,7 +327,7 @@
    "platform": "SuccessFactors",
    "outcome": "MANUAL_LINK",
    "access_method": "Official careers site on SAP SuccessFactors (linked from ega.ae/en/opportunity/careers)",
-   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters was excluded from this research while its access terms are unsettled). A new reader needs a reviewed access basis first.",
    "uae_role_examples": [],
    "locations": "Abu Dhabi, Dubai",
    "evidence_at": "2026-09-22T12:07:26+00:00",
@@ -383,7 +383,7 @@
    "platform": "SmartRecruiters",
    "outcome": "MANUAL_LINK",
    "access_method": "Official careers page -> careers.smartrecruiters.com/masdar",
-   "limitation": "Postings are on SmartRecruiters, whose API access terms are unsettled (Owner decision). ASTRA makes no SmartRecruiters calls.",
+   "limitation": "Postings are on SmartRecruiters, whose API access terms are unsettled (Owner decision). No SmartRecruiters API calls were made during this research; ASTRA's existing adapter can fetch enabled sources after scan confirmation.",
    "uae_role_examples": [],
    "locations": "Abu Dhabi",
    "evidence_at": "2026-09-22T07:50:10Z",
@@ -397,7 +397,7 @@
    "platform": "SmartRecruiters",
    "outcome": "MANUAL_LINK",
    "access_method": "Official careers page -> careers.smartrecruiters.com/EtihadAirways5",
-   "limitation": "Postings are on SmartRecruiters, whose API access terms are unsettled (Owner decision). ASTRA makes no SmartRecruiters calls.",
+   "limitation": "Postings are on SmartRecruiters, whose API access terms are unsettled (Owner decision). No SmartRecruiters API calls were made during this research; ASTRA's existing adapter can fetch enabled sources after scan confirmation.",
    "uae_role_examples": [],
    "locations": "Abu Dhabi",
    "evidence_at": "2026-09-22T07:50:16Z",
