@@ -341,3 +341,40 @@ def test_eval_script_never_opens_or_accepts_holdout_items(tmp_path):
     bad.write_text(json.dumps({'labels': {**labels['labels'], 'Y01': {'first_saved_choice': 'hide'}}}), encoding='utf-8')
     refused = run(bad)
     assert refused.returncode != 0 and 'holdout' in (refused.stderr + refused.stdout).lower()
+
+
+UNHASHABLE_KINDS = [['DESIGNATED_NATIONALS'], {'k': 'DESIGNATED_NATIONALS'}, {'DESIGNATED_NATIONALS'}, None, 3]
+
+
+@pytest.mark.parametrize('kind', UNHASHABLE_KINDS, ids=[type(k).__name__ for k in UNHASHABLE_KINDS])
+def test_unhashable_or_wrong_type_wording_kind_is_rejected_not_raised(kind):
+    posting = {'title': 'IT Support (UAE National)', 'description': 'Resolve desktop tickets for office users.'}
+    answer = _answer('IT_SUPPORT', 0.9, ['Resolve desktop tickets for office users'],
+                     wording=[{'kind': kind, 'text': 'UAE National'}])
+    out = ru.verify(answer, posting)
+    assert out['primary_function'] == ru.UNKNOWN_FUNCTION and out['eligibility_wording'] == []
+    assert any('eligibility_wording' in d for d in out['discarded'])
+
+
+def test_random_malformed_answers_never_raise():
+    import random
+    rng = random.Random(4620922)
+    atoms = [None, True, 0, -1, 1.5, float('nan'), '', 'x', 'IT_SUPPORT', 'DESIGNATED_NATIONALS', [], {}]
+
+    def value(depth=0):
+        roll = rng.random()
+        if depth > 2 or roll < 0.5:
+            return rng.choice(atoms)
+        if roll < 0.75:
+            return [value(depth + 1) for _ in range(rng.randint(0, 3))]
+        return {rng.choice(['kind', 'text', 'x', 'primary_function']): value(depth + 1) for _ in range(rng.randint(0, 3))}
+
+    keys = sorted(ru.RESPONSE_KEYS) + ['assessor', 'extra']
+    posting = {'title': 'IT Support', 'description': 'Resolve desktop tickets for office users. 1 year of experience.'}
+    for _ in range(2000):
+        raw = {k: value() for k in keys if rng.random() < 0.8}
+        if rng.random() < 0.3:
+            raw['eligibility_wording'] = [{'kind': value(), 'text': value()}]
+        out = ru.verify(raw, posting)
+        assert out['primary_function'] in ru.FUNCTIONS
+        ru.place(out, {'bucket': 'LOW', 'score': 40}, CFG, OWNER_LIKE)

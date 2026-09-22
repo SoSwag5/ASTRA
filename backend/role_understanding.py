@@ -232,7 +232,7 @@ def _schema_problems(raw):
         problems.append('years_evidence is not null or a string')
     wording = raw.get('eligibility_wording')
     if not isinstance(wording, list) or len(wording) > MAX_SPANS or not all(
-            isinstance(w, dict) and set(w) == {'kind', 'text'} and w['kind'] in ELIGIBILITY_KINDS
+            isinstance(w, dict) and set(w) == {'kind', 'text'} and isinstance(w['kind'], str) and w['kind'] in ELIGIBILITY_KINDS
             and isinstance(w['text'], str) for w in wording):
         problems.append('eligibility_wording is not a short list of {kind, text}')
     if 'assessor' in raw and not isinstance(raw['assessor'], str):
@@ -256,7 +256,10 @@ def verify(raw, posting):
     wording must be verbatim and actually about nationality. Never raises on
     malformed input.
     """
-    problems = _schema_problems(raw)
+    try:
+        problems = _schema_problems(raw)
+    except Exception as error:  # an answer shape the checks did not foresee: reject, never raise
+        problems = [f'answer could not be validated ({type(error).__name__})']
     if problems:
         return _unknown(['answer rejected: ' + p for p in problems])
     job = bounded_job(posting)
