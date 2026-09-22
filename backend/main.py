@@ -59,11 +59,38 @@ def _compat_funnel(rows):
                                   'authoritative monotonic discovery funnel.'}
 
 
-def task(name, source_id=None, scheduled_run=False, trigger=None):
-    if not task_lock.acquire(blocking=False): return {'busy':True}
+def _record_progress(db, run_id, report, total, done, current):
+    """Persist scan progress so the workspace can show it while the run is
+    still going. Merges into the stored report, so a concurrent cancel request
+    recorded there is never overwritten."""
+    report['progress']={'sources_total':total,'sources_done':done,'current_source':current,
+                        'postings_seen':report.get('scanned',0)}
+    # Session is expire_on_commit=False, so re-read the row: a cancel request
+    # committed by another request must be merged, never overwritten.
+    row=db.get(AutomationRun,run_id); db.refresh(row)
+    row.report={**(row.report or {}),'progress':report['progress'],'trigger':report['trigger'],
+                'started_at':report['started_at'],**({'scope':report['scope']} if 'scope' in report else {})}
+    db.commit()
+
+
+def task(name, source_id=None, scheduled_run=False, trigger=None, run_id=None, cancel=None,
+         lock_held=False, source_ids=None):
+    """Run one task. Discovery is manual-only: the workspace's Start Scan
+    confirmation (backend/scan_control.py) is the only product path that calls
+    this with name='discover'. When it does, it has already acquired task_lock
+    and created the AutomationRun row, and passes both over (lock_held, run_id)
+    together with a cancellation event checked before every source fetch."""
+    if not lock_held and not task_lock.acquire(blocking=False): return {'busy':True}
     try:
         with Session() as db:
-            cfg=settings(db); run=AutomationRun(task=name); db.add(run); db.commit(); report={'discovered':0,'duplicates':0,'prepared':0,'submitted':0,'failures':0,'trigger':trigger or ('APP' if scheduled_run else 'MANUAL'),'started_at':now(),'checked':0,'buckets':{k:0 for k in ('STRONG','GOOD','STRETCH','LOW','REJECTED')},'assessment_comparisons':{}}
+            cfg=settings(db)
+            if run_id is None:
+                run=AutomationRun(task=name); db.add(run); db.commit(); prior={}
+            else:
+                run=db.get(AutomationRun,run_id); prior=dict(run.report or {})
+            report={'discovered':0,'duplicates':0,'prepared':0,'submitted':0,'failures':0,'trigger':trigger or prior.get('trigger') or ('APP' if scheduled_run else 'MANUAL'),'started_at':prior.get('started_at') or now(),'checked':0,'buckets':{k:0 for k in ('STRONG','GOOD','STRETCH','LOW','REJECTED')},'assessment_comparisons':{}}
+            if prior.get('scope'): report['scope']=prior['scope']
+            cancelled_sources=0
             try:
                 if name=='discover':
                     from .recall import evaluate
@@ -81,16 +108,28 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                     # empty one, so it is reported as skipped rather than as zeroes.
                     for skipped in db.scalars(select(JobSource).where(JobSource.adapter!='manual',JobSource.enabled==False)):
                         run_telemetry.skip(skipped,telemetry.SKIPPED_DISABLED)
-                    for source in list(db.scalars(select(JobSource).where(JobSource.enabled==True))):
-                        if source.adapter=='manual':continue
+                    enabled_sources=[s for s in db.scalars(select(JobSource).where(JobSource.enabled==True)) if s.adapter!='manual']
+                    planned=sum(1 for s in enabled_sources if (source_id is None or s.id==source_id)
+                                and (source_ids is None or s.id in source_ids))
+                    done=0
+                    if run_id is not None: _record_progress(db,run.id,report,planned,done,None)
+                    for source in enabled_sources:
                         if source_id is not None and source.id != source_id:
                             run_telemetry.skip(source,telemetry.SKIPPED_NOT_TARGETED); continue
+                        if source_ids is not None and source.id not in source_ids:
+                            run_telemetry.skip(source,telemetry.SKIPPED_NOT_TARGETED); continue
+                        # Cancellation is checked BEFORE each source is fetched, so a
+                        # stopped scan starts no further source fetches. A source already
+                        # being fetched finishes within its own bounded provider budget.
+                        if cancel is not None and cancel.is_set():
+                            run_telemetry.skip(source,telemetry.SKIPPED_CANCELLED); cancelled_sources+=1; continue
                         if scheduled_run and source.details.get('last_success'):
                             from .search_workspace import parse_date
                             last=parse_date(source.details['last_success'])
                             interval=source.details.get('interval_hours',cfg['discovery_interval_hours'])
                             if last and interval in (3,6,12,24) and last+timedelta(hours=interval)>datetime.now(timezone.utc):
                                 run_telemetry.skip(source,telemetry.SKIPPED_NOT_DUE); continue
+                        if run_id is not None: _record_progress(db,run.id,report,planned,done,source.name)
                         source_report={'id':source.id,'name':source.name,'scanned':0,'checked':0,'imported':0,'duplicates':0,'filtered':{},'error':'','completion':'COMPLETE','buckets':{k:0 for k in ('STRONG','GOOD','STRETCH','LOW','REJECTED')},'assessment_comparisons':{}}
                         source_decisions=[]
                         attempt=run_telemetry.attempt(source)
@@ -186,6 +225,8 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                             source.details={**source.details,'last_attempted':now(),'last_error':'Request failed; retry or review source configuration'}
                             report['failures']+=1; source_report['error']='Source request failed ('+type(e).__name__+'). Check the source URL or retry later.'; log(db,source_report['error'],level='ERROR'); db.commit()
                         report['sources'].append(source_report)
+                        done+=1
+                        if run_id is not None: _record_progress(db,run.id,report,planned,done,None)
                 elif name in ('analyze','prepare','process'):
                     for j in list(db.scalars(select(Job).where(Job.status.not_in(TERMINAL|{'SKIP'})))):
                         try:
@@ -208,7 +249,8 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                         audit['decision']['hard'][0]['code'] for audit in report['decisions']
                         if audit.get('decision') and audit['decision']['excluded'] and audit.get('disposition')!='SOURCE_ERROR'))
                     report['funnel']=_compat_funnel(report['decisions']);report['sources_attempted']=len(report['sources']);report['sources_successful']=sum(not s['error'] for s in report['sources'])
-                    run_status='PARTIAL' if report['failures'] else 'COMPLETED'
+                    run_status='CANCELLED' if cancelled_sources else ('PARTIAL' if report['failures'] else 'COMPLETED')
+                    if cancelled_sources: report['cancelled']={'sources_not_fetched':cancelled_sources}
                     # Issue #43: the authoritative, versioned discovery funnel. Building it
                     # cannot fail the run -- RunTelemetry.finalize() returns a bounded
                     # telemetry-error payload rather than raising or publishing fabricated
@@ -220,41 +262,34 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                     # and limited to discovery reporting: no Job, JobObservation,
                     # Application, user decision or application history is ever touched.
                     telemetry.prune_expired(db)
-                run=db.get(AutomationRun,run.id); run.status='PARTIAL' if report['failures'] else 'COMPLETED'; run.report=report; db.commit()
+                run=db.get(AutomationRun,run.id); db.refresh(run)
+                if (run.report or {}).get('cancel_requested_at'): report['cancel_requested_at']=run.report['cancel_requested_at']
+                run.status='CANCELLED' if cancelled_sources else ('PARTIAL' if report['failures'] else 'COMPLETED'); run.report=report; db.commit()
             except Exception as e:
                 db.rollback(); run=db.get(AutomationRun,run.id); run.status='FAILED'
                 report['finished_at']=now();report['duration_seconds']=round((datetime.fromisoformat(report['finished_at'])-datetime.fromisoformat(report['started_at'])).total_seconds(),3)
                 run.report={**report,'error':'Task failed ('+type(e).__name__+'); no success is recorded.'}; db.commit()
             return serialize(run)
     finally: task_lock.release()
+# Discovery is manual-only. It is never registered with the scheduler, never
+# caught up after a gap and never resumed after a restart; the only way to
+# start it is the workspace's Start Scan confirmation (backend/scan_control.py).
+# Stored legacy settings (discovery_enabled, discovery_interval_hours, a
+# 'discover' entry in schedule) are preserved untouched and simply have no
+# scheduling effect.
 def scheduled(name):
-    trigger='APP'
+    if name=='discover': return
     with Session() as db:
         cfg=settings(db)
-        if cfg['autopilot']=='OFF' or (name=='sync' and not cfg['auto_sync']) or (name=='discover' and not cfg['discovery_enabled']): return
-        if name=='discover':
-            from .search_workspace import parse_date
-            recent=db.scalars(select(AutomationRun).where(AutomationRun.task=='discover',AutomationRun.status.in_(['COMPLETED','PARTIAL'])).order_by(AutomationRun.id.desc()).limit(100))
-            last=next((r for r in recent if r.report.get('source_id') is None),None)
-            checked=parse_date(last.updated_at) if last else None
-            if checked and checked+timedelta(hours=cfg['discovery_interval_hours']*2)<datetime.now(timezone.utc):trigger='CATCHUP'
-    task(name,scheduled_run=True,trigger=trigger)
+        if cfg['autopilot']=='OFF' or (name=='sync' and not cfg['auto_sync']): return
+    task(name,scheduled_run=True,trigger='APP')
 def configure_schedule():
     with Session() as db:
         cfg=settings(db)
-        recent=list(db.scalars(select(AutomationRun).where(AutomationRun.task=='discover',AutomationRun.status.in_(['COMPLETED','PARTIAL'])).order_by(AutomationRun.id.desc()).limit(100)))
-        last=next((r for r in recent if r.report.get('source_id') is None),None)
-        interval=timedelta(hours=cfg['discovery_interval_hours'])
-        next_scan=datetime.now(timezone.utc)+interval
-        if last:
-            from .search_workspace import parse_date
-            checked=parse_date(last.updated_at)
-            if checked: next_scan=max(checked+interval,datetime.now(timezone.utc)+timedelta(seconds=10))
     scheduler.remove_all_jobs()
     for name,time in cfg['schedule'].items():
         if name=='discover': continue
         hour,minute=map(int,time.split(':')); scheduler.add_job(scheduled,'cron',args=[name],id=name,hour=hour,minute=minute,timezone=cfg.get('application_profile',{}).get('timezone','Asia/Dubai'),misfire_grace_time=1800,coalesce=True,max_instances=1)
-    scheduler.add_job(scheduled,'interval',hours=cfg['discovery_interval_hours'],args=['discover'],id='discover',next_run_time=next_scan,misfire_grace_time=1800,coalesce=True,max_instances=1)
     from .workbook import retry_sync
     scheduler.add_job(retry_sync,'interval',seconds=30,id='workbook_retry',coalesce=True,max_instances=1)
     from .reliability import backup_database
@@ -286,7 +321,11 @@ async def lifespan(app):
         try:
             with Session.begin() as db:
                 for run in db.scalars(select(AutomationRun).where(AutomationRun.status=='RUNNING')):
-                    run.status='INTERRUPTED'; run.report={**run.report,'error':'App stopped before this run finished; scan again.'}
+                    stopping=bool((run.report or {}).get('cancel_requested_at'))
+                    run.status='CANCELLED' if stopping else 'INTERRUPTED'
+                    run.report={**run.report,'restart':'NOT_RESTARTED',
+                                'error':('App stopped while this scan was being cancelled. It was not restarted.' if stopping else
+                                         'App stopped before this run finished. It was not restarted automatically; press Start Scan when you want a new scan.')}
         finally:task_lock.release()
     configure_schedule(); scheduler.start()
     yield
@@ -668,7 +707,9 @@ def sync():
             return {'path':'tracker.xlsx','pending':state.revision>state.exported_revision,'message':state.error or ('Excel update pending' if state.revision>state.exported_revision else 'Excel tracker synchronized')}
     with Session.begin() as db: return sync_tracker(db)
 @app.post('/api/tasks/{name}')
-def run_task(name:str): return task(name)
+def run_task(name:str):
+    if name=='discover': raise ValueError('Scans start only from Start Scan in Discovery: review the scope, then confirm.')
+    return task(name)
 @app.post('/api/browser/test')
 def test_browser(): return browser_test()
 @app.post('/api/browser/rehearsal')
@@ -691,6 +732,8 @@ def file_download(path:str):
     return FileResponse(target,filename=target.name)
 from .search_workspace import router as search_router
 app.include_router(search_router)
+from .scan_control import router as scan_router
+app.include_router(scan_router)
 from .campaign import router as campaign_router
 from . import source_catalog
 app.include_router(campaign_router)

@@ -146,7 +146,10 @@ with Session() as db:
  assert db.query(Job).count()==db.query(Application).count()==0
 ''')
 
-def test_app_catchup_and_headless_offline_pause(tmp_path):
+def test_no_catchup_and_headless_entry_point_is_a_noop(tmp_path):
+ # Manual-only scanning (Owner decision): an overdue last scan no longer
+ # triggers an automatic CATCHUP, and the headless entry point that a legacy
+ # Windows task runs starts nothing, whatever the stored settings say.
  from tests.test_campaign_reliability import isolated
  isolated(tmp_path,r'''
 from backend.models import *
@@ -160,11 +163,11 @@ with Session.begin() as db:
  cfg=db.get(Settings,1);cfg.value={**cfg.value,'discovery_enabled':True,'autopilot':'REVIEW_FIRST','discovery_interval_hours':6}
  db.add(AutomationRun(task='discover',status='COMPLETED',report={'source_id':None},updated_at=old))
 calls=[];m.task=lambda *args,**kwargs:calls.append(kwargs)
-m.scheduled('discover');assert len(calls)==1 and calls[0]['trigger']=='CATCHUP'
-with Session.begin() as db:
- cfg=db.get(Settings,1);cfg.value={**cfg.value,'discovery_enabled':False}
+m.scheduled('discover');assert calls==[]
 sys.argv=['discovery_once.py'];assert main()==0
-assert len(calls)==1
+sys.argv=['discovery_once.py','--force','--trigger','MANUAL'];assert main()==0
+assert calls==[]
+with Session() as db: assert db.query(AutomationRun).count()==1
 ''')
 
 def test_schedule_is_visible_opt_in_and_never_wakes_pc():
@@ -186,21 +189,21 @@ assert r['report']['trigger']=='MANUAL' and r['report']['started_at'] and r['rep
 assert r['report']['duration_seconds']>=0 and not m.task_lock.locked()
 ''')
 
-def test_headless_offline_run_has_meaningful_exit(tmp_path):
+def test_offline_source_is_a_reported_failure_not_a_success(tmp_path):
+ # Formerly exercised through the headless entry point, which is now a no-op;
+ # the same offline-source guarantees are asserted on task() directly, the
+ # function the confirmed Start Scan flow runs.
  from tests.test_campaign_reliability import isolated
  isolated(tmp_path,r'''
 from backend.models import *
 import backend.main as m
-import scripts.discovery_once as h
-import sys
 initialize()
 with Session.begin() as db:
- cfg=db.get(Settings,1);cfg.value={**cfg.value,'discovery_enabled':True,'autopilot':'PREPARE_ONLY'}
  db.add(JobSource(name='Offline fixture',adapter='lever',board='fixture',enabled=True))
 def offline(*args):raise ConnectionError('Synthetic offline condition')
 m.discover=offline
-sys.argv=['discovery_once.py','--force','--trigger','MANUAL']
-assert h.main()==2
+r=m.task('discover',trigger='MANUAL_START')
+assert r['status']=='PARTIAL'
 with Session() as db:
  run=db.query(AutomationRun).one();assert run.status=='PARTIAL' and run.report['failures']==1
  assert run.report['sources_successful']==0 and run.report['submitted']==0
