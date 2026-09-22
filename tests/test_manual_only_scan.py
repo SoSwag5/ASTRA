@@ -553,3 +553,23 @@ with TestClient(m.app) as c:
 assert fetches == ['alpha'] and [r.status for r in discover_runs()] == ['FAILED', 'COMPLETED']
 assert not m.task_lock.locked() and network_calls == []
 """)
+
+
+def test_today_summary_uses_the_confirmed_scope_not_a_smaller_one(tmp_path):
+    """Found in the synthetic UI check: after a PARTIAL scan the Today page said
+    "2/2 sources healthy" for three confirmed sources. The summary's
+    denominator is the confirmed scope, and unchecked sources are named."""
+    isolated(tmp_path, PRELUDE + r"""
+import backend.scan_control as sc
+initialize(); add_sources('alpha', 'beta', 'gamma')
+with TestClient(m.app) as c:
+    confirmation = sc.confirm(c.post('/api/scan/preview', json={}).json()['token'])
+    with Session.begin() as db:
+        db.scalar(select(JobSource).where(JobSource.board == 'gamma')).enabled = False
+    assert m.task('discover', confirmation=confirmation)['status'] == 'PARTIAL'
+    health = c.get('/api/campaign').json()['discovery_health']
+assert health['status'] == 'PARTIAL'
+assert (health['healthy'], health['attempted'], health['confirmed']) == (2, 2, 3), health
+assert health['not_checked'] == [{'name': 'Fixture gamma', 'reason': 'DISABLED'}]
+assert fetches == ['alpha', 'beta'] and network_calls == []
+""")

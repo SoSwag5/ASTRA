@@ -119,7 +119,18 @@ def overview():
         employers=Counter(norm(j.company) for j in relevant)
         coverage={'jobs':len(jobs),'employers':len({norm(j.company) for j in jobs}),'relevant_jobs':len(relevant),'relevant_employers':len(employers),'top_two_employer_share':sum(n for _,n in employers.most_common(2))/len(relevant) if relevant else None,'locations':dict(Counter(emirate(j.location) for j in relevant)),'fresh_24h':sum(bool(parse_date(j.date_posted) and clock-timedelta(days=1)<=parse_date(j.date_posted)<=clock) for j in relevant),'old_postings_90d':sum(bool(parse_date(j.date_posted) and parse_date(j.date_posted)<clock-timedelta(days=90)) for j in relevant),'posting_date_unknown':sum(not bool(parse_date(j.date_posted)) for j in relevant)}
         last_run=db.scalar(select(AutomationRun).where(AutomationRun.task=='discover',AutomationRun.status!='RUNNING').order_by(AutomationRun.id.desc()))
-        health={'last':last_run.updated_at,'healthy':sum(not r.get('error') for r in last_run.report.get('sources',[])),'attempted':len(last_run.report.get('sources',[])),'new':last_run.report.get('discovered',0),'errors':last_run.report.get('failures',0)} if last_run else {}
+        health={}
+        if last_run:
+            report=last_run.report or {}
+            attempted=len(report.get('sources',[]))
+            # Manual-only scans: the denominator is the scope the Owner confirmed, so a
+            # source skipped after confirmation (changed or cancelled) is never hidden
+            # behind a smaller "N/N healthy" figure.
+            not_checked=[{'name':e.get('name'),'reason':e.get('change') or ('CANCELLED' if e.get('outcome')=='NOT_FETCHED_CANCELLED' else 'NOT_FETCHED')}
+                         for e in report.get('scope_accounting',[]) if str(e.get('outcome','')).startswith('NOT_FETCHED')]
+            health={'last':last_run.updated_at,'status':last_run.status,'healthy':sum(not r.get('error') for r in report.get('sources',[])),
+                    'attempted':attempted,'confirmed':(report.get('confirmed_scope') or {}).get('sources_confirmed',attempted),
+                    'not_checked':not_checked,'new':report.get('discovered',0),'errors':report.get('failures',0)}
         return {'discovery_health':health,'campaign':cfg,'metrics':analytics(rows,cfg['observation_days']),'applications':rows,'strong_new':strong[:10],'saved':[serialize(j) for j in jobs if j.analysis.get('saved') and j.id not in tracked],'followups':due,'next_actions':next_actions,'weekly_review':review,'upcoming':sorted(upcoming,key=lambda i:i['date']),'excel':serialize(sync) if sync else {},'ranking_version':RANKING_VERSION,'coverage':coverage}
 
 @router.put('/settings')
