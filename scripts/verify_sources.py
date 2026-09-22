@@ -1,13 +1,22 @@
-"""Read public job feeds without submitting data or applications."""
+"""Retired source check. Always exits 0 and fetches nothing.
+
+This developer script used to read four hard-coded public Lever feeds by
+calling the discovery fetch directly, outside the Start Scan flow. ASTRA
+discovery is manual-only: postings are fetched only after the Owner reviews
+a scan preview and confirms Start Scan in the workspace. The script is kept
+so an old command line still runs harmlessly; it does not import the
+discovery fetch, open the database or contact any network.
+"""
 import sys
-from pathlib import Path
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from backend.adapters import discover
-from backend.discovery import discovery_reason
-from backend.models import DEFAULTS
-for board in ['capital','binance','safe','crypto']:
-    try:
-        jobs=discover('lever',board)
-        kept=[{'title':j['title'],'location':j['location']} for j in jobs if not discovery_reason(j,DEFAULTS)]
-        print({'board':board,'scanned':len(jobs),'matches':kept[:15]})
-    except Exception as e: print({'board':board,'error':str(e)})
+
+MESSAGE = ('ASTRA discovery is manual-only. Open the workspace, review the scan preview '
+           'and press Start Scan to check sources. This script fetches nothing.')
+
+
+def main():
+    print(MESSAGE)
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
