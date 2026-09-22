@@ -1,0 +1,579 @@
+{
+ "artifact": "discovery_46_2b_source_map",
+ "version": "v3",
+ "evidence_date": "2026-09-22",
+ "supersedes": "discovery_46_2b_source_frame_v2.json (recommendations); that file is kept unchanged",
+ "outcomes": {
+  "EXISTING_PERMITTED_ADAPTER": "An adapter ASTRA already has and may use (Greenhouse, Lever, Ashby). None of these employers uses one.",
+  "MANUAL_LINK": "A verified official link shown to the user, with a verified reason ASTRA cannot read the postings. It is never counted as an automatically found or confirmed-open job.",
+  "UNRESOLVED": "Neither a readable board nor a verified official link was established; the exact blocker is given."
+ },
+ "rules": [
+  "No SmartRecruiters API call; the old SmartRecruiters counts are not reused.",
+  "robots.txt honoured (RFC 9309 matcher); no login, apply path or CAPTCHA.",
+  "Holdout employers (NMC, DP World): no role examples, so the holdout stays untouched.",
+  "Role examples are a few titles for orientation, not coverage counts and not claims that a job is open."
+ ],
+ "counts": {
+  "EXISTING_PERMITTED_ADAPTER": 0,
+  "MANUAL_LINK": 20,
+  "UNRESOLVED": 12
+ },
+ "rows": [
+  {
+   "employer": "M42 / Mubadala Health",
+   "sector": "Healthcare",
+   "official_link": "https://careers.m42.ae/jobs",
+   "platform": "iCIMS",
+   "outcome": "MANUAL_LINK",
+   "access_method": "Official jobs page (robots-permitted)",
+   "limitation": "Postings live on careers-mubadalahealth.icims.com, whose robots.txt is Disallow: /. ASTRA may not read them.",
+   "uae_role_examples": [],
+   "locations": "Abu Dhabi",
+   "evidence_at": "2026-09-22T07:50:37Z",
+   "adapter_candidate": null,
+   "notes": "Earlier iCIMS reads breached robots.txt and stay withdrawn; no role examples are claimed."
+  },
+  {
+   "employer": "Cleveland Clinic Abu Dhabi",
+   "sector": "Healthcare",
+   "official_link": "https://www.clevelandclinicabudhabi.ae/en/careers/non-clinical-careers",
+   "platform": "LinkedIn Jobs (third-party)",
+   "outcome": "MANUAL_LINK",
+   "access_method": "Official non-clinical careers page (robots-permitted)",
+   "limitation": "Individual postings link out to LinkedIn, which ASTRA does not read automatically.",
+   "uae_role_examples": [],
+   "locations": "Abu Dhabi",
+   "evidence_at": "2026-09-22",
+   "adapter_candidate": null,
+   "notes": "The page lists IT among non-clinical areas; no posting is claimed open."
+  },
+  {
+   "employer": "SSMC (Sheikh Shakhbout Medical City)",
+   "sector": "Healthcare",
+   "official_link": "https://ssmc.ae/jobs/",
+   "platform": "Oracle (reported, not verified)",
+   "outcome": "MANUAL_LINK",
+   "access_method": "Official jobs page",
+   "limitation": "robots.txt disallows the jobs page for this client, so ASTRA cannot open it. What it lists has not been seen.",
+   "uae_role_examples": [],
+   "locations": "Abu Dhabi",
+   "evidence_at": "2026-09-22",
+   "adapter_candidate": null,
+   "notes": null
+  },
+  {
+   "employer": "Mediclinic Middle East",
+   "sector": "Healthcare",
+   "official_link": "https://www.mediclinic.ae/en/corporate/careers.html",
+   "platform": "SuccessFactors CSB",
+   "outcome": "MANUAL_LINK",
+   "access_method": "SAP SuccessFactors Career Site Builder, server-rendered; robots permits /job/ and /search/",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "uae_role_examples": [
+    {
+     "title": "IT Support Specialist - Emirati",
+     "requisition": "1437379433 (ref 73476)",
+     "url": "https://careers.mediclinic.com/MiddleEast/job/Mediclinic-Corporate-Office-Du-IT-Support-Specialist-Emirati-Duba-123812/1437379433/",
+     "note": "First-line ICT service desk; \"At least 1 years’ experience\"; Dubai; closing 30/09/2026. Title says \"Emirati\"; description says all applicants will be considered"
+    },
+    {
+     "title": "Systems Analyst",
+     "requisition": "1436775833 (ref 73217)",
+     "url": "https://careers.mediclinic.com/MiddleEast/job/Mediclinic-Corporate-Office-Du-Systems-Analyst-Duba-123812/1436775833/",
+     "note": "TrakCare L1/L2 application support; 5 yrs UAE healthcare, 3 yrs TrakCare, 7 yrs hospital IT; Dubai; no closing date."
+    },
+    {
+     "title": "Data Governance Developer (ME1255)",
+     "requisition": "1430435033 (ref 72730)",
+     "url": "https://careers.mediclinic.com/MiddleEast/job/Mediclinic-Corporate-Office-Du-Data-Governance-Developer-%28ME1255%29-Duba-123812/1430435033/",
+     "note": "TIBCO EBX/Java MDM; 5-8 yrs; Dubai; STILL LISTED although its stated closing date 07/09/2026 has passed."
+    }
+   ],
+   "locations": "Dubai, Abu Dhabi, Al Ain",
+   "evidence_at": "2026-09-22",
+   "adapter_candidate": "CSB listing reader (no documented API; HTML only)",
+   "notes": null
+  },
+  {
+   "employer": "EDGE Group",
+   "sector": "Defence / technology",
+   "official_link": "https://careers.edgegroup.ae/",
+   "platform": "SuccessFactors CSB",
+   "outcome": "MANUAL_LINK",
+   "access_method": "SAP SuccessFactors Career Site Builder; robots permits /job/ and /search/",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "uae_role_examples": [
+    {
+     "title": "Junior PLM Software Analyst - Contractual",
+     "requisition": "733440922",
+     "url": "https://careers.edgegroup.ae/job/Abu-Dhabi-Junior-PLM-Software-Analyst-Contractual/733440922/",
+     "note": "0-1 yrs PLM / Aras Innovator support; Abu Dhabi."
+    },
+    {
+     "title": "Software Engineer (Emirati Talent)",
+     "requisition": "733478722",
+     "url": "https://careers.edgegroup.ae/job/ARE-Software-Engineer-%28Emirati-Talent%29/733478722/",
+     "note": "Satellite onboard/ground software; aimed at graduates/PhDs; no city stated; \"Emirati Talent\" in title only."
+    },
+    {
+     "title": "Specialist Cybersecurity Analyst (Emirati Talent)",
+     "requisition": "733305022",
+     "url": "https://careers.edgegroup.ae/job/Abu-Dhabi-Specialist-Cybersecurity-Analyst-%28Emirati-Talent%29/733305022/",
+     "note": "SIEM/EDR/DLP monitoring, incident response in classified environments; 3-5 yrs."
+    }
+   ],
+   "locations": "Abu Dhabi",
+   "evidence_at": "2026-09-22",
+   "adapter_candidate": "same CSB reader as Mediclinic",
+   "notes": "D09 (Security Researcher - Hardware) availability is CONFLICTING and is not listed as an example."
+  },
+  {
+   "employer": "SEHA",
+   "sector": "Healthcare",
+   "official_link": "https://www.seha.ae/careers",
+   "platform": "Oracle Recruiting Cloud",
+   "outcome": "MANUAL_LINK",
+   "access_method": "Oracle Recruiting Cloud public candidate feed (no robots.txt)",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "uae_role_examples": [],
+   "locations": "Abu Dhabi, Al Ain",
+   "evidence_at": "2026-09-22",
+   "adapter_candidate": null,
+   "notes": "Whole-board read on 2026-09-22 found effectively no ICT roles; the frozen SEHA item is clinical."
+  },
+  {
+   "employer": "NMC Healthcare",
+   "sector": "Healthcare",
+   "official_link": "https://eiby.fa.em2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1",
+   "platform": "Oracle Recruiting Cloud",
+   "outcome": "MANUAL_LINK",
+   "access_method": "Careers link in the official nmc.ae menu (read 2026-09-22T12:39:23Z) points to Oracle Recruiting Cloud site CX_1; landing page robots-permitted, HTTP 200 at 2026-09-22T12:39:47Z (CX_1001: HTTP 200 at 12:39:51Z). No requisition was opened.",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "uae_role_examples": [],
+   "locations": "Abu Dhabi, Dubai",
+   "evidence_at": "2026-09-22T12:39:47Z",
+   "adapter_candidate": "Oracle ORC reader",
+   "notes": "Holdout employer: role examples are withheld so the holdout stays untouched.",
+   "additional_official_links": [
+    {
+     "label": "UAE National Careers (from the same NMC menu)",
+     "url": "https://eiby.fa.em2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001"
+    }
+   ],
+   "link_history": [
+    {
+     "was": "https://nmc.ae/en",
+     "replaced": "2026-09-22",
+     "reason": "the homepage is not a careers destination; replaced with the verified Careers link from the official menu"
+    }
+   ]
+  },
+  {
+   "employer": "DP World",
+   "sector": "Logistics",
+   "official_link": "https://www.dpworld.com/careers",
+   "platform": "Oracle Recruiting Cloud",
+   "outcome": "MANUAL_LINK",
+   "access_method": "Oracle Recruiting Cloud public candidate feed",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "uae_role_examples": [],
+   "locations": "Dubai (global board)",
+   "evidence_at": "2026-09-22",
+   "adapter_candidate": null,
+   "notes": "Holdout employer: role examples are withheld so the holdout stays untouched."
+  },
+  {
+   "employer": "ADIB",
+   "sector": "Banking",
+   "official_link": "https://www.adib.ae/en/pages/careers.aspx",
+   "platform": "Oracle Recruiting Cloud",
+   "outcome": "MANUAL_LINK",
+   "access_method": "Oracle Recruiting Cloud public candidate feed",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "uae_role_examples": [
+    {
+     "title": "Associate Technical Support Engineer",
+     "requisition": "4456",
+     "url": "https://hciq.fa.em2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/4456",
+     "note": "0-2 yrs (fresh graduate); listed 2026-09-22."
+    }
+   ],
+   "locations": "Abu Dhabi",
+   "evidence_at": "2026-09-22",
+   "adapter_candidate": "Oracle ORC reader",
+   "notes": null
+  },
+  {
+   "employer": "First Abu Dhabi Bank",
+   "sector": "Banking",
+   "official_link": "https://www.bankfab.com/en-ae/about-fab/careers",
+   "platform": "Oracle Recruiting Cloud",
+   "outcome": "MANUAL_LINK",
+   "access_method": "Oracle Recruiting Cloud public candidate feed",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "uae_role_examples": [
+    {
+     "title": "Senior Engineer, QA Automation",
+     "requisition": "development item D14",
+     "url": null,
+     "note": "Abu Dhabi; requires 14+ years (in the frozen development set)"
+    }
+   ],
+   "locations": "Abu Dhabi",
+   "evidence_at": "2026-09-22",
+   "adapter_candidate": "Oracle ORC reader",
+   "notes": null
+  },
+  {
+   "employer": "Mashreq",
+   "sector": "Banking",
+   "official_link": "https://www.mashreq.com/en/uae/about-us/careers/careers-portal/",
+   "platform": "Oracle Recruiting Cloud",
+   "outcome": "MANUAL_LINK",
+   "access_method": "Careers portal links to Oracle Recruiting Cloud site CX_1 (hcld.fa.em2); robots permits the candidate feed",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "uae_role_examples": [
+    {
+     "title": "Automation DevOps Engineer (Injaz-TECH Architecture and DevOps)",
+     "requisition": "6723",
+     "url": null,
+     "note": "United Arab Emirates; listed 2026-09-16"
+    },
+    {
+     "title": "Assistant Vice President - Information Security",
+     "requisition": "6614",
+     "url": null,
+     "note": "United Arab Emirates; listed 2026-09-07"
+    },
+    {
+     "title": "AVP - Security Incident Management (UAE National)",
+     "requisition": "2196",
+     "url": null,
+     "note": "United Arab Emirates; designated-nationals wording in the title"
+    }
+   ],
+   "locations": "United Arab Emirates (plus Egypt, Pakistan and India hubs)",
+   "evidence_at": "2026-09-22T12:07:20+00:00",
+   "adapter_candidate": "Oracle ORC reader",
+   "notes": "Board reported 428 postings, 151 in the UAE; 6 UAE titles passed a broad IT title screen (routing only); most are senior."
+  },
+  {
+   "employer": "G42 group (incl. Core42, CPX, Inception, Presight, Space42)",
+   "sector": "AI / technology",
+   "official_link": "https://careers.g42.ai/global/en",
+   "platform": "Phenom",
+   "outcome": "MANUAL_LINK",
+   "access_method": "Phenom career site; robots permits job and search pages, disallows */apply",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first. Availability cannot be established by a permitted route (apply step is robots-excluded and behind sign-in).",
+   "uae_role_examples": [
+    {
+     "title": "Security Engineer (DFIR Lab)",
+     "requisition": "OGWOGJGLOBAL2035EXTERNALENGLOBAL",
+     "url": "https://careers.g42.ai/global/en/job/OGWOGJGLOBAL2035EXTERNALENGLOBAL/Security-Engineer-DFIR-Lab",
+     "note": "5+ yrs; MBZ City; in the search index 2026-09-22."
+    },
+    {
+     "title": "Data Engineer",
+     "requisition": "OGWOGJGLOBAL3302EXTERNALENGLOBAL",
+     "url": "https://careers.g42.ai/global/en/job/OGWOGJGLOBAL3302EXTERNALENGLOBAL/Data-Engineer",
+     "note": "3+ yrs; Abu Dhabi; closing field 30 Sep 2026."
+    }
+   ],
+   "locations": "Abu Dhabi (incl. MBZ City)",
+   "evidence_at": "2026-09-22",
+   "adapter_candidate": null,
+   "notes": null
+  },
+  {
+   "employer": "Majid Al Futtaim",
+   "sector": "Retail / real estate",
+   "official_link": "https://careers.majidalfuttaim.com/global/en",
+   "platform": "Phenom",
+   "outcome": "MANUAL_LINK",
+   "access_method": "Phenom career site; search page server-renders results",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "uae_role_examples": [
+    {
+     "title": "Manager IDAM",
+     "requisition": null,
+     "url": null,
+     "note": "Dubai; identity and access management (title only, description not read)"
+    }
+   ],
+   "locations": "Dubai, Abu Dhabi",
+   "evidence_at": "2026-09-22T12:03:42+00:00",
+   "adapter_candidate": null,
+   "notes": "An 'IT' keyword search returned 27 hits, mostly non-IT roles."
+  },
+  {
+   "employer": "Air Arabia",
+   "sector": "Aviation",
+   "official_link": "https://www.airarabiagroupcareers.com/gb/en",
+   "platform": "Phenom",
+   "outcome": "MANUAL_LINK",
+   "access_method": "Phenom career site (linked from careers.airarabia.com); robots permits search and job pages",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "uae_role_examples": [],
+   "locations": "Sharjah HQ; IT roles seen are in Pune and Colombo",
+   "evidence_at": "2026-09-22T12:07:22+00:00",
+   "adapter_candidate": null,
+   "notes": "An 'IT' keyword search returned 42 hits; none of the first 10 is in the UAE."
+  },
+  {
+   "employer": "Emirates Global Aluminium",
+   "sector": "Industrial",
+   "official_link": "https://careers.ega.ae",
+   "platform": "SuccessFactors",
+   "outcome": "MANUAL_LINK",
+   "access_method": "Official careers site on SAP SuccessFactors (linked from ega.ae/en/opportunity/careers)",
+   "limitation": "No existing ASTRA adapter for this platform (ASTRA has Greenhouse, Lever and Ashby; SmartRecruiters is excluded while its access terms are unsettled). A new reader needs a reviewed access basis first.",
+   "uae_role_examples": [],
+   "locations": "Abu Dhabi, Dubai",
+   "evidence_at": "2026-09-22T12:07:26+00:00",
+   "adapter_candidate": null,
+   "notes": "The old path ega.ae/en/careers returns 404; the working link is careers.ega.ae. Postings were not read."
+  },
+  {
+   "employer": "UAE University",
+   "sector": "Education",
+   "official_link": "https://jobs.uaeu.ac.ae/",
+   "platform": "Custom portal",
+   "outcome": "MANUAL_LINK",
+   "access_method": "Official jobs portal (robots-permitted)",
+   "limitation": "Listings load client-side (\"Loading...\" in the served page); there is no documented public feed and no reviewed reader.",
+   "uae_role_examples": [],
+   "locations": "Al Ain",
+   "evidence_at": "2026-09-22T12:05:40+00:00",
+   "adapter_candidate": null,
+   "notes": null
+  },
+  {
+   "employer": "Emirates Group",
+   "sector": "Aviation",
+   "official_link": "https://www.emiratesgroupcareers.com/",
+   "platform": "Avature",
+   "outcome": "MANUAL_LINK",
+   "access_method": "Official careers site",
+   "limitation": "Job search runs on Avature: /careers is robots-disallowed, and the marketplace redirects to a login page.",
+   "uae_role_examples": [],
+   "locations": "Dubai",
+   "evidence_at": "2026-09-22T12:04:43+00:00",
+   "adapter_candidate": null,
+   "notes": null
+  },
+  {
+   "employer": "Burjeel Holdings",
+   "sector": "Healthcare",
+   "official_link": "https://burjeelholdings.com/careers/",
+   "platform": "Custom (Nuxt)",
+   "outcome": "MANUAL_LINK",
+   "access_method": "Official careers page",
+   "limitation": "The vacancy list is rendered client-side (VacanciesList component); there is no documented feed and no reviewed reader.",
+   "uae_role_examples": [],
+   "locations": "Abu Dhabi, Al Ain, Dubai",
+   "evidence_at": "2026-09-22T12:08:06+00:00",
+   "adapter_candidate": null,
+   "notes": null
+  },
+  {
+   "employer": "Masdar",
+   "sector": "Energy",
+   "official_link": "https://masdar.ae/en/careers",
+   "platform": "SmartRecruiters",
+   "outcome": "MANUAL_LINK",
+   "access_method": "Official careers page -> careers.smartrecruiters.com/masdar",
+   "limitation": "Postings are on SmartRecruiters, whose API access terms are unsettled (Owner decision). ASTRA makes no SmartRecruiters calls.",
+   "uae_role_examples": [],
+   "locations": "Abu Dhabi",
+   "evidence_at": "2026-09-22T07:50:10Z",
+   "adapter_candidate": null,
+   "notes": "The old SmartRecruiters coverage counts are not reused."
+  },
+  {
+   "employer": "Etihad Airways",
+   "sector": "Aviation",
+   "official_link": "https://careers.etihad.com",
+   "platform": "SmartRecruiters",
+   "outcome": "MANUAL_LINK",
+   "access_method": "Official careers page -> careers.smartrecruiters.com/EtihadAirways5",
+   "limitation": "Postings are on SmartRecruiters, whose API access terms are unsettled (Owner decision). ASTRA makes no SmartRecruiters calls.",
+   "uae_role_examples": [],
+   "locations": "Abu Dhabi",
+   "evidence_at": "2026-09-22T07:50:16Z",
+   "adapter_candidate": null,
+   "notes": "The old SmartRecruiters coverage counts are not reused."
+  },
+  {
+   "employer": "TAQA",
+   "sector": "Energy / utilities",
+   "official_link": "https://www.taqa.com/careers/",
+   "platform": "reported SuccessFactors (not verified)",
+   "outcome": "UNRESOLVED",
+   "access_method": "none verified",
+   "blocker": "The careers page is reachable (HTTP 200), but no job-board link or ATS reference appears in the served HTML. The job board is not identified.",
+   "uae_role_examples": [],
+   "locations": null,
+   "evidence_at": "2026-09-22T07:07:55+00:00",
+   "adapter_candidate": null,
+   "notes": null
+  },
+  {
+   "employer": "e&",
+   "sector": "Telecom",
+   "official_link": "https://www.eand.com/en/careers.html",
+   "platform": null,
+   "outcome": "UNRESOLVED",
+   "access_method": "none verified",
+   "blocker": "The careers pages are reachable (HTTP 200), but no job-board link appears in the served HTML; the only jobs link is a Ufone LinkedIn page. The job board is not identified.",
+   "uae_role_examples": [],
+   "locations": null,
+   "evidence_at": "2026-09-22T07:08:37+00:00",
+   "adapter_candidate": null,
+   "notes": null
+  },
+  {
+   "employer": "Help AG",
+   "sector": "Cybersecurity",
+   "official_link": "https://www.helpag.com/careers/",
+   "platform": null,
+   "outcome": "UNRESOLVED",
+   "access_method": "none verified",
+   "blocker": "The careers page is reachable (HTTP 200), but no postings or job-board link appear in the served HTML.",
+   "uae_role_examples": [],
+   "locations": null,
+   "evidence_at": "2026-09-22T07:08:43+00:00",
+   "adapter_candidate": null,
+   "notes": null
+  },
+  {
+   "employer": "Jumeirah Group",
+   "sector": "Hospitality",
+   "official_link": "https://www.jumeirah.com/en/careers",
+   "platform": null,
+   "outcome": "UNRESOLVED",
+   "access_method": "none verified",
+   "blocker": "The careers page is reachable (HTTP 200) but has no job-board link in the served HTML; /en/careers/search-jobs returns 404.",
+   "uae_role_examples": [],
+   "locations": null,
+   "evidence_at": "2026-09-22T07:08:20+00:00",
+   "adapter_candidate": null,
+   "notes": null
+  },
+  {
+   "employer": "Khalifa University",
+   "sector": "Education",
+   "official_link": "https://careers.ku.ac.ae/careersection/ku+external+portal/moresearch.ftl?lang=en&portal=8116755942",
+   "platform": "Taleo-style career section",
+   "outcome": "UNRESOLVED",
+   "access_method": "none verified",
+   "blocker": "ku.ac.ae links to a Taleo-style career section on careers.ku.ac.ae, but that host timed out for this client (WinError 10060).",
+   "uae_role_examples": [],
+   "locations": null,
+   "evidence_at": "2026-09-22T12:05:16+00:00",
+   "adapter_candidate": null,
+   "notes": null
+  },
+  {
+   "employer": "New York University Abu Dhabi",
+   "sector": "Education",
+   "official_link": "https://nyuad.nyu.edu/en/about/careers.html",
+   "platform": null,
+   "outcome": "UNRESOLVED",
+   "access_method": "none verified",
+   "blocker": "The careers pages are reachable (HTTP 200), but the administrative-staff page has no job-board link in the served HTML.",
+   "uae_role_examples": [],
+   "locations": null,
+   "evidence_at": "2026-09-22T12:05:43+00:00",
+   "adapter_candidate": null,
+   "notes": null
+  },
+  {
+   "employer": "Zayed University",
+   "sector": "Education",
+   "official_link": "https://www.zu.ac.ae/main/en/careers/index.aspx",
+   "platform": null,
+   "outcome": "UNRESOLVED",
+   "access_method": "none verified",
+   "blocker": "The connection was reset by the host for this client (WinError 10054) on both the careers page and the homepage.",
+   "uae_role_examples": [],
+   "locations": null,
+   "evidence_at": "2026-09-22T07:07:31+00:00",
+   "adapter_candidate": null,
+   "notes": null
+  },
+  {
+   "employer": "EWEC",
+   "sector": "Utilities",
+   "official_link": "https://www.ewec.ae/en/careers",
+   "platform": null,
+   "outcome": "UNRESOLVED",
+   "access_method": "none verified",
+   "blocker": "/en/careers returns HTTP 404, and the homepage (HTTP 200) has no careers link in the served HTML.",
+   "uae_role_examples": [],
+   "locations": null,
+   "evidence_at": "2026-09-22T12:03:31+00:00",
+   "adapter_candidate": null,
+   "notes": null
+  },
+  {
+   "employer": "ADCB",
+   "sector": "Banking",
+   "official_link": "https://www.adcb.com/en/about-us/careers/",
+   "platform": "reported Workday (not verified)",
+   "outcome": "UNRESOLVED",
+   "access_method": "none verified",
+   "blocker": "The careers path returns HTTP 404 and the homepage returns HTTP 403 to this client.",
+   "uae_role_examples": [],
+   "locations": null,
+   "evidence_at": "2026-09-22T12:03:39+00:00",
+   "adapter_candidate": null,
+   "notes": null
+  },
+  {
+   "employer": "Aramex",
+   "sector": "Logistics",
+   "official_link": "https://www.aramex.com/ae/en/careers",
+   "platform": null,
+   "outcome": "UNRESOLVED",
+   "access_method": "none verified",
+   "blocker": "robots.txt disallows both the careers path and the homepage for this client, so the official link and its target cannot be verified.",
+   "uae_role_examples": [],
+   "locations": null,
+   "evidence_at": "2026-09-22T07:08:15+00:00",
+   "adapter_candidate": null,
+   "notes": null
+  },
+  {
+   "employer": "PureHealth",
+   "sector": "Healthcare",
+   "official_link": "https://purehealth.ae/careers/",
+   "platform": null,
+   "outcome": "UNRESOLVED",
+   "access_method": "none verified",
+   "blocker": "robots.txt disallows both the careers path and the homepage for this client.",
+   "uae_role_examples": [],
+   "locations": null,
+   "evidence_at": "2026-09-22T12:08:20+00:00",
+   "adapter_candidate": null,
+   "notes": null
+  },
+  {
+   "employer": "Aster DM Healthcare (GCC)",
+   "sector": "Healthcare",
+   "official_link": "https://www.asterdmhealthcare.com/careers",
+   "platform": null,
+   "outcome": "UNRESOLVED",
+   "access_method": "none verified",
+   "blocker": "The careers path returns HTTP 404, and careers.asterdmhealthcare.com does not resolve in DNS.",
+   "uae_role_examples": [],
+   "locations": null,
+   "evidence_at": "2026-09-22T12:08:15+00:00",
+   "adapter_candidate": null,
+   "notes": null
+  }
+ ],
+ "changes": [
+  "2026-09-22: NMC official_link changed from the homepage to the verified Careers destination (CX_1), with CX_1001 recorded as the menu's UAE National Careers link. No NMC job example opened (holdout employer)."
+ ]
+}
