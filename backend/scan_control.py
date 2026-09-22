@@ -261,11 +261,37 @@ def start(data: StartRequest):
     try:
         threading.Thread(target=_run, args=(confirmation,),
                          name='astra-manual-scan-%d' % confirmation.run_id, daemon=True).start()
-    except Exception:
-        from .main import task_lock
-        task_lock.release()
-        raise
+    except Exception as error:
+        _abandon(data.token, confirmation, error)
+        return JSONResponse({'detail': 'The scan could not be started, and nothing was fetched. '
+                                       'Review the scope again and retry.',
+                             'start_failed': True, 'run_id': confirmation.run_id}, 500)
     return {'started': True, 'run_id': confirmation.run_id}
+
+
+def _abandon(token, confirmation, error):
+    """Undo a confirmation whose worker never started, so nothing stays stuck.
+
+    The RUNNING run is closed as FAILED (nothing was fetched), the confirmation
+    is claimed so it can never run, the preview token and cancel event are
+    dropped, and task_lock (acquired by confirm()) is released. Each step runs
+    even if an earlier one fails, and the lock is always released last.
+    """
+    from .main import task_lock
+    try:
+        confirmation.claim()
+        with _guard:
+            _previews.pop(token, None)
+            _cancel.pop(confirmation.run_id, None)
+        with Session.begin() as db:
+            run = db.get(AutomationRun, confirmation.run_id)
+            if run is not None and run.status == 'RUNNING':
+                run.status = 'FAILED'
+                run.report = {**(run.report or {}), 'finished_at': now(), 'sources_attempted': 0,
+                              'error': 'The scan worker could not start (%s); nothing was fetched.'
+                                       % type(error).__name__}
+    finally:
+        task_lock.release()
 
 
 def confirm(token):

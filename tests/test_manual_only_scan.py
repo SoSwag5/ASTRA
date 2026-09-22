@@ -515,3 +515,41 @@ finally:
     if holder.poll() is None: holder.kill()
 assert len(discover_runs()) == 1 and fetches == ['alpha'] and not m.task_lock.locked()
 """)
+
+
+def test_worker_that_fails_to_start_leaves_nothing_stuck(tmp_path):
+    """If Thread.start() raises after confirm() created a RUNNING run, the run,
+    token, cancel state and lock are all cleaned up and a new scan can start."""
+    isolated(tmp_path, PRELUDE + r"""
+import backend.scan_control as sc
+initialize(); add_sources('alpha')
+real_thread = sc.threading.Thread
+class BrokenThread:
+    def __init__(self, *a, **k): pass
+    def start(self): raise RuntimeError('cannot start new thread')
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    sc.threading.Thread = BrokenThread
+    r = c.post('/api/scan/start', json={'token': token})
+    sc.threading.Thread = real_thread
+    assert r.status_code == 500 and r.json()['start_failed'] is True, r.text
+    run_id = r.json()['run_id']
+    # Nothing is left RUNNING, cancellable or locked.
+    runs = discover_runs()
+    assert [(x.id, x.status) for x in runs] == [(run_id, 'FAILED')]
+    assert 'could not start' in runs[0].report['error']
+    assert not m.task_lock.locked()
+    assert run_id not in sc._cancel and token not in sc._previews
+    status = c.get('/api/scan/status').json()
+    assert status['active'] is None and status['cancellable'] is False and status['last']['status'] == 'FAILED'
+    # The failed confirmation cannot be replayed.
+    assert c.post('/api/scan/start', json={'token': token}).status_code == 409
+    # A fresh preview is not blocked, and a new scan runs normally.
+    preview = c.post('/api/scan/preview', json={})
+    assert preview.status_code == 200, preview.text
+    again = c.post('/api/scan/start', json={'token': preview.json()['token']})
+    assert again.status_code == 200
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+assert fetches == ['alpha'] and [r.status for r in discover_runs()] == ['FAILED', 'COMPLETED']
+assert not m.task_lock.locked() and network_calls == []
+""")
