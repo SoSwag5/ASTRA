@@ -29,9 +29,11 @@ import backend.main as m
 from backend.models import *
 
 fetches = []
+fetch_locations = []
 gate = threading.Event(); gate.set()
 def fixture_discover(adapter, board, url='', cfg=None):
     fetches.append(board)
+    fetch_locations.append(list((cfg or {}).get('locations', [])))
     assert gate.wait(20), 'fixture gate never released'
     return []
 m.discover = fixture_discover
@@ -258,3 +260,62 @@ assert w['postings_last_seen'] == 80 and w['sources_without_history'] == 0
 assert w['estimated_seconds'] == 30 and 'median' in w['estimate_basis']
 assert fetches == []
 ''')
+
+
+def test_confirmation_refuses_sources_or_settings_changed_after_preview(tmp_path):
+    isolated(tmp_path, PRELUDE + r"""
+initialize(); add_sources('alpha', 'beta')
+with TestClient(m.app) as c:
+    # A source definition edited after the preview: the confirmation is refused.
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    with Session.begin() as db:
+        db.scalar(select(JobSource).where(JobSource.board == 'beta')).board = 'beta-renamed'
+    r = c.post('/api/scan/start', json={'token': token})
+    assert r.status_code == 409 and r.json()['scope_changed'] is True
+    # The refused token is spent; it cannot be retried after the change.
+    assert c.post('/api/scan/start', json={'token': token}).status_code == 409
+
+    # Settings shown in the preview changed afterwards: refused as well.
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    with Session.begin() as db:
+        row = db.get(Settings, 1); row.value = {**row.value, 'locations': ['Riyadh']}
+    r = c.post('/api/scan/start', json={'token': token})
+    assert r.status_code == 409 and r.json()['scope_changed'] is True
+
+    # Disabling a previewed source counts as a change too.
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    with Session.begin() as db:
+        db.scalar(select(JobSource).where(JobSource.board == 'alpha')).enabled = False
+    assert c.post('/api/scan/start', json={'token': token}).status_code == 409
+    time.sleep(0.5)
+assert discover_runs() == [] and fetches == [] and network_calls == []
+""")
+
+
+def test_run_uses_the_confirmed_scope_even_if_things_change_mid_run(tmp_path):
+    isolated(tmp_path, PRELUDE + r"""
+initialize(); add_sources('alpha', 'beta')
+with Session.begin() as db:
+    row = db.get(Settings, 1); row.value = {**row.value, 'locations': ['Abu Dhabi', 'Al Ain']}
+gate.clear()
+with TestClient(m.app) as c:
+    preview = c.post('/api/scan/preview', json={}).json()
+    assert preview['scope']['locations'] == ['Abu Dhabi', 'Al Ain']
+    run_id = c.post('/api/scan/start', json={'token': preview['token']}).json()['run_id']
+    assert wait_for(lambda: len(fetches) == 1)            # alpha is mid-fetch
+    with Session.begin() as db:                           # both changes happen after confirmation
+        row = db.get(Settings, 1); row.value = {**row.value, 'locations': ['Riyadh']}
+        db.scalar(select(JobSource).where(JobSource.board == 'beta')).url = 'https://changed.example/feed'
+    gate.set()
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+assert fetches == ['alpha'], fetches                      # the edited source was not fetched
+assert fetch_locations == [['Abu Dhabi', 'Al Ain']]       # the confirmed settings were used
+with Session() as db:
+    run = db.get(AutomationRun, run_id)
+    beta = db.scalar(select(JobSource).where(JobSource.board == 'beta'))
+    alpha = db.scalar(select(JobSource).where(JobSource.board == 'alpha'))
+    assert run.report['scope_changed_sources'] == [beta.id]
+    assert run.report['scope']['locations'] == ['Abu Dhabi', 'Al Ain']
+    assert alpha.details['mode'] == 'MANUAL'              # a manual run is recorded as manual
+assert network_calls == []
+""")

@@ -17,6 +17,8 @@ Tokens live in memory only, so a restart invalidates every pending
 confirmation: a page left open across a restart cannot start a scan without a
 fresh preview.
 """
+import hashlib
+import json
 import secrets
 import statistics
 import threading
@@ -53,6 +55,25 @@ class StartRequest(BaseModel):
 class CancelRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     run_id: int = Field(ge=1)
+
+
+def source_definition(source):
+    """What a source IS, for scope binding. Excludes run bookkeeping
+    (details, timestamps) that every scan itself rewrites."""
+    return {'name': source.name, 'adapter': source.adapter, 'board': source.board,
+            'url': source.url, 'enabled': bool(source.enabled)}
+
+
+def _digest(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def _binding(db, source_ids):
+    """Current definitions of the scoped sources plus the full settings."""
+    rows = {s.id: s for s in db.scalars(select(JobSource).where(JobSource.id.in_(source_ids)))}
+    defs = {sid: source_definition(rows[sid]) if sid in rows else None for sid in source_ids}
+    cfg = settings(db)
+    return defs, cfg, _digest({str(k): v for k, v in defs.items()}), _digest(cfg)
 
 
 def _utc():
@@ -131,20 +152,25 @@ def preview(data: PreviewRequest):
         if running is not None:
             return _busy(running)
         scope, workload = _scope(db, data.source_id)
+        defs, cfg, defs_digest, cfg_digest = _binding(db, scope['source_ids'])
     token = secrets.token_urlsafe(32)
     expires = _utc() + PREVIEW_TTL
     with _guard:
         _prune(_utc())
-        _previews[token] = {'scope': scope, 'expires': expires, 'run_id': None}
+        # The confirmation binds to exactly what was previewed: these source
+        # definitions and these settings. Held server-side, never returned.
+        _previews[token] = {'scope': scope, 'expires': expires, 'run_id': None,
+                            'source_defs': defs, 'cfg': cfg,
+                            'defs_digest': defs_digest, 'cfg_digest': cfg_digest}
     return {'token': token, 'expires_at': expires.isoformat(), 'manual_only': True,
             'scope': scope, 'workload': workload}
 
 
-def _run(run_id, source_ids, event):
+def _run(run_id, source_ids, event, source_defs, cfg):
     from .main import task
     try:
         task('discover', trigger=TRIGGER, run_id=run_id, cancel=event, lock_held=True,
-             source_ids=set(source_ids))
+             source_ids=set(source_ids), source_defs=source_defs, cfg_snapshot=cfg)
     finally:
         with _guard:
             _cancel.pop(run_id, None)
@@ -163,6 +189,15 @@ def start(data: StartRequest):
         if pending['run_id'] is not None:
             return JSONResponse({'detail': 'This scan was already started.',
                                  'already_started': True, 'run_id': pending['run_id']}, 409)
+        with Session() as db:
+            _, _, defs_digest, cfg_digest = _binding(db, pending['scope']['source_ids'])
+        if (defs_digest, cfg_digest) != (pending['defs_digest'], pending['cfg_digest']):
+            # Sources or settings changed since the preview. The Owner confirmed
+            # the previewed scope, not this one, so nothing starts.
+            del _previews[data.token]
+            return JSONResponse({'detail': 'Your sources or search settings changed after this preview. '
+                                           'Review the scope again before starting.',
+                                 'scope_changed': True}, 409)
         if not task_lock.acquire(False):
             with Session() as db:
                 return _busy(_active_run(db))
@@ -181,7 +216,8 @@ def start(data: StartRequest):
             pending['run_id'] = run_id
             event = threading.Event()
             _cancel[run_id] = event
-            threading.Thread(target=_run, args=(run_id, scope['source_ids'], event),
+            threading.Thread(target=_run, args=(run_id, scope['source_ids'], event,
+                                               pending['source_defs'], pending['cfg']),
                              name='astra-manual-scan-%d' % run_id, daemon=True).start()
         except Exception:
             task_lock.release()

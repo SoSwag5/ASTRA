@@ -74,16 +74,20 @@ def _record_progress(db, run_id, report, total, done, current):
 
 
 def task(name, source_id=None, scheduled_run=False, trigger=None, run_id=None, cancel=None,
-         lock_held=False, source_ids=None):
+         lock_held=False, source_ids=None, source_defs=None, cfg_snapshot=None):
     """Run one task. Discovery is manual-only: the workspace's Start Scan
     confirmation (backend/scan_control.py) is the only product path that calls
     this with name='discover'. When it does, it has already acquired task_lock
     and created the AutomationRun row, and passes both over (lock_held, run_id)
-    together with a cancellation event checked before every source fetch."""
+    together with a cancellation event checked before every source fetch.
+    It also passes the scope the Owner confirmed: cfg_snapshot (the settings
+    shown in the preview) replaces a fresh settings read, and source_defs
+    (each source's definition at preview time) makes the run skip any source
+    whose definition changed after confirmation instead of fetching it."""
     if not lock_held and not task_lock.acquire(blocking=False): return {'busy':True}
     try:
         with Session() as db:
-            cfg=settings(db)
+            cfg=cfg_snapshot if cfg_snapshot is not None else settings(db)
             if run_id is None:
                 run=AutomationRun(task=name); db.add(run); db.commit(); prior={}
             else:
@@ -118,6 +122,13 @@ def task(name, source_id=None, scheduled_run=False, trigger=None, run_id=None, c
                             run_telemetry.skip(source,telemetry.SKIPPED_NOT_TARGETED); continue
                         if source_ids is not None and source.id not in source_ids:
                             run_telemetry.skip(source,telemetry.SKIPPED_NOT_TARGETED); continue
+                        if source_defs is not None:
+                            from .scan_control import source_definition
+                            db.refresh(source)  # expire_on_commit=False: compare the stored row, not a cached copy
+                            if source_definition(source)!=source_defs.get(source.id):
+                                # Edited after the Owner confirmed this scope: not fetched.
+                                run_telemetry.skip(source,telemetry.SKIPPED_NOT_TARGETED)
+                                report.setdefault('scope_changed_sources',[]).append(source.id); continue
                         # Cancellation is checked BEFORE each source is fetched, so a
                         # stopped scan starts no further source fetches. A source already
                         # being fetched finishes within its own bounded provider budget.
@@ -134,7 +145,7 @@ def task(name, source_id=None, scheduled_run=False, trigger=None, run_id=None, c
                         source_decisions=[]
                         attempt=run_telemetry.attempt(source)
                         try:
-                            source.details={**source.details,'last_attempted':now(),'mode':'AUTOMATIC','market':'UAE campaign','interval_hours':source.details.get('interval_hours',cfg['discovery_interval_hours'])}
+                            source.details={**source.details,'last_attempted':now(),'mode':'AUTOMATIC' if scheduled_run else 'MANUAL','market':'UAE campaign','interval_hours':source.details.get('interval_hours',cfg['discovery_interval_hours'])}
                             if source.adapter=='generic':
                                 raise ValueError('Generic page scanning is disabled pending destination and platform review; use a public board API or paste the description')
                             items=discover(source.adapter,source.board,source.url,cfg)
