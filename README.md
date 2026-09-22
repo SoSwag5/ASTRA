@@ -48,7 +48,9 @@ then confirm them. Scan configured public boards or paste a job description.
 Review the match explanation, prepare documents, and check every claim. Open the
 employer page in your own browser, apply manually, then record status and follow-ups.
 SQLite is authoritative; the Excel tracker is a local mirror. Close Excel if sync is pending.
-Optional scheduled discovery runs as your normal Windows user and does not wake the computer.
+Discovery is manual only: nothing scans when Windows or ASTRA starts, on a timer, or after a
+restart. Press **Start Scan** in Discovery, review the scope and expected workload, then confirm.
+A running scan shows its progress and can be stopped before its next source.
 
 ## Security evidence
 

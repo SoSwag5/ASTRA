@@ -2,7 +2,7 @@
 
 Covers the versioned contract itself (stage definitions, monotonicity,
 failure-versus-zero, run aggregation, engagement outcomes, version metadata,
-privacy bounds), the real backend.main.task('discover') integration, the
+privacy bounds), the real backend.main.task('discover') integration (through a confirmed Start Scan), the
 90-day retention boundary, and the read-only local API.
 
 Every integration case drives the REAL discovery loop through
@@ -583,6 +583,7 @@ def test_real_discovery_run_produces_a_truthful_cross_source_funnel(tmp_path):
 from backend.models import *
 from backend import discovery_telemetry as telemetry
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 initialize()
 # Two boards for the SAME employer (a real cross-provider case), plus an empty
 # board, a failing board and a disabled board.
@@ -614,12 +615,12 @@ def fake_discover(kind, board, url, cfg=None):
     return [dict(shared, source='Lever', source_job_id='b1')]
 
 m.discover = fake_discover
-result = m.task('discover')
+result = confirmed_discover()
 payload = result['report'][telemetry.REPORT_KEY]
 telemetry.validate(payload)
 assert payload['schema_version'] == 'discovery-telemetry-v1'
 assert payload['run_status'] == 'PARTIAL'
-assert payload['trigger'] == 'MANUAL'
+assert payload['trigger'] == 'MANUAL_START'   # discovery runs only from a confirmed Start Scan
 assert payload['source_filter'] is None
 
 sources = {s['source_id']: s for s in payload['sources']}
@@ -675,6 +676,7 @@ def test_targeted_single_source_run_marks_other_sources_not_targeted(tmp_path):
 from backend.models import *
 from backend import discovery_telemetry as telemetry
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 initialize()
 with Session.begin() as db:
     for name, board in (('Alpha', 'alpha'), ('Beta', 'beta')):
@@ -684,7 +686,7 @@ with Session.begin() as db:
 m.discover = lambda kind, board, url, cfg=None: [
     {'title': 'SOC Analyst', 'location': 'Dubai', 'description': 'SIEM',
      'job_url': 'https://example.com/1', 'source': 'Greenhouse', 'source_job_id': '1'}]
-result = m.task('discover', source_id=target)
+result = confirmed_discover(source_id=target)
 payload = result['report'][telemetry.REPORT_KEY]
 telemetry.validate(payload)
 sources = {s['source_name']: s for s in payload['sources']}
@@ -697,7 +699,11 @@ assert payload['sources_attempted'] == 1 and payload['sources_skipped'] == 1
 ''')
 
 
-def test_scheduled_run_marks_a_source_skipped_because_it_is_not_due(tmp_path):
+def test_a_scheduled_discovery_call_is_refused_and_records_nothing(tmp_path):
+    """Discovery is manual-only, so the old scheduled path (and its NOT_DUE
+    skip) can no longer run: a scheduled call without a Start Scan
+    confirmation is refused before any source is touched. SKIPPED_NOT_DUE
+    stays a valid telemetry state so historical reports still validate."""
     isolated(tmp_path, r'''
 from datetime import datetime, timezone
 from backend.models import *
@@ -708,17 +714,15 @@ with Session.begin() as db:
     db.add(JobSource(name='Recent', adapter='greenhouse', board='recent', enabled=True,
                      details={'last_success': datetime.now(timezone.utc).isoformat(),
                               'interval_hours': 24}))
-m.discover = lambda *a, **kw: []
+calls = []
+m.discover = lambda *a, **kw: calls.append(a) or []
 result = m.task('discover', scheduled_run=True)
-payload = result['report'][telemetry.REPORT_KEY]
-telemetry.validate(payload)
-source = payload['sources'][0]
-assert source['attempt_state'] == telemetry.SKIPPED_NOT_DUE
-assert source['attempt_outcome'] == 'SKIPPED'
-assert source['fetch_outcome'] == 'NOT_ATTEMPTED'
-assert payload['sources_attempted'] == 0
-assert payload['funnel'][telemetry.FETCHED] == 0
-assert payload['trigger'] == 'APP'
+assert result.get('refused') is True, result
+assert calls == []
+with Session() as db:
+    assert db.query(AutomationRun).count() == 0
+assert telemetry.SKIPPED_NOT_DUE in telemetry.ATTEMPT_STATES
+assert not m.task_lock.locked()
 ''')
 
 
@@ -727,6 +731,7 @@ def test_saved_and_applied_are_read_from_persisted_state_during_a_real_run(tmp_p
 from backend.models import *
 from backend import discovery_telemetry as telemetry
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 initialize()
 with Session.begin() as db:
     db.add(JobSource(name='Alpha', adapter='greenhouse', board='alpha', enabled=True))
@@ -740,7 +745,7 @@ with Session.begin() as db:
 m.discover = lambda kind, board, url, cfg=None: [
     {'title': 'SOC Analyst', 'location': 'Dubai', 'description': 'SIEM monitoring',
      'job_url': 'https://example.com/saved', 'source': 'Greenhouse', 'source_job_id': 'keep'}]
-result = m.task('discover')
+result = confirmed_discover()
 payload = result['report'][telemetry.REPORT_KEY]
 telemetry.validate(payload)
 engagement = payload['engagement']
@@ -758,6 +763,7 @@ from backend.models import *
 from backend.recall import evaluate
 from backend import discovery_telemetry as telemetry
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 initialize()
 with Session.begin() as db:
     db.add(JobSource(name='Alpha', adapter='greenhouse', board='alpha', enabled=True))
@@ -767,7 +773,7 @@ m.discover = lambda kind, board, url, cfg=None: [dict(item)]
 with Session() as db:
     cfg = settings(db)
 expected = evaluate(dict(item), cfg, {})
-result = m.task('discover')
+result = confirmed_discover()
 with Session() as db:
     job = db.query(Job).one()
     assert job.analysis['fit_assessment']['bucket'] == expected['fit_assessment']['bucket']
@@ -792,6 +798,7 @@ from fastapi.testclient import TestClient
 from backend.models import *
 from backend import discovery_telemetry as telemetry
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 initialize()
 client = TestClient(m.app)
 
@@ -804,8 +811,8 @@ with Session.begin() as db:
 m.discover = lambda kind, board, url, cfg=None: [
     {'title': 'SOC Analyst', 'location': 'Dubai', 'description': 'Secret SIEM description',
      'job_url': 'https://example.com/private', 'source': 'Greenhouse', 'source_job_id': '1'}]
-first = m.task('discover')
-second = m.task('discover')
+first = confirmed_discover()
+second = confirmed_discover()
 
 latest = client.get('/api/search/telemetry').json()
 assert latest['status'] == 'OK'

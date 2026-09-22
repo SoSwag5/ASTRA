@@ -251,10 +251,10 @@ def get_windows_schedule():return windows_schedule()
 @router.post('/windows-schedule')
 def set_windows_schedule(data:dict):
     if data.get('action') not in ('Enable','Disable','Remove','RunNow') or data.get('hours',6) not in (3,6,12,24):raise ValueError('Choose enable or disable and a supported interval')
-    result=windows_schedule(data['action'],data.get('hours',6))
-    if data['action']=='Enable':
-        with Session.begin() as db:
-            row=db.get(Settings,1);row.value={**row.value,'discovery_interval_hours':data.get('hours',6)}
-        from .main import configure_schedule
-        configure_schedule()
-    return result
+    # Discovery is manual-only. ASTRA no longer installs, enables or starts a
+    # Windows discovery task; scans start only from Start Scan in Discovery.
+    # Disabling or removing an existing task remains the Owner's own choice.
+    if data['action'] in ('Enable','RunNow'):
+        raise ValueError('ASTRA scans only when you press Start Scan in Discovery. '
+                         'It no longer installs, enables or starts a Windows background discovery task.')
+    return windows_schedule(data['action'],data.get('hours',6))

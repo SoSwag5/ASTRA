@@ -158,8 +158,9 @@ def run_checks():
             _check(results,'data_acl','PASS' if state['acl_safe'] else 'WARNING','Data and backup permissions inspected',
                    '' if state['acl_safe'] else 'Run scripts/protect_local_data.ps1 and review explicit permissions on existing files')
             _check(results,'scheduled_discovery','PASS' if state['scheduler_safe'] else 'WARNING',
-                   'Installed' if state['scheduler_installed'] else 'Not enabled (optional)',
-                   '' if state['scheduler_safe'] else 'Re-enable scheduled discovery from this installation to refresh paths and policy')
+                   ('Legacy task present; it runs a no-op because discovery is manual-only'
+                    if state['scheduler_installed'] else 'Not installed; discovery is manual-only'),
+                   '' if state['scheduler_safe'] else 'Review the legacy discovery task in Windows Task Scheduler; ASTRA no longer uses it')
         except Exception as error:
             _check(results,'windows_security_checks','WARNING',type(error).__name__,'Windows permission/scheduler checks could not run; inspect locally')
     if provider=='openai' and not locals().get('present',False):

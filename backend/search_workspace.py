@@ -15,7 +15,7 @@ def parse_date(value):
 
 @router.get('/overview')
 def overview():
-    from .main import scheduler, task_lock
+    from .main import task_lock
     with Session() as db:
         cfg=settings(db)
         runs=list(db.scalars(select(AutomationRun).where(AutomationRun.task=='discover').order_by(AutomationRun.id.desc()).limit(100)))
@@ -26,10 +26,11 @@ def overview():
                 result=next((s for s in run.report.get('sources',[]) if s.get('id')==source.id or ('id' not in s and s.get('name')==source.name)),None)
                 if result is not None: checked=run.updated_at; break
             sources.append({**serialize(source),'last_scan':checked,'result':result})
-        job=scheduler.get_job('discover')
-        active=cfg['autopilot']!='OFF' and cfg['discovery_enabled']
-        return {'running':task_lock.locked(),'enabled':active,'interval_hours':cfg['discovery_interval_hours'],
-                'next_scan':job.next_run_time.isoformat() if job and scheduler.running and active else None,
+        # Discovery is manual-only: there is never a scheduled next scan, and
+        # 'enabled' (automatic scanning) is always False whatever legacy
+        # settings are stored. See backend/scan_control.py.
+        return {'running':task_lock.locked(),'enabled':False,'scan_mode':'MANUAL_ONLY',
+                'interval_hours':cfg['discovery_interval_hours'],'next_scan':None,
                 'sources':sources,'runs':[{**serialize(r),'report':{k:v for k,v in r.report.items() if k!='decisions'}} for r in runs[:20]]}
 
 MAX_TELEMETRY_RUNS=20
@@ -101,18 +102,10 @@ def telemetry_run(run_id:int):
 
 @router.post('/scan')
 def scan(data:dict={}):
-    from .main import task, task_lock
-    import threading
-    source_id=data.get('source_id')
-    with Session() as db:
-        if source_id is not None:
-            source=db.get(JobSource,source_id)
-            if not source or not source.enabled: raise ValueError('Enable this source before scanning')
-        elif not db.scalar(select(JobSource.id).where(JobSource.enabled==True)):
-            raise ValueError('Add and enable a source first')
-    if task_lock.locked(): return {'busy':True}
-    threading.Thread(target=task,args=('discover',source_id),daemon=True).start()
-    return {'started':True}
+    """Retired one-click start. Scans now start only after the Owner reviews
+    the scope and workload and confirms (POST /api/scan/preview, then
+    /api/scan/start), so this endpoint starts nothing."""
+    raise ValueError('Scans start only from Start Scan in Discovery: review the scope, then confirm.')
 
 @router.post('/sources')
 def add_source(data:dict):

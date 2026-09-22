@@ -71,7 +71,14 @@ ATTEMPTED = 'ATTEMPTED'
 SKIPPED_NOT_DUE = 'SKIPPED_NOT_DUE'
 SKIPPED_NOT_TARGETED = 'SKIPPED_NOT_TARGETED'
 SKIPPED_DISABLED = 'SKIPPED_DISABLED'
-ATTEMPT_STATES = (ATTEMPTED, SKIPPED_NOT_DUE, SKIPPED_NOT_TARGETED, SKIPPED_DISABLED)
+# The Owner stopped the scan before this source was fetched (manual-only
+# scanning: cancellation is honoured between sources, never mid-fetch).
+SKIPPED_CANCELLED = 'SKIPPED_CANCELLED'
+# A source the Owner confirmed was disabled, edited or deleted after the
+# confirmation, so it was deliberately not fetched.
+SKIPPED_SCOPE_CHANGED = 'SKIPPED_SCOPE_CHANGED'
+ATTEMPT_STATES = (ATTEMPTED, SKIPPED_NOT_DUE, SKIPPED_NOT_TARGETED, SKIPPED_DISABLED,
+                  SKIPPED_CANCELLED, SKIPPED_SCOPE_CHANGED)
 
 # What happened at the PROVIDER/COMPATIBILITY BOUNDARY specifically.
 FETCH_SUCCEEDED = 'SUCCEEDED'

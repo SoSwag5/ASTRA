@@ -62,6 +62,7 @@ def test_one_provider_failure_does_not_affect_others_first_permutation(tmp_path)
     _isolated(tmp_path, r'''
 from backend.models import *
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 initialize()
 with Session.begin() as db:
     db.add(JobSource(name='GH', adapter='greenhouse', board='gh-co', enabled=True))
@@ -82,7 +83,7 @@ def fake_discover(adapter, board, url='', cfg=None):
     raise AssertionError('unexpected adapter')
 
 m.discover = fake_discover
-r = m.task('discover')
+r = confirmed_discover()
 assert r['status'] == 'PARTIAL', r
 by_name = {s['name']: s for s in r['report']['sources']}
 assert by_name['GH']['error'] == '' and by_name['GH']['imported'] == 1, by_name['GH']
@@ -100,6 +101,7 @@ def test_one_provider_failure_does_not_affect_others_second_permutation(tmp_path
     _isolated(tmp_path, r'''
 from backend.models import *
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 initialize()
 with Session.begin() as db:
     db.add(JobSource(name='GH', adapter='greenhouse', board='gh-co', enabled=True))
@@ -116,7 +118,7 @@ def fake_discover(adapter, board, url='', cfg=None):
     raise AssertionError('unexpected adapter')
 
 m.discover = fake_discover
-r = m.task('discover')
+r = confirmed_discover()
 assert r['status'] == 'PARTIAL', r
 by_name = {s['name']: s for s in r['report']['sources']}
 assert by_name['GH']['error'] != '' and by_name['GH']['imported'] == 0, by_name['GH']
