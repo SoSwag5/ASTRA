@@ -54,7 +54,7 @@ separately.
 | Harness status | `COMPLETED WITH REJECTIONS OR FAILURES`, exit code 1. This is a truthful completed smoke test with answer rejections, not a passing quality evaluation. |
 | Focused tests | 268 passed in the review worktree. |
 | Full suite on publication branch | 2,041 passed, 1 skipped, 1 deselected (the known repository-wide publication gate test); frontend was built first. A process-local Git safe-directory setting handled the worktree's sandbox ownership. |
-| Publication gate in a temporary clone containing only this branch | **PASS**, 979 objects checked, 0 findings. The clone was not used to replace or weaken the repository-wide gate. |
+| Publication gate in a temporary clone containing only this branch | **PASS**, 0 findings. The clone was not used to replace or weaken the repository-wide gate. |
 
 The local-model run shows that this installed Ollama accepted the schema
 request and returned parsable responses. It does not establish that accepted
