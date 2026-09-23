@@ -1,8 +1,28 @@
 # ASTRA project state
 
-**Snapshot date:** 2026-09-20 (Asia/Dubai), refreshed for the #46 merge and closeout
+**Snapshot date:** 2026-09-23 (Asia/Dubai), refreshed for the #46.2-D offline draft PR
 **Rule:** This is a handoff snapshot, not a substitute for live verification.
 Refresh it at session end when repository or release state changes.
+
+## Current #46.2 development
+
+- #46.2-A/B/C is in [draft PR #71](https://github.com/SoSwag5/ASTRA/pull/71)
+  at `452936c61546b2167227d094a107adeab430f874`, unmerged. Source
+  coverage remains research and manual-link evidence, not a live-scan proof.
+  The 16 v2 labels are assisted development feedback; the 12-job blind
+  holdout remains private and unused.
+- #46.2-D is in [draft PR #72](https://github.com/SoSwag5/ASTRA/pull/72),
+  stacked on PR #71. The Ollama connector is offline/shadow only and not
+  imported by production discovery or startup. A local test using fictional
+  postings made 11 evaluator requests (4 accepted, 7 evidence-rejected, plus
+  1 input refused before dispatch) and 1 accepted embedding request. The
+  complete branch suite passed with the known repository-wide publication
+  gate test deselected. The isolated D branch gate passed; the repository-wide
+  gate remains BLOCKED by unrelated historical research refs. See the
+  [reviewed D report](../evaluation/DISCOVERY_46_2D_REVIEWED_OFFLINE_REPORT.md).
+- No live ASTRA scan, real-job AI evaluation, model promotion, merge or release
+  has followed from these drafts. #46.2-E is the next separate offline task;
+  #47 and #48 have not started.
 
 ## Released product
 
@@ -200,8 +220,9 @@ evidence chain and run URLs.
   validation** was performed, no live Gmail or private user data was used, and
   **real-world reconciliation accuracy remains unmeasured**. **R-18 remains
   OPEN** and **no residual-risk acceptance or release approval is implied**.
-  #46.2, #47 and #48 are **not started**, and no tag, release or publication
-  work was performed.
+  At the time of #46 closeout, #46.2, #47 and #48 were **not started**, and no
+  tag, release or publication work was performed. The dated #46.2 development
+  update above supersedes that historical status.
 - Governance integration advances `master` from the frozen release commit without
   moving or modifying the immutable v1.0.0 tag, source, or artifacts.
 
@@ -322,9 +343,10 @@ unmeasured** — no claim is made about real-world Gmail parsing or
 reconciliation accuracy. **R-18 remains OPEN.** **No residual-risk acceptance,
 certification or release approval is implied.**
 
-The next action belongs to the Owner: decide and authorize the next v1.1 issue.
-Do not start #46.2, #47, #48 or any v1.2 work; #46.2 is a roadmap placeholder
-awaiting a separate detailed design discussion with the Owner, not an
-authorization. Do not tag, publish a release, or modify v1.0.0. The
-parked `hardening/l2-r13-r14` branch and the separate governance/research
-worktrees remain untouched.
+The Owner has authorized #46.2-A/B/C and the offline #46.2-D prototype; their
+draft PRs remain unmerged. The next implementation boundary is #46.2-E on
+fictional or public jobs, with separate evidence before any live scan or model
+promotion. Do not start #47, #48 or any v1.2 work without their own approval.
+Do not tag, publish a release, or modify v1.0.0. The parked
+`hardening/l2-r13-r14` branch and separate governance/research worktrees
+remain untouched.
