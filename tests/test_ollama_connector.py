@@ -761,8 +761,19 @@ def test_a_malformed_embedding_response_is_refused(body):
 
 
 def test_a_nonfinite_embedding_value_is_refused():
-    assert embed(['one', 'two'], lambda r: respond(b'{"embeddings": [[1.0, 2.0], [NaN, 1.0]]}')).reason \
-        == oc.MALFORMED_RESPONSE
+    # The body names the requested model, so the refusal comes from the value
+    # check itself rather than from the earlier model-mismatch check.
+    body = b'{"model": "' + EMBED_TAG.encode() + b'", "embeddings": [[1.0, 2.0], [NaN, 1.0]]}'
+    outcome = embed(['one', 'two'], lambda r: respond(body))
+    assert outcome.reason == oc.MALFORMED_RESPONSE and 'non-finite' in outcome.detail
+
+
+@pytest.mark.parametrize('digits', ['1' + '0' * 400, '-1' + '0' * 400])
+def test_an_integer_too_large_for_a_float_is_refused_not_raised(digits):
+    body = ('{"model": "%s", "embeddings": [[1.0, 2.0], [%s, 1.0]]}' % (EMBED_TAG, digits)).encode()
+    outcome = embed(['one', 'two'], lambda r: respond(body))
+    assert outcome.reason == oc.MALFORMED_RESPONSE and 'non-finite' in outcome.detail
+    assert outcome.embeddings == ()
 
 
 def test_embedding_honours_cancellation_resources_and_model_verification():

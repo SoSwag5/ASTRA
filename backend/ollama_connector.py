@@ -563,13 +563,24 @@ def _validated_embeddings(body, expected_count, expected_tag):
             dimension = len(vector)
         elif len(vector) != dimension:
             return _fail(MALFORMED_RESPONSE, f'embedding {index} has {len(vector)} dimensions, expected {dimension}')
-        if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in vector):
+        if not all(_finite_number(v) for v in vector):
             return _fail(MALFORMED_RESPONSE, f'embedding {index} holds a non-finite or non-numeric value')
         if not any(vector):
             # A zero vector has no direction, so cosine similarity against it is undefined.
             return _fail(MALFORMED_RESPONSE, f'embedding {index} has zero magnitude')
         checked.append(tuple(float(v) for v in vector))
     return Outcome(reason=ACCEPTED, embeddings=tuple(checked), dimension=dimension, server_timings=_timings(body))
+
+
+def _finite_number(value):
+    """A real, finite number that converts to a float. A JSON integer too large
+    for a float is not one, and must be refused rather than raise."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
 
 
 def _timings(body):
