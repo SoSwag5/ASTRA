@@ -70,7 +70,7 @@ PINNED_HTTPX_VERSION = '0.28.1'
 CONNECT_TIMEOUT = 5.0        # a local process answers at once or not at all
 READ_TIMEOUT = 60.0          # the benchmark measured a ~34 s cold load on this laptop
 WRITE_TIMEOUT = 10.0
-CHAT_BUDGET = 120.0          # wall-clock ceiling for one assessment, all attempts included
+CHAT_BUDGET = 120.0          # wall-clock ceiling including model verification and all attempts
 EMBED_BUDGET = 90.0
 TAGS_BUDGET = 10.0
 POLL_SECONDS = 0.05          # how often the caller's thread checks cancel and the deadline
@@ -107,6 +107,7 @@ TIMEOUT = 'TIMEOUT'
 CANCELLED = 'CANCELLED'
 HTTP_ERROR = 'HTTP_ERROR'                    # a status that is not retried
 HTTP_RETRYABLE = 'HTTP_RETRYABLE'            # 502/503/504: the model may still be loading
+TRANSPORT_ERROR = 'TRANSPORT_ERROR'          # an unexpected fault may follow a partial send; never retry
 REDIRECT_REFUSED = 'REDIRECT_REFUSED'
 INPUT_REFUSED = 'INPUT_REFUSED'              # bounds or delimiter collision, before sending
 MODEL_UNVERIFIED = 'MODEL_UNVERIFIED'        # tag absent, or digest mismatch
@@ -114,7 +115,7 @@ RESOURCE_REFUSED = 'RESOURCE_REFUSED'
 
 FAILURE_REASONS = frozenset({
     SCHEMA_REJECTED, EVIDENCE_REJECTED, MALFORMED_RESPONSE, OVERSIZE_RESPONSE, UNAVAILABLE, TIMEOUT,
-    CANCELLED, HTTP_ERROR, HTTP_RETRYABLE, REDIRECT_REFUSED, INPUT_REFUSED, MODEL_UNVERIFIED,
+    CANCELLED, HTTP_ERROR, HTTP_RETRYABLE, TRANSPORT_ERROR, REDIRECT_REFUSED, INPUT_REFUSED, MODEL_UNVERIFIED,
     RESOURCE_REFUSED,
 })
 # Only a failure an identical second attempt could plausibly survive. A
@@ -133,9 +134,21 @@ class EndpointRejected(ValueError):
 
 @dataclass(frozen=True)
 class Endpoint:
-    """A validated loopback origin. Construct only via `resolve_endpoint`."""
+    """A validated loopback origin, including when constructed directly."""
     host: str
     port: int
+
+    def __post_init__(self):
+        try:
+            if not isinstance(self.host, str) or '%' in self.host:
+                raise ValueError('host is not an unscoped IP literal')
+            address = ipaddress.ip_address(self.host)
+        except ValueError:
+            raise EndpointRejected('endpoint host must be a numeric loopback literal') from None
+        if not address.is_loopback:
+            raise EndpointRejected('endpoint host must be a numeric loopback literal')
+        if not isinstance(self.port, int) or isinstance(self.port, bool) or not 1 <= self.port <= 65535:
+            raise EndpointRejected('endpoint port must be an integer from 1 to 65535')
 
     @property
     def base(self):
@@ -174,7 +187,26 @@ class Outcome:
         `grounding_discards` can quote spans the model produced, which may echo
         posting text, so only their count leaves this method.
         """
-        return {'reason': self.reason, 'detail': _scrub(self.detail), 'accepted': self.accepted,
+        # A verifier diagnostic can contain a model-supplied JSON key or span
+        # without quotation marks. Never attempt to scrub free-form diagnostics.
+        safe_detail = {
+            ACCEPTED: 'accepted',
+            SCHEMA_REJECTED: 'answer failed schema validation',
+            EVIDENCE_REJECTED: 'answer contained unsupported evidence',
+            MALFORMED_RESPONSE: 'response could not be parsed or verified',
+            OVERSIZE_RESPONSE: 'response exceeded the byte limit',
+            UNAVAILABLE: 'local service unavailable',
+            TIMEOUT: 'call timed out',
+            CANCELLED: 'call cancelled',
+            HTTP_ERROR: 'local service returned an HTTP error',
+            HTTP_RETRYABLE: 'local service returned a retryable HTTP error',
+            TRANSPORT_ERROR: 'local transport failed',
+            REDIRECT_REFUSED: 'local service attempted a redirect',
+            INPUT_REFUSED: 'input failed a local safety check',
+            MODEL_UNVERIFIED: 'installed model identity was not verified',
+            RESOURCE_REFUSED: 'local resources were insufficient',
+        }.get(self.reason, 'operation did not complete')
+        return {'reason': self.reason, 'detail': safe_detail, 'accepted': self.accepted,
                 'attempts': self.attempts, 'model_calls': self.model_calls,
                 'elapsed_seconds': round(self.elapsed_seconds, 3),
                 'grounding_discards': len(self.grounding_discards),
@@ -200,7 +232,10 @@ def resolve_endpoint(base_url):
     """
     if not isinstance(base_url, str) or not base_url.strip():
         raise EndpointRejected('endpoint must be a non-empty string')
-    parts = urlsplit(base_url.strip())
+    try:
+        parts = urlsplit(base_url.strip())
+    except ValueError:
+        raise EndpointRejected('endpoint URL is malformed') from None
     if parts.scheme != 'http':
         raise EndpointRejected(f'scheme must be http for a loopback hop, got {parts.scheme!r}')
     if parts.username or parts.password:
@@ -209,7 +244,10 @@ def resolve_endpoint(base_url):
         raise EndpointRejected('endpoint must not carry a query or fragment')
     if parts.path not in ('', '/'):
         raise EndpointRejected('endpoint must be a bare origin with no path')
-    host = parts.hostname
+    try:
+        host = parts.hostname
+    except ValueError:
+        raise EndpointRejected('endpoint host is malformed') from None
     if not host:
         raise EndpointRejected('endpoint has no host')
     try:
@@ -336,9 +374,9 @@ def _exchange(client, method, url, payload, deadline, cancel):
     except httpx.TimeoutException as error:
         return _fail(TIMEOUT, type(error).__name__, dispatched=True)
     except httpx.HTTPError as error:
-        return _fail(UNAVAILABLE, type(error).__name__, dispatched=True)
+        return _fail(TRANSPORT_ERROR, type(error).__name__, dispatched=True)
     except Exception as error:  # a transport fault httpx did not classify: explicit, never raised
-        return _fail(UNAVAILABLE, f'unexpected transport failure ({type(error).__name__})', dispatched=True)
+        return _fail(TRANSPORT_ERROR, f'unexpected transport failure ({type(error).__name__})', dispatched=True)
 
 
 def _request(method, endpoint, path, payload, deadline, transport=None, cancel=None):
@@ -346,11 +384,17 @@ def _request(method, endpoint, path, payload, deadline, transport=None, cancel=N
 
     The exchange blocks while the model generates (stream is false), so the
     caller's thread watches `cancel` and the wall-clock deadline. On either it
-    closes this exchange's own client -- which closes the socket, and Ollama
-    stops work for a request whose client has gone -- and returns at once. The
+    closes this exchange's own client and returns at once. A real Ollama
+    process's reaction to a closed socket has not been verified here. The
     abandoned worker is a daemon whose late result is discarded; nothing it
     produces is ever read.
     """
+    if not isinstance(endpoint, Endpoint):
+        return _fail(INPUT_REFUSED, 'endpoint is not a validated loopback origin')
+    try:
+        endpoint = resolve_endpoint(endpoint.base)
+    except EndpointRejected:
+        return _fail(INPUT_REFUSED, 'endpoint is not a validated loopback origin')
     if cancel is not None and cancel.is_set():
         return _fail(CANCELLED, 'cancelled before the request was sent')
     if time.monotonic() >= deadline:
@@ -384,36 +428,50 @@ def _request(method, endpoint, path, payload, deadline, transport=None, cancel=N
     return stop
 
 
-def _attempt(call, budget, cancel=None):
+def _attempt(call, budget, cancel=None, started=None):
     """Run `call(deadline)`, retrying only a RETRYABLE_REASONS failure, at most once,
     all inside one wall-clock budget."""
-    started = time.monotonic()
+    started = time.monotonic() if started is None else started
     deadline = started + budget
     outcome, calls = None, 0
     for attempt in range(1, MAX_ATTEMPTS + 1):
+        if time.monotonic() >= deadline:
+            outcome = _fail(TIMEOUT, 'call budget elapsed before request', attempts=attempt - 1)
+            break
         outcome = call(deadline)
         calls += 1 if outcome.dispatched else 0
         outcome.attempts = attempt
         if outcome.reason not in RETRYABLE_REASONS or attempt == MAX_ATTEMPTS:
             break
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            outcome = _fail(TIMEOUT, 'call budget elapsed before retry', attempts=attempt)
+            break
+        backoff = min(RETRY_BACKOFF, remaining)
         if cancel is not None:
-            if cancel.wait(RETRY_BACKOFF):
+            if cancel.wait(backoff):
                 outcome = _fail(CANCELLED, 'cancelled before the retry', attempts=attempt)
                 break
         else:
-            time.sleep(RETRY_BACKOFF)
+            time.sleep(backoff)
+        if time.monotonic() >= deadline:
+            outcome = _fail(TIMEOUT, 'call budget elapsed before retry', attempts=attempt)
+            break
     outcome.model_calls = calls
     outcome.elapsed_seconds = time.monotonic() - started
     return outcome
 
 
 # --- Model verification -----------------------------------------------------
-def installed_models(endpoint, transport=None, cancel=None):
+def installed_models(endpoint, transport=None, cancel=None, deadline=None):
     """`GET /api/tags`, read-only: installed tags and their manifest digests.
 
     Returns `(outcome, {tag: digest})`.
     """
-    body = _request('GET', endpoint, '/api/tags', None, time.monotonic() + TAGS_BUDGET, transport, cancel)
+    tags_deadline = time.monotonic() + TAGS_BUDGET
+    if deadline is not None:
+        tags_deadline = min(tags_deadline, deadline)
+    body = _request('GET', endpoint, '/api/tags', None, tags_deadline, transport, cancel)
     if isinstance(body, Outcome):
         return body, {}
     models = body.get('models')
@@ -426,29 +484,30 @@ def installed_models(endpoint, transport=None, cancel=None):
     return Outcome(reason=ACCEPTED), store
 
 
-def verify_model(endpoint, tag, expected_digest, transport=None, cancel=None):
+def verify_model(endpoint, tag, expected_digest, transport=None, cancel=None, deadline=None):
     """None when `tag` is installed with exactly `expected_digest`, else a failure.
 
     The digest is what turns a tag named in a document into the exact artifact
     on this machine. #46.2 selected no model, so both are required.
     """
-    if not tag or not expected_digest:
-        return _fail(MODEL_UNVERIFIED, 'a model tag and its expected digest are both required')
-    outcome, store = installed_models(endpoint, transport=transport, cancel=cancel)
+    if not isinstance(tag, str) or not tag or not isinstance(expected_digest, str) \
+            or not re.fullmatch(r'[0-9a-f]{64}', expected_digest):
+        return _fail(MODEL_UNVERIFIED, 'a model tag and a lowercase SHA-256 digest are required')
+    outcome, store = installed_models(endpoint, transport=transport, cancel=cancel, deadline=deadline)
     if not outcome.accepted:
         return outcome
     if tag not in store:
         return _fail(MODEL_UNVERIFIED, 'model is not installed locally; this module never pulls one')
-    if store[tag] != expected_digest:
+    if not re.fullmatch(r'[0-9a-f]{64}', store[tag]) or store[tag] != expected_digest:
         return _fail(MODEL_UNVERIFIED, 'installed model digest does not match the expected digest')
     return None
 
 
-def _preconditions(endpoint, tag, expected_digest, transport, cancel, floor_bytes, snapshot):
+def _preconditions(endpoint, tag, expected_digest, transport, cancel, floor_bytes, snapshot, deadline):
     refusal = check_resources(floor_bytes=floor_bytes, snapshot=snapshot)
     if refusal is not None:
         return refusal
-    return verify_model(endpoint, tag, expected_digest, transport=transport, cancel=cancel)
+    return verify_model(endpoint, tag, expected_digest, transport=transport, cancel=cancel, deadline=deadline)
 
 
 # --- Embeddings -------------------------------------------------------------
@@ -470,8 +529,11 @@ def embed(endpoint, tag, texts, expected_digest, transport=None, cancel=None, fl
             return _fail(INPUT_REFUSED, f'text {index} is empty or not a string')
         if len(text) > MAX_EMBED_CHARS:
             return _fail(INPUT_REFUSED, f'text {index} is {len(text)} chars, over the {MAX_EMBED_CHARS} bound')
-    blocked = _preconditions(endpoint, tag, expected_digest, transport, cancel, floor_bytes, snapshot)
+    started = time.monotonic()
+    blocked = _preconditions(endpoint, tag, expected_digest, transport, cancel, floor_bytes, snapshot,
+                             started + budget)
     if blocked is not None:
+        blocked.elapsed_seconds = time.monotonic() - started
         return blocked
     payload = {'model': tag, 'input': list(texts), 'truncate': False, 'keep_alive': KEEP_ALIVE}
 
@@ -479,14 +541,16 @@ def embed(endpoint, tag, texts, expected_digest, transport=None, cancel=None, fl
         body = _request('POST', endpoint, '/api/embed', payload, deadline, transport, cancel)
         if isinstance(body, Outcome):
             return body
-        outcome = _validated_embeddings(body, len(texts))
+        outcome = _validated_embeddings(body, len(texts), tag)
         outcome.dispatched = True
         return outcome
 
-    return _attempt(call, budget, cancel)
+    return _attempt(call, budget, cancel, started=started)
 
 
-def _validated_embeddings(body, expected_count):
+def _validated_embeddings(body, expected_count, expected_tag):
+    if body.get('model') != expected_tag:
+        return _fail(MALFORMED_RESPONSE, 'embedding response model does not match the request')
     vectors = body.get('embeddings')
     if not isinstance(vectors, list) or len(vectors) != expected_count:
         got = len(vectors) if isinstance(vectors, list) else type(vectors).__name__
@@ -527,6 +591,14 @@ def build_messages(posting):
     substring of `bounded_job(posting)`, so a quote carrying a line label would
     fail it.
     """
+    if not isinstance(posting, dict):
+        return None, _fail(INPUT_REFUSED, 'posting must be an object')
+    for field, limit in (('title', role_understanding.MAX_TITLE_CHARS),
+                         ('location', role_understanding.MAX_TITLE_CHARS),
+                         ('description', role_understanding.MAX_INPUT_CHARS)):
+        value = posting.get(field)
+        if value is not None and (not isinstance(value, str) or len(value) > limit):
+            return None, _fail(INPUT_REFUSED, f'{field} is not a string within its input bound')
     request = role_understanding.assessor_request(posting)
     job = request['job']
     if any(marker in value for value in job.values() for marker in (DATA_OPEN, DATA_CLOSE)):
@@ -571,8 +643,11 @@ def understand(posting, endpoint, tag, expected_digest, transport=None, cancel=N
     messages, refusal = build_messages(posting)
     if refusal is not None:
         return refusal
-    blocked = _preconditions(endpoint, tag, expected_digest, transport, cancel, floor_bytes, snapshot)
+    started = time.monotonic()
+    blocked = _preconditions(endpoint, tag, expected_digest, transport, cancel, floor_bytes, snapshot,
+                             started + budget)
     if blocked is not None:
+        blocked.elapsed_seconds = time.monotonic() - started
         return blocked
     payload = chat_payload(tag, messages)
 
@@ -580,14 +655,14 @@ def understand(posting, endpoint, tag, expected_digest, transport=None, cancel=N
         body = _request('POST', endpoint, '/api/chat', payload, deadline, transport, cancel)
         if isinstance(body, Outcome):
             return body
-        outcome = verified_answer(body, posting)
+        outcome = verified_answer(body, posting, tag)
         outcome.dispatched = True
         return outcome
 
-    return _attempt(call, budget, cancel)
+    return _attempt(call, budget, cancel, started=started)
 
 
-def verified_answer(body, posting):
+def verified_answer(body, posting, expected_tag):
     """Ollama chat envelope -> JSON answer -> `role_understanding.verify`.
 
     ACCEPTED only when the envelope is well formed, the content parses as JSON,
@@ -597,8 +672,12 @@ def verified_answer(body, posting):
     posting.
     """
     timings = _timings(body) if isinstance(body, dict) else {}
+    if not isinstance(body, dict) or body.get('model') != expected_tag or body.get('done') is not True:
+        return _fail(MALFORMED_RESPONSE, 'response model or completion marker does not match the request',
+                     server_timings=timings)
     message = body.get('message') if isinstance(body, dict) else None
-    if not isinstance(message, dict) or not isinstance(message.get('content'), str):
+    if not isinstance(message, dict) or message.get('role') != 'assistant' \
+            or not isinstance(message.get('content'), str):
         return _fail(MALFORMED_RESPONSE, 'response has no message.content string', server_timings=timings)
     content = message['content'].strip()
     if not content:

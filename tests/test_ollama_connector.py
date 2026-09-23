@@ -121,6 +121,19 @@ def test_a_name_is_refused_because_it_needs_a_resolver():
         oc.resolve_endpoint('http://localhost:11434')
 
 
+@pytest.mark.parametrize('host,port', [('198.51.100.7', 11434), ('127.0.0.1', 0),
+                                        ('127.0.0.1', 65536), ('localhost', 11434)])
+def test_direct_endpoint_construction_cannot_bypass_loopback(host, port):
+    with pytest.raises(oc.EndpointRejected):
+        oc.Endpoint(host, port)
+
+
+@pytest.mark.parametrize('url', ['http://[::1:11434', 'http://[bad]:11434'])
+def test_malformed_bracketed_urls_have_the_endpoint_error(url):
+    with pytest.raises(oc.EndpointRejected):
+        oc.resolve_endpoint(url)
+
+
 # --- Transport posture ------------------------------------------------------
 def test_httpx_version_is_the_pinned_one():
     assert httpx.__version__ == oc.PINNED_HTTPX_VERSION
@@ -189,10 +202,20 @@ def test_a_client_error_status_is_not_retried():
 
 
 def test_an_unclassified_transport_fault_is_explicit_not_raised():
+    calls = []
     def chat(request):
+        calls.append(request)
         raise RuntimeError('something httpx never classified')
     outcome = understand(chat=chat)
-    assert outcome.reason == oc.UNAVAILABLE and 'unexpected transport failure' in outcome.detail
+    assert outcome.reason == oc.TRANSPORT_ERROR and 'unexpected transport failure' in outcome.detail
+    assert outcome.attempts == 1 and len(calls) == 1
+
+
+def test_retry_backoff_cannot_outlast_the_wall_clock_budget():
+    started = time.monotonic()
+    outcome = oc._attempt(lambda deadline: oc._fail(oc.HTTP_RETRYABLE, dispatched=True), 0.1)
+    assert outcome.reason == oc.TIMEOUT and outcome.attempts == 1 and outcome.model_calls == 1
+    assert time.monotonic() - started < 0.4
 
 
 # --- Cancellation and deadlines ---------------------------------------------
@@ -250,6 +273,30 @@ def test_the_wall_clock_budget_ends_a_hung_model():
         release.set()
     assert outcome.reason == oc.TIMEOUT and outcome.attempts == 1
     assert time.monotonic() - started < 2.0
+
+
+@pytest.mark.parametrize('operation', ['understand', 'embed'])
+def test_the_operation_budget_includes_model_identity_preflight(operation):
+    seen = []
+    release = threading.Event()
+    def delayed_tags(request):
+        release.wait(1)
+        return respond(tags_body())
+    transport = router(tags=delayed_tags, chat=chat_body(valid_answer()),
+                       embed={'model': EMBED_TAG, 'embeddings': [[0.5, 0.25]]}, record=seen)
+    started = time.monotonic()
+    try:
+        if operation == 'understand':
+            outcome = oc.understand(CYBER, endpoint(), TAG, DIGEST, transport=transport,
+                                    snapshot=AMPLE, budget=0.1)
+        else:
+            outcome = oc.embed(endpoint(), EMBED_TAG, ['fictional posting'], EMBED_DIGEST,
+                               transport=transport, snapshot=AMPLE, budget=0.1)
+    finally:
+        release.set()
+    assert outcome.reason == oc.TIMEOUT and outcome.model_calls == 0
+    assert time.monotonic() - started < 0.4
+    assert [request.url.path for request in seen] == ['/api/tags']
 
 
 def test_the_budget_is_checked_while_reading_a_trickle():
@@ -462,14 +509,21 @@ def test_no_candidate_profile_or_private_field_can_ride_along():
         assert key not in blob
 
 
-def test_an_over_long_posting_is_bounded_not_sent_whole():
-    body = captured_chat_payload({'title': 'T' * 5_000, 'location': 'L' * 5_000,
-                                  'description': 'D' * 90_000})['messages'][1]['content']
-    lines = body.splitlines()
-    assert len(next(l for l in lines if l.startswith('TITLE: '))) - len('TITLE: ') == ru.MAX_TITLE_CHARS
-    assert len(next(l for l in lines if l.startswith('LOCATION: '))) - len('LOCATION: ') == ru.MAX_TITLE_CHARS
-    description = body.split('DESCRIPTION:\n', 1)[1].rsplit(oc.DATA_CLOSE, 1)[0].strip()
-    assert len(description) == ru.MAX_INPUT_CHARS
+@pytest.mark.parametrize('field,limit', [('title', ru.MAX_TITLE_CHARS),
+                                         ('location', ru.MAX_TITLE_CHARS),
+                                         ('description', ru.MAX_INPUT_CHARS)])
+def test_an_over_long_posting_is_refused_before_any_model_lookup(field, limit):
+    seen = []
+    outcome = understand(dict(CYBER, **{field: 'X' * (limit + 1)}), record=seen)
+    assert outcome.reason == oc.INPUT_REFUSED and seen == []
+
+
+@pytest.mark.parametrize('field,limit', [('title', ru.MAX_TITLE_CHARS),
+                                         ('location', ru.MAX_TITLE_CHARS),
+                                         ('description', ru.MAX_INPUT_CHARS)])
+def test_exact_posting_bounds_are_not_silently_shortened(field, limit):
+    messages, refusal = oc.build_messages(dict(CYBER, **{field: 'X' * limit}))
+    assert refusal is None and 'X' * limit in messages[1]['content']
 
 
 @pytest.mark.parametrize('field', ['title', 'location', 'description'])
@@ -570,6 +624,17 @@ def test_a_broken_envelope_is_malformed_not_an_answer(body):
     assert outcome.reason == oc.MALFORMED_RESPONSE and outcome.understanding is None
 
 
+@pytest.mark.parametrize('change', [{'model': 'wrong:model'}, {'done': False},
+                                    {'message_role': 'user'}])
+def test_chat_response_must_match_requested_model_and_be_complete(change):
+    body = chat_body(valid_answer())
+    if 'message_role' in change:
+        body['message']['role'] = change['message_role']
+    else:
+        body.update(change)
+    assert understand(chat=body).reason == oc.MALFORMED_RESPONSE
+
+
 def test_a_partly_supported_answer_is_rejected_whole():
     """Good duty evidence plus years the posting does not state: the whole
     answer fails, rather than keeping the parts that happened to be right."""
@@ -623,6 +688,14 @@ def test_a_reported_failure_never_leaks_spans():
     assert "'" not in oc.Outcome(reason=oc.HTTP_ERROR, detail="quoted 'posting text' here").report()['detail']
 
 
+def test_report_never_echoes_an_unquoted_model_supplied_key():
+    secret = 'SYNTHETIC_PRIVATE_SENTINEL'
+    outcome = understand(chat=chat_body(valid_answer(**{secret: 'x'})))
+    assert outcome.reason == oc.SCHEMA_REJECTED
+    assert secret in outcome.detail
+    assert secret not in json.dumps(outcome.report())
+
+
 # --- Embeddings -------------------------------------------------------------
 def embed(texts, handler=None, snapshot=AMPLE, **kwargs):
     return oc.embed(endpoint(), EMBED_TAG, texts, EMBED_DIGEST, transport=router(embed=handler), snapshot=snapshot,
@@ -633,11 +706,16 @@ def test_embeddings_are_requested_without_silent_truncation():
     sent = {}
     def handler(request):
         sent.update(json.loads(request.content))
-        return respond({'embeddings': [[0.5] * 4, [0.25] * 4]})
+        return respond({'model': EMBED_TAG, 'embeddings': [[0.5] * 4, [0.25] * 4]})
     outcome = embed(['first posting text', 'second posting text'], handler)
     assert outcome.accepted and outcome.dimension == 4 and len(outcome.embeddings) == 2
     assert sent['truncate'] is False and sent['model'] == EMBED_TAG
     assert sent['input'] == ['first posting text', 'second posting text']
+
+
+def test_embedding_response_must_name_the_requested_model():
+    outcome = embed(['one'], lambda r: respond({'model': 'wrong:model', 'embeddings': [[0.5] * 4]}))
+    assert outcome.reason == oc.MALFORMED_RESPONSE and outcome.embeddings == ()
 
 
 @pytest.mark.parametrize('texts,detail', [
@@ -719,7 +797,8 @@ def test_the_mocked_harness_runs_end_to_end_with_no_model_and_no_text(tmp_path):
     assert done.returncode == 0, done.stdout + done.stderr
     assert report['outcome'] == 'COMPLETED' and report['fixture_expectation_mismatches'] == {}
     summary = report['summary']
-    assert summary['model_calls'] == 0 and report['model'] == {'used': False, 'tag': None, 'digest': None}
+    assert summary['model_calls'] == 0 and report['model'] == {
+        'request_dispatched': False, 'tag': None, 'digest': None}
     assert summary['cases'] == len(CASES) and summary['baseline_unchanged_on_every_failure'] is True
     assert report['embedding']['reason'] == oc.ACCEPTED
     blob = json.dumps(report, ensure_ascii=False)
@@ -738,6 +817,16 @@ def test_a_live_run_is_blocked_when_nothing_is_listening(tmp_path):
     assert report['outcome'].startswith('BLOCKED') and report['summary'] == {'model_calls': 0}
     assert report['real_model_smoke_test'].startswith('COULD NOT RUN')
     assert 'cases' not in report
+
+
+@pytest.mark.parametrize('calls,expected_status,expected_used', [(0, 2, False), (1, 1, True)])
+def test_live_harness_reports_actual_dispatch_and_rejections(calls, expected_status, expected_used):
+    report = {'model': {'request_dispatched': False},
+              'summary': {'model_calls': calls, 'rejected_or_failed': 1}}
+    status = harness.finalize_live_report(report)
+    assert status == expected_status and report['model']['request_dispatched'] is expected_used
+    assert report['summary']['model_calls'] == calls
+    assert report['outcome'].startswith('BLOCKED' if calls == 0 else 'COMPLETED WITH')
 
 
 # --- Containment ------------------------------------------------------------

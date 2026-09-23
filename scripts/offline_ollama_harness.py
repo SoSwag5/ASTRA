@@ -408,7 +408,8 @@ def mocked_embedding(fixture):
         sent = json.loads(request.content)
         if sent.get('truncate') is not False:
             return httpx.Response(400, json={'error': 'truncate must be false'})
-        return _streamed({'embeddings': [[0.1 * (i + 1), 0.2, 0.3] for i in range(len(sent['input']))]})
+        return _streamed({'model': MOCK_TAG,
+                          'embeddings': [[0.1 * (i + 1), 0.2, 0.3] for i in range(len(sent['input']))]})
 
     outcome = oc.embed(oc.resolve_endpoint(DEFAULT_ENDPOINT), MOCK_TAG, texts, MOCK_DIGEST,
                        transport=httpx.MockTransport(handle), snapshot=MOCK_MEMORY)
@@ -450,6 +451,22 @@ CLAIMS_NOT_MADE = [
 ]
 
 
+def finalize_live_report(report):
+    """Classify a live run from dispatched requests and accepted results."""
+    calls = report['summary']['model_calls']
+    report['model']['request_dispatched'] = calls > 0
+    if calls == 0:
+        report['real_model_smoke_test'] = 'COULD NOT RUN: no model call was dispatched'
+        report['outcome'] = 'BLOCKED: no model call was attempted'
+        return 2
+    report['real_model_smoke_test'] = f'RAN: {calls} local model call(s)'
+    rejected = report['summary']['rejected_or_failed']
+    if report.get('embedding') and not report['embedding']['accepted']:
+        rejected += 1
+    report['outcome'] = 'COMPLETED' if rejected == 0 else 'COMPLETED WITH REJECTIONS OR FAILURES'
+    return 0 if rejected == 0 else 1
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--mode', choices=('mocked', 'live'), default='mocked')
@@ -476,7 +493,7 @@ def main(argv=None):
         'platform': {'python': platform.python_version(), 'httpx': httpx.__version__, 'system': platform.system(),
                      'release': platform.release()},
         'data_statement': fixture['note'],
-        'model': {'used': False, 'tag': None, 'digest': None},
+        'model': {'request_dispatched': False, 'tag': None, 'digest': None},
     }
     status = 0
     if args.mode == 'mocked':
@@ -502,7 +519,7 @@ def main(argv=None):
             report['outcome'] = 'PREFLIGHT PASSED: no model call attempted (--preflight-only)'
             report['summary'] = {'model_calls': 0}
         else:
-            report['model'] = {'used': True, 'tag': args.tag, 'digest': args.digest,
+            report['model'] = {'request_dispatched': False, 'tag': args.tag, 'digest': args.digest,
                                'embed_tag': args.embed_tag, 'embed_digest': args.embed_digest}
             records = live_run(fixture, endpoint, args.tag, args.digest)
             report['cases'], report['summary'] = records, summarize(records)
@@ -511,8 +528,7 @@ def main(argv=None):
                 report['summary']['model_calls'] += report['embedding']['model_calls']
             report['memory_after'] = oc.memory_snapshot() or {'unavailable': True}
             report['vram_after'] = vram_observation()
-            report['real_model_smoke_test'] = f"RAN: {report['summary']['model_calls']} local model call(s)"
-            report['outcome'] = 'COMPLETED'
+            status = finalize_live_report(report)
     report['claims_not_made'] = CLAIMS_NOT_MADE
     if 'backend.models' in sys.modules:
         raise AssertionError('the harness must not import storage')
