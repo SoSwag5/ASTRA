@@ -224,6 +224,134 @@ assert not m.task_lock.locked() and network_calls == []
 ''')
 
 
+def test_stop_during_progress_update_skips_the_next_source(tmp_path):
+    """A Stop accepted while progress is being saved must not start that source."""
+    isolated(tmp_path, PRELUDE + r'''
+initialize(); add_sources('alpha', 'beta')
+reached_beta = threading.Event()
+continue_beta = threading.Event()
+real_record_progress = m._record_progress
+
+def paused_progress(db, run_id, report, total, done, current):
+    if current == 'Fixture beta':
+        reached_beta.set()
+        assert continue_beta.wait(20)
+    return real_record_progress(db, run_id, report, total, done, current)
+
+m._record_progress = paused_progress
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert reached_beta.wait(20)
+    stop = c.post('/api/scan/cancel', json={'run_id': run_id})
+    assert stop.status_code == 200 and stop.json()['cancelling']
+    continue_beta.set()
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+
+assert fetches == ['alpha'], fetches
+assert last['status'] == 'CANCELLED'
+assert last['cancel_requested_at']
+assert last['progress']['current_source'] is None
+assert not m.task_lock.locked() and network_calls == []
+''')
+
+
+def test_stop_during_source_setup_skips_provider_call(tmp_path):
+    """A Stop received after progress but before provider entry skips the source."""
+    isolated(tmp_path, PRELUDE + r'''
+from backend import discovery_telemetry as telemetry
+initialize(); add_sources('alpha', 'beta')
+reached_beta = threading.Event()
+continue_beta = threading.Event()
+real_attempt = telemetry.RunTelemetry.attempt
+
+def paused_attempt(self, source):
+    if source.name == 'Fixture beta':
+        reached_beta.set()
+        assert continue_beta.wait(20)
+    return real_attempt(self, source)
+
+telemetry.RunTelemetry.attempt = paused_attempt
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert reached_beta.wait(20)
+    stop = c.post('/api/scan/cancel', json={'run_id': run_id})
+    assert stop.status_code == 200 and stop.json()['cancelling']
+    continue_beta.set()
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+
+assert fetches == ['alpha'], fetches
+assert last['status'] == 'CANCELLED'
+assert last['cancel_requested_at']
+with Session() as db:
+    source = db.query(JobSource).filter_by(board='beta').one()
+    assert 'last_attempted' not in source.details
+    run = db.get(AutomationRun, run_id)
+    assert [e['outcome'] for e in run.report['scope_accounting']] == ['FETCHED', 'NOT_FETCHED_CANCELLED']
+    states = [s['attempt_state'] for s in run.report[telemetry.REPORT_KEY]['sources']]
+    assert states == [telemetry.ATTEMPTED, telemetry.SKIPPED_CANCELLED]
+assert not m.task_lock.locked() and network_calls == []
+''')
+
+
+def test_stop_timestamp_survives_concurrent_progress_write(tmp_path):
+    """Progress and Stop must serialize their writes to the active run report."""
+    isolated(tmp_path, PRELUDE + r'''
+initialize(); add_sources('alpha', 'beta')
+in_refresh = threading.Event()
+continue_progress = threading.Event()
+beta_gate = threading.Event()
+real_record_progress = m._record_progress
+
+def paused_progress(db, run_id, report, total, done, current):
+    if current == 'Fixture beta':
+        real_refresh = db.refresh
+        def paused_refresh(row, *args, **kwargs):
+            result = real_refresh(row, *args, **kwargs)
+            if isinstance(row, AutomationRun):
+                in_refresh.set()
+                assert continue_progress.wait(20)
+            return result
+        db.refresh = paused_refresh
+        try:
+            return real_record_progress(db, run_id, report, total, done, current)
+        finally:
+            db.refresh = real_refresh
+    return real_record_progress(db, run_id, report, total, done, current)
+
+def bounded_discover(adapter, board, url='', cfg=None):
+    fetches.append(board)
+    if board == 'beta':
+        assert beta_gate.wait(20)
+    return []
+
+m._record_progress = paused_progress
+m.discover = bounded_discover
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert in_refresh.wait(20)
+    responses = []
+    stopping = threading.Thread(target=lambda: responses.append(c.post('/api/scan/cancel', json={'run_id': run_id})))
+    stopping.start()
+    time.sleep(0.1)
+    continue_progress.set()
+    assert wait_for(lambda: bool(responses))
+    beta_gate.set()
+    stopping.join(20)
+    assert responses[0].status_code == 200, responses[0].text
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+
+assert last['cancel_requested_at'], last
+assert last['status'] in ('CANCELLED', 'COMPLETED')
+assert not m.task_lock.locked() and network_calls == []
+''')
+
+
 def test_restart_marks_interrupted_runs_and_never_restarts_them(tmp_path):
     isolated(tmp_path, PRELUDE + r'''
 initialize(); add_sources('alpha')

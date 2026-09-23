@@ -69,10 +69,12 @@ def _record_progress(db, run_id, report, total, done, current):
                         'scope_changed_sources':list(report.get('scope_changed_sources',[]))}
     # Session is expire_on_commit=False, so re-read the row: a cancel request
     # committed by another request must be merged, never overwritten.
-    row=db.get(AutomationRun,run_id); db.refresh(row)
-    row.report={**(row.report or {}),'progress':report['progress'],'trigger':report['trigger'],
-                'started_at':report['started_at'],**({'scope':report['scope']} if 'scope' in report else {})}
-    db.commit()
+    from .scan_control import _report_guard
+    with _report_guard:
+        row=db.get(AutomationRun,run_id); db.refresh(row)
+        row.report={**(row.report or {}),'progress':report['progress'],'trigger':report['trigger'],
+                    'started_at':report['started_at'],**({'scope':report['scope']} if 'scope' in report else {})}
+        db.commit()
 
 
 DISCOVERY_REFUSED={'refused':True,'detail':'Discovery runs only from a confirmed Start Scan: review the scope, then confirm.'}
@@ -157,14 +159,14 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                             report['scope_changed_sources'].append(entry)
                             report['scope_accounting'].append({**entry,'outcome':'NOT_FETCHED_SCOPE_CHANGED'})
                             _record_progress(db,run.id,report,planned,done,None); continue
-                        # Cancellation is checked BEFORE each source is fetched, so a
-                        # stopped scan starts no further source fetches. A source already
-                        # being fetched finishes within its own bounded provider budget.
+                        # Persisting progress can wait on SQLite. Check cancellation
+                        # after that wait, immediately before starting this source, so
+                        # a Stop received during the progress update is honoured.
+                        _record_progress(db,run.id,report,planned,done,source.name)
                         if cancel.is_set():
                             run_telemetry.skip(source,telemetry.SKIPPED_CANCELLED); cancelled_sources+=1
                             report['scope_accounting'].append({'id':sid,'name':source.name,'outcome':'NOT_FETCHED_CANCELLED'})
                             _record_progress(db,run.id,report,planned,done,None); continue
-                        _record_progress(db,run.id,report,planned,done,source.name)
                         source_report={'id':source.id,'name':source.name,'scanned':0,'checked':0,'imported':0,'duplicates':0,'filtered':{},'error':'','completion':'COMPLETE','buckets':{k:0 for k in ('STRONG','GOOD','STRETCH','LOW','REJECTED')},'assessment_comparisons':{}}
                         source_decisions=[]
                         attempt=run_telemetry.attempt(source)
@@ -172,6 +174,17 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                             source.details={**source.details,'last_attempted':now(),'mode':'MANUAL','market':'UAE campaign','interval_hours':source.details.get('interval_hours',cfg['discovery_interval_hours'])}
                             if source.adapter=='generic':
                                 raise ValueError('Generic page scanning is disabled pending destination and platform review; use a public board API or paste the description')
+                            # The telemetry setup and source bookkeeping above can also
+                            # be interrupted. Give Stop one final checkpoint at the
+                            # provider boundary; this source was not fetched, so undo
+                            # its tentative bookkeeping and mark telemetry as skipped.
+                            if cancel.is_set():
+                                attempt.skipped(telemetry.SKIPPED_CANCELLED)
+                                cancelled_sources+=1
+                                report['scope_accounting'].append({'id':sid,'name':source.name,'outcome':'NOT_FETCHED_CANCELLED'})
+                                db.rollback()
+                                _record_progress(db,run.id,report,planned,done,None)
+                                continue
                             items=discover(source.adapter,source.board,source.url,cfg)
                             health=getattr(items,'health',None)
                             outcome=health or {
@@ -306,13 +319,28 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                     # and limited to discovery reporting: no Job, JobObservation,
                     # Application, user decision or application history is ever touched.
                     telemetry.prune_expired(db)
-                run=db.get(AutomationRun,run.id); db.refresh(run)
-                if (run.report or {}).get('cancel_requested_at'): report['cancel_requested_at']=run.report['cancel_requested_at']
-                run.status=run_status if name=='discover' else ('PARTIAL' if report['failures'] else 'COMPLETED'); run.report=report; db.commit()
+                if name=='discover':
+                    from .scan_control import _report_guard
+                    with _report_guard:
+                        run=db.get(AutomationRun,run.id); db.refresh(run)
+                        if (run.report or {}).get('cancel_requested_at'): report['cancel_requested_at']=run.report['cancel_requested_at']
+                        run.status=run_status; run.report=report; db.commit()
+                else:
+                    run=db.get(AutomationRun,run.id); db.refresh(run)
+                    run.status='PARTIAL' if report['failures'] else 'COMPLETED'; run.report=report; db.commit()
             except Exception as e:
-                db.rollback(); run=db.get(AutomationRun,run.id); run.status='FAILED'
+                db.rollback()
                 report['finished_at']=now();report['duration_seconds']=round((datetime.fromisoformat(report['finished_at'])-datetime.fromisoformat(report['started_at'])).total_seconds(),3)
-                run.report={**report,'error':'Task failed ('+type(e).__name__+'); no success is recorded.'}; db.commit()
+                if name=='discover':
+                    from .scan_control import _report_guard
+                    with _report_guard:
+                        run=db.get(AutomationRun,run.id); db.refresh(run)
+                        if (run.report or {}).get('cancel_requested_at'): report['cancel_requested_at']=run.report['cancel_requested_at']
+                        run.status='FAILED'
+                        run.report={**report,'error':'Task failed ('+type(e).__name__+'); no success is recorded.'}; db.commit()
+                else:
+                    run=db.get(AutomationRun,run.id); run.status='FAILED'
+                    run.report={**report,'error':'Task failed ('+type(e).__name__+'); no success is recorded.'}; db.commit()
             return serialize(run)
     finally: task_lock.release()
 # Discovery is manual-only. It is never registered with the scheduler, never

@@ -49,6 +49,10 @@ MAX_PENDING_PREVIEWS = 20
 TRIGGER = 'MANUAL_START'
 
 _guard = threading.Lock()
+# Serialize writes to the active run's report with progress/finalization in
+# main.py. A read-refresh-write sequence alone can overwrite a Stop recorded
+# by another request between the refresh and commit.
+_report_guard = threading.Lock()
 _previews = {}      # token -> {'scope': dict, 'expires': datetime, 'run_id': int|None}
 _cancel = {}        # run_id -> threading.Event for scans started in this process
 
@@ -352,11 +356,14 @@ def cancel(data: CancelRequest):
         event = _cancel.get(data.run_id)
     if event is None:
         return JSONResponse({'detail': 'There is no running scan with that id in this session.'}, 409)
-    event.set()
-    with Session.begin() as db:
-        run = db.get(AutomationRun, data.run_id)
-        if run is not None and not (run.report or {}).get('cancel_requested_at'):
-            run.report = {**(run.report or {}), 'cancel_requested_at': now()}
+    with _report_guard:
+        with Session.begin() as db:
+            run = db.get(AutomationRun, data.run_id)
+            if run is None or run.status != 'RUNNING':
+                return JSONResponse({'detail': 'This scan has already finished.'}, 409)
+            event.set()
+            if not (run.report or {}).get('cancel_requested_at'):
+                run.report = {**(run.report or {}), 'cancel_requested_at': now()}
     return {'cancelling': True, 'run_id': data.run_id}
 
 
