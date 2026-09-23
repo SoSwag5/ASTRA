@@ -459,7 +459,7 @@ def finalize_live_report(report):
         report['real_model_smoke_test'] = 'COULD NOT RUN: no model call was dispatched'
         report['outcome'] = 'BLOCKED: no model call was attempted'
         return 2
-    report['real_model_smoke_test'] = f'RAN: {calls} local model call(s)'
+    report['real_model_smoke_test'] = f'DISPATCHED: {calls} request(s) to local model endpoints'
     rejected = report['summary']['rejected_or_failed']
     if report.get('embedding') and not report['embedding']['accepted']:
         rejected += 1

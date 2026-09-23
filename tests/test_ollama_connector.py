@@ -827,6 +827,8 @@ def test_live_harness_reports_actual_dispatch_and_rejections(calls, expected_sta
     assert status == expected_status and report['model']['request_dispatched'] is expected_used
     assert report['summary']['model_calls'] == calls
     assert report['outcome'].startswith('BLOCKED' if calls == 0 else 'COMPLETED WITH')
+    if calls:
+        assert report['real_model_smoke_test'] == 'DISPATCHED: 1 request(s) to local model endpoints'
 
 
 # --- Containment ------------------------------------------------------------
