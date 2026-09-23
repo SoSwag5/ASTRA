@@ -121,9 +121,12 @@ def test_deterministic():
 
 
 def test_shadow_module_is_not_wired_into_production():
+    # ollama_connector.py (#46.2-D) is itself shadow-only; its own test proves
+    # nothing in production imports it.
     backend = Path(__file__).resolve().parents[1] / 'backend'
     importers = [p.name for p in backend.glob('*.py')
-                 if p.name != 'role_understanding.py' and 'role_understanding' in p.read_text(encoding='utf-8')]
+                 if p.name not in ('role_understanding.py', 'ollama_connector.py')
+                 and 'role_understanding' in p.read_text(encoding='utf-8')]
     assert importers == []
 
 
