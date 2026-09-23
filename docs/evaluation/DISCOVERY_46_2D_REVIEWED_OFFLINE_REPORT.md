@@ -6,11 +6,14 @@ No live scan ran, no model was selected for production, and no quality gate
 passed. This branch is stacked on the unmerged A/B/C publication branch at
 `452936c61546b2167227d094a107adeab430f874` (draft PR #71).
 
-**Date:** 2026-09-23 (Asia/Dubai). The reviewed code was committed at
-`08739b5dc50ee10ffb6e16bc05b15e68f7883d6f`. The fictional mocked run
-was generated from that clean code commit. The local-model run was repeated
-from clean commit `d91ab032aaeff7108bf72af56795c8ecbb4ff3e4`, which adds
-only the mocked report; its connector, harness, tests and fixture are unchanged.
+**Date:** 2026-09-23 (Asia/Dubai). The independently remediated transport was
+committed at `08739b5dc50ee10ffb6e16bc05b15e68f7883d6f`. The fictional
+mocked run was generated from that clean code commit. The local-model run was
+repeated from clean commit `d91ab032aaeff7108bf72af56795c8ecbb4ff3e4`,
+which adds only the mocked report. A later follow-up at
+`59e9f4515fd80994c8220c041cffef966e8a0bfd` changed one live-report label
+from “RAN” to “DISPATCHED” and its regression assertion; it did not change
+transport, model requests, evidence verification or the observed run counts.
 The raw live report with machine readings stayed outside Git. Its selected,
 text-free facts are in
 [the live summary](discovery_46_2d_live_smoke_summary_v1.json).
