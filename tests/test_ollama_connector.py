@@ -325,6 +325,9 @@ class LoopbackServer:
 
     def __init__(self, chat_mode, answer=None):
         self.release, self.closed_by_client = threading.Event(), threading.Event()
+        # Set once a POST (the model request) has been read, so a test can act
+        # while that request is in flight instead of guessing with a delay.
+        self.post_received = threading.Event()
         owner = self
 
         class Handler(http.server.BaseHTTPRequestHandler):
@@ -346,6 +349,7 @@ class LoopbackServer:
 
             def do_POST(self):
                 self.rfile.read(int(self.headers.get('content-length') or 0))
+                owner.post_received.set()
                 if chat_mode == 'answer':
                     return self._send(200, chat_body(answer))
                 if chat_mode == 'redirect':
@@ -394,23 +398,40 @@ def test_cancelling_a_real_request_closes_the_socket():
     generating for a request nobody is waiting on."""
     server = LoopbackServer('hang')
     cancel = threading.Event()
+    cancelled_at = {}
+
+    def cancel_once_the_model_request_arrives():
+        # Synchronised to the server reading the POST, not to a fixed delay: a
+        # timer could fire before the request was sent, leaving no socket for
+        # the server to see closed.
+        server.post_received.wait(10)
+        cancelled_at['t'] = time.monotonic()
+        cancel.set()
+
     with server as ep:
-        threading.Timer(0.3, cancel.set).start()
-        started = time.monotonic()
+        threading.Thread(target=cancel_once_the_model_request_arrives, daemon=True).start()
         outcome = oc.understand(CYBER, ep, TAG, DIGEST, snapshot=AMPLE, cancel=cancel)
-        elapsed = time.monotonic() - started
+        returned = time.monotonic()
+        assert server.post_received.is_set(), 'the model request never reached the server'
         assert server.closed_by_client.wait(3), 'the connection was left open after cancelling'
-    assert outcome.reason == oc.CANCELLED and elapsed < 2.0
+    assert outcome.reason == oc.CANCELLED and returned - cancelled_at['t'] < 2.0
 
 
 def test_a_real_hung_request_times_out_within_the_budget():
+    # The budget must outlast building two clients and verifying the model, or
+    # it ends before the model request is sent and there is no hung request to
+    # time out: a fresh httpx client alone has taken over 0.5 s on a Windows
+    # test machine. What is asserted is that the request reached the model,
+    # hung, and was ended by the budget promptly.
+    budget = 4.0
     server = LoopbackServer('hang')
     with server as ep:
         started = time.monotonic()
-        outcome = oc.understand(CYBER, ep, TAG, DIGEST, snapshot=AMPLE, budget=0.5)
+        outcome = oc.understand(CYBER, ep, TAG, DIGEST, snapshot=AMPLE, budget=budget)
         elapsed = time.monotonic() - started
+        assert server.post_received.is_set(), 'the model request never reached the server within the budget'
         assert server.closed_by_client.wait(3)
-    assert outcome.reason == oc.TIMEOUT and elapsed < 2.0
+    assert outcome.reason == oc.TIMEOUT and elapsed < budget + 1.0
 
 
 def test_nothing_listening_is_unavailable():
