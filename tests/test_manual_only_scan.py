@@ -470,6 +470,77 @@ assert not m.task_lock.locked() and network_calls == []
 ''')
 
 
+def test_stop_after_final_source_accounting_is_refused_before_progress_write(tmp_path):
+    """The final source has been accounted for, but its last progress write
+    has not started. Stop must already be closed at this boundary."""
+    isolated(tmp_path, PRELUDE + r'''
+initialize(); add_sources('alpha')
+paused, release = threading.Event(), threading.Event()
+real_progress = m._record_progress
+
+def held_final_progress(db, run_id, report, total, done, current):
+    if total == done == 1 and current is None:
+        paused.set()
+        assert release.wait(20)
+    return real_progress(db, run_id, report, total, done, current)
+
+m._record_progress = held_final_progress
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert paused.wait(20)
+    assert fetches == ['alpha']
+    with Session() as db:
+        run = db.get(AutomationRun, run_id)
+        assert [e['outcome'] for e in run.report.get('scope_accounting', [])] == []  # not persisted yet
+    assert c.get('/api/scan/status').json()['cancellable'] is False
+    stop = c.post('/api/scan/cancel', json={'run_id': run_id})
+    assert stop.status_code == 409 and stop.json().get('finished') is True, stop.text
+    release.set()
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+
+assert last['status'] == 'COMPLETED' and not last['cancel_requested_at'], last
+assert last['cancelled'] is None and network_calls == []
+''')
+
+
+def test_stop_after_final_scope_change_is_refused_before_progress_write(tmp_path):
+    """Closing the last source also covers a source skipped after confirmation."""
+    isolated(tmp_path, PRELUDE + r'''
+import backend.scan_control as sc
+initialize(); add_sources('alpha')
+token = sc.preview(sc.PreviewRequest())['token']
+confirmation = sc.confirm(token)
+with Session.begin() as db:
+    db.query(JobSource).filter_by(board='alpha').one().enabled = False
+paused, release = threading.Event(), threading.Event()
+real_progress = m._record_progress
+
+def held_final_progress(db, run_id, report, total, done, current):
+    if len(report.get('scope_accounting', [])) == total == 1 and current is None:
+        paused.set()
+        assert release.wait(20)
+    return real_progress(db, run_id, report, total, done, current)
+
+m._record_progress = held_final_progress
+worker = threading.Thread(target=lambda: m.task('discover', confirmation=confirmation), daemon=True)
+worker.start()
+assert paused.wait(20)
+assert fetches == []
+stop = sc.cancel(sc.CancelRequest(run_id=confirmation.run_id))
+assert stop.status_code == 409 and stop.body, stop
+release.set()
+worker.join(20)
+assert not worker.is_alive()
+with Session() as db:
+    run = db.get(AutomationRun, confirmation.run_id)
+    assert run.status == 'PARTIAL' and not run.report.get('cancel_requested_at')
+    assert run.report['scope_accounting'][0]['outcome'] == 'NOT_FETCHED_SCOPE_CHANGED'
+assert network_calls == []
+''')
+
+
 def test_restart_marks_interrupted_runs_and_never_restarts_them(tmp_path):
     isolated(tmp_path, PRELUDE + r'''
 initialize(); add_sources('alpha')

@@ -70,11 +70,12 @@ class ScanStop:
     accepted either before a source's admission, and that source is never
     fetched, or after it, and Stop names that source as in flight. There is no
     window in which a Stop is accepted after the check has passed but the
-    source still counts as not started. ``close()`` ends admission when the
-    last source is done; a later Stop is refused, so the final status cannot
-    disagree with an accepted Stop.
+    source still counts as not started. ``accounted(final=True)`` closes
+    admission with the last source; a later Stop is refused, so the final
+    status cannot disagree with an accepted Stop. ``close()`` also closes on
+    exceptional exit.
 
-    A caller of ``admit()``, ``done()`` or ``close()`` must hold no database
+    A caller of ``admit()``, ``accounted()`` or ``close()`` must hold no database
     write transaction, because ``cancel()`` writes the run while holding the
     same lock.
     """
@@ -97,10 +98,16 @@ class ScanStop:
             self.in_flight = {'id': source_id, 'name': name}
             return True
 
-    def done(self):
-        """The admitted source is accounted for."""
+    def accounted(self, *, final=False):
+        """Account for a source and close admission with the final one.
+
+        Stop must not be accepted between clearing the last in-flight source
+        and closing admission, including when that source was skipped.
+        """
         with _report_guard:
             self.in_flight = None
+            if final:
+                self.closed = True
 
     def close(self):
         """Admit nothing more and refuse any later Stop. True if a Stop was accepted."""

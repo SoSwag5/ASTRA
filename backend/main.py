@@ -145,7 +145,8 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                     planned=len(source_ids)
                     done=0
                     _record_progress(db,run.id,report,planned,done,None)
-                    for sid in source_ids:
+                    for position,sid in enumerate(source_ids):
+                        final_source=position==planned-1
                         source=db.get(JobSource,sid)
                         if source is not None:
                             db.refresh(source)  # expire_on_commit=False: compare the stored row, not a cached copy
@@ -159,6 +160,7 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                             entry={'id':sid,'name':confirmed_def.get('name') or (source.name if source else None),'change':change}
                             report['scope_changed_sources'].append(entry)
                             report['scope_accounting'].append({**entry,'outcome':'NOT_FETCHED_SCOPE_CHANGED'})
+                            cancel.accounted(final=final_source)
                             _record_progress(db,run.id,report,planned,done,None); continue
                         # Persisting progress can wait on SQLite. Check cancellation
                         # after that wait, immediately before starting this source, so
@@ -167,6 +169,7 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                         if cancel.is_set():
                             run_telemetry.skip(source,telemetry.SKIPPED_CANCELLED); cancelled_sources+=1
                             report['scope_accounting'].append({'id':sid,'name':source.name,'outcome':'NOT_FETCHED_CANCELLED'})
+                            cancel.accounted(final=final_source)
                             _record_progress(db,run.id,report,planned,done,None); continue
                         source_report={'id':source.id,'name':source.name,'scanned':0,'checked':0,'imported':0,'duplicates':0,'filtered':{},'error':'','completion':'COMPLETE','buckets':{k:0 for k in ('STRONG','GOOD','STRETCH','LOW','REJECTED')},'assessment_comparisons':{}}
                         source_decisions=[]
@@ -187,6 +190,7 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                                 cancelled_sources+=1
                                 report['scope_accounting'].append({'id':sid,'name':source.name,'outcome':'NOT_FETCHED_CANCELLED'})
                                 db.rollback()
+                                cancel.accounted(final=final_source)
                                 _record_progress(db,run.id,report,planned,done,None)
                                 continue
                             items=discover(source.adapter,source.board,source.url,cfg)
@@ -279,7 +283,7 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                         report['sources'].append(source_report)
                         report['scope_accounting'].append({'id':source.id,'name':source.name,
                                                            'outcome':'FAILED' if source_report['error'] else 'FETCHED'})
-                        cancel.done()   # accounted for: a Stop from now on names no source in flight
+                        cancel.accounted(final=final_source)
                         done+=1
                         _record_progress(db,run.id,report,planned,done,None)
                 elif name in ('analyze','prepare','process'):
