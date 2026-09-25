@@ -207,6 +207,7 @@ with TestClient(m.app) as c:
     assert c.get('/api/scan/status').json()['cancellable'] is True
     stop = c.post('/api/scan/cancel', json={'run_id': run_id})
     assert stop.status_code == 200 and stop.json()['cancelling']
+    assert stop.json()['source_in_flight'] == 'Fixture alpha'
     assert c.get('/api/scan/status').json()['active']['cancel_requested_at']
     gate.set()                                            # let the in-flight source finish
     assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
@@ -215,7 +216,8 @@ assert fetches == ['alpha'], fetches                    # no further source was 
 with Session() as db:
     run = db.get(AutomationRun, run_id)
     assert run.status == 'CANCELLED'
-    assert run.report['cancelled'] == {'sources_not_fetched': 2}
+    assert run.report['cancelled'] == {'sources_not_fetched': 2,
+                                       'source_in_flight_at_stop': {'id': 1, 'name': 'Fixture alpha'}}
     assert run.report['cancel_requested_at']
     from backend import discovery_telemetry as t
     states = [s['attempt_state'] for s in run.report[t.REPORT_KEY]['sources']]
@@ -347,7 +349,123 @@ with TestClient(m.app) as c:
     last = c.get('/api/scan/status').json()['last']
 
 assert last['cancel_requested_at'], last
-assert last['status'] in ('CANCELLED', 'COMPLETED')
+assert last['status'] == 'CANCELLED', last            # an accepted Stop is never reported as COMPLETED
+assert not m.task_lock.locked() and network_calls == []
+''')
+
+
+def test_stop_cannot_be_accepted_between_the_final_check_and_the_provider_call(tmp_path):
+    """The reviewed race, step for step: beta's final provider-entry check has
+    just read "not stopped" and the worker pauses there, before the provider is
+    called; Stop is requested; the worker resumes.
+
+    The check and the provider admission are one step ordered against Stop, so
+    Stop cannot be accepted inside that window. It is accepted after beta's
+    admission, names beta as the source in flight, and the run ends CANCELLED,
+    never COMPLETED, with a report that says what happened."""
+    isolated(tmp_path, PRELUDE + r'''
+import backend.scan_control as sc
+from backend import discovery_telemetry as telemetry
+initialize(); add_sources('alpha', 'beta')
+attempted, paused, release, beta_gate = set(), threading.Event(), threading.Event(), threading.Event()
+real_attempt = telemetry.RunTelemetry.attempt
+
+def recording_attempt(self, source):
+    attempted.add(source.name)
+    return real_attempt(self, source)
+
+class PausingEvent(threading.Event):
+    """The run's Stop flag. The worker's first read of it after beta's source
+    setup is the final provider-entry check: pause just after it reads False."""
+    def is_set(self):
+        value = super().is_set()
+        if (not value and 'Fixture beta' in attempted and not paused.is_set()
+                and threading.current_thread().name.startswith('astra-manual-scan-')):
+            paused.set()
+            assert release.wait(20)
+        return value
+
+def held_discover(adapter, board, url='', cfg=None):
+    fetches.append(board)
+    assert (gate if board == 'alpha' else beta_gate).wait(20)
+    return []
+
+telemetry.RunTelemetry.attempt = recording_attempt
+m.discover = held_discover
+gate.clear()
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert wait_for(lambda: fetches == ['alpha'])           # alpha is mid-fetch
+    entry = sc._cancel[run_id]
+    flag = getattr(entry, '_event', entry)
+    flag.__class__ = PausingEvent
+    gate.set()
+    assert paused.wait(20)                                  # beta's final check has read "not stopped"
+    responses = []
+    stopper = threading.Thread(target=lambda: responses.append(
+        c.post('/api/scan/cancel', json={'run_id': run_id})))
+    stopper.start()
+    stopper.join(0.5)
+    # Between that check and the provider call, a Stop cannot be accepted.
+    with Session() as db:
+        assert not (db.get(AutomationRun, run_id).report or {}).get('cancel_requested_at')
+    assert stopper.is_alive() and responses == [], 'Stop was accepted between the check and the provider call'
+    assert fetches == ['alpha'], fetches
+    release.set()
+    stopper.join(20)                                        # accepted while beta is inside its provider
+    stop = responses[0]
+    assert stop.status_code == 200 and stop.json()['cancelling'], stop.text
+    assert stop.json()['source_in_flight'] == 'Fixture beta', stop.json()
+    assert fetches == ['alpha', 'beta'], fetches            # beta was admitted before Stop was accepted
+    beta_gate.set()
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+
+assert last['status'] == 'CANCELLED', last                  # never COMPLETED once Stop is accepted
+assert last['cancel_requested_at']
+assert last['cancelled'] == {'sources_not_fetched': 0,
+                             'source_in_flight_at_stop': {'id': 2, 'name': 'Fixture beta'}}, last['cancelled']
+with Session() as db:
+    run = db.get(AutomationRun, run_id)
+    assert [e['outcome'] for e in run.report['scope_accounting']] == ['FETCHED', 'FETCHED']
+    t = run.report[telemetry.REPORT_KEY]
+    telemetry.validate(t)
+    assert t['run_status'] == 'CANCELLED'
+    assert [s['attempt_state'] for s in t['sources']] == [telemetry.ATTEMPTED, telemetry.ATTEMPTED]
+assert not m.task_lock.locked() and network_calls == []
+''')
+
+
+def test_stop_after_the_last_source_is_refused_and_the_run_completes(tmp_path):
+    """Once every source is done, nothing is left to stop. Stop is refused, and
+    the run is COMPLETED without cancel_requested_at: never both at once."""
+    isolated(tmp_path, PRELUDE + r'''
+from backend import discovery_telemetry as telemetry
+initialize(); add_sources('alpha')
+finalizing, release = threading.Event(), threading.Event()
+real_finalize = telemetry.RunTelemetry.finalize
+
+def paused_finalize(self, *args, **kwargs):
+    finalizing.set()
+    assert release.wait(20)
+    return real_finalize(self, *args, **kwargs)
+
+telemetry.RunTelemetry.finalize = paused_finalize
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert finalizing.wait(20)                               # every source is done; the run is still RUNNING
+    assert c.get('/api/scan/status').json()['active']['id'] == run_id
+    assert c.get('/api/scan/status').json()['cancellable'] is False
+    stop = c.post('/api/scan/cancel', json={'run_id': run_id})
+    assert stop.status_code == 409 and stop.json().get('finished') is True, stop.text
+    release.set()
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+
+assert fetches == ['alpha'] and last['status'] == 'COMPLETED', last
+assert not last['cancel_requested_at'] and last['cancelled'] is None, last
 assert not m.task_lock.locked() and network_calls == []
 ''')
 

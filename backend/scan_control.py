@@ -11,8 +11,12 @@ restart. The only way to start it is this two-step flow:
    background thread. The token is consumed, so a repeated or double click
    cannot start a second run.
 
-``POST /api/scan/cancel`` asks the running scan to stop; it is honoured before
-each source fetch, so no further source is fetched after a stop request.
+``POST /api/scan/cancel`` asks the running scan to stop. Stop and each
+source's admission to its provider are ordered under one lock: a source not
+yet admitted when Stop is accepted is never fetched, and the source already
+admitted finishes within its bounded provider budget and is named in the Stop
+response and the final report. Once the last source is done, Stop is refused,
+so an accepted Stop always ends the run CANCELLED.
 Tokens live in memory only, so a restart invalidates every pending
 confirmation: a page left open across a restart cannot start a scan without a
 fresh preview.
@@ -51,10 +55,65 @@ TRIGGER = 'MANUAL_START'
 _guard = threading.Lock()
 # Serialize writes to the active run's report with progress/finalization in
 # main.py. A read-refresh-write sequence alone can overwrite a Stop recorded
-# by another request between the refresh and commit.
+# by another request between the refresh and commit. It also orders Stop
+# against provider admission (ScanStop).
 _report_guard = threading.Lock()
 _previews = {}      # token -> {'scope': dict, 'expires': datetime, 'run_id': int|None}
-_cancel = {}        # run_id -> threading.Event for scans started in this process
+_cancel = {}        # run_id -> ScanStop for scans started in this process
+
+
+class ScanStop:
+    """Stop for one scan, ordered against each source's provider entry.
+
+    ``admit()`` (the worker's last step before calling a provider) and Stop
+    acceptance (``cancel()``) both hold ``_report_guard``. So a Stop is
+    accepted either before a source's admission, and that source is never
+    fetched, or after it, and Stop names that source as in flight. There is no
+    window in which a Stop is accepted after the check has passed but the
+    source still counts as not started. ``close()`` ends admission when the
+    last source is done; a later Stop is refused, so the final status cannot
+    disagree with an accepted Stop.
+
+    A caller of ``admit()``, ``done()`` or ``close()`` must hold no database
+    write transaction, because ``cancel()`` writes the run while holding the
+    same lock.
+    """
+
+    def __init__(self):
+        self._event = threading.Event()
+        self.in_flight = None           # {'id', 'name'} from admission until the source is accounted for
+        self.in_flight_at_stop = None   # the source in flight when Stop was accepted, if any
+        self.closed = False
+
+    def is_set(self):
+        """Whether Stop was accepted. An early, unordered skip only: admit() decides."""
+        return self._event.is_set()
+
+    def admit(self, source_id, name):
+        """The provider-entry checkpoint. True admits this source to its provider."""
+        with _report_guard:
+            if self.closed or self._event.is_set():
+                return False
+            self.in_flight = {'id': source_id, 'name': name}
+            return True
+
+    def done(self):
+        """The admitted source is accounted for."""
+        with _report_guard:
+            self.in_flight = None
+
+    def close(self):
+        """Admit nothing more and refuse any later Stop. True if a Stop was accepted."""
+        with _report_guard:
+            self.closed = True
+            self.in_flight = None
+            return self._event.is_set()
+
+    def _accept(self):
+        """Record the Stop. The caller holds _report_guard and has committed cancel_requested_at."""
+        if not self._event.is_set():
+            self.in_flight_at_stop = self.in_flight
+            self._event.set()
 
 
 class PreviewRequest(BaseModel):
@@ -340,10 +399,10 @@ def confirm(token):
                 db.flush()
                 run_id = run.id
             pending['run_id'] = run_id
-            event = threading.Event()
-            _cancel[run_id] = event
+            stop = ScanStop()
+            _cancel[run_id] = stop
             return ScanConfirmation(_ISSUER, run_id, scope['source_ids'], pending['source_defs'],
-                                    pending['cfg'], event, scope['single_source'])
+                                    pending['cfg'], stop, scope['single_source'])
         except Exception:
             task_lock.release()
             raise
@@ -351,20 +410,31 @@ def confirm(token):
 
 @router.post('/cancel')
 def cancel(data: CancelRequest):
-    """Stop the running scan before its next source fetch."""
+    """Stop the running scan at its next provider admission.
+
+    Accepted under the same lock as admission, and only after
+    cancel_requested_at is committed: a source not yet admitted is never
+    fetched, and the response names the source already in flight, which
+    finishes within its bounded provider budget. Refused once the last source
+    is done."""
     with _guard:
-        event = _cancel.get(data.run_id)
-    if event is None:
+        stop = _cancel.get(data.run_id)
+    if stop is None:
         return JSONResponse({'detail': 'There is no running scan with that id in this session.'}, 409)
     with _report_guard:
+        if stop.closed:
+            return JSONResponse({'detail': 'This scan has finished fetching; there is nothing left to stop.',
+                                 'finished': True}, 409)
         with Session.begin() as db:
             run = db.get(AutomationRun, data.run_id)
             if run is None or run.status != 'RUNNING':
                 return JSONResponse({'detail': 'This scan has already finished.'}, 409)
-            event.set()
             if not (run.report or {}).get('cancel_requested_at'):
                 run.report = {**(run.report or {}), 'cancel_requested_at': now()}
-    return {'cancelling': True, 'run_id': data.run_id}
+        stop._accept()
+        in_flight = stop.in_flight_at_stop
+    return {'cancelling': True, 'run_id': data.run_id,
+            'source_in_flight': in_flight['name'] if in_flight else None}
 
 
 def _view(run):
@@ -388,6 +458,7 @@ def status():
                          .where(AutomationRun.task == 'discover', AutomationRun.status != 'RUNNING')
                          .order_by(AutomationRun.id.desc()))
         with _guard:
-            cancellable = running is not None and running.id in _cancel
+            stop = _cancel.get(running.id) if running is not None else None
+        cancellable = stop is not None and not stop.closed
         return {'manual_only': True, 'active': _view(running) if running else None,
                 'cancellable': cancellable, 'last': _view(last) if last else None}

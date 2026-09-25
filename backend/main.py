@@ -89,11 +89,12 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
     claimed once. Anything else -- a scheduler, a script, a direct call, a
     reused confirmation -- is refused without fetching anything. The
     confirmation carries the task_lock (already held), the RUNNING
-    AutomationRun, the cancellation event checked before every source fetch,
-    the confirmed settings and each confirmed source's definition. Every
+    AutomationRun, the ScanStop that admits every provider call in order with
+    Stop, the confirmed settings and each confirmed source's definition. Every
     confirmed source is accounted for in the report: fetched, failed, not
     fetched because the Owner cancelled, or not fetched because it was
-    disabled, edited or deleted after confirmation."""
+    disabled, edited or deleted after confirmation. An accepted Stop always
+    ends the run CANCELLED and the report names any source it let finish."""
     run_id=cancel=source_ids=source_defs=None
     if name=='discover':
         from .scan_control import ScanConfirmation
@@ -174,11 +175,14 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                             source.details={**source.details,'last_attempted':now(),'mode':'MANUAL','market':'UAE campaign','interval_hours':source.details.get('interval_hours',cfg['discovery_interval_hours'])}
                             if source.adapter=='generic':
                                 raise ValueError('Generic page scanning is disabled pending destination and platform review; use a public board API or paste the description')
-                            # The telemetry setup and source bookkeeping above can also
-                            # be interrupted. Give Stop one final checkpoint at the
-                            # provider boundary; this source was not fetched, so undo
-                            # its tentative bookkeeping and mark telemetry as skipped.
-                            if cancel.is_set():
+                            # The provider-entry checkpoint. admit() checks Stop and
+                            # admits this source as one step ordered against Stop
+                            # acceptance, and the provider call follows it directly: a
+                            # Stop accepted before admission means this source is never
+                            # fetched, and one accepted after it names this source as in
+                            # flight. When refused, undo the tentative bookkeeping (no
+                            # write is flushed yet) and mark telemetry as skipped.
+                            if not cancel.admit(sid,source.name):
                                 attempt.skipped(telemetry.SKIPPED_CANCELLED)
                                 cancelled_sources+=1
                                 report['scope_accounting'].append({'id':sid,'name':source.name,'outcome':'NOT_FETCHED_CANCELLED'})
@@ -275,6 +279,7 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                         report['sources'].append(source_report)
                         report['scope_accounting'].append({'id':source.id,'name':source.name,
                                                            'outcome':'FAILED' if source_report['error'] else 'FETCHED'})
+                        cancel.done()   # accounted for: a Stop from now on names no source in flight
                         done+=1
                         _record_progress(db,run.id,report,planned,done,None)
                 elif name in ('analyze','prepare','process'):
@@ -299,10 +304,17 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                         audit['decision']['hard'][0]['code'] for audit in report['decisions']
                         if audit.get('decision') and audit['decision']['excluded'] and audit.get('disposition')!='SOURCE_ERROR'))
                     report['funnel']=_compat_funnel(report['decisions']);report['sources_attempted']=len(report['sources']);report['sources_successful']=sum(not s['error'] for s in report['sources'])
-                    # A confirmed source left unfetched because it changed after confirmation
-                    # makes the run PARTIAL: the confirmed scope was not completed.
-                    run_status='CANCELLED' if cancelled_sources else ('PARTIAL' if report['failures'] or report['scope_changed_sources'] else 'COMPLETED')
-                    if cancelled_sources: report['cancelled']={'sources_not_fetched':cancelled_sources}
+                    # Every source is done: admit nothing more and refuse any later Stop,
+                    # so this status and an accepted Stop can never disagree. An accepted
+                    # Stop ends the run CANCELLED even when it arrived during the last
+                    # source, and the report names the source it let finish. Otherwise a
+                    # confirmed source left unfetched because it changed after
+                    # confirmation makes the run PARTIAL: the confirmed scope was not
+                    # completed.
+                    stopped=cancel.close()
+                    run_status='CANCELLED' if stopped else ('PARTIAL' if report['failures'] or report['scope_changed_sources'] else 'COMPLETED')
+                    if stopped: report['cancelled']={'sources_not_fetched':cancelled_sources,
+                                                     'source_in_flight_at_stop':cancel.in_flight_at_stop}
                     report['confirmed_scope']={'sources_confirmed':planned,
                                                'sources_fetched':sum(e['outcome']=='FETCHED' for e in report['scope_accounting']),
                                                'sources_failed':sum(e['outcome']=='FAILED' for e in report['scope_accounting']),
@@ -332,6 +344,7 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                 db.rollback()
                 report['finished_at']=now();report['duration_seconds']=round((datetime.fromisoformat(report['finished_at'])-datetime.fromisoformat(report['started_at'])).total_seconds(),3)
                 if name=='discover':
+                    cancel.close()   # nothing more is fetched; a Stop after this is refused
                     from .scan_control import _report_guard
                     with _report_guard:
                         run=db.get(AutomationRun,run.id); db.refresh(run)
