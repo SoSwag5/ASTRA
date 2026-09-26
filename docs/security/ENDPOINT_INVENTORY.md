@@ -4,7 +4,7 @@ Statically extracted decorator paths; router prefixes must be composed from APIR
 
 Router prefixes: `campaign.py` → `/api/campaign`, `privacy.py` → `/api/privacy`,
 `recall_api.py` → `/api/recall`, `search_workspace.py` → `/api/search`,
-`source_catalog.py` → `/api/search`, `gmail_api.py` → `/api/gmail`,
+`source_catalog.py` → `/api/search`, `scan_control.py` → `/api/scan`, `gmail_api.py` → `/api/gmail`,
 `application_state_api.py` → `/api/applications`.
 
 `gmail_api.py` (issue #44) is the Gmail OAuth credential layer. `{slug}` is
@@ -50,7 +50,7 @@ no response carries a token field. `secondary` is gated and returns
 | main.py | GET | /api/settings | get_settings |
 | main.py | PUT | /api/settings | put_settings |
 | main.py | POST | /api/sync | sync |
-| main.py | POST | /api/tasks/{name} | run_task |
+| main.py | POST | /api/tasks/{name} | run_task (rejects `discover`; discovery is manual-only via /api/scan) |
 | main.py | POST | /api/browser/test | test_browser |
 | main.py | POST | /api/browser/rehearsal | test_rehearsal |
 | main.py | GET | /api/files/{path:path} | file_download |
@@ -74,7 +74,11 @@ no response carries a token field. `secondary` is gated and returns
 | search_workspace.py | GET | /telemetry | telemetry_latest |
 | search_workspace.py | GET | /telemetry/runs | telemetry_history |
 | search_workspace.py | GET | /telemetry/runs/{run_id} | telemetry_run |
-| search_workspace.py | POST | /scan | scan |
+| search_workspace.py | POST | /scan | scan (retired: always rejects; scans start only via /api/scan) |
+| scan_control.py | POST | /preview | preview (scope and workload; fetches nothing) |
+| scan_control.py | POST | /start | start (single-use preview token; one run) |
+| scan_control.py | POST | /cancel | cancel (stops before the next source fetch) |
+| scan_control.py | GET | /status | status |
 | search_workspace.py | POST | /sources | add_source |
 | search_workspace.py | POST | /jobs/{job_id}/notes | notes |
 | search_workspace.py | POST | /jobs/{job_id}/save | save_job |

@@ -58,6 +58,7 @@ def test_post_persistence_reassessment_and_no_profile(tmp_path):
     isolated(tmp_path, r'''
 from backend.models import *
 import backend.main as main
+from tests.scan_harness import confirmed_discover
 initialize()
 with Session.begin() as db:
     cfg=db.get(Settings,1);cfg.value={**DEFAULTS,'career_tracks':['CYBERSECURITY'],'custom_target_roles':[],'search_focus_confirmed':True}
@@ -66,7 +67,7 @@ item={'title':'Security Officer','location':'Dubai','description':'Patrol premis
       'job_url':'https://example.com/jobs/41','source':'SmartRecruiters','source_job_id':'41'}
 main.discover=lambda *args:[dict(item)]
 
-first=main.task('discover')
+first=confirmed_discover()
 assert first['report']['checked']==1 and first['report']['buckets']['REJECTED']==1
 assert first['report']['rejected']==1 and first['report']['hard_reasons']=={'DOMAIN_INCOMPATIBLE':1}
 with Session() as db:
@@ -79,7 +80,7 @@ with Session() as db:
 
 with Session.begin() as db:
     cfg=db.get(Settings,1);cfg.value={**cfg.value,'custom_target_roles':['Security Officer']}
-second=main.task('discover')
+second=confirmed_discover()
 with Session() as db:
     job=db.query(Job).one()
     assert job.id==job_id and db.query(JobObservation).count()==1
@@ -94,7 +95,7 @@ with Session() as db:
 
 with Session.begin() as db:
     cfg=db.get(Settings,1);cfg.value={**cfg.value,'custom_target_roles':[]}
-third=main.task('discover')
+third=confirmed_discover()
 with Session() as db:
     job=db.query(Job).one()
     assert job.id==job_id and job.status=='SKIP'
@@ -108,6 +109,7 @@ def test_stored_application_profile_drives_discovery_eligibility(tmp_path):
     isolated(tmp_path, r'''
 from backend.models import *
 import backend.main as main
+from tests.scan_harness import confirmed_discover
 initialize()
 with Session.begin() as db:
     cfg=db.get(Settings,1);cfg.value={**DEFAULTS,'application_profile':{
@@ -115,7 +117,7 @@ with Session.begin() as db:
     db.add(JobSource(name='Synthetic employer',adapter='smartrecruiters',board='synthetic',enabled=True))
 main.discover=lambda *args:[{'title':'SOC Analyst','location':'Remote','description':'US work authorization required. Sponsorship unavailable.',
     'job_url':'https://example.com/jobs/auth','source':'SmartRecruiters','source_job_id':'auth'}]
-run=main.task('discover')
+run=confirmed_discover()
 with Session() as db:
     job=db.query(Job).one();fa=job.analysis['fit_assessment']
     assert fa['hard_reject']['code']=='CONFIRMED_ELIGIBILITY_CONFLICT'

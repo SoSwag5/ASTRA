@@ -107,6 +107,7 @@ def test_ashby_7_orchestration_mixed_valid_and_invalid_joburl_commits_valid(tmp_
     _isolated(tmp_path, r'''
 from backend.models import *
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 import backend.job_providers.ashby as ashby_mod
 initialize()
 with Session.begin() as db:
@@ -114,7 +115,7 @@ with Session.begin() as db:
 good = {'id':'1','title':'SOC Analyst','jobUrl':'https://jobs.ashbyhq.com/as-co/1','location':'Dubai'}
 bad = {'id':'2','title':'SOC Analyst 2','jobUrl':'https://user:pass@jobs.ashbyhq.com/as-co/2','applyUrl':'https://jobs.ashbyhq.com/as-co/2/apply','location':'Dubai'}
 ashby_mod.fetch_json = lambda url, budget, **kw: {'jobs': [good, bad]}
-r = m.task('discover')
+r = confirmed_discover()
 assert r['status'] == 'COMPLETED', r
 source_report = r['report']['sources'][0]
 assert source_report['error'] == '', source_report

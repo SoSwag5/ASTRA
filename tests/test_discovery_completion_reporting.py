@@ -1,6 +1,6 @@
 """Codex round-2 finding F5: a failing source's per-source report must
 never be left showing completion: COMPLETE. Exercises the real
-backend.main.task('discover') loop (not just the provider layer) since
+backend.main.task('discover') loop (run through a confirmed Start Scan) (not just the provider layer) since
 F5 was specifically about propagation through backend/main.py's
 per-source try/except into JobSource.details/source_report.
 """
@@ -16,6 +16,7 @@ import httpx
 from backend.models import *
 from backend.job_providers import transport as t
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 initialize()
 stale = {'last_metrics':{'requests_succeeded':99}, 'last_completion':'OLD',
          'last_completion_reason':'OLD', 'last_health':'OLD',
@@ -43,7 +44,7 @@ def handler(request):
         body=json.dumps({'jobs':rows}).encode()
     return httpx.Response(200,headers={'content-type':'application/json'},stream=Raw(body))
 with patch.object(t,'_PinnedTransport',lambda budget:httpx.MockTransport(handler)), patch.object(t,'MAX_ENCODED_BYTES',500):
-    result=m.task('discover')
+    result=confirmed_discover()
 reports={s['name']:s for s in result['report']['sources']}
 assert result['status']=='PARTIAL'
 assert reports['good']['imported']==1
@@ -79,6 +80,7 @@ def test_one_source_failing_is_reported_failed_while_the_other_stays_complete(tm
     isolated(tmp_path, r'''
 from backend.models import *
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 initialize()
 with Session.begin() as db:
     db.add(JobSource(name='Good source', adapter='lever', board='fixture', enabled=True))
@@ -90,7 +92,7 @@ def fake_discover(kind, board, url, cfg=None):
     raise ValueError('Source unavailable')
 
 m.discover = fake_discover
-r = m.task('discover')
+r = confirmed_discover()
 sources = {s['name']: s for s in r['report']['sources']}
 assert sources['Good source']['completion'] == 'COMPLETE', sources['Good source']
 assert sources['Bad source']['completion'] == 'FAILED', sources['Bad source']
@@ -109,6 +111,7 @@ def test_provider_framework_partial_completion_reaches_source_report(tmp_path):
 from backend.models import *
 from backend.job_providers.compatibility import ProviderItems
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 initialize()
 with Session.begin() as db:
     db.add(JobSource(name='Partial source', adapter='greenhouse', board='fixture', enabled=True))
@@ -119,7 +122,7 @@ def fake_discover(kind, board, url, cfg=None):
     return items
 
 m.discover = fake_discover
-r = m.task('discover')
+r = confirmed_discover()
 source_report = r['report']['sources'][0]
 assert source_report['completion'] == 'PARTIAL', source_report
 assert source_report['completion_reason'] == 'DETAIL_BUDGET_EXHAUSTED'

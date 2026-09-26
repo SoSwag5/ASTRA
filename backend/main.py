@@ -1,4 +1,4 @@
-import os,json,shutil,csv,io,threading,tempfile,asyncio,secrets,logging
+import os,json,shutil,csv,io,threading,tempfile,asyncio,secrets,logging,sqlite3,time
 from contextlib import asynccontextmanager
 from datetime import datetime,timedelta,timezone
 from zoneinfo import ZoneInfo
@@ -9,7 +9,9 @@ from fastapi.responses import FileResponse,JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel,Field,ConfigDict
-from sqlalchemy import select
+from sqlalchemy import select,text
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm.exc import ObjectDeletedError,StaleDataError
 from apscheduler.schedulers.background import BackgroundScheduler
 from .models import *
 from .services import *
@@ -59,16 +61,105 @@ def _compat_funnel(rows):
                                   'authoritative monotonic discovery funnel.'}
 
 
-def task(name, source_id=None, scheduled_run=False, trigger=None):
-    if not task_lock.acquire(blocking=False): return {'busy':True}
+def _sqlite_busy(error):
+    code=getattr(error.orig,'sqlite_errorcode',None)
+    return code is not None and code & 0xff in (sqlite3.SQLITE_BUSY,sqlite3.SQLITE_LOCKED)
+
+
+def _record_progress(db, run_id, report, total, done, current):
+    """Persist scan progress so the workspace can show it while the run is
+    still going. Merge an accepted Stop after refresh so this write cannot
+    erase its timestamp; status shows the in-memory Stop until commit."""
+    not_fetched=[e for e in report.get('scope_accounting',[]) if e['outcome'].startswith('NOT_FETCHED')]
+    report['progress']={'sources_total':total,'sources_done':done,'current_source':current,
+                        'postings_seen':report.get('scanned',0),'sources_not_fetched':len(not_fetched),
+                        'scope_changed_sources':list(report.get('scope_changed_sources',[]))}
+    # Session is expire_on_commit=False, so re-read the row. Stop can arrive
+    # during this refresh; take its timestamp immediately before this write.
+    from .scan_control import _report_guard, _accepted_stop_at
+    while True:
+        try:
+            with _report_guard:
+                row=db.get(AutomationRun,run_id); db.refresh(row)
+                stopped_at=_accepted_stop_at(run_id)
+                if stopped_at: report['cancel_requested_at']=stopped_at
+                row.report={**(row.report or {}),'progress':report['progress'],'trigger':report['trigger'],
+                            'started_at':report['started_at'],**({'scope':report['scope']} if 'scope' in report else {}),
+                            **({'cancel_requested_at':stopped_at} if stopped_at else {})}
+                db.commit()
+            return
+        except OperationalError as error:
+            db.rollback()
+            if not _sqlite_busy(error): raise
+            # The worker remains active while another SQLite writer holds the
+            # database. Stop is still accepted through its separate journal.
+            time.sleep(0.05)
+
+
+def _commit_discovery_report(db, run_id, status, report):
+    """Persist a terminal discovery result after a transient SQLite writer."""
+    from .scan_control import _report_guard
+    while True:
+        try:
+            with _report_guard:
+                row=db.get(AutomationRun,run_id); db.refresh(row)
+                if (row.report or {}).get('cancel_requested_at'):
+                    report['cancel_requested_at']=row.report['cancel_requested_at']
+                row.status=status; row.report=report; db.commit()
+            return row
+        except OperationalError as error:
+            db.rollback()
+            if not _sqlite_busy(error): raise
+            time.sleep(0.05)
+
+
+DISCOVERY_REFUSED={'refused':True,'detail':'Discovery runs only from a confirmed Start Scan: review the scope, then confirm.'}
+
+
+def task(name, scheduled_run=False, trigger=None, confirmation=None):
+    """Run one task.
+
+    Discovery is manual-only and this boundary enforces it: name='discover'
+    runs only with a ScanConfirmation from backend/scan_control.confirm(),
+    which is issued for one previewed, Owner-confirmed scope and can be
+    claimed once. Anything else -- a scheduler, a script, a direct call, a
+    reused confirmation -- is refused without fetching anything. The
+    confirmation carries the task_lock (already held), the RUNNING
+    AutomationRun, the ScanStop that admits every provider call in order with
+    Stop, the confirmed settings and each confirmed source's definition. Every
+    confirmed source is accounted for in the report: fetched, failed, not
+    fetched because the Owner cancelled, or not fetched because it was
+    disabled, edited or deleted after confirmation. An accepted Stop always
+    ends the run CANCELLED and the report names any source it let finish."""
+    run_id=cancel=source_ids=source_defs=None
+    if name=='discover':
+        from .scan_control import ScanConfirmation
+        if not isinstance(confirmation,ScanConfirmation) or not confirmation.claim():
+            return dict(DISCOVERY_REFUSED)
+        # confirm() acquired task_lock for this confirmation; this task owns it now.
+        run_id,cancel=confirmation.run_id,confirmation.cancel
+        source_ids,source_defs=list(confirmation.source_ids),confirmation.source_defs
+        trigger=confirmation.trigger
+    elif confirmation is not None:
+        raise ValueError('A scan confirmation applies only to discovery')
+    elif not task_lock.acquire(blocking=False): return {'busy':True}
     try:
         with Session() as db:
-            cfg=settings(db); run=AutomationRun(task=name); db.add(run); db.commit(); report={'discovered':0,'duplicates':0,'prepared':0,'submitted':0,'failures':0,'trigger':trigger or ('APP' if scheduled_run else 'MANUAL'),'started_at':now(),'checked':0,'buckets':{k:0 for k in ('STRONG','GOOD','STRETCH','LOW','REJECTED')},'assessment_comparisons':{}}
+            cfg=confirmation.cfg if name=='discover' else settings(db)
+            if run_id is None:
+                run=AutomationRun(task=name); db.add(run); db.commit(); prior={}
+            else:
+                run=db.get(AutomationRun,run_id); db.refresh(run); prior=dict(run.report or {})
+            report={'discovered':0,'duplicates':0,'prepared':0,'submitted':0,'failures':0,'trigger':trigger or prior.get('trigger') or ('APP' if scheduled_run else 'MANUAL'),'started_at':prior.get('started_at') or now(),'checked':0,'buckets':{k:0 for k in ('STRONG','GOOD','STRETCH','LOW','REJECTED')},'assessment_comparisons':{}}
+            if prior.get('scope'): report['scope']=prior['scope']
             try:
                 if name=='discover':
                     from .recall import evaluate
                     from . import discovery_telemetry as telemetry
-                    report.update(scanned=0,filtered=0,sources=[],source_id=source_id,decisions=[])
+                    from .scan_control import source_definition, missing_source
+                    single=source_ids[0] if confirmation.single_source else None
+                    report.update(scanned=0,filtered=0,sources=[],source_id=single,decisions=[],
+                                  scope_changed_sources=[],scope_accounting=[])
                     profile=candidate(db) if db.scalar(select(CandidateProfile)) else {}
                     # Issue #43: one authoritative funnel accumulator for this run. It only
                     # ever OBSERVES the pipeline below -- it never changes ranking,
@@ -76,28 +167,122 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                     # telemetry failure can never roll back a valid source's ingestion.
                     run_telemetry=telemetry.RunTelemetry(run_id=run.id,trigger=report['trigger'],
                                                          started_at=report['started_at'],
-                                                         source_filter=source_id,cfg=cfg)
-                    # A disabled source is genuinely a distinct outcome from a failed or an
-                    # empty one, so it is reported as skipped rather than as zeroes.
-                    for skipped in db.scalars(select(JobSource).where(JobSource.adapter!='manual',JobSource.enabled==False)):
-                        run_telemetry.skip(skipped,telemetry.SKIPPED_DISABLED)
-                    for source in list(db.scalars(select(JobSource).where(JobSource.enabled==True))):
-                        if source.adapter=='manual':continue
-                        if source_id is not None and source.id != source_id:
-                            run_telemetry.skip(source,telemetry.SKIPPED_NOT_TARGETED); continue
-                        if scheduled_run and source.details.get('last_success'):
-                            from .search_workspace import parse_date
-                            last=parse_date(source.details['last_success'])
-                            interval=source.details.get('interval_hours',cfg['discovery_interval_hours'])
-                            if last and interval in (3,6,12,24) and last+timedelta(hours=interval)>datetime.now(timezone.utc):
-                                run_telemetry.skip(source,telemetry.SKIPPED_NOT_DUE); continue
+                                                         source_filter=single,cfg=cfg)
+                    confirmed=set(source_ids)
+                    # Sources outside the confirmed scope are reported as skipped, never as
+                    # zeroes: disabled ones as disabled, enabled ones as not targeted.
+                    for other in db.scalars(select(JobSource).where(JobSource.adapter!='manual')):
+                        if other.id not in confirmed:
+                            run_telemetry.skip(other,telemetry.SKIPPED_NOT_TARGETED if other.enabled else telemetry.SKIPPED_DISABLED)
+                    # Every confirmed source is walked in confirmed order and accounted for,
+                    # including one disabled or deleted after confirmation: the scope the
+                    # Owner confirmed never silently shrinks.
+                    planned=len(source_ids)
+                    done=0
+                    _record_progress(db,run.id,report,planned,done,None)
+                    for position,sid in enumerate(source_ids):
+                        final_source=position==planned-1
+                        # The telemetry inventory may have cached this row before another
+                        # request deleted it. A fresh SELECT returns None for deletion;
+                        # refresh(cached_row) would raise InvalidRequestError and lose scope
+                        # accounting for every source after it.
+                        source=db.scalar(select(JobSource).where(JobSource.id==sid)
+                                         .execution_options(populate_existing=True))
+                        confirmed_def=source_defs.get(sid) or {}
+                        change=('DELETED' if source is None else
+                                'DISABLED' if not source.enabled else
+                                'EDITED' if source_definition(source)!=confirmed_def else None)
+                        if change:
+                            # Changed after the Owner confirmed this scope: not fetched, and named.
+                            run_telemetry.skip(source or missing_source(sid,confirmed_def),telemetry.SKIPPED_SCOPE_CHANGED)
+                            entry={'id':sid,'name':confirmed_def.get('name') or (source.name if source else None),'change':change}
+                            report['scope_changed_sources'].append(entry)
+                            report['scope_accounting'].append({**entry,'outcome':'NOT_FETCHED_SCOPE_CHANGED'})
+                            cancel.accounted(final=final_source)
+                            _record_progress(db,run.id,report,planned,done,None); continue
+                        # Persisting progress can wait on SQLite. Check cancellation
+                        # after that wait, immediately before starting this source, so
+                        # a Stop received during the progress update is honoured.
+                        _record_progress(db,run.id,report,planned,done,source.name)
+                        # A busy progress write can roll this Session back and expire
+                        # its cached source while another writer edits or deletes it.
+                        # Re-read before touching source fields or telemetry again.
+                        source=db.scalar(select(JobSource).where(JobSource.id==sid)
+                                         .execution_options(populate_existing=True))
+                        change=('DELETED' if source is None else
+                                'DISABLED' if not source.enabled else
+                                'EDITED' if source_definition(source)!=confirmed_def else None)
+                        if change:
+                            run_telemetry.skip(source or missing_source(sid,confirmed_def),telemetry.SKIPPED_SCOPE_CHANGED)
+                            entry={'id':sid,'name':confirmed_def.get('name') or (source.name if source else None),'change':change}
+                            report['scope_changed_sources'].append(entry)
+                            report['scope_accounting'].append({**entry,'outcome':'NOT_FETCHED_SCOPE_CHANGED'})
+                            cancel.accounted(final=final_source)
+                            _record_progress(db,run.id,report,planned,done,None); continue
+                        if cancel.is_set():
+                            run_telemetry.skip(source,telemetry.SKIPPED_CANCELLED)
+                            report['scope_accounting'].append({'id':sid,'name':source.name,'outcome':'NOT_FETCHED_CANCELLED'})
+                            cancel.accounted(final=final_source)
+                            _record_progress(db,run.id,report,planned,done,None); continue
                         source_report={'id':source.id,'name':source.name,'scanned':0,'checked':0,'imported':0,'duplicates':0,'filtered':{},'error':'','completion':'COMPLETE','buckets':{k:0 for k in ('STRONG','GOOD','STRETCH','LOW','REJECTED')},'assessment_comparisons':{}}
                         source_decisions=[]
                         attempt=run_telemetry.attempt(source)
+                        source_deleted=False
                         try:
-                            source.details={**source.details,'last_attempted':now(),'mode':'AUTOMATIC','market':'UAE campaign','interval_hours':source.details.get('interval_hours',cfg['discovery_interval_hours'])}
+                            source.details={**source.details,'last_attempted':now(),'mode':'MANUAL','market':'UAE campaign','interval_hours':source.details.get('interval_hours',cfg['discovery_interval_hours'])}
                             if source.adapter=='generic':
                                 raise ValueError('Generic page scanning is disabled pending destination and platform review; use a public board API or paste the description')
+                            # The progress write above may have waited while another
+                            # transaction changed this source. Reserve SQLite's writer
+                            # slot for the last scope read and provider admission, so a
+                            # direct edit commits either before this read or after the
+                            # source is admitted. The worker's tentative details update
+                            # is in its own Session and cannot hide a committed edit.
+                            # Do not hold the Stop admission lock while waiting for the
+                            # writer slot: Stop must answer promptly during a long write.
+                            admitted=False
+                            while True:
+                                try:
+                                    with Session() as scope_db:
+                                        scope_db.execute(text('BEGIN IMMEDIATE'))
+                                        current=scope_db.scalar(select(JobSource).where(JobSource.id==sid))
+                                        late_change=('DELETED' if current is None else
+                                                     'DISABLED' if not current.enabled else
+                                                     'EDITED' if source_definition(current)!=confirmed_def else None)
+                                        if not late_change:
+                                            admitted=cancel.admit(sid,source.name)
+                                        scope_db.rollback()  # release the short writer reservation
+                                    break
+                                except OperationalError as error:
+                                    if not _sqlite_busy(error): raise
+                                    # A transient external writer can exceed SQLite's
+                                    # timeout. Keep this worker alive until the writer
+                                    # releases; Stop stays independently available and
+                                    # will refuse admission on the successful retry.
+                                    time.sleep(0.05)
+                            if late_change:
+                                changed_name=confirmed_def.get('name') or source.name
+                                attempt.skipped(telemetry.SKIPPED_SCOPE_CHANGED)
+                                db.rollback()  # discard tentative last_attempted details
+                                entry={'id':sid,'name':changed_name,'change':late_change}
+                                report['scope_changed_sources'].append(entry)
+                                report['scope_accounting'].append({**entry,'outcome':'NOT_FETCHED_SCOPE_CHANGED'})
+                                cancel.accounted(final=final_source)
+                                _record_progress(db,run.id,report,planned,done,None)
+                                continue
+                            # admit() checks Stop under the admission lock while the
+                            # scope snapshot is reserved. The provider call follows the
+                            # reservation release directly. A Stop accepted before
+                            # admission means this source is never fetched; one accepted
+                            # afterward names it in flight. Undo tentative bookkeeping
+                            # if admission was refused (nothing was flushed yet).
+                            if not admitted:
+                                attempt.skipped(telemetry.SKIPPED_CANCELLED)
+                                report['scope_accounting'].append({'id':sid,'name':source.name,'outcome':'NOT_FETCHED_CANCELLED'})
+                                db.rollback()
+                                cancel.accounted(final=final_source)
+                                _record_progress(db,run.id,report,planned,done,None)
+                                continue
                             items=discover(source.adapter,source.board,source.url,cfg)
                             health=getattr(items,'health',None)
                             outcome=health or {
@@ -163,7 +348,7 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                             for category,count in source_report.get('assessment_comparisons',{}).items(): report['assessment_comparisons'][category]-=count
                             source_report['imported']=source_report['duplicates']=source_report['checked']=0; source_report['buckets']={k:0 for k in ('STRONG','GOOD','STRETCH','LOW','REJECTED')};source_report['assessment_comparisons']={}
                             for audit in report.get('decisions',[]):
-                                if audit['source_id']==source.id and audit['disposition'] in ('NEW','DUPLICATE','PENDING'):audit['disposition']='SOURCE_ERROR';audit.pop('job_id',None)
+                                if audit['source_id']==sid and audit['disposition'] in ('NEW','DUPLICATE','PENDING'):audit['disposition']='SOURCE_ERROR';audit.pop('job_id',None)
                             source_report['funnel']=_compat_funnel(source_decisions)
                             # A provider-framework exception (issue #38) carries the batch's own
                             # truthful completion/health/metrics; a legacy adapter's plain
@@ -178,14 +363,38 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                                      'metrics':getattr(e,'metrics',None),
                                      'error':{'code':code or 'SOURCE_REQUEST_FAILED',
                                               'message':str(e) if code else 'Source request failed'}}
-                            _source_outcome(source, source_report, failure)
                             # A provider failure is reported as a failure, never as
                             # "zero relevant jobs": the rolled-back canonical stages
                             # are cleared and the attempt is marked incomplete.
                             attempt.failed(failure)
-                            source.details={**source.details,'last_attempted':now(),'last_error':'Request failed; retry or review source configuration'}
-                            report['failures']+=1; source_report['error']='Source request failed ('+type(e).__name__+'). Check the source URL or retry later.'; log(db,source_report['error'],level='ERROR'); db.commit()
+                            source_deleted=False
+                            try:
+                                _source_outcome(source, source_report, failure)
+                                source.details={**source.details,'last_attempted':now(),'last_error':'Request failed; retry or review source configuration'}
+                                source_report['error']='Source request failed ('+type(e).__name__+'). Check the source URL or retry later.'
+                                log(db,source_report['error'],level='ERROR'); db.commit()
+                            except (ObjectDeletedError,StaleDataError):
+                                # A delete can commit during the admitted provider or
+                                # during this health write. After rollback, use only the
+                                # captured id/name; the ORM row is expired and gone.
+                                db.rollback(); source_deleted=True
+                                source_report.update(completion='FAILED', completion_reason=None,
+                                                     health='UNAVAILABLE', metrics=None,
+                                                     structured_error=failure['error'],
+                                                     error_code=failure['error']['code'])
+                                source_report['error']='Source was deleted during its in-flight fetch; results could not be saved.'
+                                report['scope_changed_sources'].append({'id':sid,'name':source_report['name'],
+                                                                        'change':'DELETED','admitted_before_change':True})
+                                log(db,source_report['error'],level='ERROR'); db.commit()
+                            report['failures']+=1
                         report['sources'].append(source_report)
+                        report['scope_accounting'].append({'id':sid,'name':source_report['name'],
+                                                           'outcome':'FAILED' if source_report['error'] else 'FETCHED',
+                                                           **({'change':'DELETED','admitted_before_change':True}
+                                                              if source_report['error'] and source_deleted else {})})
+                        cancel.accounted(final=final_source)
+                        done+=1
+                        _record_progress(db,run.id,report,planned,done,None)
                 elif name in ('analyze','prepare','process'):
                     for j in list(db.scalars(select(Job).where(Job.status.not_in(TERMINAL|{'SKIP'})))):
                         try:
@@ -208,7 +417,25 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                         audit['decision']['hard'][0]['code'] for audit in report['decisions']
                         if audit.get('decision') and audit['decision']['excluded'] and audit.get('disposition')!='SOURCE_ERROR'))
                     report['funnel']=_compat_funnel(report['decisions']);report['sources_attempted']=len(report['sources']);report['sources_successful']=sum(not s['error'] for s in report['sources'])
-                    run_status='PARTIAL' if report['failures'] else 'COMPLETED'
+                    # Every source is done: admit nothing more and refuse any later Stop,
+                    # so this status and an accepted Stop can never disagree. An accepted
+                    # Stop ends the run CANCELLED even when it arrived during the last
+                    # source, and the report names the source it let finish. Otherwise a
+                    # confirmed source left unfetched because it changed after
+                    # confirmation makes the run PARTIAL: the confirmed scope was not
+                    # completed.
+                    stopped=cancel.close()
+                    run_status='CANCELLED' if stopped else ('PARTIAL' if report['failures'] or report['scope_changed_sources'] else 'COMPLETED')
+                    if stopped:
+                        report['cancel_requested_at']=cancel.accepted_at
+                        report['cancelled']={'sources_not_fetched':sum(e['outcome'].startswith('NOT_FETCHED')
+                                                                      for e in report['scope_accounting']),
+                                             'source_in_flight_at_stop':cancel.in_flight_at_stop}
+                    report['confirmed_scope']={'sources_confirmed':planned,
+                                               'sources_fetched':sum(e['outcome']=='FETCHED' for e in report['scope_accounting']),
+                                               'sources_failed':sum(e['outcome']=='FAILED' for e in report['scope_accounting']),
+                                               'sources_not_fetched':sum(e['outcome'].startswith('NOT_FETCHED') for e in report['scope_accounting'])}
+                    if len(report['scope_accounting'])!=planned: raise RuntimeError('A confirmed source was not accounted for')
                     # Issue #43: the authoritative, versioned discovery funnel. Building it
                     # cannot fail the run -- RunTelemetry.finalize() returns a bounded
                     # telemetry-error payload rather than raising or publishing fabricated
@@ -220,41 +447,75 @@ def task(name, source_id=None, scheduled_run=False, trigger=None):
                     # and limited to discovery reporting: no Job, JobObservation,
                     # Application, user decision or application history is ever touched.
                     telemetry.prune_expired(db)
-                run=db.get(AutomationRun,run.id); run.status='PARTIAL' if report['failures'] else 'COMPLETED'; run.report=report; db.commit()
+                if name=='discover':
+                    from .scan_control import _clear_stop_record
+                    run=_commit_discovery_report(db,run_id,run_status,report)
+                    _clear_stop_record(run_id)
+                else:
+                    run=db.get(AutomationRun,run.id); db.refresh(run)
+                    run.status='PARTIAL' if report['failures'] else 'COMPLETED'; run.report=report; db.commit()
             except Exception as e:
-                db.rollback(); run=db.get(AutomationRun,run.id); run.status='FAILED'
+                db.rollback()
                 report['finished_at']=now();report['duration_seconds']=round((datetime.fromisoformat(report['finished_at'])-datetime.fromisoformat(report['started_at'])).total_seconds(),3)
-                run.report={**report,'error':'Task failed ('+type(e).__name__+'); no success is recorded.'}; db.commit()
+                if name=='discover':
+                    stopped=cancel.close()   # nothing more is fetched; a Stop after this is refused
+                    # A task-level failure can interrupt accounting after a source was
+                    # admitted. Its fetch/persistence outcome is then unknown: name it
+                    # explicitly rather than claiming it was not fetched.
+                    accounting=report.setdefault('scope_accounting',[])
+                    accounted_ids={entry['id'] for entry in accounting}
+                    for sid in source_ids:
+                        if sid not in accounted_ids:
+                            accounting.append({'id':sid,'name':(source_defs.get(sid) or {}).get('name'),
+                                               'outcome':'INCOMPLETE_TASK_FAILURE'})
+                    incomplete=sum(entry['outcome']=='INCOMPLETE_TASK_FAILURE' for entry in accounting)
+                    report['scope_accounting_incomplete']=bool(incomplete)
+                    report['confirmed_scope']={
+                        'sources_confirmed':len(source_ids),
+                        'sources_fetched':sum(entry['outcome']=='FETCHED' for entry in accounting),
+                        'sources_failed':sum(entry['outcome']=='FAILED' for entry in accounting),
+                        'sources_not_fetched':sum(entry['outcome'].startswith('NOT_FETCHED') for entry in accounting),
+                        'sources_incomplete':incomplete}
+                    report['progress']={**report.get('progress',{}),'sources_total':len(source_ids),
+                                        'current_source':None,'sources_incomplete':incomplete}
+                    if 'run_telemetry' in locals():
+                        # The task exited before normal telemetry finalization. Publish
+                        # no funnel counts for an uncertain partial run.
+                        report[telemetry.REPORT_KEY]=run_telemetry.error_payload('TASK_FAILURE')
+                    if stopped:
+                        report['cancel_requested_at']=cancel.accepted_at
+                        report['cancelled']={'sources_not_fetched':sum(e['outcome'].startswith('NOT_FETCHED')
+                                                                      for e in accounting),
+                                             'source_in_flight_at_stop':cancel.in_flight_at_stop}
+                    from .scan_control import _clear_stop_record
+                    report['error']=('Task ended during an error ('+type(e).__name__+
+                                     '); incomplete source outcomes are named in scope accounting.')
+                    run=_commit_discovery_report(db,run_id,'CANCELLED' if stopped else 'FAILED',report)
+                    _clear_stop_record(run_id)
+                else:
+                    run=db.get(AutomationRun,run.id); run.status='FAILED'
+                    run.report={**report,'error':'Task failed ('+type(e).__name__+'); no success is recorded.'}; db.commit()
             return serialize(run)
     finally: task_lock.release()
+# Discovery is manual-only. It is never registered with the scheduler, never
+# caught up after a gap and never resumed after a restart; the only way to
+# start it is the workspace's Start Scan confirmation (backend/scan_control.py).
+# Stored legacy settings (discovery_enabled, discovery_interval_hours, a
+# 'discover' entry in schedule) are preserved untouched and simply have no
+# scheduling effect.
 def scheduled(name):
-    trigger='APP'
+    if name=='discover': return
     with Session() as db:
         cfg=settings(db)
-        if cfg['autopilot']=='OFF' or (name=='sync' and not cfg['auto_sync']) or (name=='discover' and not cfg['discovery_enabled']): return
-        if name=='discover':
-            from .search_workspace import parse_date
-            recent=db.scalars(select(AutomationRun).where(AutomationRun.task=='discover',AutomationRun.status.in_(['COMPLETED','PARTIAL'])).order_by(AutomationRun.id.desc()).limit(100))
-            last=next((r for r in recent if r.report.get('source_id') is None),None)
-            checked=parse_date(last.updated_at) if last else None
-            if checked and checked+timedelta(hours=cfg['discovery_interval_hours']*2)<datetime.now(timezone.utc):trigger='CATCHUP'
-    task(name,scheduled_run=True,trigger=trigger)
+        if cfg['autopilot']=='OFF' or (name=='sync' and not cfg['auto_sync']): return
+    task(name,scheduled_run=True,trigger='APP')
 def configure_schedule():
     with Session() as db:
         cfg=settings(db)
-        recent=list(db.scalars(select(AutomationRun).where(AutomationRun.task=='discover',AutomationRun.status.in_(['COMPLETED','PARTIAL'])).order_by(AutomationRun.id.desc()).limit(100)))
-        last=next((r for r in recent if r.report.get('source_id') is None),None)
-        interval=timedelta(hours=cfg['discovery_interval_hours'])
-        next_scan=datetime.now(timezone.utc)+interval
-        if last:
-            from .search_workspace import parse_date
-            checked=parse_date(last.updated_at)
-            if checked: next_scan=max(checked+interval,datetime.now(timezone.utc)+timedelta(seconds=10))
     scheduler.remove_all_jobs()
     for name,time in cfg['schedule'].items():
         if name=='discover': continue
         hour,minute=map(int,time.split(':')); scheduler.add_job(scheduled,'cron',args=[name],id=name,hour=hour,minute=minute,timezone=cfg.get('application_profile',{}).get('timezone','Asia/Dubai'),misfire_grace_time=1800,coalesce=True,max_instances=1)
-    scheduler.add_job(scheduled,'interval',hours=cfg['discovery_interval_hours'],args=['discover'],id='discover',next_run_time=next_scan,misfire_grace_time=1800,coalesce=True,max_instances=1)
     from .workbook import retry_sync
     scheduler.add_job(retry_sync,'interval',seconds=30,id='workbook_retry',coalesce=True,max_instances=1)
     from .reliability import backup_database
@@ -284,9 +545,26 @@ async def lifespan(app):
     # A process restart cannot finish an earlier in-memory scan.
     if task_lock.acquire(False):
         try:
+            from .scan_control import _read_stop_record, _clear_stop_record
+            replayed=[]
             with Session.begin() as db:
                 for run in db.scalars(select(AutomationRun).where(AutomationRun.status=='RUNNING')):
-                    run.status='INTERRUPTED'; run.report={**run.report,'error':'App stopped before this run finished; scan again.'}
+                    stop_record=_read_stop_record(run) if run.task=='discover' else None
+                    stopped_at=(run.report or {}).get('cancel_requested_at') or (stop_record or {}).get('cancel_requested_at')
+                    stopping=bool(stopped_at)
+                    run.status='CANCELLED' if stopping else 'INTERRUPTED'
+                    run.report={**(run.report or {}),
+                                **({'cancel_requested_at':stopped_at} if stopped_at else {}),
+                                **({'cancelled': {'sources_not_fetched': None,
+                                                 'source_in_flight_at_stop':stop_record['source_in_flight_at_stop']},
+                                    'scope_accounting_incomplete':True} if stop_record else {}),
+                                'restart':'NOT_RESTARTED',
+                                'error':('App stopped while this scan was being cancelled. It was not restarted.' if stopping else
+                                         'App stopped before this run finished. It was not restarted automatically; press Start Scan when you want a new scan.')}
+                    if stop_record:
+                        replayed.append(run.id)
+            for run_id in replayed:
+                _clear_stop_record(run_id)
         finally:task_lock.release()
     configure_schedule(); scheduler.start()
     yield
@@ -668,7 +946,9 @@ def sync():
             return {'path':'tracker.xlsx','pending':state.revision>state.exported_revision,'message':state.error or ('Excel update pending' if state.revision>state.exported_revision else 'Excel tracker synchronized')}
     with Session.begin() as db: return sync_tracker(db)
 @app.post('/api/tasks/{name}')
-def run_task(name:str): return task(name)
+def run_task(name:str):
+    if name=='discover': raise ValueError('Scans start only from Start Scan in Discovery: review the scope, then confirm.')
+    return task(name)
 @app.post('/api/browser/test')
 def test_browser(): return browser_test()
 @app.post('/api/browser/rehearsal')
@@ -691,6 +971,8 @@ def file_download(path:str):
     return FileResponse(target,filename=target.name)
 from .search_workspace import router as search_router
 app.include_router(search_router)
+from .scan_control import router as scan_router
+app.include_router(scan_router)
 from .campaign import router as campaign_router
 from . import source_catalog
 app.include_router(campaign_router)

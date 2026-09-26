@@ -121,10 +121,11 @@ def test_invalid_item_is_isolated_and_does_not_abort_the_source(tmp_path):
  isolated(tmp_path,r'''
 from backend.models import *
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 initialize()
 with Session.begin() as db:db.add(JobSource(name='Synthetic failure',adapter='lever',board='fixture',enabled=True))
 m.discover=lambda *args:[{'title':'SOC Analyst','location':'Dubai','description':'SIEM','job_url':'https://example.com/1','source':'Lever','source_job_id':'1'},{'title':'SOC Analyst','location':'Dubai','description':'SIEM','job_url':'file://invalid','source':'Lever','source_job_id':'2'},{'title':'Director SOC','location':'Dubai','description':'10 years experience','source':'Lever','source_job_id':'3'}]
-r=m.task('discover');assert r['status']=='COMPLETED',r
+r=confirmed_discover();assert r['status']=='COMPLETED',r
 assert r['report']['funnel']['counts']['fetched']==3
 assert r['report']['discovered']==2
 assert [x['disposition'] for x in r['report']['decisions']]==['NEW','INVALID_JOB','NEW']
@@ -146,12 +147,16 @@ with Session() as db:
  assert db.query(Job).count()==db.query(Application).count()==0
 ''')
 
-def test_app_catchup_and_headless_offline_pause(tmp_path):
+def test_no_catchup_and_headless_entry_point_is_a_noop(tmp_path):
+ # Manual-only scanning (Owner decision): an overdue last scan no longer
+ # triggers an automatic CATCHUP, and the headless entry point that a legacy
+ # Windows task runs starts nothing, whatever the stored settings say.
  from tests.test_campaign_reliability import isolated
  isolated(tmp_path,r'''
 from backend.models import *
 from datetime import datetime,timedelta,timezone
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 import sys
 from scripts.discovery_once import main
 initialize()
@@ -160,11 +165,11 @@ with Session.begin() as db:
  cfg=db.get(Settings,1);cfg.value={**cfg.value,'discovery_enabled':True,'autopilot':'REVIEW_FIRST','discovery_interval_hours':6}
  db.add(AutomationRun(task='discover',status='COMPLETED',report={'source_id':None},updated_at=old))
 calls=[];m.task=lambda *args,**kwargs:calls.append(kwargs)
-m.scheduled('discover');assert len(calls)==1 and calls[0]['trigger']=='CATCHUP'
-with Session.begin() as db:
- cfg=db.get(Settings,1);cfg.value={**cfg.value,'discovery_enabled':False}
+m.scheduled('discover');assert calls==[]
 sys.argv=['discovery_once.py'];assert main()==0
-assert len(calls)==1
+sys.argv=['discovery_once.py','--force','--trigger','MANUAL'];assert main()==0
+assert calls==[]
+with Session() as db: assert db.query(AutomationRun).count()==1
 ''')
 
 def test_schedule_is_visible_opt_in_and_never_wakes_pc():
@@ -179,6 +184,7 @@ def test_failed_task_keeps_history_and_releases_lock(tmp_path):
  isolated(tmp_path,r'''
 from backend.models import initialize
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 initialize()
 r=m.task('invalid',trigger='MANUAL')
 assert r['status']=='FAILED'
@@ -186,21 +192,22 @@ assert r['report']['trigger']=='MANUAL' and r['report']['started_at'] and r['rep
 assert r['report']['duration_seconds']>=0 and not m.task_lock.locked()
 ''')
 
-def test_headless_offline_run_has_meaningful_exit(tmp_path):
+def test_offline_source_is_a_reported_failure_not_a_success(tmp_path):
+ # Formerly exercised through the headless entry point, which is now a no-op;
+ # the same offline-source guarantees are asserted on task() directly, the
+ # function the confirmed Start Scan flow runs.
  from tests.test_campaign_reliability import isolated
  isolated(tmp_path,r'''
 from backend.models import *
 import backend.main as m
-import scripts.discovery_once as h
-import sys
+from tests.scan_harness import confirmed_discover
 initialize()
 with Session.begin() as db:
- cfg=db.get(Settings,1);cfg.value={**cfg.value,'discovery_enabled':True,'autopilot':'PREPARE_ONLY'}
  db.add(JobSource(name='Offline fixture',adapter='lever',board='fixture',enabled=True))
 def offline(*args):raise ConnectionError('Synthetic offline condition')
 m.discover=offline
-sys.argv=['discovery_once.py','--force','--trigger','MANUAL']
-assert h.main()==2
+r=confirmed_discover()
+assert r['status']=='PARTIAL'
 with Session() as db:
  run=db.query(AutomationRun).one();assert run.status=='PARTIAL' and run.report['failures']==1
  assert run.report['sources_successful']==0 and run.report['submitted']==0
@@ -214,6 +221,7 @@ def test_isolated_flow_and_no_network_paste(tmp_path):
 from fastapi.testclient import TestClient
 from backend.main import app
 import backend.main as m
+from tests.scan_harness import confirmed_discover
 from backend.models import *
 from sqlalchemy import select
 with TestClient(app) as c:
@@ -221,7 +229,7 @@ with TestClient(app) as c:
   db.add(CandidateProfile(name='Synthetic',raw_text='SOC SIEM Linux'))
   db.add(JobSource(name='Synthetic',adapter='lever',board='fixture',enabled=True))
  m.discover=lambda *args:[{'title':'SOC Analyst L1','company':'Synthetic','location':'Dubai','description':'1-3 years experience. SOC SIEM','job_url':'https://example.com/1','source':'Lever','source_job_id':'1'},{'title':'Director SOC','location':'Dubai','description':'10 years experience','source':'Lever','source_job_id':'2'}]
- run=m.task('discover');assert run['status']=='COMPLETED',run
+ run=confirmed_discover();assert run['status']=='COMPLETED',run
  assert run['report']['funnel']['counts']['fetched']==2
  # Issue #41: both postings are structurally valid and neither is hard-
  # rejected (a 1-3 year requirement is normal early-career territory, and
@@ -236,6 +244,6 @@ with TestClient(app) as c:
  assert c.post(f'/api/recall/jobs/{jid}/feedback',json={'decision':'NOT_FOR_ME','reason':'too senior'}).status_code==200
  assert len(c.get('/api/recall').json()['recommendations'])==1
  assert c.put('/api/recall/policy',json={'policy':'STRICT'}).status_code==200
- assert m.task('discover')['report']['discovered']==0
+ assert confirmed_discover()['report']['discovered']==0
  with Session() as db:assert db.query(Application).count()==0
 ''')
