@@ -8,6 +8,8 @@ than a long-lived shared app. No test touches a live database, workbook or
 network: provider fetches are replaced by fixtures, and the startup tests fail
 if anything resolves a hostname or opens an outbound connection.
 """
+import pytest
+
 from tests.test_campaign_reliability import isolated
 
 # Shared prelude: network tripwires, a fixture-only discovery function, and
@@ -767,6 +769,53 @@ assert [e['outcome'] for e in report['scope_accounting']] == ['FETCHED', 'NOT_FE
 assert report['confirmed_scope']['sources_not_fetched'] == 1
 states = {s['source_name']: s['attempt_state'] for s in report[telemetry.REPORT_KEY]['sources']}
 assert states['Fixture beta'] == telemetry.SKIPPED_SCOPE_CHANGED
+assert network_calls == []
+""")
+
+
+@pytest.mark.parametrize('mutation', ['DISABLED', 'EDITED', 'DELETED'])
+def test_source_changed_during_progress_write_is_not_admitted(tmp_path, mutation):
+    """A confirmed source can change while its progress write is pending."""
+    isolated(tmp_path, PRELUDE + "mutation = " + repr(mutation) + r"""
+import backend.scan_control as sc
+from backend import discovery_telemetry as telemetry
+initialize(); add_sources('alpha', 'beta')
+token = sc.preview(sc.PreviewRequest())['token']
+confirmation = sc.confirm(token)
+paused, release = threading.Event(), threading.Event()
+real_progress = m._record_progress
+
+def pause_beta_progress(db, run_id, report, total, done, current):
+    if current == 'Fixture beta':
+        paused.set()
+        assert release.wait(20), 'beta progress was not released'
+    return real_progress(db, run_id, report, total, done, current)
+
+m._record_progress = pause_beta_progress
+results = []
+worker = threading.Thread(target=lambda: results.append(m.task('discover', confirmation=confirmation)))
+worker.start()
+assert paused.wait(20), 'worker never reached beta progress'
+with Session.begin() as db:
+    beta = db.scalar(select(JobSource).where(JobSource.board == 'beta'))
+    if mutation == 'DISABLED':
+        beta.enabled = False
+    elif mutation == 'EDITED':
+        beta.url = 'https://changed.example/feed'
+    else:
+        db.delete(beta)
+release.set()
+worker.join(20)
+assert not worker.is_alive() and len(results) == 1, results
+result = results[0]
+report = result['report']
+assert result['status'] == 'PARTIAL', result['status']
+assert fetches == ['alpha'], fetches
+assert report['scope_changed_sources'] == [{'id': 2, 'name': 'Fixture beta', 'change': mutation}]
+assert [entry['outcome'] for entry in report['scope_accounting']] == ['FETCHED', 'NOT_FETCHED_SCOPE_CHANGED']
+assert report['confirmed_scope']['sources_not_fetched'] == 1
+states = {entry['source_name']: entry['attempt_state'] for entry in report[telemetry.REPORT_KEY]['sources']}
+assert states['Fixture beta'] == telemetry.SKIPPED_SCOPE_CHANGED, states
 assert network_calls == []
 """)
 

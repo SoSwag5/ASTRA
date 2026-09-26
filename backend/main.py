@@ -184,6 +184,27 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                             source.details={**source.details,'last_attempted':now(),'mode':'MANUAL','market':'UAE campaign','interval_hours':source.details.get('interval_hours',cfg['discovery_interval_hours'])}
                             if source.adapter=='generic':
                                 raise ValueError('Generic page scanning is disabled pending destination and platform review; use a public board API or paste the description')
+                            # The progress write above may have waited while another
+                            # transaction changed this source. Read through a separate
+                            # Session so the worker's tentative details update cannot
+                            # hide a committed edit. Do not hold the Stop admission lock
+                            # across this database read: Stop must still answer promptly
+                            # while a source write holds SQLite.
+                            with Session() as scope_db:
+                                current=scope_db.scalar(select(JobSource).where(JobSource.id==sid))
+                                late_change=('DELETED' if current is None else
+                                             'DISABLED' if not current.enabled else
+                                             'EDITED' if source_definition(current)!=confirmed_def else None)
+                            if late_change:
+                                changed_name=confirmed_def.get('name') or source.name
+                                attempt.skipped(telemetry.SKIPPED_SCOPE_CHANGED)
+                                db.rollback()  # discard tentative last_attempted details
+                                entry={'id':sid,'name':changed_name,'change':late_change}
+                                report['scope_changed_sources'].append(entry)
+                                report['scope_accounting'].append({**entry,'outcome':'NOT_FETCHED_SCOPE_CHANGED'})
+                                cancel.accounted(final=final_source)
+                                _record_progress(db,run.id,report,planned,done,None)
+                                continue
                             # The provider-entry checkpoint. admit() checks Stop and
                             # admits this source as one step ordered against Stop
                             # acceptance, and the provider call follows it directly: a
