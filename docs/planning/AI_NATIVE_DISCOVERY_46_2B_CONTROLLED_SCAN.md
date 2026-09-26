@@ -1,10 +1,12 @@
 # #46.2-B — controlled live scan: scope protocol (2026-09-26)
 
-**Status:** `PROPOSED`. No scan was run. The live B scan starts only after the
-Owner confirms one specific scope through ASTRA's manual Start Scan flow
-(preview, then confirm). This document fixes how that scope is chosen and what
-the scan may be claimed to prove. The Owner's concrete source list is reviewed
-with the Owner directly; it is personal configuration and is not recorded here.
+**Status:** `PROPOSED`. No scan was run. The Owner selected a proposed scope of
+**ten permitted sources: three Ashby, four Lever, and three Greenhouse**. That
+selection does not start a scan. The live B scan starts only after the Owner
+reviews that exact scope in ASTRA's manual Start Scan preview and presses
+**Confirm and start scan**. This document fixes what the scan may be claimed to
+prove. The concrete source names remain personal configuration and are reviewed
+with the Owner directly, not recorded here.
 
 Source research: [source map v4](AI_NATIVE_DISCOVERY_46_2B_SOURCE_MAP.md)
 ([data](../evaluation/discovery_46_2b_source_map_v4.json)).
@@ -25,23 +27,24 @@ Source research: [source map v4](AI_NATIVE_DISCOVERY_46_2B_SOURCE_MAP.md)
 
 - **Coverage of UAE employers without a permitted adapter.** Source map v4
   records none of its researched UAE employers on Greenhouse, Lever or Ashby.
-  Their postings are reachable only as `MANUAL_LINK` destinations the Owner
-  opens; a scan says nothing about them.
+  Some have verified `MANUAL_LINK` destinations; seven remain unresolved. A
+  scan says nothing about either group.
 - **That any posting is open.** A fetched posting is evidence of what the
   board served at that moment, not of availability or eligibility.
+- **UAE coverage from board reachability alone.** A readable board may return
+  zero UAE-located postings. Record that result as zero for this scan, not as
+  proof that the employer never hires in the UAE.
 - **Model quality.** No AI assessor runs in this scan; #46.2-F remains
   `NOT VALIDATED` and is not involved.
-- **SmartRecruiters coverage**, unless the Owner separately authorizes
-  SmartRecruiters API use for this scan.
+- **SmartRecruiters coverage.** This selected scope excludes it.
 
 ## Preconditions (all required)
 
-1. **#46.2-A is merged after passing independent review.** The manual Start
-   Scan flow exists only in #46.2-A. On 2026-09-26 the independent review of
-   PR #73 at `e7040906fde1ab3dbe55a99f7203005ba13fda41` returned
-   `CHANGES REQUIRED` (B1 source deleted mid-run, B2 Stop during a long
-   source write, B3 source enabled after preview). B2 bears directly on a live
-   scan: a Stop during a large source can be lost until it is fixed.
+1. **#46.2-A is merged after passing independent review.** PR #73 was merged
+   into `master` at `2d40c8067996f9f919bda63b716507d371bc8daa` after
+   review of its final head `37e2ee360631e2d22335a35320da1a593ce12e6c`.
+   The earlier `e704090` review returned `CHANGES REQUIRED`; that verdict is
+   historical evidence for the defects corrected before the final merge.
 2. **ASTRA runs from a build that contains the merged #46.2-A**, pointed at the
    Owner's existing data directory. Pre-#46.2-A code still schedules automatic
    discovery and must not be started against the Owner's data. The legacy
@@ -49,26 +52,41 @@ Source research: [source map v4](AI_NATIVE_DISCOVERY_46_2B_SOURCE_MAP.md)
 3. **The database is backed up** before the first start with #46.2-A code. That
    start closes an old `RUNNING` discovery run as `INTERRUPTED` (it is not
    resumed) and changes no settings.
-4. **SmartRecruiters decision.** Configured SmartRecruiters sources are either
-   disabled for this scan or explicitly authorized by the Owner.
+4. **SmartRecruiters excluded.** The selected ten sources use only Ashby, Lever,
+   and Greenhouse. Any configured SmartRecruiters source is paused for this
+   scan; this scope authorizes no SmartRecruiters API use.
+5. **Verify the actual source rows with the Owner.** The ten-source choice is a
+   target, not proof that ten usable rows exist or are currently enabled. One
+   proposed Ashby source was previously paused after a board 404, and two
+   proposed Greenhouse board URLs currently redirect to employer careers
+   pages. Verify their current public board access and enabled state before
+   considering them. If any proposed source is absent, paused for an unresolved
+   reason, or no longer usable through its adapter, stop and agree on a new
+   scope before preview. Do not silently add or enable a source.
 
 ## Scope rule
 
-- Only sources the Owner has configured and enabled on a permitted adapter.
-  SmartRecruiters only with explicit Owner authorization. No new source row is
-  added for this scan.
+- Target: ten verified, already configured sources: three Ashby, four Lever,
+  and three Greenhouse. Proceed only if the Owner verifies these rows and the
+  preview matches them. Only these sources are enabled for this scan. No new
+  source row is added for this scan.
 - `MANUAL_LINK` employers are never scanned; the Owner opens them.
-- The scope is fixed before the preview. Between preview and confirmation no
-  source is enabled, added, edited or deleted (review finding B3: an enabled or
-  added source is not yet refused).
+- The scope is fixed before the preview. If any source or scan setting changes
+  before confirmation, discard the preview and create a new one. Confirmation
+  is bound to the displayed scope and is single-use.
 - The Owner confirms only if the preview lists exactly the agreed sources.
 
 ## Procedure
 
 1. Meet every precondition.
-2. In Sources, leave enabled exactly the agreed sources.
-3. Press Start Scan and compare the preview with the agreed list: source
-   names, count, roles and locations. Confirm only on an exact match.
+2. After verifying the actual rows and any prior source failure with the Owner,
+   leave enabled exactly the agreed ten sources (three Ashby, four Lever, three
+   Greenhouse); pause all others for this scan. If the ten cannot be verified,
+   stop before preview and agree on a revised scope.
+3. Press Start Scan and compare the preview with the agreed private list:
+   source names, count, adapters, roles and locations. Confirm only on an exact
+   match. This in-app confirmation is still required after the scope choice
+   recorded above.
 4. Let the scan finish, or press Stop; the source in flight finishes first.
 5. Afterwards, record from the run report only: each source's outcome
    (fetched, failed, not fetched), postings returned, UAE-located postings, the
