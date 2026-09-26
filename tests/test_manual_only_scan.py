@@ -609,6 +609,36 @@ assert discover_runs() == [] and fetches == [] and network_calls == []
 """)
 
 
+def test_all_source_confirmation_refuses_newly_eligible_sources(tmp_path):
+    """The all-sources button must bind the eligible set, including additions."""
+    isolated(tmp_path, PRELUDE + r"""
+initialize(); add_sources('alpha')
+with Session.begin() as db:
+    db.add(JobSource(name='Fixture disabled', adapter='lever', board='disabled', enabled=False))
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    with Session.begin() as db:
+        db.scalar(select(JobSource).where(JobSource.board == 'disabled')).enabled = True
+    r = c.post('/api/scan/start', json={'token': token})
+    assert r.status_code == 409 and r.json()['scope_changed'] is True, r.text
+
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    add_sources('late')
+    r = c.post('/api/scan/start', json={'token': token})
+    assert r.status_code == 409 and r.json()['scope_changed'] is True, r.text
+
+    # A deliberately selected single source stays bound to that one source.
+    with Session() as db:
+        alpha_id = db.scalar(select(JobSource.id).where(JobSource.board == 'alpha'))
+    token = c.post('/api/scan/preview', json={'source_id': alpha_id}).json()['token']
+    add_sources('later')
+    r = c.post('/api/scan/start', json={'token': token})
+    assert r.status_code == 200, r.text
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+assert fetches == ['alpha'] and len(discover_runs()) == 1 and network_calls == []
+""")
+
+
 def test_run_uses_the_confirmed_scope_even_if_things_change_mid_run(tmp_path):
     isolated(tmp_path, PRELUDE + r"""
 initialize(); add_sources('alpha', 'beta')
@@ -641,6 +671,179 @@ assert network_calls == []
 
 
 # --- Independent review remediation (A1-A3) --------------------------------
+
+def test_deleted_source_after_identity_map_load_is_accounted_for(tmp_path):
+    """B1: a row cached in the worker can vanish before its admission check."""
+    isolated(tmp_path, PRELUDE + r"""
+from backend import discovery_telemetry as telemetry
+import backend.scan_control as sc
+initialize(); add_sources('alpha', 'beta')
+token = sc.preview(sc.PreviewRequest())['token']
+confirmation = sc.confirm(token)
+paused, release = threading.Event(), threading.Event()
+real_progress = m._record_progress
+
+def pause_initial_progress(db, run_id, report, total, done, current):
+    if not report['scope_accounting'] and done == 0 and current is None:
+        # The telemetry inventory has already loaded both rows into this Session.
+        assert db.get(JobSource, 2) is not None
+        paused.set()
+        assert release.wait(20)
+    return real_progress(db, run_id, report, total, done, current)
+
+m._record_progress = pause_initial_progress
+results = []
+worker = threading.Thread(target=lambda: results.append(m.task('discover', confirmation=confirmation)))
+worker.start()
+assert paused.wait(20)
+with Session.begin() as db:
+    db.delete(db.scalar(select(JobSource).where(JobSource.board == 'beta')))
+release.set()
+worker.join(20)
+assert not worker.is_alive() and len(results) == 1, results
+report = results[0]['report']
+assert results[0]['status'] == 'PARTIAL', results[0]
+assert fetches == ['alpha']
+assert report['scope_changed_sources'] == [{'id': 2, 'name': 'Fixture beta', 'change': 'DELETED'}]
+assert [e['outcome'] for e in report['scope_accounting']] == ['FETCHED', 'NOT_FETCHED_SCOPE_CHANGED']
+assert report['confirmed_scope']['sources_not_fetched'] == 1
+states = {s['source_name']: s['attempt_state'] for s in report[telemetry.REPORT_KEY]['sources']}
+assert states['Fixture beta'] == telemetry.SKIPPED_SCOPE_CHANGED
+assert network_calls == []
+""")
+
+
+def test_stop_returns_while_report_write_is_held_and_status_is_truthful(tmp_path):
+    """B2: a slow report write cannot delay Stop or hide its accepted state."""
+    isolated(tmp_path, PRELUDE + r"""
+initialize(); add_sources('alpha', 'beta')
+paused, release = threading.Event(), threading.Event()
+real_progress = m._record_progress
+
+def held_progress(db, run_id, report, total, done, current):
+    if current == 'Fixture beta':
+        real_refresh = db.refresh
+        def held_refresh(row, *args, **kwargs):
+            result = real_refresh(row, *args, **kwargs)
+            if isinstance(row, AutomationRun):
+                paused.set()
+                assert release.wait(20), 'test held the progress write too long'
+            return result
+        db.refresh = held_refresh
+        try:
+            return real_progress(db, run_id, report, total, done, current)
+        finally:
+            db.refresh = real_refresh
+    return real_progress(db, run_id, report, total, done, current)
+
+m._record_progress = held_progress
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert paused.wait(20)
+    responses = []
+    stopper = threading.Thread(target=lambda: responses.append(c.post('/api/scan/cancel', json={'run_id': run_id})))
+    stopper.start()
+    try:
+        assert wait_for(lambda: bool(responses), timeout=2), 'Stop waited behind the report write'
+        stop = responses[0]
+        assert stop.status_code == 200 and stop.json()['cancelling'], stop.text
+        assert stop.json()['source_in_flight'] is None, stop.json()
+        active = c.get('/api/scan/status').json()['active']
+        assert active['cancel_requested_at'] and active['progress']['current_source'] is None, active
+    finally:
+        release.set()
+        stopper.join(20)
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+assert last['status'] == 'CANCELLED' and last['cancel_requested_at'], last
+assert fetches == ['alpha'] and network_calls == []
+with Session() as db:
+    run = db.get(AutomationRun, run_id)
+    assert run.report['cancel_requested_at'] == last['cancel_requested_at']
+    assert [e['outcome'] for e in run.report['scope_accounting']] == ['FETCHED', 'NOT_FETCHED_CANCELLED']
+""")
+
+def test_stop_during_admitted_source_database_write(tmp_path):
+    """B2: a source write can stall without delaying Stop or admitting the next."""
+    isolated(tmp_path, PRELUDE + r"""
+from sqlalchemy import event
+initialize(); add_sources('alpha', 'beta')
+paused, release = threading.Event(), threading.Event()
+
+def hold_source_commit(db):
+    if (threading.current_thread().name.startswith('astra-manual-scan-')
+            and any(isinstance(row, JobSource) and row.board == 'alpha'
+                    and 'last_success' in row.details for row in db.dirty)):
+        paused.set()
+        assert release.wait(20), 'test held the source write too long'
+
+event.listen(Session.class_, 'before_commit', hold_source_commit)
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert paused.wait(20)
+    responses = []
+    stopper = threading.Thread(target=lambda: responses.append(c.post('/api/scan/cancel', json={'run_id': run_id})))
+    stopper.start()
+    try:
+        assert wait_for(lambda: bool(responses), timeout=2), 'Stop waited behind the source write'
+        stop = responses[0]
+        assert stop.status_code == 200 and stop.json()['source_in_flight'] == 'Fixture alpha', stop.text
+        active = c.get('/api/scan/status').json()['active']
+        assert active['cancel_requested_at'] and active['progress']['current_source'] == 'Fixture alpha'
+    finally:
+        release.set()
+        stopper.join(20)
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+assert last['status'] == 'CANCELLED' and last['cancel_requested_at'], last
+assert fetches == ['alpha'] and network_calls == []
+with Session() as db:
+    report = db.get(AutomationRun, run_id).report
+    assert report['cancel_requested_at'] == last['cancel_requested_at']
+    assert report['cancelled']['source_in_flight_at_stop'] == {'id': 1, 'name': 'Fixture alpha'}
+    assert [e['outcome'] for e in report['scope_accounting']] == ['FETCHED', 'NOT_FETCHED_CANCELLED']
+""")
+
+
+def test_accepted_stop_keeps_timestamp_when_worker_finalizes_after_error(tmp_path):
+    """A later task error leaves an honest incomplete report and accepted Stop."""
+    isolated(tmp_path, PRELUDE + r"""
+from backend import discovery_telemetry as telemetry
+initialize(); add_sources('alpha', 'beta')
+paused, release = threading.Event(), threading.Event()
+real_progress = m._record_progress
+
+def broken_progress(db, run_id, report, total, done, current):
+    if current == 'Fixture beta':
+        paused.set()
+        assert release.wait(20)
+        raise RuntimeError('fictional report write failure')
+    return real_progress(db, run_id, report, total, done, current)
+
+m._record_progress = broken_progress
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert paused.wait(20)
+    stop = c.post('/api/scan/cancel', json={'run_id': run_id})
+    assert stop.status_code == 200 and stop.json()['source_in_flight'] is None
+    release.set()
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+assert last['status'] == 'CANCELLED' and last['cancel_requested_at'], last
+assert 'error' in last and last['error'] and fetches == ['alpha'] and network_calls == []
+with Session() as db:
+    report = db.get(AutomationRun, run_id).report
+    assert report['cancel_requested_at'] == last['cancel_requested_at']
+    assert report['scope_accounting_incomplete'] is True
+    assert report['confirmed_scope']['sources_incomplete'] == 1
+    assert [e['outcome'] for e in report['scope_accounting']] == ['FETCHED', 'INCOMPLETE_TASK_FAILURE']
+    assert report[telemetry.REPORT_KEY]['status'] == 'TELEMETRY_ERROR'
+    assert report[telemetry.REPORT_KEY]['funnel'] is None
+""")
+
 
 def test_preview_display_and_token_binding_come_from_one_snapshot(tmp_path):
     """A1: a concurrent edit landing while the preview is being built can

@@ -52,12 +52,12 @@ PREVIEW_TTL = timedelta(minutes=10)
 MAX_PENDING_PREVIEWS = 20
 TRIGGER = 'MANUAL_START'
 
-_guard = threading.Lock()
-# Serialize writes to the active run's report with progress/finalization in
-# main.py. A read-refresh-write sequence alone can overwrite a Stop recorded
-# by another request between the refresh and commit. It also orders Stop
-# against provider admission (ScanStop).
+_guard = threading.Lock()          # pending previews and confirmation tokens
+_cancel_guard = threading.Lock()   # short-lived access to the active Stop map
+# Serialize the worker's progress and final report writes. Admission and Stop
+# use a separate short lock: a slow SQLite write must never delay Stop.
 _report_guard = threading.Lock()
+_admission_guard = threading.Lock()
 _previews = {}      # token -> {'scope': dict, 'expires': datetime, 'run_id': int|None}
 _cancel = {}        # run_id -> ScanStop for scans started in this process
 
@@ -66,7 +66,7 @@ class ScanStop:
     """Stop for one scan, ordered against each source's provider entry.
 
     ``admit()`` (the worker's last step before calling a provider) and Stop
-    acceptance (``cancel()``) both hold ``_report_guard``. So a Stop is
+    acceptance (``cancel()``) both hold ``_admission_guard``. So a Stop is
     accepted either before a source's admission, and that source is never
     fetched, or after it, and Stop names that source as in flight. There is no
     window in which a Stop is accepted after the check has passed but the
@@ -75,15 +75,16 @@ class ScanStop:
     status cannot disagree with an accepted Stop. ``close()`` also closes on
     exceptional exit.
 
-    A caller of ``admit()``, ``accounted()`` or ``close()`` must hold no database
-    write transaction, because ``cancel()`` writes the run while holding the
-    same lock.
+    Acceptance is recorded in memory before the response. The worker persists
+    the timestamp in its next progress write and final report. Status overlays
+    the in-memory state until that write completes.
     """
 
     def __init__(self):
         self._event = threading.Event()
         self.in_flight = None           # {'id', 'name'} from admission until the source is accounted for
         self.in_flight_at_stop = None   # the source in flight when Stop was accepted, if any
+        self.accepted_at = None
         self.closed = False
 
     def is_set(self):
@@ -92,7 +93,7 @@ class ScanStop:
 
     def admit(self, source_id, name):
         """The provider-entry checkpoint. True admits this source to its provider."""
-        with _report_guard:
+        with _admission_guard:
             if self.closed or self._event.is_set():
                 return False
             self.in_flight = {'id': source_id, 'name': name}
@@ -104,23 +105,29 @@ class ScanStop:
         Stop must not be accepted between clearing the last in-flight source
         and closing admission, including when that source was skipped.
         """
-        with _report_guard:
+        with _admission_guard:
             self.in_flight = None
             if final:
                 self.closed = True
 
     def close(self):
         """Admit nothing more and refuse any later Stop. True if a Stop was accepted."""
-        with _report_guard:
+        with _admission_guard:
             self.closed = True
             self.in_flight = None
             return self._event.is_set()
 
     def _accept(self):
-        """Record the Stop. The caller holds _report_guard and has committed cancel_requested_at."""
+        """Record the Stop. The caller holds _admission_guard."""
         if not self._event.is_set():
             self.in_flight_at_stop = self.in_flight
+            self.accepted_at = now()
             self._event.set()
+
+    def snapshot(self):
+        """Read the admission/Stop decision as one consistent state."""
+        with _admission_guard:
+            return self.accepted_at, self.in_flight_at_stop, self.in_flight, self.closed
 
 
 class PreviewRequest(BaseModel):
@@ -164,14 +171,18 @@ def _digests(defs, cfg):
     return _digest({str(k): v for k, v in defs.items()}), _digest(cfg)
 
 
-def _binding(db, source_ids):
+def _binding(db, source_ids, single_source):
     """Current definitions of the scoped sources plus the full settings, read
     in one snapshot."""
     _read_snapshot(db)
     rows = {s.id: s for s in db.scalars(select(JobSource).where(JobSource.id.in_(source_ids)))}
     defs = {sid: source_definition(rows[sid]) if sid in rows else None for sid in source_ids}
+    eligible_ids = None
+    if not single_source:
+        eligible_ids = set(db.scalars(select(JobSource.id).where(
+            JobSource.enabled == True, JobSource.adapter != 'manual')))  # noqa: E712
     cfg = settings(db)
-    return (defs, cfg) + _digests(defs, cfg)
+    return (defs, cfg) + _digests(defs, cfg) + (eligible_ids,)
 
 
 def _utc():
@@ -313,12 +324,19 @@ def missing_source(source_id, definition):
                            adapter=definition.get('adapter') or 'unknown')
 
 
+def _accepted_stop_at(run_id):
+    """Timestamp to merge into the worker's next report write, if accepted."""
+    with _cancel_guard:
+        stop = _cancel.get(run_id)
+    return stop.snapshot()[0] if stop is not None else None
+
+
 def _run(confirmation):
     from .main import task
     try:
         task('discover', confirmation=confirmation)
     finally:
-        with _guard:
+        with _cancel_guard:
             _cancel.pop(confirmation.run_id, None)
 
 
@@ -352,12 +370,20 @@ def _abandon(token, confirmation, error):
         confirmation.claim()
         with _guard:
             _previews.pop(token, None)
+        with _cancel_guard:
+            stop = _cancel.get(confirmation.run_id)
+            if stop is not None:
+                stop.close()
             _cancel.pop(confirmation.run_id, None)
         with Session.begin() as db:
             run = db.get(AutomationRun, confirmation.run_id)
             if run is not None and run.status == 'RUNNING':
-                run.status = 'FAILED'
+                stopped_at = stop.accepted_at if stop is not None else None
+                run.status = 'CANCELLED' if stopped_at else 'FAILED'
                 run.report = {**(run.report or {}), 'finished_at': now(), 'sources_attempted': 0,
+                              **({'cancel_requested_at': stopped_at} if stopped_at else {}),
+                              **({'cancelled': {'sources_not_fetched': len(confirmation.source_ids),
+                                                'source_in_flight_at_stop': None}} if stopped_at else {}),
                               'error': 'The scan worker could not start (%s); nothing was fetched.'
                                        % type(error).__name__}
     finally:
@@ -382,8 +408,10 @@ def confirm(token):
             return JSONResponse({'detail': 'This scan was already started.',
                                  'already_started': True, 'run_id': pending['run_id']}, 409)
         with Session() as db:
-            _, _, defs_digest, cfg_digest = _binding(db, pending['scope']['source_ids'])
-        if (defs_digest, cfg_digest) != (pending['defs_digest'], pending['cfg_digest']):
+            _, _, defs_digest, cfg_digest, eligible_ids = _binding(
+                db, pending['scope']['source_ids'], pending['scope']['single_source'])
+        if ((defs_digest, cfg_digest) != (pending['defs_digest'], pending['cfg_digest'])
+                or (eligible_ids is not None and eligible_ids != set(pending['scope']['source_ids']))):
             # Sources or settings changed since the preview. The Owner confirmed
             # the previewed scope, not this one, so nothing starts.
             del _previews[token]
@@ -407,7 +435,8 @@ def confirm(token):
                 run_id = run.id
             pending['run_id'] = run_id
             stop = ScanStop()
-            _cancel[run_id] = stop
+            with _cancel_guard:
+                _cancel[run_id] = stop
             return ScanConfirmation(_ISSUER, run_id, scope['source_ids'], pending['source_defs'],
                                     pending['cfg'], stop, scope['single_source'])
         except Exception:
@@ -419,37 +448,37 @@ def confirm(token):
 def cancel(data: CancelRequest):
     """Stop the running scan at its next provider admission.
 
-    Accepted under the same lock as admission, and only after
-    cancel_requested_at is committed: a source not yet admitted is never
-    fetched, and the response names the source already in flight, which
-    finishes within its bounded provider budget. Refused once the last source
-    is done."""
-    with _guard:
+    Accepted under the same short lock as admission: a source not yet admitted
+    is never fetched. The response names the source already in flight, which
+    finishes within its bounded provider budget. The worker persists the Stop
+    timestamp; status displays the accepted state immediately. Refused once
+    the last source is done."""
+    with _cancel_guard:
         stop = _cancel.get(data.run_id)
     if stop is None:
         return JSONResponse({'detail': 'There is no running scan with that id in this session.'}, 409)
-    with _report_guard:
+    with _admission_guard:
         if stop.closed:
             return JSONResponse({'detail': 'This scan has finished fetching; there is nothing left to stop.',
-                                 'finished': True}, 409)
-        with Session.begin() as db:
-            run = db.get(AutomationRun, data.run_id)
-            if run is None or run.status != 'RUNNING':
-                return JSONResponse({'detail': 'This scan has already finished.'}, 409)
-            if not (run.report or {}).get('cancel_requested_at'):
-                run.report = {**(run.report or {}), 'cancel_requested_at': now()}
+                                  'finished': True}, 409)
         stop._accept()
         in_flight = stop.in_flight_at_stop
+        stopped_at = stop.accepted_at
     return {'cancelling': True, 'run_id': data.run_id,
-            'source_in_flight': in_flight['name'] if in_flight else None}
+            'source_in_flight': in_flight['name'] if in_flight else None,
+            'cancel_requested_at': stopped_at}
 
 
-def _view(run):
+def _view(run, stop=None):
     report = run.report or {}
+    stopped_at, _, in_flight, _ = stop.snapshot() if stop is not None else (None, None, None, None)
+    progress = report.get('progress')
+    if stopped_at and progress is not None:
+        progress = {**progress, 'current_source': in_flight['name'] if in_flight else None}
     return {'id': run.id, 'status': run.status, 'created_at': run.created_at,
             'updated_at': run.updated_at, 'trigger': report.get('trigger'),
-            'progress': report.get('progress'), 'scope': report.get('scope'),
-            'cancel_requested_at': report.get('cancel_requested_at'),
+            'progress': progress, 'scope': report.get('scope'),
+            'cancel_requested_at': stopped_at or report.get('cancel_requested_at'),
             'cancelled': report.get('cancelled'), 'error': report.get('error'),
             'discovered': report.get('discovered'), 'duplicates': report.get('duplicates'),
             'failures': report.get('failures'),
@@ -464,8 +493,9 @@ def status():
         last = db.scalar(select(AutomationRun)
                          .where(AutomationRun.task == 'discover', AutomationRun.status != 'RUNNING')
                          .order_by(AutomationRun.id.desc()))
-        with _guard:
+        with _cancel_guard:
             stop = _cancel.get(running.id) if running is not None else None
-        cancellable = stop is not None and not stop.closed
-        return {'manual_only': True, 'active': _view(running) if running else None,
+        stopped_at, _, _, closed = stop.snapshot() if stop is not None else (None, None, None, True)
+        cancellable = stop is not None and not closed and not stopped_at
+        return {'manual_only': True, 'active': _view(running, stop) if running else None,
                 'cancellable': cancellable, 'last': _view(last) if last else None}
