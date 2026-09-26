@@ -8,6 +8,8 @@ than a long-lived shared app. No test touches a live database, workbook or
 network: provider fetches are replaced by fixtures, and the startup tests fail
 if anything resolves a hostname or opens an outbound connection.
 """
+import pytest
+
 from tests.test_campaign_reliability import isolated
 
 # Shared prelude: network tripwires, a fixture-only discovery function, and
@@ -207,6 +209,7 @@ with TestClient(m.app) as c:
     assert c.get('/api/scan/status').json()['cancellable'] is True
     stop = c.post('/api/scan/cancel', json={'run_id': run_id})
     assert stop.status_code == 200 and stop.json()['cancelling']
+    assert stop.json()['source_in_flight'] == 'Fixture alpha'
     assert c.get('/api/scan/status').json()['active']['cancel_requested_at']
     gate.set()                                            # let the in-flight source finish
     assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
@@ -215,12 +218,328 @@ assert fetches == ['alpha'], fetches                    # no further source was 
 with Session() as db:
     run = db.get(AutomationRun, run_id)
     assert run.status == 'CANCELLED'
-    assert run.report['cancelled'] == {'sources_not_fetched': 2}
+    assert run.report['cancelled'] == {'sources_not_fetched': 2,
+                                       'source_in_flight_at_stop': {'id': 1, 'name': 'Fixture alpha'}}
     assert run.report['cancel_requested_at']
     from backend import discovery_telemetry as t
     states = [s['attempt_state'] for s in run.report[t.REPORT_KEY]['sources']]
     assert states.count(t.SKIPPED_CANCELLED) == 2 and states.count(t.ATTEMPTED) == 1
 assert not m.task_lock.locked() and network_calls == []
+''')
+
+
+def test_stop_during_progress_update_skips_the_next_source(tmp_path):
+    """A Stop accepted while progress is being saved must not start that source."""
+    isolated(tmp_path, PRELUDE + r'''
+initialize(); add_sources('alpha', 'beta')
+reached_beta = threading.Event()
+continue_beta = threading.Event()
+real_record_progress = m._record_progress
+
+def paused_progress(db, run_id, report, total, done, current):
+    if current == 'Fixture beta':
+        reached_beta.set()
+        assert continue_beta.wait(20)
+    return real_record_progress(db, run_id, report, total, done, current)
+
+m._record_progress = paused_progress
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert reached_beta.wait(20)
+    stop = c.post('/api/scan/cancel', json={'run_id': run_id})
+    assert stop.status_code == 200 and stop.json()['cancelling']
+    continue_beta.set()
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+
+assert fetches == ['alpha'], fetches
+assert last['status'] == 'CANCELLED'
+assert last['cancel_requested_at']
+assert last['progress']['current_source'] is None
+assert not m.task_lock.locked() and network_calls == []
+''')
+
+
+def test_stop_during_source_setup_skips_provider_call(tmp_path):
+    """A Stop received after progress but before provider entry skips the source."""
+    isolated(tmp_path, PRELUDE + r'''
+from backend import discovery_telemetry as telemetry
+initialize(); add_sources('alpha', 'beta')
+reached_beta = threading.Event()
+continue_beta = threading.Event()
+real_attempt = telemetry.RunTelemetry.attempt
+
+def paused_attempt(self, source):
+    if source.name == 'Fixture beta':
+        reached_beta.set()
+        assert continue_beta.wait(20)
+    return real_attempt(self, source)
+
+telemetry.RunTelemetry.attempt = paused_attempt
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert reached_beta.wait(20)
+    stop = c.post('/api/scan/cancel', json={'run_id': run_id})
+    assert stop.status_code == 200 and stop.json()['cancelling']
+    continue_beta.set()
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+
+assert fetches == ['alpha'], fetches
+assert last['status'] == 'CANCELLED'
+assert last['cancel_requested_at']
+with Session() as db:
+    source = db.query(JobSource).filter_by(board='beta').one()
+    assert 'last_attempted' not in source.details
+    run = db.get(AutomationRun, run_id)
+    assert [e['outcome'] for e in run.report['scope_accounting']] == ['FETCHED', 'NOT_FETCHED_CANCELLED']
+    states = [s['attempt_state'] for s in run.report[telemetry.REPORT_KEY]['sources']]
+    assert states == [telemetry.ATTEMPTED, telemetry.SKIPPED_CANCELLED]
+assert not m.task_lock.locked() and network_calls == []
+''')
+
+
+def test_stop_timestamp_survives_concurrent_progress_write(tmp_path):
+    """Progress and Stop must serialize their writes to the active run report."""
+    isolated(tmp_path, PRELUDE + r'''
+initialize(); add_sources('alpha', 'beta')
+in_refresh = threading.Event()
+continue_progress = threading.Event()
+beta_gate = threading.Event()
+real_record_progress = m._record_progress
+
+def paused_progress(db, run_id, report, total, done, current):
+    if current == 'Fixture beta':
+        real_refresh = db.refresh
+        def paused_refresh(row, *args, **kwargs):
+            result = real_refresh(row, *args, **kwargs)
+            if isinstance(row, AutomationRun):
+                in_refresh.set()
+                assert continue_progress.wait(20)
+            return result
+        db.refresh = paused_refresh
+        try:
+            return real_record_progress(db, run_id, report, total, done, current)
+        finally:
+            db.refresh = real_refresh
+    return real_record_progress(db, run_id, report, total, done, current)
+
+def bounded_discover(adapter, board, url='', cfg=None):
+    fetches.append(board)
+    if board == 'beta':
+        assert beta_gate.wait(20)
+    return []
+
+m._record_progress = paused_progress
+m.discover = bounded_discover
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert in_refresh.wait(20)
+    responses = []
+    stopping = threading.Thread(target=lambda: responses.append(c.post('/api/scan/cancel', json={'run_id': run_id})))
+    stopping.start()
+    time.sleep(0.1)
+    continue_progress.set()
+    assert wait_for(lambda: bool(responses))
+    beta_gate.set()
+    stopping.join(20)
+    assert responses[0].status_code == 200, responses[0].text
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+
+assert last['cancel_requested_at'], last
+assert last['status'] == 'CANCELLED', last            # an accepted Stop is never reported as COMPLETED
+assert not m.task_lock.locked() and network_calls == []
+''')
+
+
+def test_stop_cannot_be_accepted_between_the_final_check_and_the_provider_call(tmp_path):
+    """The reviewed race, step for step: beta's final provider-entry check has
+    just read "not stopped" and the worker pauses there, before the provider is
+    called; Stop is requested; the worker resumes.
+
+    The check and the provider admission are one step ordered against Stop, so
+    Stop cannot be accepted inside that window. It is accepted after beta's
+    admission, names beta as the source in flight, and the run ends CANCELLED,
+    never COMPLETED, with a report that says what happened."""
+    isolated(tmp_path, PRELUDE + r'''
+import backend.scan_control as sc
+from backend import discovery_telemetry as telemetry
+initialize(); add_sources('alpha', 'beta')
+attempted, paused, release, beta_gate = set(), threading.Event(), threading.Event(), threading.Event()
+real_attempt = telemetry.RunTelemetry.attempt
+
+def recording_attempt(self, source):
+    attempted.add(source.name)
+    return real_attempt(self, source)
+
+class PausingEvent(threading.Event):
+    """The run's Stop flag. The worker's first read of it after beta's source
+    setup is the final provider-entry check: pause just after it reads False."""
+    def is_set(self):
+        value = super().is_set()
+        if (not value and 'Fixture beta' in attempted and not paused.is_set()
+                and threading.current_thread().name.startswith('astra-manual-scan-')):
+            paused.set()
+            assert release.wait(20)
+        return value
+
+def held_discover(adapter, board, url='', cfg=None):
+    fetches.append(board)
+    assert (gate if board == 'alpha' else beta_gate).wait(20)
+    return []
+
+telemetry.RunTelemetry.attempt = recording_attempt
+m.discover = held_discover
+gate.clear()
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert wait_for(lambda: fetches == ['alpha'])           # alpha is mid-fetch
+    entry = sc._cancel[run_id]
+    flag = getattr(entry, '_event', entry)
+    flag.__class__ = PausingEvent
+    gate.set()
+    assert paused.wait(20)                                  # beta's final check has read "not stopped"
+    responses = []
+    stopper = threading.Thread(target=lambda: responses.append(
+        c.post('/api/scan/cancel', json={'run_id': run_id})))
+    stopper.start()
+    stopper.join(0.5)
+    # Between that check and the provider call, a Stop cannot be accepted.
+    with Session() as db:
+        assert not (db.get(AutomationRun, run_id).report or {}).get('cancel_requested_at')
+    assert stopper.is_alive() and responses == [], 'Stop was accepted between the check and the provider call'
+    assert fetches == ['alpha'], fetches
+    release.set()
+    stopper.join(20)                                        # accepted while beta is inside its provider
+    stop = responses[0]
+    assert stop.status_code == 200 and stop.json()['cancelling'], stop.text
+    assert stop.json()['source_in_flight'] == 'Fixture beta', stop.json()
+    assert fetches == ['alpha', 'beta'], fetches            # beta was admitted before Stop was accepted
+    beta_gate.set()
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+
+assert last['status'] == 'CANCELLED', last                  # never COMPLETED once Stop is accepted
+assert last['cancel_requested_at']
+assert last['cancelled'] == {'sources_not_fetched': 0,
+                             'source_in_flight_at_stop': {'id': 2, 'name': 'Fixture beta'}}, last['cancelled']
+with Session() as db:
+    run = db.get(AutomationRun, run_id)
+    assert [e['outcome'] for e in run.report['scope_accounting']] == ['FETCHED', 'FETCHED']
+    t = run.report[telemetry.REPORT_KEY]
+    telemetry.validate(t)
+    assert t['run_status'] == 'CANCELLED'
+    assert [s['attempt_state'] for s in t['sources']] == [telemetry.ATTEMPTED, telemetry.ATTEMPTED]
+assert not m.task_lock.locked() and network_calls == []
+''')
+
+
+def test_stop_after_the_last_source_is_refused_and_the_run_completes(tmp_path):
+    """Once every source is done, nothing is left to stop. Stop is refused, and
+    the run is COMPLETED without cancel_requested_at: never both at once."""
+    isolated(tmp_path, PRELUDE + r'''
+from backend import discovery_telemetry as telemetry
+initialize(); add_sources('alpha')
+finalizing, release = threading.Event(), threading.Event()
+real_finalize = telemetry.RunTelemetry.finalize
+
+def paused_finalize(self, *args, **kwargs):
+    finalizing.set()
+    assert release.wait(20)
+    return real_finalize(self, *args, **kwargs)
+
+telemetry.RunTelemetry.finalize = paused_finalize
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert finalizing.wait(20)                               # every source is done; the run is still RUNNING
+    assert c.get('/api/scan/status').json()['active']['id'] == run_id
+    assert c.get('/api/scan/status').json()['cancellable'] is False
+    stop = c.post('/api/scan/cancel', json={'run_id': run_id})
+    assert stop.status_code == 409 and stop.json().get('finished') is True, stop.text
+    release.set()
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+
+assert fetches == ['alpha'] and last['status'] == 'COMPLETED', last
+assert not last['cancel_requested_at'] and last['cancelled'] is None, last
+assert not m.task_lock.locked() and network_calls == []
+''')
+
+
+def test_stop_after_final_source_accounting_is_refused_before_progress_write(tmp_path):
+    """The final source has been accounted for, but its last progress write
+    has not started. Stop must already be closed at this boundary."""
+    isolated(tmp_path, PRELUDE + r'''
+initialize(); add_sources('alpha')
+paused, release = threading.Event(), threading.Event()
+real_progress = m._record_progress
+
+def held_final_progress(db, run_id, report, total, done, current):
+    if total == done == 1 and current is None:
+        paused.set()
+        assert release.wait(20)
+    return real_progress(db, run_id, report, total, done, current)
+
+m._record_progress = held_final_progress
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert paused.wait(20)
+    assert fetches == ['alpha']
+    with Session() as db:
+        run = db.get(AutomationRun, run_id)
+        assert [e['outcome'] for e in run.report.get('scope_accounting', [])] == []  # not persisted yet
+    assert c.get('/api/scan/status').json()['cancellable'] is False
+    stop = c.post('/api/scan/cancel', json={'run_id': run_id})
+    assert stop.status_code == 409 and stop.json().get('finished') is True, stop.text
+    release.set()
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+
+assert last['status'] == 'COMPLETED' and not last['cancel_requested_at'], last
+assert last['cancelled'] is None and network_calls == []
+''')
+
+
+def test_stop_after_final_scope_change_is_refused_before_progress_write(tmp_path):
+    """Closing the last source also covers a source skipped after confirmation."""
+    isolated(tmp_path, PRELUDE + r'''
+import backend.scan_control as sc
+initialize(); add_sources('alpha')
+token = sc.preview(sc.PreviewRequest())['token']
+confirmation = sc.confirm(token)
+with Session.begin() as db:
+    db.query(JobSource).filter_by(board='alpha').one().enabled = False
+paused, release = threading.Event(), threading.Event()
+real_progress = m._record_progress
+
+def held_final_progress(db, run_id, report, total, done, current):
+    if len(report.get('scope_accounting', [])) == total == 1 and current is None:
+        paused.set()
+        assert release.wait(20)
+    return real_progress(db, run_id, report, total, done, current)
+
+m._record_progress = held_final_progress
+worker = threading.Thread(target=lambda: m.task('discover', confirmation=confirmation), daemon=True)
+worker.start()
+assert paused.wait(20)
+assert fetches == []
+stop = sc.cancel(sc.CancelRequest(run_id=confirmation.run_id))
+assert stop.status_code == 409 and stop.body, stop
+release.set()
+worker.join(20)
+assert not worker.is_alive()
+with Session() as db:
+    run = db.get(AutomationRun, confirmation.run_id)
+    assert run.status == 'PARTIAL' and not run.report.get('cancel_requested_at')
+    assert run.report['scope_accounting'][0]['outcome'] == 'NOT_FETCHED_SCOPE_CHANGED'
+assert network_calls == []
 ''')
 
 
@@ -244,6 +563,64 @@ with TestClient(m.app) as c:
     assert c.post('/api/scan/start', json={'token': 'y' * 43}).status_code == 409
     assert m.scheduler.get_job('discover') is None
 assert fetches == [] and len(discover_runs()) == 2 and network_calls == []
+''')
+
+
+def test_accepted_stop_survives_process_exit_before_database_write(tmp_path):
+    """An acknowledged Stop is recovered by a new process before DB progress."""
+    isolated(tmp_path, PRELUDE + r'''
+import json, subprocess, sys
+import backend.scan_control as sc
+child_code = r"""
+import json, os, socket, threading
+socket.getaddrinfo = lambda *a, **k: (_ for _ in ()).throw(OSError('network disabled'))
+socket.create_connection = lambda *a, **k: (_ for _ in ()).throw(OSError('network disabled'))
+import backend.main as m
+import backend.scan_control as sc
+from backend.models import AutomationRun, JobSource, Session, initialize
+initialize()
+with Session.begin() as db:
+    db.add_all([JobSource(name='Fixture alpha', adapter='lever', board='alpha', enabled=True),
+                JobSource(name='Fixture beta', adapter='lever', board='beta', enabled=True)])
+m.discover = lambda adapter, board, url='', cfg=None: []
+paused = threading.Event()
+real_progress = m._record_progress
+def held_progress(db, run_id, report, total, done, current):
+    if current == 'Fixture beta':
+        paused.set()
+        threading.Event().wait(60)
+    return real_progress(db, run_id, report, total, done, current)
+m._record_progress = held_progress
+token = sc.preview(sc.PreviewRequest())['token']
+confirmation = sc.confirm(token)
+threading.Thread(target=lambda: m.task('discover', confirmation=confirmation), daemon=True).start()
+assert paused.wait(20)
+result = sc.cancel(sc.CancelRequest(run_id=confirmation.run_id))
+assert result['cancelling'] is True
+assert sc._stop_record_path(confirmation.run_id).is_file()
+with Session() as db:
+    assert not (db.get(AutomationRun, confirmation.run_id).report or {}).get('cancel_requested_at')
+with sc._cancel_guard:
+    sc._cancel.pop(confirmation.run_id)
+assert sc.status()['active']['cancel_requested_at'] == result['cancel_requested_at']
+print(json.dumps({'run_id': confirmation.run_id, 'stopped_at': result['cancel_requested_at']}), flush=True)
+os._exit(0)
+"""
+child = subprocess.run([sys.executable, '-c', child_code], capture_output=True, text=True, timeout=30)
+assert child.returncode == 0, child.stdout + child.stderr
+accepted = json.loads(child.stdout.strip().splitlines()[-1])
+with Session() as db:
+    assert not (db.get(AutomationRun, accepted['run_id']).report or {}).get('cancel_requested_at')
+with TestClient(m.app) as c:
+    status = c.get('/api/scan/status').json()
+    assert status['active'] is None and status['last']['status'] == 'CANCELLED', status
+    assert status['last']['cancel_requested_at'] == accepted['stopped_at'], status
+with Session() as db:
+    report = db.get(AutomationRun, accepted['run_id']).report
+    assert report['cancel_requested_at'] == accepted['stopped_at']
+    assert report['restart'] == 'NOT_RESTARTED'
+assert not sc._stop_record_path(accepted['run_id']).exists()
+assert fetches == [] and network_calls == []
 ''')
 
 
@@ -292,6 +669,36 @@ assert discover_runs() == [] and fetches == [] and network_calls == []
 """)
 
 
+def test_all_source_confirmation_refuses_newly_eligible_sources(tmp_path):
+    """The all-sources button must bind the eligible set, including additions."""
+    isolated(tmp_path, PRELUDE + r"""
+initialize(); add_sources('alpha')
+with Session.begin() as db:
+    db.add(JobSource(name='Fixture disabled', adapter='lever', board='disabled', enabled=False))
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    with Session.begin() as db:
+        db.scalar(select(JobSource).where(JobSource.board == 'disabled')).enabled = True
+    r = c.post('/api/scan/start', json={'token': token})
+    assert r.status_code == 409 and r.json()['scope_changed'] is True, r.text
+
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    add_sources('late')
+    r = c.post('/api/scan/start', json={'token': token})
+    assert r.status_code == 409 and r.json()['scope_changed'] is True, r.text
+
+    # A deliberately selected single source stays bound to that one source.
+    with Session() as db:
+        alpha_id = db.scalar(select(JobSource.id).where(JobSource.board == 'alpha'))
+    token = c.post('/api/scan/preview', json={'source_id': alpha_id}).json()['token']
+    add_sources('later')
+    r = c.post('/api/scan/start', json={'token': token})
+    assert r.status_code == 200, r.text
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+assert fetches == ['alpha'] and len(discover_runs()) == 1 and network_calls == []
+""")
+
+
 def test_run_uses_the_confirmed_scope_even_if_things_change_mid_run(tmp_path):
     isolated(tmp_path, PRELUDE + r"""
 initialize(); add_sources('alpha', 'beta')
@@ -324,6 +731,596 @@ assert network_calls == []
 
 
 # --- Independent review remediation (A1-A3) --------------------------------
+
+def test_deleted_source_after_identity_map_load_is_accounted_for(tmp_path):
+    """B1: a row cached in the worker can vanish before its admission check."""
+    isolated(tmp_path, PRELUDE + r"""
+from backend import discovery_telemetry as telemetry
+import backend.scan_control as sc
+initialize(); add_sources('alpha', 'beta')
+token = sc.preview(sc.PreviewRequest())['token']
+confirmation = sc.confirm(token)
+paused, release = threading.Event(), threading.Event()
+real_progress = m._record_progress
+
+def pause_initial_progress(db, run_id, report, total, done, current):
+    if not report['scope_accounting'] and done == 0 and current is None:
+        # The telemetry inventory has already loaded both rows into this Session.
+        assert db.get(JobSource, 2) is not None
+        paused.set()
+        assert release.wait(20)
+    return real_progress(db, run_id, report, total, done, current)
+
+m._record_progress = pause_initial_progress
+results = []
+worker = threading.Thread(target=lambda: results.append(m.task('discover', confirmation=confirmation)))
+worker.start()
+assert paused.wait(20)
+with Session.begin() as db:
+    db.delete(db.scalar(select(JobSource).where(JobSource.board == 'beta')))
+release.set()
+worker.join(20)
+assert not worker.is_alive() and len(results) == 1, results
+report = results[0]['report']
+assert results[0]['status'] == 'PARTIAL', results[0]
+assert fetches == ['alpha']
+assert report['scope_changed_sources'] == [{'id': 2, 'name': 'Fixture beta', 'change': 'DELETED'}]
+assert [e['outcome'] for e in report['scope_accounting']] == ['FETCHED', 'NOT_FETCHED_SCOPE_CHANGED']
+assert report['confirmed_scope']['sources_not_fetched'] == 1
+states = {s['source_name']: s['attempt_state'] for s in report[telemetry.REPORT_KEY]['sources']}
+assert states['Fixture beta'] == telemetry.SKIPPED_SCOPE_CHANGED
+assert network_calls == []
+""")
+
+
+@pytest.mark.parametrize('mutation', ['DISABLED', 'EDITED', 'DELETED'])
+def test_source_changed_during_progress_write_is_not_admitted(tmp_path, mutation):
+    """A confirmed source can change while its progress write is pending."""
+    isolated(tmp_path, PRELUDE + "mutation = " + repr(mutation) + r"""
+import backend.scan_control as sc
+from backend import discovery_telemetry as telemetry
+initialize(); add_sources('alpha', 'beta')
+token = sc.preview(sc.PreviewRequest())['token']
+confirmation = sc.confirm(token)
+paused, release = threading.Event(), threading.Event()
+real_progress = m._record_progress
+
+def pause_beta_progress(db, run_id, report, total, done, current):
+    if current == 'Fixture beta':
+        paused.set()
+        assert release.wait(20), 'beta progress was not released'
+    return real_progress(db, run_id, report, total, done, current)
+
+m._record_progress = pause_beta_progress
+results = []
+worker = threading.Thread(target=lambda: results.append(m.task('discover', confirmation=confirmation)))
+worker.start()
+assert paused.wait(20), 'worker never reached beta progress'
+with Session.begin() as db:
+    beta = db.scalar(select(JobSource).where(JobSource.board == 'beta'))
+    if mutation == 'DISABLED':
+        beta.enabled = False
+    elif mutation == 'EDITED':
+        beta.url = 'https://changed.example/feed'
+    else:
+        db.delete(beta)
+release.set()
+worker.join(20)
+assert not worker.is_alive() and len(results) == 1, results
+result = results[0]
+report = result['report']
+assert result['status'] == 'PARTIAL', result['status']
+assert fetches == ['alpha'], fetches
+assert report['scope_changed_sources'] == [{'id': 2, 'name': 'Fixture beta', 'change': mutation}]
+assert [entry['outcome'] for entry in report['scope_accounting']] == ['FETCHED', 'NOT_FETCHED_SCOPE_CHANGED']
+assert report['confirmed_scope']['sources_not_fetched'] == 1
+states = {entry['source_name']: entry['attempt_state'] for entry in report[telemetry.REPORT_KEY]['sources']}
+assert states['Fixture beta'] == telemetry.SKIPPED_SCOPE_CHANGED, states
+assert network_calls == []
+""")
+
+
+@pytest.mark.parametrize('mutation', ['DISABLED', 'EDITED', 'DELETED'])
+def test_source_edit_and_provider_admission_have_one_order(tmp_path, mutation):
+    """A committed edit cannot slip between the last scope read and admission."""
+    isolated(tmp_path, PRELUDE + "mutation = " + repr(mutation) + r"""
+import backend.scan_control as sc
+initialize(); add_sources('alpha', 'beta')
+token = sc.preview(sc.PreviewRequest())['token']
+confirmation = sc.confirm(token)
+paused, release = threading.Event(), threading.Event()
+order, results = [], []
+real_admit = confirmation.cancel.admit
+
+def pause_beta_admission(sid, name):
+    if sid == 2:
+        paused.set()
+        assert release.wait(20), 'beta admission was not released'
+    admitted = real_admit(sid, name)
+    if sid == 2:
+        order.append('admitted')
+    return admitted
+
+confirmation.cancel.admit = pause_beta_admission
+worker = threading.Thread(target=lambda: results.append(m.task('discover', confirmation=confirmation)))
+worker.start()
+assert paused.wait(20), 'worker never reached beta admission'
+
+def edit_beta():
+    with Session.begin() as db:
+        beta = db.scalar(select(JobSource).where(JobSource.board == 'beta'))
+        if mutation == 'DISABLED':
+            beta.enabled = False
+        elif mutation == 'EDITED':
+            beta.url = 'https://changed.example/feed'
+        else:
+            db.delete(beta)
+    order.append('edit_committed')
+
+editor = threading.Thread(target=edit_beta)
+editor.start()
+# The editing transaction has an opportunity to run while admission is held.
+time.sleep(0.2)
+release.set()
+worker.join(20); editor.join(20)
+assert not worker.is_alive() and not editor.is_alive() and len(results) == 1, order
+assert order == ['admitted', 'edit_committed'], order
+assert network_calls == []
+""")
+
+
+def test_source_deleted_while_provider_is_in_flight_is_accounted(tmp_path):
+    """Deleting an admitted source cannot collapse the whole scope report."""
+    isolated(tmp_path, PRELUDE + r"""
+import backend.scan_control as sc
+initialize(); add_sources('beta')
+entered, release = threading.Event(), threading.Event()
+
+def held_discover(adapter, board, url='', cfg=None):
+    fetches.append(board)
+    entered.set()
+    assert release.wait(20), 'provider was not released'
+    return []
+
+m.discover = held_discover
+token = sc.preview(sc.PreviewRequest())['token']
+confirmation = sc.confirm(token)
+results = []
+worker = threading.Thread(target=lambda: results.append(m.task('discover', confirmation=confirmation)))
+worker.start()
+assert entered.wait(20), 'provider was not admitted'
+with Session.begin() as db:
+    beta = db.scalar(select(JobSource).where(JobSource.board == 'beta'))
+    db.delete(beta)
+release.set(); worker.join(20)
+assert not worker.is_alive() and len(results) == 1
+run = discover_runs()[0]
+assert run.status == 'PARTIAL', (run.status, run.report)
+assert run.report['scope_accounting'] == [
+    {'id': 1, 'name': 'Fixture beta', 'outcome': 'FAILED', 'change': 'DELETED',
+     'admitted_before_change': True}
+], run.report['scope_accounting']
+assert run.report['confirmed_scope'] == {
+    'sources_confirmed': 1, 'sources_fetched': 0,
+    'sources_failed': 1, 'sources_not_fetched': 0
+}
+assert run.report['discovery_telemetry']['status'] != 'TELEMETRY_ERROR'
+assert fetches == ['beta'] and network_calls == []
+""")
+
+
+def test_stop_during_source_reservation_timeout_accounts_unfetched_source(tmp_path):
+    """An accepted Stop wins if SQLite's writer reservation times out."""
+    isolated(tmp_path, PRELUDE + r"""
+import backend.scan_control as sc
+from sqlalchemy import event
+initialize(); add_sources('beta')
+token = sc.preview(sc.PreviewRequest())['token']
+confirmation = sc.confirm(token)
+about_to_reserve, release_reservation = threading.Event(), threading.Event()
+real_execute = Session.class_.execute
+
+def pause_reservation(self, statement, *args, **kwargs):
+    if str(statement) == 'BEGIN IMMEDIATE':
+        about_to_reserve.set()
+        assert release_reservation.wait(20), 'reservation not released'
+    return real_execute(self, statement, *args, **kwargs)
+
+Session.class_.execute = pause_reservation
+@event.listens_for(engine, 'checkout')
+def short_busy_timeout(dbapi_connection, connection_record, connection_proxy):
+    dbapi_connection.execute('PRAGMA busy_timeout=500')
+
+results = []
+worker = threading.Thread(target=lambda: results.append(m.task('discover', confirmation=confirmation)))
+worker.start()
+assert about_to_reserve.wait(20), 'worker did not reach reservation'
+blocker = Session()
+blocker.connection().exec_driver_sql('BEGIN IMMEDIATE')
+started = time.monotonic()
+stop = sc.cancel(sc.CancelRequest(run_id=confirmation.run_id))
+assert stop['cancelling'] and stop['source_in_flight'] is None, stop
+assert time.monotonic() - started < 1.0, 'Stop waited on SQLite writer'
+release_reservation.set()
+time.sleep(0.9)  # longer than the reservation's shortened busy timeout
+blocker.rollback(); blocker.close()
+worker.join(20)
+assert not worker.is_alive() and len(results) == 1
+run = discover_runs()[0]
+assert run.status == 'CANCELLED', (run.status, run.report)
+assert run.report['scope_accounting'] == [
+    {'id': 1, 'name': 'Fixture beta', 'outcome': 'NOT_FETCHED_CANCELLED'}
+], run.report['scope_accounting']
+assert run.report['cancelled']['sources_not_fetched'] == 1
+assert fetches == [] and network_calls == []
+""")
+
+
+@pytest.mark.parametrize('stop_requested', [False, True])
+def test_sustained_writer_does_not_orphan_running_scan(tmp_path, stop_requested):
+    """A transient writer lock cannot kill the worker before it can finish the run."""
+    isolated(tmp_path, PRELUDE + 'stop_requested = ' + repr(stop_requested) + r"""
+import backend.scan_control as sc
+from sqlalchemy import event
+initialize(); add_sources('beta')
+token = sc.preview(sc.PreviewRequest())['token']
+confirmation = sc.confirm(token)
+about_to_reserve, release_reservation = threading.Event(), threading.Event()
+real_execute = Session.class_.execute
+
+def pause_reservation(self, statement, *args, **kwargs):
+    if str(statement) == 'BEGIN IMMEDIATE':
+        about_to_reserve.set()
+        assert release_reservation.wait(20), 'reservation not released'
+    return real_execute(self, statement, *args, **kwargs)
+
+Session.class_.execute = pause_reservation
+@event.listens_for(engine, 'checkout')
+def short_busy_timeout(dbapi_connection, connection_record, connection_proxy):
+    dbapi_connection.execute('PRAGMA busy_timeout=300')
+
+results, errors = [], []
+def work():
+    try: results.append(m.task('discover', confirmation=confirmation))
+    except Exception as error: errors.append(type(error).__name__)
+
+worker = threading.Thread(target=work)
+worker.start()
+assert about_to_reserve.wait(20), 'worker did not reach reservation'
+blocker = Session()
+blocker.connection().exec_driver_sql('BEGIN IMMEDIATE')
+if stop_requested:
+    started = time.monotonic()
+    stop = sc.cancel(sc.CancelRequest(run_id=confirmation.run_id))
+    assert stop['cancelling'] and stop['source_in_flight'] is None
+    assert time.monotonic() - started < 1.0
+release_reservation.set()
+time.sleep(1.1)  # longer than both one busy timeout and the old final error write
+assert worker.is_alive() and errors == [], (errors, discover_runs()[0].status)
+blocker.rollback(); blocker.close()
+worker.join(20)
+assert not worker.is_alive() and errors == [] and len(results) == 1, errors
+run = discover_runs()[0]
+assert run.status == ('CANCELLED' if stop_requested else 'COMPLETED'), (run.status, run.report)
+assert run.report['scope_accounting'] == [
+    {'id': 1, 'name': 'Fixture beta',
+     'outcome': 'NOT_FETCHED_CANCELLED' if stop_requested else 'FETCHED'}
+], run.report['scope_accounting']
+assert fetches == ([] if stop_requested else ['beta']) and network_calls == []
+""")
+
+
+def test_stop_survives_sustained_progress_writer_without_incomplete_accounting(tmp_path):
+    """A locked progress write must resume and honor an already accepted Stop."""
+    isolated(tmp_path, PRELUDE + r"""
+import backend.scan_control as sc
+from sqlalchemy import event
+initialize(); add_sources('beta')
+token = sc.preview(sc.PreviewRequest())['token']
+confirmation = sc.confirm(token)
+about_to_write, release_progress = threading.Event(), threading.Event()
+real_progress = m._record_progress
+
+def held_progress(db, run_id, report, total, done, current):
+    if current == 'Fixture beta':
+        about_to_write.set()
+        assert release_progress.wait(20), 'progress write not released'
+    return real_progress(db, run_id, report, total, done, current)
+
+m._record_progress = held_progress
+@event.listens_for(engine, 'checkout')
+def short_busy_timeout(dbapi_connection, connection_record, connection_proxy):
+    dbapi_connection.execute('PRAGMA busy_timeout=300')
+
+results, errors = [], []
+def work():
+    try: results.append(m.task('discover', confirmation=confirmation))
+    except Exception as error: errors.append(type(error).__name__)
+
+worker = threading.Thread(target=work)
+worker.start()
+assert about_to_write.wait(20), 'worker did not reach progress write'
+blocker = Session()
+blocker.connection().exec_driver_sql('BEGIN IMMEDIATE')
+started = time.monotonic()
+stop = sc.cancel(sc.CancelRequest(run_id=confirmation.run_id))
+assert stop['cancelling'] and stop['source_in_flight'] is None
+assert time.monotonic() - started < 1.0
+release_progress.set()
+time.sleep(1.1)
+assert worker.is_alive() and errors == [], (errors, discover_runs()[0].status)
+blocker.rollback(); blocker.close()
+worker.join(20)
+assert not worker.is_alive() and errors == [] and len(results) == 1, errors
+run = discover_runs()[0]
+assert run.status == 'CANCELLED', (run.status, run.report)
+assert run.report['scope_accounting'] == [
+    {'id': 1, 'name': 'Fixture beta', 'outcome': 'NOT_FETCHED_CANCELLED'}
+], run.report['scope_accounting']
+assert not run.report.get('scope_accounting_incomplete')
+assert fetches == [] and network_calls == []
+""")
+
+
+@pytest.mark.parametrize('stop_requested', [False, True])
+def test_source_deleted_during_progress_retry_is_named_before_admission(tmp_path, stop_requested):
+    """Rollback on a busy progress write must not dereference a deleted row."""
+    isolated(tmp_path, PRELUDE + 'stop_requested = ' + repr(stop_requested) + r"""
+import backend.scan_control as sc
+from sqlalchemy import event
+initialize(); add_sources('beta')
+token = sc.preview(sc.PreviewRequest())['token']
+confirmation = sc.confirm(token)
+about_to_write, release_progress = threading.Event(), threading.Event()
+real_progress = m._record_progress
+
+def held_progress(db, run_id, report, total, done, current):
+    if current == 'Fixture beta':
+        about_to_write.set()
+        assert release_progress.wait(20), 'progress write not released'
+    return real_progress(db, run_id, report, total, done, current)
+
+m._record_progress = held_progress
+@event.listens_for(engine, 'checkout')
+def short_busy_timeout(dbapi_connection, connection_record, connection_proxy):
+    dbapi_connection.execute('PRAGMA busy_timeout=300')
+
+results, errors = [], []
+def work():
+    try: results.append(m.task('discover', confirmation=confirmation))
+    except Exception as error: errors.append(type(error).__name__)
+
+worker = threading.Thread(target=work)
+worker.start()
+assert about_to_write.wait(20), 'worker did not reach progress write'
+blocker = Session()
+blocker.connection().exec_driver_sql('BEGIN IMMEDIATE')
+beta = blocker.scalar(select(JobSource).where(JobSource.board == 'beta'))
+blocker.delete(beta); blocker.flush()
+if stop_requested:
+    stop = sc.cancel(sc.CancelRequest(run_id=confirmation.run_id))
+    assert stop['cancelling'] and stop['source_in_flight'] is None, stop
+release_progress.set()
+time.sleep(0.7)  # worker's first progress write times out and rolls back
+blocker.commit(); blocker.close()
+worker.join(20)
+assert not worker.is_alive() and errors == [] and len(results) == 1, errors
+run = discover_runs()[0]
+assert run.status == ('CANCELLED' if stop_requested else 'PARTIAL'), (run.status, run.report)
+assert run.report['scope_changed_sources'] == [
+    {'id': 1, 'name': 'Fixture beta', 'change': 'DELETED'}
+], run.report['scope_changed_sources']
+assert run.report['scope_accounting'] == [
+    {'id': 1, 'name': 'Fixture beta', 'change': 'DELETED', 'outcome': 'NOT_FETCHED_SCOPE_CHANGED'}
+], run.report['scope_accounting']
+assert not run.report.get('scope_accounting_incomplete')
+assert fetches == [] and network_calls == []
+""")
+
+
+def test_stop_returns_while_report_write_is_held_and_status_is_truthful(tmp_path):
+    """B2: a slow report write cannot delay Stop or hide its accepted state."""
+    isolated(tmp_path, PRELUDE + r"""
+initialize(); add_sources('alpha', 'beta')
+paused, release = threading.Event(), threading.Event()
+real_progress = m._record_progress
+
+def held_progress(db, run_id, report, total, done, current):
+    if current == 'Fixture beta':
+        real_refresh = db.refresh
+        def held_refresh(row, *args, **kwargs):
+            result = real_refresh(row, *args, **kwargs)
+            if isinstance(row, AutomationRun):
+                paused.set()
+                assert release.wait(20), 'test held the progress write too long'
+            return result
+        db.refresh = held_refresh
+        try:
+            return real_progress(db, run_id, report, total, done, current)
+        finally:
+            db.refresh = real_refresh
+    return real_progress(db, run_id, report, total, done, current)
+
+m._record_progress = held_progress
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert paused.wait(20)
+    responses = []
+    stopper = threading.Thread(target=lambda: responses.append(c.post('/api/scan/cancel', json={'run_id': run_id})))
+    stopper.start()
+    try:
+        assert wait_for(lambda: bool(responses), timeout=2), 'Stop waited behind the report write'
+        stop = responses[0]
+        assert stop.status_code == 200 and stop.json()['cancelling'], stop.text
+        assert stop.json()['source_in_flight'] is None, stop.json()
+        active = c.get('/api/scan/status').json()['active']
+        assert active['cancel_requested_at'] and active['progress']['current_source'] is None, active
+    finally:
+        release.set()
+        stopper.join(20)
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+assert last['status'] == 'CANCELLED' and last['cancel_requested_at'], last
+assert fetches == ['alpha'] and network_calls == []
+with Session() as db:
+    run = db.get(AutomationRun, run_id)
+    assert run.report['cancel_requested_at'] == last['cancel_requested_at']
+    assert [e['outcome'] for e in run.report['scope_accounting']] == ['FETCHED', 'NOT_FETCHED_CANCELLED']
+""")
+
+def test_stop_during_admitted_source_database_write(tmp_path):
+    """B2: a >30-second source write cannot delay Stop or admit the next."""
+    isolated(tmp_path, PRELUDE + r"""
+from sqlalchemy import event
+import backend.scan_control as sc
+initialize(); add_sources('alpha', 'beta')
+paused, release = threading.Event(), threading.Event()
+
+def hold_source_commit(db, flush_context):
+    if (threading.current_thread().name.startswith('astra-manual-scan-')
+            and any(isinstance(row, JobSource) and row.board == 'alpha'
+                    and 'last_success' in row.details for row in db.dirty)):
+        paused.set()
+        assert release.wait(60), 'test held the source write too long'
+
+event.listen(Session.class_, 'after_flush', hold_source_commit)
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert paused.wait(20)
+    responses = []
+    stopper = threading.Thread(target=lambda: responses.append(c.post('/api/scan/cancel', json={'run_id': run_id})))
+    stopper.start()
+    try:
+        assert wait_for(lambda: bool(responses), timeout=2), 'Stop waited behind the source write'
+        stop = responses[0]
+        assert stop.status_code == 200 and stop.json()['source_in_flight'] == 'Fixture alpha', stop.text
+        assert sc._stop_record_path(run_id).is_file()
+        with Session() as db:
+            assert not (db.get(AutomationRun, run_id).report or {}).get('cancel_requested_at')
+        active = c.get('/api/scan/status').json()['active']
+        assert active['cancel_requested_at'] and active['progress']['current_source'] == 'Fixture alpha'
+        time.sleep(31)  # hold the SQLite writer past its 30-second busy timeout
+        assert len(responses) == 1 and c.get('/api/scan/status').json()['active']['cancel_requested_at']
+    finally:
+        release.set()
+        stopper.join(20)
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+assert last['status'] == 'CANCELLED' and last['cancel_requested_at'], last
+assert fetches == ['alpha'] and network_calls == []
+assert not sc._stop_record_path(run_id).exists()
+with Session() as db:
+    report = db.get(AutomationRun, run_id).report
+    assert report['cancel_requested_at'] == last['cancel_requested_at']
+    assert report['cancelled']['source_in_flight_at_stop'] == {'id': 1, 'name': 'Fixture alpha'}
+    assert [e['outcome'] for e in report['scope_accounting']] == ['FETCHED', 'NOT_FETCHED_CANCELLED']
+""")
+
+
+def test_stop_record_write_failure_is_not_acknowledged(tmp_path):
+    """Stop must refuse when its durable record cannot be saved."""
+    isolated(tmp_path, PRELUDE + r"""
+import backend.scan_control as sc
+initialize(); add_sources('alpha', 'beta')
+gate.clear()
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert wait_for(lambda: fetches == ['alpha'])
+    original = sc._write_stop_record
+    sc._write_stop_record = lambda *a: (_ for _ in ()).throw(OSError('fictional disk failure'))
+    try:
+        response = c.post('/api/scan/cancel', json={'run_id': run_id})
+        assert response.status_code == 503 and response.json()['stop_not_accepted'] is True
+        assert not sc._cancel[run_id].is_set()
+        assert not c.get('/api/scan/status').json()['active']['cancel_requested_at']
+        assert not sc._stop_record_path(run_id).exists()
+    finally:
+        sc._write_stop_record = original
+        gate.set()
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+assert last['status'] == 'COMPLETED' and not last['cancel_requested_at']
+assert fetches == ['alpha', 'beta'] and network_calls == []
+""")
+
+
+def test_stop_record_installed_but_flush_failed_is_reported_uncertain(tmp_path):
+    """A post-rename error must not claim a durable 200 Stop response."""
+    isolated(tmp_path, PRELUDE + r"""
+import os
+import backend.scan_control as sc
+initialize(); add_sources('alpha', 'beta')
+gate.clear()
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert wait_for(lambda: fetches == ['alpha'])
+    original = sc._durable_replace
+    def installed_then_error(source, target):
+        os.replace(source, target)
+        raise OSError('fictional directory flush failure')
+    sc._durable_replace = installed_then_error
+    try:
+        response = c.post('/api/scan/cancel', json={'run_id': run_id})
+        assert response.status_code == 503 and response.json()['stop_outcome_uncertain'] is True
+        stopped_at = response.json()['cancel_requested_at']
+        assert sc._stop_record_path(run_id).is_file()
+        active = c.get('/api/scan/status').json()['active']
+        assert active['cancel_requested_at'] == stopped_at and active['stop_durable'] is False
+        assert sc._cancel[run_id].is_set()
+    finally:
+        sc._durable_replace = original
+    retry = c.post('/api/scan/cancel', json={'run_id': run_id})
+    assert retry.status_code == 200 and retry.json()['cancel_requested_at'] == stopped_at
+    assert c.get('/api/scan/status').json()['active']['stop_durable'] is True
+    gate.set()
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+assert last['status'] == 'CANCELLED' and last['cancel_requested_at'] == stopped_at
+assert fetches == ['alpha'] and network_calls == []
+""")
+
+
+def test_accepted_stop_keeps_timestamp_when_worker_finalizes_after_error(tmp_path):
+    """A later task error leaves an honest incomplete report and accepted Stop."""
+    isolated(tmp_path, PRELUDE + r"""
+from backend import discovery_telemetry as telemetry
+initialize(); add_sources('alpha', 'beta')
+paused, release = threading.Event(), threading.Event()
+real_progress = m._record_progress
+
+def broken_progress(db, run_id, report, total, done, current):
+    if current == 'Fixture beta':
+        paused.set()
+        assert release.wait(20)
+        raise RuntimeError('fictional report write failure')
+    return real_progress(db, run_id, report, total, done, current)
+
+m._record_progress = broken_progress
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert paused.wait(20)
+    stop = c.post('/api/scan/cancel', json={'run_id': run_id})
+    assert stop.status_code == 200 and stop.json()['source_in_flight'] is None
+    release.set()
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+assert last['status'] == 'CANCELLED' and last['cancel_requested_at'], last
+assert 'error' in last and last['error'] and fetches == ['alpha'] and network_calls == []
+with Session() as db:
+    report = db.get(AutomationRun, run_id).report
+    assert report['cancel_requested_at'] == last['cancel_requested_at']
+    assert report['scope_accounting_incomplete'] is True
+    assert report['confirmed_scope']['sources_incomplete'] == 1
+    assert [e['outcome'] for e in report['scope_accounting']] == ['FETCHED', 'INCOMPLETE_TASK_FAILURE']
+    assert report[telemetry.REPORT_KEY]['status'] == 'TELEMETRY_ERROR'
+    assert report[telemetry.REPORT_KEY]['funnel'] is None
+""")
+
 
 def test_preview_display_and_token_binding_come_from_one_snapshot(tmp_path):
     """A1: a concurrent edit landing while the preview is being built can
