@@ -6,7 +6,7 @@
  "outcomes": {
   "EXISTING_PERMITTED_ADAPTER": "An adapter ASTRA already has and may use (Greenhouse, Lever, Ashby). None of these employers uses one.",
   "MANUAL_LINK": "A verified official link shown to the user, with a verified reason ASTRA cannot read the postings. It is never counted as an automatically found or confirmed-open job.",
-  "UNRESOLVED": "Neither a readable board nor a verified official link was established; the exact blocker is given.",
+  "UNRESOLVED": "The permitted Owner-machine route established neither a readable board nor a verified official link; the exact blocker is given. Later remote web observations remain follow-up evidence until Owner-browser confirmation.",
   "SMARTRECRUITERS_OWNER_DECISION": "The employer's own page links a SmartRecruiters board. ASTRA has a legacy SmartRecruiters path, but its API terms are an unsettled Owner decision; no SmartRecruiters API call was made."
  },
  "rules": [
@@ -15,7 +15,8 @@
   "Holdout employers (NMC, DP World): no role examples, so the holdout stays untouched.",
   "Role examples are a few titles for orientation, not coverage counts and not claims that a job is open.",
   "Every re-researched or new row was independently verified from this machine before it was recorded; a classification the verifier corrected is recorded as corrected, except where the correction rested on ATS branding alone (see the next rule).",
-  "One officialness rule for every row: only the employer's own domain, or an ATS linked from the employer's own page, counts as official. An ATS tenant attributed only by its branding is kept as an unverified lead and the row stays UNRESOLVED. Aggregators never count."
+  "One officialness rule for every row: only the employer's own domain, or an ATS linked from the employer's own page, counts as official. An ATS tenant attributed only by its branding is kept as an unverified lead and the row stays UNRESOLVED. Aggregators never count.",
+  "External web-reader follow-up on 2026-09-26 is recorded separately from the original Owner-machine evidence_requests. It does not establish Owner-machine reachability or change a row's outcome without Owner-browser confirmation."
  ],
  "counts": {
   "EXISTING_PERMITTED_ADAPTER": 0,
@@ -23,6 +24,7 @@
   "MANUAL_LINK": 48,
   "UNRESOLVED": 7
  },
+ "counts_caveat": "The zero SMARTRECRUITERS_OWNER_DECISION outcome is not a platform count. Masdar and Etihad Airways are MANUAL_LINK rows using SmartRecruiters; API access remains an Owner decision and no SmartRecruiters API call was made for this research.",
  "rows": [
   {
    "employer": "M42 / Mubadala Health",
@@ -3224,13 +3226,13 @@
    "official_link": "https://www.emiratesislamic.ae/en/careers (not readable by a permitted route)",
    "unverified_candidate_link": {
     "url": "https://fa-evlo-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2",
-    "why_unverified": "Unverified: attributed only by the tenant's branding. It becomes a MANUAL_LINK once the employer's own careers page is seen to link it, for example by the Owner opening that page in a browser."
+    "why_unverified": "The original permitted Owner-machine route could not read the employer page and attributed this tenant by branding. A separate 2026-09-26 remote web follow-up observed the employer's current careers page linking this exact tenant. Owner-browser confirmation remains pending under the original v4 protocol."
    },
    "platform": "Oracle Recruiting Cloud (Candidate Experience, site CX_2 on the Emirates NBD group tenant)",
    "outcome": "UNRESOLVED",
    "access_method": "none verified",
    "limitation": null,
-   "blocker": "www.emiratesislamic.ae answers robots.txt with a Cloudflare block (403), so no Emirates Islamic page could show a link to an ATS. An ATS tenant carries the employer's branding, but branding alone is not accepted as official under the source map's rule.",
+   "blocker": "The original Owner-machine read of www.emiratesislamic.ae/robots.txt received a Cloudflare block (403), so no employer-page ATS link was verified by that permitted route. A separate remote web follow-up observed the current employer careers page forwarding to the Oracle tenant; Owner-browser confirmation remains pending.",
    "coverage_caveat": null,
    "adapter": null,
    "uae_role_examples": [],
@@ -3238,9 +3240,9 @@
    "evidence_at": "2026-09-26T07:06:08Z",
    "adapter_candidate": null,
    "platform_evidence": "hcmUI/CandidateExperience page (HTTP 200) with sitenumber=\"CX_2\". The Oracle host's robots.txt returns 404, which RFC 9309 treats as no restrictions. The public requisition list for CX_2 answered HTTP 200 with JSON.",
-   "officialness_evidence": "The employer's own site is not fetchable: www.emiratesislamic.ae/robots.txt returns a Cloudflare 'Attention Required!' block (403). So this is an ATS tenant named with the employer's own branding, not a link seen on its page. Site CX_2 has <title> 'Emirate Islamic Bank Recruitment Team' (sic) and og:image 'logo-emirates-islamic.png'. The same Oracle tenant hosts CX_1, titled 'ENBD Recruitment Team' with 'logo-emiratesnbd-2024.png', which is Emirates NBD, the parent group of Emirates Islamic. The tenant came from a web-search lead and was then fetched.",
+   "officialness_evidence": "In the original Owner-machine read, www.emiratesislamic.ae/robots.txt returned a Cloudflare 'Attention Required!' block (403), so that route did not observe a link from the employer page. Site CX_2 had <title> 'Emirate Islamic Bank Recruitment Team' (sic) and og:image 'logo-emirates-islamic.png'. The same Oracle tenant hosts CX_1, titled 'ENBD Recruitment Team' with 'logo-emiratesnbd-2024.png', which is Emirates NBD, the parent group of Emirates Islamic. The tenant came from a web-search lead and was then fetched. The separate remote web follow-up below found the current official careers page forwarding to CX_2; Owner-browser confirmation is pending.",
    "officialness_basis": "ATS_BRANDING_ONLY_NOT_ACCEPTED",
-   "change_since_previous": "Docs (audit 7.3) had https://www.emiratesislamic.ae/en/careers returning 403, platform UNKNOWN. Now: the employer host blocks even robots.txt (Cloudflare 403), so it is not fetchable. The EI-branded Oracle Recruiting Cloud site CX_2 was found on the Emirates NBD group tenant. UNKNOWN -> MANUAL_LINK (Oracle).",
+   "change_since_previous": "Docs (audit 7.3) had https://www.emiratesislamic.ae/en/careers returning 403, platform UNKNOWN. The original Owner-machine check found robots.txt blocked by Cloudflare and an EI-branded Oracle CX_2 candidate, so the row was recorded UNRESOLVED rather than MANUAL_LINK. A separate remote web follow-up found that the current /en/about-us/careers page links CX_2; Owner-browser confirmation is pending.",
    "confidence": "MEDIUM",
    "verification": {
     "independent": true,
@@ -3326,7 +3328,17 @@
     }
    ],
    "research_round": 2,
-   "notes": "MEDIUM because officialness rests on tenant branding (the site title contains a typo) and on the shared tenant with Emirates NBD's own recruitment site; no link from emiratesislamic.ae could be observed. The requisition read listed banking and branch roles, none IT or security, and most titles say 'UAE Nationals Only' or 'UAEN'. That wording is recorded as-is, with no inference about eligibility."
+   "external_web_follow_up": {
+    "observed_date": "2026-09-26",
+    "access_method": "Remote web reader opened the employer's official careers page and followed its vacancy link; no Owner-machine HTTP request or job-site API call was made in this follow-up.",
+    "employer_page": "https://www.emiratesislamic.ae/en/about-us/careers",
+    "link_label": "View Vacancies",
+    "destination": "https://fa-evlo-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2",
+    "observation": "The official employer page forwarded to the exact Oracle CX_2 tenant previously identified by branding. The original v4 attempt used /en/careers rather than this current /en/about-us/careers page.",
+    "owner_machine_status": "Not rechecked; original Cloudflare response on robots.txt blocked a permitted Owner-machine read. Owner-browser confirmation of the employer page and link is pending.",
+    "classification_effect": "None yet; keep UNRESOLVED under the original v4 evidence protocol. Oracle has no ASTRA adapter even if the manual destination is confirmed."
+   },
+   "notes": "MEDIUM because original Owner-machine officialness evidence rested on tenant branding (the site title contains a typo) and on the shared tenant with Emirates NBD's own recruitment site; no employer-page link was observed by that route. The separate 2026-09-26 remote web follow-up above found a forward link. The requisition read listed banking and branch roles, none IT or security, and most titles say 'UAE Nationals Only' or 'UAEN'. That wording is recorded as-is, with no inference about eligibility."
   },
   {
    "employer": "Emirates Steel Arkan (now EMSTEEL)",
@@ -3668,23 +3680,23 @@
    "official_link": "https://www.hct.ac.ae/en/careers/ (not readable by a permitted route)",
    "unverified_candidate_link": {
     "url": "https://iaavey.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1",
-    "why_unverified": "Unverified: attributed only by the tenant's branding. It becomes a MANUAL_LINK once the employer's own careers page is seen to link it, for example by the Owner opening that page in a browser."
+    "why_unverified": "The original permitted Owner-machine route could not read the employer page and attributed this tenant by branding. A separate 2026-09-26 remote web follow-up observed the employer's careers page linking this exact tenant. Owner-browser confirmation remains pending under the original v4 protocol."
    },
-   "platform": "UNKNOWN (docs reported Oracle Recruiting Cloud signatures, site CX_1; not re-verified)",
+   "platform": "Oracle Recruiting Cloud (Candidate Experience, site CX_1; tenant identified by the independent verifier)",
    "outcome": "UNRESOLVED",
    "access_method": "none verified",
    "limitation": null,
-   "blocker": "hct.ac.ae cannot be read by a permitted route (its robots.txt redirects to itself in a loop), so no HCT page could show a link to an ATS. An ATS tenant carries the employer's branding, but branding alone is not accepted as official under the source map's rule.",
+   "blocker": "The original Owner-machine read of hct.ac.ae/robots.txt entered a redirect loop, so no employer-page ATS link was verified by that permitted route. A separate remote web follow-up observed the official careers page forwarding to the Oracle tenant; Owner-browser confirmation remains pending.",
    "coverage_caveat": null,
    "adapter": null,
    "uae_role_examples": [],
    "locations": null,
    "evidence_at": "2026-09-26T07:01:59Z",
    "adapter_candidate": null,
-   "platform_evidence": "None from this machine. robots.txt on www.hct.ac.ae returns a 301 to https://hct.ac.ae/robots.txt/. That returns a 301 to /robots.txt//, which then redirects to itself forever (loop detected). Under the rules this robots.txt is unreadable, so neither host was fetched past robots.txt.",
-   "officialness_evidence": "The employer's own domain is hct.ac.ae, but its careers page could not be opened because robots.txt on the host is unreadable. No HCT-branded ATS tenant was found as a fallback: two web searches for an Oracle CandidateExperience site naming HCT gave no lead.",
+   "platform_evidence": "The original researcher could not fetch the employer host: www.hct.ac.ae/robots.txt redirected to https://hct.ac.ae/robots.txt/, then /robots.txt// and a loop. The independent verifier later fetched the HCT-branded Oracle CX_1 tenant from this machine (see verification evidence); the separate remote web follow-up found the employer-page forward link. No HCT employer page was fetched by the original Owner-machine route.",
+   "officialness_evidence": "The employer's own domain is hct.ac.ae, but the original Owner-machine route could not open its careers page because robots.txt entered a redirect loop. The independent verifier subsequently identified an HCT-branded Oracle CX_1 tenant, but could not observe an employer-page forward link from that machine. The separate remote web follow-up below found the official careers page forwarding to that exact tenant; Owner-browser confirmation is pending.",
    "officialness_basis": "ATS_BRANDING_ONLY_NOT_ACCEPTED",
-   "change_since_previous": "Docs had hct.ac.ae careers with Oracle Fusion/Recruiting signatures (site CX_1), tenant unresolved (sources: ADAPTER_NEEDED; audit 7.3: tenant unresolved). Now the host's robots.txt is unreadable (redirect loop), so under the robots rule the earlier Oracle signature cannot be re-verified and no tenant was confirmed. Still unresolved; the blocker is now the robots.txt redirect loop, not just a missing tenant.",
+   "change_since_previous": "Docs had hct.ac.ae careers with Oracle Fusion/Recruiting signatures (site CX_1), tenant unresolved (sources: ADAPTER_NEEDED; audit 7.3: tenant unresolved). The original Owner-machine route could not read the employer page because robots.txt entered a redirect loop. The independent verifier identified an HCT-branded Oracle CX_1 candidate, but not an employer-page link by that route, so the row stayed UNRESOLVED. A separate remote web follow-up found the exact forward link; Owner-browser confirmation is pending.",
    "confidence": "HIGH",
    "verification": {
     "independent": true,
@@ -3818,7 +3830,17 @@
     }
    ],
    "research_round": 2,
-   "notes": "11 HTTP requests, all on robots.txt; this is slightly over the ~10 budget because of the redirect loop, and I then stopped. No page on hct.ac.ae was fetched. A person opening the HCT site in a browser, or a later session with a readable robots.txt, could find the Oracle tenant link."
+   "external_web_follow_up": {
+    "observed_date": "2026-09-26",
+    "access_method": "Remote web reader opened the employer's official careers page and followed its vacancy link; no Owner-machine HTTP request or job-site API call was made in this follow-up.",
+    "employer_page": "https://hct.ac.ae/en/careers/",
+    "link_label": "Current Vacancies",
+    "destination": "https://iaavey.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1",
+    "observation": "The official employer page forwarded to the exact Oracle CX_1 tenant previously identified by branding.",
+    "owner_machine_status": "Not rechecked; original robots.txt redirect loop blocked a permitted Owner-machine read. Owner-browser confirmation of the employer page and link is pending.",
+    "classification_effect": "None yet; keep UNRESOLVED under the original v4 evidence protocol. Oracle has no ASTRA adapter even if the manual destination is confirmed."
+   },
+   "notes": "The original researcher made 11 HTTP requests to robots.txt during the redirect-loop diagnostic, slightly over the roughly ten-request budget, then stopped. The independent verifier later fetched the Oracle tenant from this machine. No employer page on hct.ac.ae was fetched by the Owner-machine route. The separate 2026-09-26 remote web follow-up above found a forward link, pending Owner-browser confirmation."
   },
   {
    "employer": "Injazat",
@@ -4499,6 +4521,7 @@
  "changes": [
   "2026-09-22: NMC official_link changed from the homepage to the verified Careers destination (CX_1), with CX_1001 recorded as the menu's UAE National Careers link. No NMC job example opened (holdout employer).",
   "2026-09-26 (v4): the 12 v3 UNRESOLVED employers were re-researched and independently verified: TAQA -> MANUAL_LINK, e& -> MANUAL_LINK, Help AG -> MANUAL_LINK, Jumeirah Group -> MANUAL_LINK, Khalifa University -> MANUAL_LINK, New York University Abu Dhabi -> MANUAL_LINK, Zayed University -> UNRESOLVED, EWEC -> MANUAL_LINK, ADCB -> MANUAL_LINK, Aramex -> MANUAL_LINK, PureHealth -> UNRESOLVED, Aster DM Healthcare (GCC) -> MANUAL_LINK.",
-  "2026-09-26 (v4): 23 UAE employers recorded as unresolved in the #46.2 SOURCES and COVERAGE_AUDIT documents but absent from v3 were researched, verified and added."
+   "2026-09-26 (v4): 23 UAE employers recorded as unresolved in the #46.2 SOURCES and COVERAGE_AUDIT documents but absent from v3 were researched, verified and added.",
+   "2026-09-26 (remote web follow-up): HCT and Emirates Islamic employer pages forwarded to their recorded Oracle tenants in a remote web reader. Original Owner-machine access blockers and UNRESOLVED classifications remain pending Owner-browser confirmation; counts stay 48 MANUAL_LINK and 7 UNRESOLVED."
  ]
 }

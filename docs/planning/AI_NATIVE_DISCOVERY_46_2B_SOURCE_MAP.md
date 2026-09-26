@@ -7,11 +7,13 @@
 - `EXISTING_PERMITTED_ADAPTER` — An adapter ASTRA already has and may use (Greenhouse, Lever, Ashby).
 - `SMARTRECRUITERS_OWNER_DECISION` — The employer's own page links a SmartRecruiters board. ASTRA has a legacy SmartRecruiters path, but its API terms are an unsettled Owner decision.
 - `MANUAL_LINK` — A verified official link shown to the user, with a verified reason ASTRA cannot read the postings. It is never counted as an automatically found or confirmed-open job.
-- `UNRESOLVED` — Neither a readable board nor a verified official link was established; the exact blocker is given.
+- `UNRESOLVED` — The permitted Owner-machine route established neither a readable board nor a verified official link; the exact blocker is given. Later remote web observations remain follow-up evidence until Owner-browser confirmation.
 
 **Result: 0 existing permitted adapter, 0 SmartRecruiters (Owner decision), 48 `MANUAL_LINK`, 7 unresolved, out of 55 employers.**
 
 No researched UAE employer uses Greenhouse, Lever or Ashby, so no row is covered automatically. A `MANUAL_LINK` is a link for the user to open. It is never an automatically found job, and never a confirmed-open one.
+
+The zero `SMARTRECRUITERS_OWNER_DECISION` outcome is a classification count, not a count of employers using that platform. Masdar and Etihad Airways are recorded as `MANUAL_LINK` on SmartRecruiters. Its API access remains an Owner decision; no SmartRecruiters API call was made for this research.
 
 **Rules followed**
 
@@ -21,14 +23,25 @@ No researched UAE employer uses Greenhouse, Lever or Ashby, so no row is covered
 - Role examples are a few titles for orientation, not coverage counts and not claims that a job is open.
 - Every re-researched or new row was independently verified from this machine before it was recorded; a classification the verifier corrected is recorded as corrected, except where the correction rested on ATS branding alone (see the next rule).
 - One officialness rule for every row: only the employer's own domain, or an ATS linked from the employer's own page, counts as official. An ATS tenant attributed only by its branding is kept as an unverified lead and the row stays UNRESOLVED. Aggregators never count.
-- Every request was made from the Owner's machine with a descriptive read-only User-Agent; each re-researched or new row lists its requests (URL, robots decision, status, UTC time) in the JSON.
+- Every original v4 research request was made from the Owner's machine with a descriptive read-only User-Agent; each re-researched or new row lists its requests (URL, robots decision, status, UTC time) in the JSON. The later remote web-reader observations below are separate and are not represented as Owner-machine requests.
 
 ## Changes in v4
 
 - **The 12 v3 `UNRESOLVED` employers were re-researched and independently verified:** TAQA → `MANUAL_LINK`, e& → `MANUAL_LINK`, Help AG → `MANUAL_LINK`, Jumeirah Group → `MANUAL_LINK`, Khalifa University → `MANUAL_LINK`, New York University Abu Dhabi → `MANUAL_LINK`, Zayed University → `UNRESOLVED`, EWEC → `MANUAL_LINK`, ADCB → `MANUAL_LINK`, Aramex → `MANUAL_LINK`, PureHealth → `UNRESOLVED`, Aster DM Healthcare (GCC) → `MANUAL_LINK`.
 - **23 employers were added.** The #46.2 SOURCES and COVERAGE_AUDIT documents recorded them as unresolved, but v3 did not cover them. Each was researched and independently verified.
 - A verifier re-checked every re-researched or new row from this machine; where the verifier corrected a classification, the corrected one is recorded.
-- **One officialness rule for every row.** For Emirates Islamic, Higher Colleges of Technology, du (Emirates Integrated Telecommunications), the verifier accepted an ATS tenant on its branding alone, because the employer's own site could not be read by a permitted route. v3's rule accepts only the employer's own domain or an ATS linked from its own page, so these rows are recorded `UNRESOLVED`, with the tenant as an unverified lead the Owner can confirm in a browser.
+- **One officialness rule for every row.** In the original Owner-machine research, the verifier accepted an ATS tenant for Emirates Islamic, Higher Colleges of Technology and du (Emirates Integrated Telecommunications) on branding alone because the employer pages could not be read by a permitted route. The recorded outcome is `UNRESOLVED` for all three. A separate web-reader check found employer-page forward links for the first two, but their Owner-machine access remains unverified; see below.
+
+## Remote web follow-up: two forward links pending Owner-machine confirmation (2026-09-26)
+
+This follow-up opened each employer's own careers page through a remote web reader and followed the named link. It did not make an HTTP request from the Owner's machine or call a job-site API. The original Owner-machine robots and WAF blockers remain as recorded in the JSON request log. These observations challenge the branding-only description of the links, but do not establish that ASTRA can read either employer page by its permitted route or that the Owner can open the links in a browser. Both rows remain `UNRESOLVED` under the original v4 evidence protocol; the aggregate stays 48 `MANUAL_LINK` and 7 unresolved.
+
+| Employer | Official employer page opened by remote web reader | Forward link observed | Pending check |
+|---|---|---|---|
+| Higher Colleges of Technology | https://hct.ac.ae/en/careers/ | “Current Vacancies” → https://iaavey.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1 | Owner browser confirms the link and destination; Owner-machine robots redirect loop remains unresolved for automated reading. |
+| Emirates Islamic | https://www.emiratesislamic.ae/en/about-us/careers | “View Vacancies” → https://fa-evlo-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2 | Owner browser confirms the current page and destination; Owner-machine Cloudflare block remains unresolved for automated reading. The original v4 request used `/en/careers`, a different path. |
+
+The Oracle destinations still have no ASTRA adapter. A confirmed browser link could support a manual destination; it would not make either employer automatically covered or prove that a posting is open. The JSON keeps the web follow-up outside `evidence_requests`, which records only the original Owner-machine research.
 
 ## Verified `MANUAL_LINK` (official link and reason ASTRA cannot read it, both verified)
 
@@ -91,7 +104,9 @@ No researched UAE employer uses Greenhouse, Lever or Ashby, so no row is covered
 
 ## Unresolved, with the exact blocker
 
-| Employer | Sector | Link tried | Blocker | Unverified lead (not official) | Record |
+The table records the original Owner-machine permitted-route blockers. The HCT and Emirates Islamic forward-link evidence above is a later, separate web observation pending Owner-browser confirmation.
+
+| Employer | Sector | Link tried | Blocker | Unverified lead under Owner-machine protocol | Record |
 |---|---|---|---|---|---|
 | Zayed University | Education | https://www.zu.ac.ae/main/en/careers/index | zu.ac.ae is unreachable from this machine, including robots.txt, so no ZU path may be fetched. A handshake-only diagnostic (no HTTP request sent) showed a TCP connection to 195.229.145.125 succeeding and the TLS handshake then being reset (WinError 10054). The refusal therefore happens at the network or TLS level, before any User-Agent is sent. It is not caused by our client string and must not be worked around. Without ZU's own page, the Oracle CX_1 site cannot be verified as official under the forward-link rule. | https://fa-evge-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/ | verified 2026-09-26 (re-researched), 2026-09-26T01:46:17Z |
 | PureHealth | Healthcare | https://purehealth.ae/careers/ | Cloudflare WAF blocks this client on purehealth.ae and www.purehealth.ae: HTTP 403 'Sorry, you have been blocked', even on /robots.txt. The rules forbid bypassing bot protection. Without the employer's own page, no ATS link can be attributed to PureHealth group. The SEHA Oracle board (CX_1) is SEHA's, not a verified PureHealth group board. There is no verified direct-link fallback for PureHealth itself. For PureHealth-network hospital roles, the Owner can use the existing SEHA MANUAL_LINK. Search leads also show PureHealth listings on third-party aggregators; those are not official and were not fetched. | — | verified 2026-09-26 (re-researched), 2026-09-26T01:45:39Z |
