@@ -152,7 +152,6 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                 run=db.get(AutomationRun,run_id); db.refresh(run); prior=dict(run.report or {})
             report={'discovered':0,'duplicates':0,'prepared':0,'submitted':0,'failures':0,'trigger':trigger or prior.get('trigger') or ('APP' if scheduled_run else 'MANUAL'),'started_at':prior.get('started_at') or now(),'checked':0,'buckets':{k:0 for k in ('STRONG','GOOD','STRETCH','LOW','REJECTED')},'assessment_comparisons':{}}
             if prior.get('scope'): report['scope']=prior['scope']
-            cancelled_sources=0
             try:
                 if name=='discover':
                     from .recall import evaluate
@@ -205,8 +204,23 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                         # after that wait, immediately before starting this source, so
                         # a Stop received during the progress update is honoured.
                         _record_progress(db,run.id,report,planned,done,source.name)
+                        # A busy progress write can roll this Session back and expire
+                        # its cached source while another writer edits or deletes it.
+                        # Re-read before touching source fields or telemetry again.
+                        source=db.scalar(select(JobSource).where(JobSource.id==sid)
+                                         .execution_options(populate_existing=True))
+                        change=('DELETED' if source is None else
+                                'DISABLED' if not source.enabled else
+                                'EDITED' if source_definition(source)!=confirmed_def else None)
+                        if change:
+                            run_telemetry.skip(source or missing_source(sid,confirmed_def),telemetry.SKIPPED_SCOPE_CHANGED)
+                            entry={'id':sid,'name':confirmed_def.get('name') or (source.name if source else None),'change':change}
+                            report['scope_changed_sources'].append(entry)
+                            report['scope_accounting'].append({**entry,'outcome':'NOT_FETCHED_SCOPE_CHANGED'})
+                            cancel.accounted(final=final_source)
+                            _record_progress(db,run.id,report,planned,done,None); continue
                         if cancel.is_set():
-                            run_telemetry.skip(source,telemetry.SKIPPED_CANCELLED); cancelled_sources+=1
+                            run_telemetry.skip(source,telemetry.SKIPPED_CANCELLED)
                             report['scope_accounting'].append({'id':sid,'name':source.name,'outcome':'NOT_FETCHED_CANCELLED'})
                             cancel.accounted(final=final_source)
                             _record_progress(db,run.id,report,planned,done,None); continue
@@ -264,7 +278,6 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                             # if admission was refused (nothing was flushed yet).
                             if not admitted:
                                 attempt.skipped(telemetry.SKIPPED_CANCELLED)
-                                cancelled_sources+=1
                                 report['scope_accounting'].append({'id':sid,'name':source.name,'outcome':'NOT_FETCHED_CANCELLED'})
                                 db.rollback()
                                 cancel.accounted(final=final_source)
@@ -415,7 +428,8 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                     run_status='CANCELLED' if stopped else ('PARTIAL' if report['failures'] or report['scope_changed_sources'] else 'COMPLETED')
                     if stopped:
                         report['cancel_requested_at']=cancel.accepted_at
-                        report['cancelled']={'sources_not_fetched':cancelled_sources,
+                        report['cancelled']={'sources_not_fetched':sum(e['outcome'].startswith('NOT_FETCHED')
+                                                                      for e in report['scope_accounting']),
                                              'source_in_flight_at_stop':cancel.in_flight_at_stop}
                     report['confirmed_scope']={'sources_confirmed':planned,
                                                'sources_fetched':sum(e['outcome']=='FETCHED' for e in report['scope_accounting']),
@@ -470,7 +484,8 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                         report[telemetry.REPORT_KEY]=run_telemetry.error_payload('TASK_FAILURE')
                     if stopped:
                         report['cancel_requested_at']=cancel.accepted_at
-                        report['cancelled']={'sources_not_fetched':cancelled_sources,
+                        report['cancelled']={'sources_not_fetched':sum(e['outcome'].startswith('NOT_FETCHED')
+                                                                      for e in accounting),
                                              'source_in_flight_at_stop':cancel.in_flight_at_stop}
                     from .scan_control import _clear_stop_record
                     report['error']=('Task ended during an error ('+type(e).__name__+
