@@ -820,6 +820,142 @@ assert network_calls == []
 """)
 
 
+@pytest.mark.parametrize('mutation', ['DISABLED', 'EDITED', 'DELETED'])
+def test_source_edit_and_provider_admission_have_one_order(tmp_path, mutation):
+    """A committed edit cannot slip between the last scope read and admission."""
+    isolated(tmp_path, PRELUDE + "mutation = " + repr(mutation) + r"""
+import backend.scan_control as sc
+initialize(); add_sources('alpha', 'beta')
+token = sc.preview(sc.PreviewRequest())['token']
+confirmation = sc.confirm(token)
+paused, release = threading.Event(), threading.Event()
+order, results = [], []
+real_admit = confirmation.cancel.admit
+
+def pause_beta_admission(sid, name):
+    if sid == 2:
+        paused.set()
+        assert release.wait(20), 'beta admission was not released'
+    admitted = real_admit(sid, name)
+    if sid == 2:
+        order.append('admitted')
+    return admitted
+
+confirmation.cancel.admit = pause_beta_admission
+worker = threading.Thread(target=lambda: results.append(m.task('discover', confirmation=confirmation)))
+worker.start()
+assert paused.wait(20), 'worker never reached beta admission'
+
+def edit_beta():
+    with Session.begin() as db:
+        beta = db.scalar(select(JobSource).where(JobSource.board == 'beta'))
+        if mutation == 'DISABLED':
+            beta.enabled = False
+        elif mutation == 'EDITED':
+            beta.url = 'https://changed.example/feed'
+        else:
+            db.delete(beta)
+    order.append('edit_committed')
+
+editor = threading.Thread(target=edit_beta)
+editor.start()
+# The editing transaction has an opportunity to run while admission is held.
+time.sleep(0.2)
+release.set()
+worker.join(20); editor.join(20)
+assert not worker.is_alive() and not editor.is_alive() and len(results) == 1, order
+assert order == ['admitted', 'edit_committed'], order
+assert network_calls == []
+""")
+
+
+def test_source_deleted_while_provider_is_in_flight_is_accounted(tmp_path):
+    """Deleting an admitted source cannot collapse the whole scope report."""
+    isolated(tmp_path, PRELUDE + r"""
+import backend.scan_control as sc
+initialize(); add_sources('beta')
+entered, release = threading.Event(), threading.Event()
+
+def held_discover(adapter, board, url='', cfg=None):
+    fetches.append(board)
+    entered.set()
+    assert release.wait(20), 'provider was not released'
+    return []
+
+m.discover = held_discover
+token = sc.preview(sc.PreviewRequest())['token']
+confirmation = sc.confirm(token)
+results = []
+worker = threading.Thread(target=lambda: results.append(m.task('discover', confirmation=confirmation)))
+worker.start()
+assert entered.wait(20), 'provider was not admitted'
+with Session.begin() as db:
+    beta = db.scalar(select(JobSource).where(JobSource.board == 'beta'))
+    db.delete(beta)
+release.set(); worker.join(20)
+assert not worker.is_alive() and len(results) == 1
+run = discover_runs()[0]
+assert run.status == 'PARTIAL', (run.status, run.report)
+assert run.report['scope_accounting'] == [
+    {'id': 1, 'name': 'Fixture beta', 'outcome': 'FAILED', 'change': 'DELETED',
+     'admitted_before_change': True}
+], run.report['scope_accounting']
+assert run.report['confirmed_scope'] == {
+    'sources_confirmed': 1, 'sources_fetched': 0,
+    'sources_failed': 1, 'sources_not_fetched': 0
+}
+assert run.report['discovery_telemetry']['status'] != 'TELEMETRY_ERROR'
+assert fetches == ['beta'] and network_calls == []
+""")
+
+
+def test_stop_during_source_reservation_timeout_accounts_unfetched_source(tmp_path):
+    """An accepted Stop wins if SQLite's writer reservation times out."""
+    isolated(tmp_path, PRELUDE + r"""
+import backend.scan_control as sc
+from sqlalchemy import event
+initialize(); add_sources('beta')
+token = sc.preview(sc.PreviewRequest())['token']
+confirmation = sc.confirm(token)
+about_to_reserve, release_reservation = threading.Event(), threading.Event()
+real_execute = Session.class_.execute
+
+def pause_reservation(self, statement, *args, **kwargs):
+    if str(statement) == 'BEGIN IMMEDIATE':
+        about_to_reserve.set()
+        assert release_reservation.wait(20), 'reservation not released'
+    return real_execute(self, statement, *args, **kwargs)
+
+Session.class_.execute = pause_reservation
+@event.listens_for(engine, 'checkout')
+def short_busy_timeout(dbapi_connection, connection_record, connection_proxy):
+    dbapi_connection.execute('PRAGMA busy_timeout=500')
+
+results = []
+worker = threading.Thread(target=lambda: results.append(m.task('discover', confirmation=confirmation)))
+worker.start()
+assert about_to_reserve.wait(20), 'worker did not reach reservation'
+blocker = Session()
+blocker.connection().exec_driver_sql('BEGIN IMMEDIATE')
+started = time.monotonic()
+stop = sc.cancel(sc.CancelRequest(run_id=confirmation.run_id))
+assert stop['cancelling'] and stop['source_in_flight'] is None, stop
+assert time.monotonic() - started < 1.0, 'Stop waited on SQLite writer'
+release_reservation.set()
+time.sleep(0.9)  # longer than the reservation's shortened busy timeout
+blocker.rollback(); blocker.close()
+worker.join(20)
+assert not worker.is_alive() and len(results) == 1
+run = discover_runs()[0]
+assert run.status == 'CANCELLED', (run.status, run.report)
+assert run.report['scope_accounting'] == [
+    {'id': 1, 'name': 'Fixture beta', 'outcome': 'NOT_FETCHED_CANCELLED'}
+], run.report['scope_accounting']
+assert run.report['cancelled']['sources_not_fetched'] == 1
+assert fetches == [] and network_calls == []
+""")
+
+
 def test_stop_returns_while_report_write_is_held_and_status_is_truthful(tmp_path):
     """B2: a slow report write cannot delay Stop or hide its accepted state."""
     isolated(tmp_path, PRELUDE + r"""

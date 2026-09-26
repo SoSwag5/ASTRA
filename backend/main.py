@@ -9,7 +9,9 @@ from fastapi.responses import FileResponse,JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel,Field,ConfigDict
-from sqlalchemy import select
+from sqlalchemy import select,text
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm.exc import ObjectDeletedError,StaleDataError
 from apscheduler.schedulers.background import BackgroundScheduler
 from .models import *
 from .services import *
@@ -180,21 +182,43 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                         source_report={'id':source.id,'name':source.name,'scanned':0,'checked':0,'imported':0,'duplicates':0,'filtered':{},'error':'','completion':'COMPLETE','buckets':{k:0 for k in ('STRONG','GOOD','STRETCH','LOW','REJECTED')},'assessment_comparisons':{}}
                         source_decisions=[]
                         attempt=run_telemetry.attempt(source)
+                        source_deleted=False
                         try:
                             source.details={**source.details,'last_attempted':now(),'mode':'MANUAL','market':'UAE campaign','interval_hours':source.details.get('interval_hours',cfg['discovery_interval_hours'])}
                             if source.adapter=='generic':
                                 raise ValueError('Generic page scanning is disabled pending destination and platform review; use a public board API or paste the description')
                             # The progress write above may have waited while another
-                            # transaction changed this source. Read through a separate
-                            # Session so the worker's tentative details update cannot
-                            # hide a committed edit. Do not hold the Stop admission lock
-                            # across this database read: Stop must still answer promptly
-                            # while a source write holds SQLite.
-                            with Session() as scope_db:
-                                current=scope_db.scalar(select(JobSource).where(JobSource.id==sid))
-                                late_change=('DELETED' if current is None else
-                                             'DISABLED' if not current.enabled else
-                                             'EDITED' if source_definition(current)!=confirmed_def else None)
+                            # transaction changed this source. Reserve SQLite's writer
+                            # slot for the last scope read and provider admission, so a
+                            # direct edit commits either before this read or after the
+                            # source is admitted. The worker's tentative details update
+                            # is in its own Session and cannot hide a committed edit.
+                            # Do not hold the Stop admission lock while waiting for the
+                            # writer slot: Stop must answer promptly during a long write.
+                            admitted=False
+                            try:
+                                with Session() as scope_db:
+                                    scope_db.execute(text('BEGIN IMMEDIATE'))
+                                    current=scope_db.scalar(select(JobSource).where(JobSource.id==sid))
+                                    late_change=('DELETED' if current is None else
+                                                 'DISABLED' if not current.enabled else
+                                                 'EDITED' if source_definition(current)!=confirmed_def else None)
+                                    if not late_change:
+                                        admitted=cancel.admit(sid,source.name)
+                                    scope_db.rollback()  # release the short writer reservation
+                            except OperationalError:
+                                # A writer may outlast SQLite's busy timeout. Stop is
+                                # accepted independently of that writer; do not report
+                                # an unfetched source as a provider failure after Stop.
+                                if not cancel.is_set():
+                                    raise
+                                attempt.skipped(telemetry.SKIPPED_CANCELLED)
+                                cancelled_sources+=1
+                                report['scope_accounting'].append({'id':sid,'name':source.name,'outcome':'NOT_FETCHED_CANCELLED'})
+                                db.rollback()
+                                cancel.accounted(final=final_source)
+                                _record_progress(db,run.id,report,planned,done,None)
+                                continue
                             if late_change:
                                 changed_name=confirmed_def.get('name') or source.name
                                 attempt.skipped(telemetry.SKIPPED_SCOPE_CHANGED)
@@ -205,14 +229,13 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                                 cancel.accounted(final=final_source)
                                 _record_progress(db,run.id,report,planned,done,None)
                                 continue
-                            # The provider-entry checkpoint. admit() checks Stop and
-                            # admits this source as one step ordered against Stop
-                            # acceptance, and the provider call follows it directly: a
-                            # Stop accepted before admission means this source is never
-                            # fetched, and one accepted after it names this source as in
-                            # flight. When refused, undo the tentative bookkeeping (no
-                            # write is flushed yet) and mark telemetry as skipped.
-                            if not cancel.admit(sid,source.name):
+                            # admit() checks Stop under the admission lock while the
+                            # scope snapshot is reserved. The provider call follows the
+                            # reservation release directly. A Stop accepted before
+                            # admission means this source is never fetched; one accepted
+                            # afterward names it in flight. Undo tentative bookkeeping
+                            # if admission was refused (nothing was flushed yet).
+                            if not admitted:
                                 attempt.skipped(telemetry.SKIPPED_CANCELLED)
                                 cancelled_sources+=1
                                 report['scope_accounting'].append({'id':sid,'name':source.name,'outcome':'NOT_FETCHED_CANCELLED'})
@@ -285,7 +308,7 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                             for category,count in source_report.get('assessment_comparisons',{}).items(): report['assessment_comparisons'][category]-=count
                             source_report['imported']=source_report['duplicates']=source_report['checked']=0; source_report['buckets']={k:0 for k in ('STRONG','GOOD','STRETCH','LOW','REJECTED')};source_report['assessment_comparisons']={}
                             for audit in report.get('decisions',[]):
-                                if audit['source_id']==source.id and audit['disposition'] in ('NEW','DUPLICATE','PENDING'):audit['disposition']='SOURCE_ERROR';audit.pop('job_id',None)
+                                if audit['source_id']==sid and audit['disposition'] in ('NEW','DUPLICATE','PENDING'):audit['disposition']='SOURCE_ERROR';audit.pop('job_id',None)
                             source_report['funnel']=_compat_funnel(source_decisions)
                             # A provider-framework exception (issue #38) carries the batch's own
                             # truthful completion/health/metrics; a legacy adapter's plain
@@ -300,16 +323,35 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                                      'metrics':getattr(e,'metrics',None),
                                      'error':{'code':code or 'SOURCE_REQUEST_FAILED',
                                               'message':str(e) if code else 'Source request failed'}}
-                            _source_outcome(source, source_report, failure)
                             # A provider failure is reported as a failure, never as
                             # "zero relevant jobs": the rolled-back canonical stages
                             # are cleared and the attempt is marked incomplete.
                             attempt.failed(failure)
-                            source.details={**source.details,'last_attempted':now(),'last_error':'Request failed; retry or review source configuration'}
-                            report['failures']+=1; source_report['error']='Source request failed ('+type(e).__name__+'). Check the source URL or retry later.'; log(db,source_report['error'],level='ERROR'); db.commit()
+                            source_deleted=False
+                            try:
+                                _source_outcome(source, source_report, failure)
+                                source.details={**source.details,'last_attempted':now(),'last_error':'Request failed; retry or review source configuration'}
+                                source_report['error']='Source request failed ('+type(e).__name__+'). Check the source URL or retry later.'
+                                log(db,source_report['error'],level='ERROR'); db.commit()
+                            except (ObjectDeletedError,StaleDataError):
+                                # A delete can commit during the admitted provider or
+                                # during this health write. After rollback, use only the
+                                # captured id/name; the ORM row is expired and gone.
+                                db.rollback(); source_deleted=True
+                                source_report.update(completion='FAILED', completion_reason=None,
+                                                     health='UNAVAILABLE', metrics=None,
+                                                     structured_error=failure['error'],
+                                                     error_code=failure['error']['code'])
+                                source_report['error']='Source was deleted during its in-flight fetch; results could not be saved.'
+                                report['scope_changed_sources'].append({'id':sid,'name':source_report['name'],
+                                                                        'change':'DELETED','admitted_before_change':True})
+                                log(db,source_report['error'],level='ERROR'); db.commit()
+                            report['failures']+=1
                         report['sources'].append(source_report)
-                        report['scope_accounting'].append({'id':source.id,'name':source.name,
-                                                           'outcome':'FAILED' if source_report['error'] else 'FETCHED'})
+                        report['scope_accounting'].append({'id':sid,'name':source_report['name'],
+                                                           'outcome':'FAILED' if source_report['error'] else 'FETCHED',
+                                                           **({'change':'DELETED','admitted_before_change':True}
+                                                              if source_report['error'] and source_deleted else {})})
                         cancel.accounted(final=final_source)
                         done+=1
                         _record_progress(db,run.id,report,planned,done,None)
