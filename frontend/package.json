@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
     "build": "tsc -b && vite build",
-    "test": "node check-locale.cjs && node check-order.cjs && node check-links.cjs && node check-gmail-oauth.cjs"
+    "test": "node check-locale.cjs && node check-order.cjs && node check-links.cjs && node check-gmail-oauth.cjs && node check-scan-stop.cjs"
   },
   "dependencies": {
     "react": "^19.0.0",
