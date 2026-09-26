@@ -956,6 +956,112 @@ assert fetches == [] and network_calls == []
 """)
 
 
+@pytest.mark.parametrize('stop_requested', [False, True])
+def test_sustained_writer_does_not_orphan_running_scan(tmp_path, stop_requested):
+    """A transient writer lock cannot kill the worker before it can finish the run."""
+    isolated(tmp_path, PRELUDE + 'stop_requested = ' + repr(stop_requested) + r"""
+import backend.scan_control as sc
+from sqlalchemy import event
+initialize(); add_sources('beta')
+token = sc.preview(sc.PreviewRequest())['token']
+confirmation = sc.confirm(token)
+about_to_reserve, release_reservation = threading.Event(), threading.Event()
+real_execute = Session.class_.execute
+
+def pause_reservation(self, statement, *args, **kwargs):
+    if str(statement) == 'BEGIN IMMEDIATE':
+        about_to_reserve.set()
+        assert release_reservation.wait(20), 'reservation not released'
+    return real_execute(self, statement, *args, **kwargs)
+
+Session.class_.execute = pause_reservation
+@event.listens_for(engine, 'checkout')
+def short_busy_timeout(dbapi_connection, connection_record, connection_proxy):
+    dbapi_connection.execute('PRAGMA busy_timeout=300')
+
+results, errors = [], []
+def work():
+    try: results.append(m.task('discover', confirmation=confirmation))
+    except Exception as error: errors.append(type(error).__name__)
+
+worker = threading.Thread(target=work)
+worker.start()
+assert about_to_reserve.wait(20), 'worker did not reach reservation'
+blocker = Session()
+blocker.connection().exec_driver_sql('BEGIN IMMEDIATE')
+if stop_requested:
+    started = time.monotonic()
+    stop = sc.cancel(sc.CancelRequest(run_id=confirmation.run_id))
+    assert stop['cancelling'] and stop['source_in_flight'] is None
+    assert time.monotonic() - started < 1.0
+release_reservation.set()
+time.sleep(1.1)  # longer than both one busy timeout and the old final error write
+assert worker.is_alive() and errors == [], (errors, discover_runs()[0].status)
+blocker.rollback(); blocker.close()
+worker.join(20)
+assert not worker.is_alive() and errors == [] and len(results) == 1, errors
+run = discover_runs()[0]
+assert run.status == ('CANCELLED' if stop_requested else 'COMPLETED'), (run.status, run.report)
+assert run.report['scope_accounting'] == [
+    {'id': 1, 'name': 'Fixture beta',
+     'outcome': 'NOT_FETCHED_CANCELLED' if stop_requested else 'FETCHED'}
+], run.report['scope_accounting']
+assert fetches == ([] if stop_requested else ['beta']) and network_calls == []
+""")
+
+
+def test_stop_survives_sustained_progress_writer_without_incomplete_accounting(tmp_path):
+    """A locked progress write must resume and honor an already accepted Stop."""
+    isolated(tmp_path, PRELUDE + r"""
+import backend.scan_control as sc
+from sqlalchemy import event
+initialize(); add_sources('beta')
+token = sc.preview(sc.PreviewRequest())['token']
+confirmation = sc.confirm(token)
+about_to_write, release_progress = threading.Event(), threading.Event()
+real_progress = m._record_progress
+
+def held_progress(db, run_id, report, total, done, current):
+    if current == 'Fixture beta':
+        about_to_write.set()
+        assert release_progress.wait(20), 'progress write not released'
+    return real_progress(db, run_id, report, total, done, current)
+
+m._record_progress = held_progress
+@event.listens_for(engine, 'checkout')
+def short_busy_timeout(dbapi_connection, connection_record, connection_proxy):
+    dbapi_connection.execute('PRAGMA busy_timeout=300')
+
+results, errors = [], []
+def work():
+    try: results.append(m.task('discover', confirmation=confirmation))
+    except Exception as error: errors.append(type(error).__name__)
+
+worker = threading.Thread(target=work)
+worker.start()
+assert about_to_write.wait(20), 'worker did not reach progress write'
+blocker = Session()
+blocker.connection().exec_driver_sql('BEGIN IMMEDIATE')
+started = time.monotonic()
+stop = sc.cancel(sc.CancelRequest(run_id=confirmation.run_id))
+assert stop['cancelling'] and stop['source_in_flight'] is None
+assert time.monotonic() - started < 1.0
+release_progress.set()
+time.sleep(1.1)
+assert worker.is_alive() and errors == [], (errors, discover_runs()[0].status)
+blocker.rollback(); blocker.close()
+worker.join(20)
+assert not worker.is_alive() and errors == [] and len(results) == 1, errors
+run = discover_runs()[0]
+assert run.status == 'CANCELLED', (run.status, run.report)
+assert run.report['scope_accounting'] == [
+    {'id': 1, 'name': 'Fixture beta', 'outcome': 'NOT_FETCHED_CANCELLED'}
+], run.report['scope_accounting']
+assert not run.report.get('scope_accounting_incomplete')
+assert fetches == [] and network_calls == []
+""")
+
+
 def test_stop_returns_while_report_write_is_held_and_status_is_truthful(tmp_path):
     """B2: a slow report write cannot delay Stop or hide its accepted state."""
     isolated(tmp_path, PRELUDE + r"""

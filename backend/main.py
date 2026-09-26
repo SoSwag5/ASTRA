@@ -1,4 +1,4 @@
-import os,json,shutil,csv,io,threading,tempfile,asyncio,secrets,logging
+import os,json,shutil,csv,io,threading,tempfile,asyncio,secrets,logging,sqlite3,time
 from contextlib import asynccontextmanager
 from datetime import datetime,timedelta,timezone
 from zoneinfo import ZoneInfo
@@ -61,6 +61,11 @@ def _compat_funnel(rows):
                                   'authoritative monotonic discovery funnel.'}
 
 
+def _sqlite_busy(error):
+    code=getattr(error.orig,'sqlite_errorcode',None)
+    return code is not None and code & 0xff in (sqlite3.SQLITE_BUSY,sqlite3.SQLITE_LOCKED)
+
+
 def _record_progress(db, run_id, report, total, done, current):
     """Persist scan progress so the workspace can show it while the run is
     still going. Merge an accepted Stop after refresh so this write cannot
@@ -72,14 +77,40 @@ def _record_progress(db, run_id, report, total, done, current):
     # Session is expire_on_commit=False, so re-read the row. Stop can arrive
     # during this refresh; take its timestamp immediately before this write.
     from .scan_control import _report_guard, _accepted_stop_at
-    with _report_guard:
-        row=db.get(AutomationRun,run_id); db.refresh(row)
-        stopped_at=_accepted_stop_at(run_id)
-        if stopped_at: report['cancel_requested_at']=stopped_at
-        row.report={**(row.report or {}),'progress':report['progress'],'trigger':report['trigger'],
-                    'started_at':report['started_at'],**({'scope':report['scope']} if 'scope' in report else {}),
-                    **({'cancel_requested_at':stopped_at} if stopped_at else {})}
-        db.commit()
+    while True:
+        try:
+            with _report_guard:
+                row=db.get(AutomationRun,run_id); db.refresh(row)
+                stopped_at=_accepted_stop_at(run_id)
+                if stopped_at: report['cancel_requested_at']=stopped_at
+                row.report={**(row.report or {}),'progress':report['progress'],'trigger':report['trigger'],
+                            'started_at':report['started_at'],**({'scope':report['scope']} if 'scope' in report else {}),
+                            **({'cancel_requested_at':stopped_at} if stopped_at else {})}
+                db.commit()
+            return
+        except OperationalError as error:
+            db.rollback()
+            if not _sqlite_busy(error): raise
+            # The worker remains active while another SQLite writer holds the
+            # database. Stop is still accepted through its separate journal.
+            time.sleep(0.05)
+
+
+def _commit_discovery_report(db, run_id, status, report):
+    """Persist a terminal discovery result after a transient SQLite writer."""
+    from .scan_control import _report_guard
+    while True:
+        try:
+            with _report_guard:
+                row=db.get(AutomationRun,run_id); db.refresh(row)
+                if (row.report or {}).get('cancel_requested_at'):
+                    report['cancel_requested_at']=row.report['cancel_requested_at']
+                row.status=status; row.report=report; db.commit()
+            return row
+        except OperationalError as error:
+            db.rollback()
+            if not _sqlite_busy(error): raise
+            time.sleep(0.05)
 
 
 DISCOVERY_REFUSED={'refused':True,'detail':'Discovery runs only from a confirmed Start Scan: review the scope, then confirm.'}
@@ -196,29 +227,25 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                             # Do not hold the Stop admission lock while waiting for the
                             # writer slot: Stop must answer promptly during a long write.
                             admitted=False
-                            try:
-                                with Session() as scope_db:
-                                    scope_db.execute(text('BEGIN IMMEDIATE'))
-                                    current=scope_db.scalar(select(JobSource).where(JobSource.id==sid))
-                                    late_change=('DELETED' if current is None else
-                                                 'DISABLED' if not current.enabled else
-                                                 'EDITED' if source_definition(current)!=confirmed_def else None)
-                                    if not late_change:
-                                        admitted=cancel.admit(sid,source.name)
-                                    scope_db.rollback()  # release the short writer reservation
-                            except OperationalError:
-                                # A writer may outlast SQLite's busy timeout. Stop is
-                                # accepted independently of that writer; do not report
-                                # an unfetched source as a provider failure after Stop.
-                                if not cancel.is_set():
-                                    raise
-                                attempt.skipped(telemetry.SKIPPED_CANCELLED)
-                                cancelled_sources+=1
-                                report['scope_accounting'].append({'id':sid,'name':source.name,'outcome':'NOT_FETCHED_CANCELLED'})
-                                db.rollback()
-                                cancel.accounted(final=final_source)
-                                _record_progress(db,run.id,report,planned,done,None)
-                                continue
+                            while True:
+                                try:
+                                    with Session() as scope_db:
+                                        scope_db.execute(text('BEGIN IMMEDIATE'))
+                                        current=scope_db.scalar(select(JobSource).where(JobSource.id==sid))
+                                        late_change=('DELETED' if current is None else
+                                                     'DISABLED' if not current.enabled else
+                                                     'EDITED' if source_definition(current)!=confirmed_def else None)
+                                        if not late_change:
+                                            admitted=cancel.admit(sid,source.name)
+                                        scope_db.rollback()  # release the short writer reservation
+                                    break
+                                except OperationalError as error:
+                                    if not _sqlite_busy(error): raise
+                                    # A transient external writer can exceed SQLite's
+                                    # timeout. Keep this worker alive until the writer
+                                    # releases; Stop stays independently available and
+                                    # will refuse admission on the successful retry.
+                                    time.sleep(0.05)
                             if late_change:
                                 changed_name=confirmed_def.get('name') or source.name
                                 attempt.skipped(telemetry.SKIPPED_SCOPE_CHANGED)
@@ -407,12 +434,9 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                     # Application, user decision or application history is ever touched.
                     telemetry.prune_expired(db)
                 if name=='discover':
-                    from .scan_control import _report_guard, _clear_stop_record
-                    with _report_guard:
-                        run=db.get(AutomationRun,run.id); db.refresh(run)
-                        if (run.report or {}).get('cancel_requested_at'): report['cancel_requested_at']=run.report['cancel_requested_at']
-                        run.status=run_status; run.report=report; db.commit()
-                    _clear_stop_record(run.id)
+                    from .scan_control import _clear_stop_record
+                    run=_commit_discovery_report(db,run_id,run_status,report)
+                    _clear_stop_record(run_id)
                 else:
                     run=db.get(AutomationRun,run.id); db.refresh(run)
                     run.status='PARTIAL' if report['failures'] else 'COMPLETED'; run.report=report; db.commit()
@@ -448,14 +472,11 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                         report['cancel_requested_at']=cancel.accepted_at
                         report['cancelled']={'sources_not_fetched':cancelled_sources,
                                              'source_in_flight_at_stop':cancel.in_flight_at_stop}
-                    from .scan_control import _report_guard, _clear_stop_record
-                    with _report_guard:
-                        run=db.get(AutomationRun,run.id); db.refresh(run)
-                        if (run.report or {}).get('cancel_requested_at'): report['cancel_requested_at']=run.report['cancel_requested_at']
-                        run.status='CANCELLED' if stopped else 'FAILED'
-                        run.report={**report,'error':'Task ended during an error ('+type(e).__name__+
-                                                   '); incomplete source outcomes are named in scope accounting.'}; db.commit()
-                    _clear_stop_record(run.id)
+                    from .scan_control import _clear_stop_record
+                    report['error']=('Task ended during an error ('+type(e).__name__+
+                                     '); incomplete source outcomes are named in scope accounting.')
+                    run=_commit_discovery_report(db,run_id,'CANCELLED' if stopped else 'FAILED',report)
+                    _clear_stop_record(run_id)
                 else:
                     run=db.get(AutomationRun,run.id); run.status='FAILED'
                     run.report={**report,'error':'Task failed ('+type(e).__name__+'); no success is recorded.'}; db.commit()
