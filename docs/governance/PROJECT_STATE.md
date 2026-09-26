@@ -1,6 +1,7 @@
 # ASTRA project state
 
-**Snapshot date:** 2026-09-20 (Asia/Dubai), refreshed for the #46 merge and closeout
+**Snapshot date:** 2026-09-26 (Asia/Dubai), refreshed for the #46.2-A merge and
+#46.2-B/C draft integration. The #46 closeout below remains historical evidence.
 **Rule:** This is a handoff snapshot, not a substitute for live verification.
 Refresh it at session end when repository or release state changes.
 
@@ -322,9 +323,21 @@ unmeasured** — no claim is made about real-world Gmail parsing or
 reconciliation accuracy. **R-18 remains OPEN.** **No residual-risk acceptance,
 certification or release approval is implied.**
 
-The next action belongs to the Owner: decide and authorize the next v1.1 issue.
-Do not start #46.2, #47, #48 or any v1.2 work; #46.2 is a roadmap placeholder
-awaiting a separate detailed design discussion with the Owner, not an
-authorization. Do not tag, publish a release, or modify v1.0.0. The
-parked `hardening/l2-r13-r14` branch and the separate governance/research
-worktrees remain untouched.
+Since this #46 closeout, the Owner authorized bounded #46.2 work. **#46.2-A
+manual scan control is merged** through [PR #73](https://github.com/SoSwag5/ASTRA/pull/73)
+at `2d40c8067996f9f919bda63b716507d371bc8daa`, after independent review of
+the final head `37e2ee360631e2d22335a35320da1a593ce12e6c`. This is source
+integration evidence, not a claim that the Owner installation has been started
+or scanned. **#46.2-B/C remains draft:** [PR #71](https://github.com/SoSwag5/ASTRA/pull/71)
+still carries the earlier integration; this local branch reconciles its B/C
+work with merged A and adds provisional B source research. No B live scan has
+run. The Owner selected a target of ten permitted Ashby, Lever and Greenhouse
+sources, subject to verification of the actual configured rows and board links.
+The choice alone does not authorize a scan; the Owner must review the exact
+preview and press Confirm and start scan in ASTRA. See the
+[controlled-scan protocol](../planning/AI_NATIVE_DISCOVERY_46_2B_CONTROLLED_SCAN.md).
+
+The next B action is to review this reconciled draft and verify the proposed
+source rows with the Owner before any live preview or scan. Keep #47, #48 and
+v1.2 work separate. Do not tag, publish a release, or modify v1.0.0. Preserve
+the parked `hardening/l2-r13-r14` branch and all concurrent worktrees.

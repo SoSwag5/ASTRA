@@ -1550,3 +1550,55 @@ with TestClient(m.app) as c:
 assert fetches == ['alpha'] and [r.status for r in discover_runs()] == ['FAILED', 'COMPLETED']
 assert not m.task_lock.locked() and network_calls == []
 """)
+
+
+def test_today_summary_uses_the_confirmed_scope_not_a_smaller_one(tmp_path):
+    """Found in the synthetic UI check: after a PARTIAL scan the Today page said
+    "2/2 sources healthy" for three confirmed sources. The summary's
+    denominator is the confirmed scope, and unchecked sources are named."""
+    isolated(tmp_path, PRELUDE + r"""
+import backend.scan_control as sc
+initialize(); add_sources('alpha', 'beta', 'gamma')
+with TestClient(m.app) as c:
+    confirmation = sc.confirm(c.post('/api/scan/preview', json={}).json()['token'])
+    with Session.begin() as db:
+        db.scalar(select(JobSource).where(JobSource.board == 'gamma')).enabled = False
+    assert m.task('discover', confirmation=confirmation)['status'] == 'PARTIAL'
+    health = c.get('/api/campaign').json()['discovery_health']
+assert health['status'] == 'PARTIAL'
+assert (health['healthy'], health['attempted'], health['confirmed']) == (2, 2, 3), health
+assert health['not_checked'] == [{'name': 'Fixture gamma', 'reason': 'DISABLED'}]
+assert fetches == ['alpha', 'beta'] and network_calls == []
+""")
+
+
+def test_only_the_confirmed_scan_worker_calls_the_discovery_fetch():
+    """Static guard for the Owner's rule. The discovery fetch
+    (backend.adapters.discover) is imported only by backend/main.py, where the
+    task('discover') loop runs it after a ScanConfirmation is claimed. No
+    script or other module fetches postings outside Start Scan."""
+    import ast
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    importers = []
+    for path in list((root / 'backend').rglob('*.py')) + list((root / 'scripts').rglob('*.py')):
+        for node in ast.walk(ast.parse(path.read_text(encoding='utf-8'))):
+            imported = (isinstance(node, ast.ImportFrom) and (node.module or '').split('.')[-1] == 'adapters'
+                        and any(alias.name == 'discover' for alias in node.names))
+            attribute = (isinstance(node, ast.Attribute) and node.attr == 'discover'
+                         and isinstance(node.value, ast.Name) and node.value.id == 'adapters')
+            if imported or attribute:
+                importers.append(path.relative_to(root).as_posix())
+                break
+    assert importers == ['backend/main.py'], importers
+    main_src = (root / 'backend' / 'main.py').read_text(encoding='utf-8')
+    assert main_src.count('items=discover(') == 1
+
+
+def test_retired_verify_sources_script_fetches_nothing(tmp_path):
+    isolated(tmp_path, PRELUDE + r"""
+initialize()
+import scripts.verify_sources as vs
+assert vs.main() == 0
+assert fetches == [] and network_calls == [] and discover_runs() == []
+""")
