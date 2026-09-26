@@ -21,5 +21,5 @@ def confirmed_discover(source_id=None):
     try:
         return task('discover', confirmation=confirmation)
     finally:
-        with sc._guard:
+        with sc._cancel_guard:
             sc._cancel.pop(confirmation.run_id, None)

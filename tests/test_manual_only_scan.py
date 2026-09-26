@@ -564,6 +564,64 @@ assert fetches == [] and len(discover_runs()) == 2 and network_calls == []
 ''')
 
 
+def test_accepted_stop_survives_process_exit_before_database_write(tmp_path):
+    """An acknowledged Stop is recovered by a new process before DB progress."""
+    isolated(tmp_path, PRELUDE + r'''
+import json, subprocess, sys
+import backend.scan_control as sc
+child_code = r"""
+import json, os, socket, threading
+socket.getaddrinfo = lambda *a, **k: (_ for _ in ()).throw(OSError('network disabled'))
+socket.create_connection = lambda *a, **k: (_ for _ in ()).throw(OSError('network disabled'))
+import backend.main as m
+import backend.scan_control as sc
+from backend.models import AutomationRun, JobSource, Session, initialize
+initialize()
+with Session.begin() as db:
+    db.add_all([JobSource(name='Fixture alpha', adapter='lever', board='alpha', enabled=True),
+                JobSource(name='Fixture beta', adapter='lever', board='beta', enabled=True)])
+m.discover = lambda adapter, board, url='', cfg=None: []
+paused = threading.Event()
+real_progress = m._record_progress
+def held_progress(db, run_id, report, total, done, current):
+    if current == 'Fixture beta':
+        paused.set()
+        threading.Event().wait(60)
+    return real_progress(db, run_id, report, total, done, current)
+m._record_progress = held_progress
+token = sc.preview(sc.PreviewRequest())['token']
+confirmation = sc.confirm(token)
+threading.Thread(target=lambda: m.task('discover', confirmation=confirmation), daemon=True).start()
+assert paused.wait(20)
+result = sc.cancel(sc.CancelRequest(run_id=confirmation.run_id))
+assert result['cancelling'] is True
+assert sc._stop_record_path(confirmation.run_id).is_file()
+with Session() as db:
+    assert not (db.get(AutomationRun, confirmation.run_id).report or {}).get('cancel_requested_at')
+with sc._cancel_guard:
+    sc._cancel.pop(confirmation.run_id)
+assert sc.status()['active']['cancel_requested_at'] == result['cancel_requested_at']
+print(json.dumps({'run_id': confirmation.run_id, 'stopped_at': result['cancel_requested_at']}), flush=True)
+os._exit(0)
+"""
+child = subprocess.run([sys.executable, '-c', child_code], capture_output=True, text=True, timeout=30)
+assert child.returncode == 0, child.stdout + child.stderr
+accepted = json.loads(child.stdout.strip().splitlines()[-1])
+with Session() as db:
+    assert not (db.get(AutomationRun, accepted['run_id']).report or {}).get('cancel_requested_at')
+with TestClient(m.app) as c:
+    status = c.get('/api/scan/status').json()
+    assert status['active'] is None and status['last']['status'] == 'CANCELLED', status
+    assert status['last']['cancel_requested_at'] == accepted['stopped_at'], status
+with Session() as db:
+    report = db.get(AutomationRun, accepted['run_id']).report
+    assert report['cancel_requested_at'] == accepted['stopped_at']
+    assert report['restart'] == 'NOT_RESTARTED'
+assert not sc._stop_record_path(accepted['run_id']).exists()
+assert fetches == [] and network_calls == []
+''')
+
+
 def test_estimate_uses_this_installations_history(tmp_path):
     isolated(tmp_path, PRELUDE + r'''
 initialize(); add_sources('alpha', 'beta')
@@ -765,20 +823,21 @@ with Session() as db:
 """)
 
 def test_stop_during_admitted_source_database_write(tmp_path):
-    """B2: a source write can stall without delaying Stop or admitting the next."""
+    """B2: a >30-second source write cannot delay Stop or admit the next."""
     isolated(tmp_path, PRELUDE + r"""
 from sqlalchemy import event
+import backend.scan_control as sc
 initialize(); add_sources('alpha', 'beta')
 paused, release = threading.Event(), threading.Event()
 
-def hold_source_commit(db):
+def hold_source_commit(db, flush_context):
     if (threading.current_thread().name.startswith('astra-manual-scan-')
             and any(isinstance(row, JobSource) and row.board == 'alpha'
                     and 'last_success' in row.details for row in db.dirty)):
         paused.set()
-        assert release.wait(20), 'test held the source write too long'
+        assert release.wait(60), 'test held the source write too long'
 
-event.listen(Session.class_, 'before_commit', hold_source_commit)
+event.listen(Session.class_, 'after_flush', hold_source_commit)
 with TestClient(m.app) as c:
     token = c.post('/api/scan/preview', json={}).json()['token']
     run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
@@ -790,8 +849,13 @@ with TestClient(m.app) as c:
         assert wait_for(lambda: bool(responses), timeout=2), 'Stop waited behind the source write'
         stop = responses[0]
         assert stop.status_code == 200 and stop.json()['source_in_flight'] == 'Fixture alpha', stop.text
+        assert sc._stop_record_path(run_id).is_file()
+        with Session() as db:
+            assert not (db.get(AutomationRun, run_id).report or {}).get('cancel_requested_at')
         active = c.get('/api/scan/status').json()['active']
         assert active['cancel_requested_at'] and active['progress']['current_source'] == 'Fixture alpha'
+        time.sleep(31)  # hold the SQLite writer past its 30-second busy timeout
+        assert len(responses) == 1 and c.get('/api/scan/status').json()['active']['cancel_requested_at']
     finally:
         release.set()
         stopper.join(20)
@@ -799,11 +863,77 @@ with TestClient(m.app) as c:
     last = c.get('/api/scan/status').json()['last']
 assert last['status'] == 'CANCELLED' and last['cancel_requested_at'], last
 assert fetches == ['alpha'] and network_calls == []
+assert not sc._stop_record_path(run_id).exists()
 with Session() as db:
     report = db.get(AutomationRun, run_id).report
     assert report['cancel_requested_at'] == last['cancel_requested_at']
     assert report['cancelled']['source_in_flight_at_stop'] == {'id': 1, 'name': 'Fixture alpha'}
     assert [e['outcome'] for e in report['scope_accounting']] == ['FETCHED', 'NOT_FETCHED_CANCELLED']
+""")
+
+
+def test_stop_record_write_failure_is_not_acknowledged(tmp_path):
+    """Stop must refuse when its durable record cannot be saved."""
+    isolated(tmp_path, PRELUDE + r"""
+import backend.scan_control as sc
+initialize(); add_sources('alpha', 'beta')
+gate.clear()
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert wait_for(lambda: fetches == ['alpha'])
+    original = sc._write_stop_record
+    sc._write_stop_record = lambda *a: (_ for _ in ()).throw(OSError('fictional disk failure'))
+    try:
+        response = c.post('/api/scan/cancel', json={'run_id': run_id})
+        assert response.status_code == 503 and response.json()['stop_not_accepted'] is True
+        assert not sc._cancel[run_id].is_set()
+        assert not c.get('/api/scan/status').json()['active']['cancel_requested_at']
+        assert not sc._stop_record_path(run_id).exists()
+    finally:
+        sc._write_stop_record = original
+        gate.set()
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+assert last['status'] == 'COMPLETED' and not last['cancel_requested_at']
+assert fetches == ['alpha', 'beta'] and network_calls == []
+""")
+
+
+def test_stop_record_installed_but_flush_failed_is_reported_uncertain(tmp_path):
+    """A post-rename error must not claim a durable 200 Stop response."""
+    isolated(tmp_path, PRELUDE + r"""
+import os
+import backend.scan_control as sc
+initialize(); add_sources('alpha', 'beta')
+gate.clear()
+with TestClient(m.app) as c:
+    token = c.post('/api/scan/preview', json={}).json()['token']
+    run_id = c.post('/api/scan/start', json={'token': token}).json()['run_id']
+    assert wait_for(lambda: fetches == ['alpha'])
+    original = sc._durable_replace
+    def installed_then_error(source, target):
+        os.replace(source, target)
+        raise OSError('fictional directory flush failure')
+    sc._durable_replace = installed_then_error
+    try:
+        response = c.post('/api/scan/cancel', json={'run_id': run_id})
+        assert response.status_code == 503 and response.json()['stop_outcome_uncertain'] is True
+        stopped_at = response.json()['cancel_requested_at']
+        assert sc._stop_record_path(run_id).is_file()
+        active = c.get('/api/scan/status').json()['active']
+        assert active['cancel_requested_at'] == stopped_at and active['stop_durable'] is False
+        assert sc._cancel[run_id].is_set()
+    finally:
+        sc._durable_replace = original
+    retry = c.post('/api/scan/cancel', json={'run_id': run_id})
+    assert retry.status_code == 200 and retry.json()['cancel_requested_at'] == stopped_at
+    assert c.get('/api/scan/status').json()['active']['stop_durable'] is True
+    gate.set()
+    assert wait_for(lambda: c.get('/api/scan/status').json()['active'] is None)
+    last = c.get('/api/scan/status').json()['last']
+assert last['status'] == 'CANCELLED' and last['cancel_requested_at'] == stopped_at
+assert fetches == ['alpha'] and network_calls == []
 """)
 
 

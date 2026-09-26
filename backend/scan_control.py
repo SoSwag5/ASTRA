@@ -33,10 +33,12 @@ create one.
 """
 import hashlib
 import json
+import os
 import secrets
 import statistics
 import threading
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from types import SimpleNamespace
 
 from fastapi import APIRouter
@@ -44,7 +46,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 
-from .models import AutomationRun, JobSource, Session, now, settings
+from .models import AutomationRun, DATA, JobSource, Session, engine, now, settings
 
 router = APIRouter(prefix='/api/scan')
 
@@ -60,6 +62,121 @@ _report_guard = threading.Lock()
 _admission_guard = threading.Lock()
 _previews = {}      # token -> {'scope': dict, 'expires': datetime, 'run_id': int|None}
 _cancel = {}        # run_id -> ScanStop for scans started in this process
+_DB_ID = hashlib.sha256(os.path.normcase(str(Path(engine.url.database).resolve())).encode()).hexdigest()[:24]
+_STOP_JOURNAL_VERSION = 1
+
+
+class StopJournalError(RuntimeError):
+    """A Stop record exists but cannot be verified for restart recovery."""
+
+
+class StopJournalUncertain(StopJournalError):
+    """The record was installed, but durable installation was not confirmed."""
+
+
+def _stop_record_path(run_id):
+    return DATA / f'.scan-stop-{_DB_ID}-{run_id}.json'
+
+
+def _durable_replace(source, target):
+    """Atomically install a flushed record, with write-through on Windows."""
+    if os.name == 'nt':
+        import ctypes
+        from ctypes import wintypes
+        move = ctypes.WinDLL('kernel32', use_last_error=True).MoveFileExW
+        move.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD]
+        move.restype = wintypes.BOOL
+        # MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH.
+        if not move(str(source), str(target), 0x1 | 0x8):
+            raise ctypes.WinError(ctypes.get_last_error())
+    else:
+        os.replace(source, target)
+        directory = os.open(DATA, os.O_RDONLY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+
+
+def _write_stop_record(stop, stopped_at):
+    """Persist the Stop before it is acknowledged, independent of SQLite."""
+    in_flight = stop.in_flight_at_stop if stop.accepted_at else stop.in_flight
+    if in_flight is not None:
+        in_flight = {'id': in_flight['id'], 'name': in_flight['name'][:500]}
+    payload = {'version': _STOP_JOURNAL_VERSION, 'database_id': _DB_ID,
+               'run_id': stop.run_id, 'started_at': stop.started_at,
+               'cancel_requested_at': stopped_at,
+               'source_in_flight_at_stop': in_flight}
+    record = {**payload, 'sha256': _digest(payload)}
+    content = json.dumps(record, sort_keys=True, ensure_ascii=False).encode('utf-8')
+    if len(content) > 4096:
+        raise StopJournalError('Stop record exceeds its size limit')
+    target = _stop_record_path(stop.run_id)
+    temporary = DATA / f'.scan-stop-{_DB_ID}-{stop.run_id}-{secrets.token_hex(8)}.tmp'
+    try:
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, 'wb') as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        try:
+            _durable_replace(temporary, target)
+        except OSError as error:
+            try:
+                installed = target.read_bytes() == content
+            except FileNotFoundError:
+                installed = False
+            except OSError:
+                # A record that cannot be inspected may still have been
+                # installed before the failed directory flush.
+                installed = True
+            if installed:
+                raise StopJournalUncertain('Stop record installation is uncertain') from error
+            raise
+    finally:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass  # preserve the original write result; stale temp is never replayed
+
+
+def _read_stop_record(run):
+    """Return a valid record for this exact running scan, or None if absent."""
+    try:
+        content = _stop_record_path(run.id).read_bytes()
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        raise StopJournalError('Stop record could not be read') from error
+    if len(content) > 4096:
+        raise StopJournalError('Stop record exceeds its size limit')
+    try:
+        record = json.loads(content)
+        checksum = record.pop('sha256')
+        if (not isinstance(checksum, str) or checksum != _digest(record)
+                or record['version'] != _STOP_JOURNAL_VERSION
+                or record['database_id'] != _DB_ID or record['run_id'] != run.id):
+            raise ValueError('Invalid Stop record identity or checksum')
+        if record['started_at'] != (run.report or {}).get('started_at'):
+            return None  # stale file from an older run that reused this row id
+        datetime.fromisoformat(record['cancel_requested_at'])
+        in_flight = record['source_in_flight_at_stop']
+        if in_flight is not None and (not isinstance(in_flight, dict)
+                                   or not isinstance(in_flight.get('id'), int)
+                                   or not isinstance(in_flight.get('name'), str)):
+            raise ValueError('Invalid source in Stop record')
+        return record
+    except (KeyError, TypeError, ValueError) as error:
+        raise StopJournalError('Stop record failed integrity validation') from error
+
+
+def _clear_stop_record(run_id):
+    """Remove a journal only after the final database report has committed."""
+    try:
+        _stop_record_path(run_id).unlink(missing_ok=True)
+    except OSError:
+        # A stale journal is harmless: recovery ignores finished runs.
+        pass
 
 
 class ScanStop:
@@ -75,16 +192,19 @@ class ScanStop:
     status cannot disagree with an accepted Stop. ``close()`` also closes on
     exceptional exit.
 
-    Acceptance is recorded in memory before the response. The worker persists
-    the timestamp in its next progress write and final report. Status overlays
-    the in-memory state until that write completes.
+    Acceptance is journaled on local disk before the response, then recorded
+    in memory. The worker copies it to its next progress write and final report.
+    Status overlays the in-memory state until that database write completes.
     """
 
-    def __init__(self):
+    def __init__(self, run_id, started_at):
+        self.run_id = run_id
+        self.started_at = started_at
         self._event = threading.Event()
         self.in_flight = None           # {'id', 'name'} from admission until the source is accounted for
         self.in_flight_at_stop = None   # the source in flight when Stop was accepted, if any
         self.accepted_at = None
+        self.durable = False
         self.closed = False
 
     def is_set(self):
@@ -117,17 +237,17 @@ class ScanStop:
             self.in_flight = None
             return self._event.is_set()
 
-    def _accept(self):
+    def _accept(self, stopped_at):
         """Record the Stop. The caller holds _admission_guard."""
         if not self._event.is_set():
             self.in_flight_at_stop = self.in_flight
-            self.accepted_at = now()
+            self.accepted_at = stopped_at
             self._event.set()
 
     def snapshot(self):
         """Read the admission/Stop decision as one consistent state."""
         with _admission_guard:
-            return self.accepted_at, self.in_flight_at_stop, self.in_flight, self.closed
+            return self.accepted_at, self.in_flight_at_stop, self.in_flight, self.closed, self.durable
 
 
 class PreviewRequest(BaseModel):
@@ -386,6 +506,7 @@ def _abandon(token, confirmation, error):
                                                 'source_in_flight_at_stop': None}} if stopped_at else {}),
                               'error': 'The scan worker could not start (%s); nothing was fetched.'
                                        % type(error).__name__}
+        _clear_stop_record(confirmation.run_id)
     finally:
         task_lock.release()
 
@@ -424,8 +545,9 @@ def confirm(token):
         try:
             scope = pending['scope']
             with Session.begin() as db:
+                started_at = now()
                 run = AutomationRun(task='discover', status='RUNNING', report={
-                    'trigger': TRIGGER, 'started_at': now(),
+                    'trigger': TRIGGER, 'started_at': started_at,
                     'scope': {k: scope[k] for k in ('source_ids', 'career_tracks', 'target_roles',
                                                     'locations', 'single_source')},
                     'progress': {'sources_total': len(scope['source_ids']), 'sources_done': 0,
@@ -434,7 +556,7 @@ def confirm(token):
                 db.flush()
                 run_id = run.id
             pending['run_id'] = run_id
-            stop = ScanStop()
+            stop = ScanStop(run_id, started_at)
             with _cancel_guard:
                 _cancel[run_id] = stop
             return ScanConfirmation(_ISSUER, run_id, scope['source_ids'], pending['source_defs'],
@@ -448,11 +570,11 @@ def confirm(token):
 def cancel(data: CancelRequest):
     """Stop the running scan at its next provider admission.
 
-    Accepted under the same short lock as admission: a source not yet admitted
-    is never fetched. The response names the source already in flight, which
-    finishes within its bounded provider budget. The worker persists the Stop
-    timestamp; status displays the accepted state immediately. Refused once
-    the last source is done."""
+    Journaled before acceptance under the same short lock as admission: a
+    source not yet admitted is never fetched. The response names the source
+    already in flight, which finishes within its bounded provider budget.
+    The worker persists the timestamp in SQLite; startup replays the journal
+    if it exits before doing so. Refused once the last source is done."""
     with _cancel_guard:
         stop = _cancel.get(data.run_id)
     if stop is None:
@@ -461,7 +583,32 @@ def cancel(data: CancelRequest):
         if stop.closed:
             return JSONResponse({'detail': 'This scan has finished fetching; there is nothing left to stop.',
                                   'finished': True}, 409)
-        stop._accept()
+        if not stop.durable:
+            stopped_at = stop.accepted_at or now()
+            try:
+                _write_stop_record(stop, stopped_at)
+            except StopJournalUncertain:
+                # The rename may have reached disk even though its final flush
+                # failed. Stop fetching in this process, but never claim that
+                # the acknowledgment is durable. A retry re-flushes the same
+                # timestamp and in-flight source.
+                if not stop.accepted_at:
+                    stop._accept(stopped_at)
+                return JSONResponse({'detail': 'Stop is taking effect, but its local save could '
+                                               'not be confirmed. Retry Stop before restarting.',
+                                     'stop_outcome_uncertain': True,
+                                     'cancel_requested_at': stopped_at}, 503)
+            except (OSError, StopJournalError):
+                if stop.accepted_at:
+                    return JSONResponse({'detail': 'Stop is taking effect, but its local save could '
+                                                   'not be confirmed. Retry Stop before restarting.',
+                                         'stop_outcome_uncertain': True,
+                                         'cancel_requested_at': stopped_at}, 503)
+                return JSONResponse({'detail': 'Stop could not be saved locally. The scan is still running; '
+                                               'retry Stop.', 'stop_not_accepted': True}, 503)
+            stop.durable = True
+            if not stop.accepted_at:
+                stop._accept(stopped_at)
         in_flight = stop.in_flight_at_stop
         stopped_at = stop.accepted_at
     return {'cancelling': True, 'run_id': data.run_id,
@@ -469,9 +616,13 @@ def cancel(data: CancelRequest):
             'cancel_requested_at': stopped_at}
 
 
-def _view(run, stop=None):
+def _view(run, stop=None, durable_record=None):
     report = run.report or {}
-    stopped_at, _, in_flight, _ = stop.snapshot() if stop is not None else (None, None, None, None)
+    stopped_at, _, in_flight, _, durable = stop.snapshot() if stop is not None else (None, None, None, None, None)
+    if durable_record is not None:
+        stopped_at = durable_record['cancel_requested_at']
+        durable = True
+        in_flight = None  # the worker is gone; no source is still in flight
     progress = report.get('progress')
     if stopped_at and progress is not None:
         progress = {**progress, 'current_source': in_flight['name'] if in_flight else None}
@@ -479,6 +630,7 @@ def _view(run, stop=None):
             'updated_at': run.updated_at, 'trigger': report.get('trigger'),
             'progress': progress, 'scope': report.get('scope'),
             'cancel_requested_at': stopped_at or report.get('cancel_requested_at'),
+            'stop_durable': durable if stopped_at else None,
             'cancelled': report.get('cancelled'), 'error': report.get('error'),
             'discovered': report.get('discovered'), 'duplicates': report.get('duplicates'),
             'failures': report.get('failures'),
@@ -495,7 +647,9 @@ def status():
                          .order_by(AutomationRun.id.desc()))
         with _cancel_guard:
             stop = _cancel.get(running.id) if running is not None else None
-        stopped_at, _, _, closed = stop.snapshot() if stop is not None else (None, None, None, True)
-        cancellable = stop is not None and not closed and not stopped_at
-        return {'manual_only': True, 'active': _view(running, stop) if running else None,
+        durable_record = (_read_stop_record(running)
+                          if running is not None and running.task == 'discover' and stop is None else None)
+        stopped_at, _, _, closed, _ = stop.snapshot() if stop is not None else (None, None, None, True, None)
+        cancellable = stop is not None and not closed and not stopped_at and durable_record is None
+        return {'manual_only': True, 'active': _view(running, stop, durable_record) if running else None,
                 'cancellable': cancellable, 'last': _view(last) if last else None}

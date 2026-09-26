@@ -344,11 +344,12 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                     # Application, user decision or application history is ever touched.
                     telemetry.prune_expired(db)
                 if name=='discover':
-                    from .scan_control import _report_guard
+                    from .scan_control import _report_guard, _clear_stop_record
                     with _report_guard:
                         run=db.get(AutomationRun,run.id); db.refresh(run)
                         if (run.report or {}).get('cancel_requested_at'): report['cancel_requested_at']=run.report['cancel_requested_at']
                         run.status=run_status; run.report=report; db.commit()
+                    _clear_stop_record(run.id)
                 else:
                     run=db.get(AutomationRun,run.id); db.refresh(run)
                     run.status='PARTIAL' if report['failures'] else 'COMPLETED'; run.report=report; db.commit()
@@ -384,13 +385,14 @@ def task(name, scheduled_run=False, trigger=None, confirmation=None):
                         report['cancel_requested_at']=cancel.accepted_at
                         report['cancelled']={'sources_not_fetched':cancelled_sources,
                                              'source_in_flight_at_stop':cancel.in_flight_at_stop}
-                    from .scan_control import _report_guard
+                    from .scan_control import _report_guard, _clear_stop_record
                     with _report_guard:
                         run=db.get(AutomationRun,run.id); db.refresh(run)
                         if (run.report or {}).get('cancel_requested_at'): report['cancel_requested_at']=run.report['cancel_requested_at']
                         run.status='CANCELLED' if stopped else 'FAILED'
                         run.report={**report,'error':'Task ended during an error ('+type(e).__name__+
                                                    '); incomplete source outcomes are named in scope accounting.'}; db.commit()
+                    _clear_stop_record(run.id)
                 else:
                     run=db.get(AutomationRun,run.id); run.status='FAILED'
                     run.report={**report,'error':'Task failed ('+type(e).__name__+'); no success is recorded.'}; db.commit()
@@ -444,13 +446,26 @@ async def lifespan(app):
     # A process restart cannot finish an earlier in-memory scan.
     if task_lock.acquire(False):
         try:
+            from .scan_control import _read_stop_record, _clear_stop_record
+            replayed=[]
             with Session.begin() as db:
                 for run in db.scalars(select(AutomationRun).where(AutomationRun.status=='RUNNING')):
-                    stopping=bool((run.report or {}).get('cancel_requested_at'))
+                    stop_record=_read_stop_record(run) if run.task=='discover' else None
+                    stopped_at=(run.report or {}).get('cancel_requested_at') or (stop_record or {}).get('cancel_requested_at')
+                    stopping=bool(stopped_at)
                     run.status='CANCELLED' if stopping else 'INTERRUPTED'
-                    run.report={**run.report,'restart':'NOT_RESTARTED',
+                    run.report={**(run.report or {}),
+                                **({'cancel_requested_at':stopped_at} if stopped_at else {}),
+                                **({'cancelled': {'sources_not_fetched': None,
+                                                 'source_in_flight_at_stop':stop_record['source_in_flight_at_stop']},
+                                    'scope_accounting_incomplete':True} if stop_record else {}),
+                                'restart':'NOT_RESTARTED',
                                 'error':('App stopped while this scan was being cancelled. It was not restarted.' if stopping else
                                          'App stopped before this run finished. It was not restarted automatically; press Start Scan when you want a new scan.')}
+                    if stop_record:
+                        replayed.append(run.id)
+            for run_id in replayed:
+                _clear_stop_record(run_id)
         finally:task_lock.release()
     configure_schedule(); scheduler.start()
     yield
