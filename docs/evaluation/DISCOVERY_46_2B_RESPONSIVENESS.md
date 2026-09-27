@@ -1,10 +1,9 @@
 # #46.2-B Discovery responsiveness and scan-time estimate
 
-**Status:** fix proposed on local branch `fix/46.2-b-discovery-responsiveness`,
-based on `master` at `2d40c8067996f9f919bda63b716507d371bc8daa`, for
-independent review. 2026-09-27 (Asia/Dubai). Measured on a fictional,
-isolated database; no live scan, source call or Owner data was used to test
-it.
+**Status:** corrected candidate based on `master` at
+`2d40c8067996f9f919bda63b716507d371bc8daa`, for fresh independent
+review. 2026-09-27 (Asia/Dubai). Measured on a fictional, isolated database;
+no live scan, source call or Owner data was used to test it.
 
 ## What was observed
 
@@ -20,8 +19,13 @@ like a single-user installation after weeks of scanning: about 1,200 jobs and
 80 discovery runs. As in real use, each finished run stores a per-posting
 decision audit, about 170 MB in total, which is 99% of all report data.
 `measure` starts a real server from a chosen tree on a spare loopback port and
-replays the Discovery page. `worker` times the scan worker's real per-posting
-path (`add_job`, `analyze`) in-process, with and without that page open.
+replays the Discovery page. The first version accidentally shadowed its
+`old`/`new` client-mode argument with an HTTP client, so both page arms used
+the new polling pattern. The corrected harness has a regression asserting the
+request counts, and fails if any replayed HTTP request fails. `worker` times
+the scan worker's real per-posting path (`add_job`, `analyze`) in-process,
+with and without that page open; its earlier readings are separate from the
+corrected page replay below.
 
 The hypothesis was partly right. The main cause was elsewhere:
 
@@ -39,25 +43,26 @@ The hypothesis was partly right. The main cause was elsewhere:
 3. **The full job list** (12.6 MB here) is re-sent every 5 seconds. This is
    real but secondary.
 
-| Fictional database, same laptop, back to back | Before (`2d40c80`) | Server fix only | Server and page fix |
+| Fictional database, same laptop, corrected 45 s replays | Before (`2d40c80`), old page | Fixed server, old page | Fixed server, new page |
 |---|---:|---:|---:|
-| `/api/search/overview` | 4.45 s | 0.018 s | 0.022 s |
-| `/api/scan/status` | 4.25 s | 0.005 s | 0.006 s |
-| Page refresh round, median / worst | 30.4 / 50.6 s | 0.65 / 1.95 s | 0.64 / 1.96 s |
-| Refresh rounds in flight at once | 6 | 1 | 1 |
-| Pause saved / page refreshed after Pause | 1.7 / 67.2 s | 0.8 / 4.1 s | 0.7 / 4.0 s |
-| Server CPU during the 45 s replay | 81 of 82 s | 4.4 of 45 s | 4.7 of 45 s |
-| Server peak working set | 2,657 MiB | 195 MiB | 228 MiB |
-| Scan worker, seconds per posting, page open (quiet: 0.062-0.065) | **2.17** | 0.112 | **0.077** |
+| `/api/search/overview`, median | 1.716 s | 0.008 s | 0.008 s |
+| `/api/scan/status`, median | 1.745 s | 0.003 s | 0.003 s |
+| `/api/jobs`, median; response size | 0.461 s; 12.6 MB | 0.532 s; 12.6 MB | 0.533 s; 12.6 MB |
+| `/api/jobs` requests / 9 poll rounds | 9 | 9 | 1 |
+| Page refresh round, median / longest | 3.57 / 5.36 s | 0.74 / 0.82 s | 0.22 / 0.68 s |
+| Peak refresh rounds in flight | 2 | 1 | 1 |
+| Pause saved / page refreshed after Pause | 0.810 / 11.103 s | 0.371 / 1.953 s | 0.302 / 1.524 s |
+| Server CPU during the 45 s replay | 37.3 s | 5.8 s | 1.8 s |
+| Server peak working set | 1,227 MiB | 209 MiB | 228 MiB |
 
-The last row explains the slow scan. With the page open, the scan worker
-processed postings 35 times more slowly. In run 107, one large board
-accounted for most of the 439 seconds. Only a small share of that board's
-time was spent fetching, and its local processing ran at about 1 second per
-posting, against 0.05-0.13 seconds for the other boards. That is consistent
-with this contention; the live run itself cannot be replayed. A large stored
-history for one employer did not slow deduplication (300 stored jobs, 0.062 s
-per posting).
+The corrected replay establishes the page-load reduction; it does not itself
+measure scan-worker throughput or prove the cause of run 107's 439 seconds.
+The earlier worker benchmark reported 2.17 seconds per posting with the old
+page open, against 0.062-0.065 seconds without polling, but that benchmark was
+not repeated as part of this page-replay correction. In run 107, one large
+board accounted for most of the 439 seconds. Its local processing was about
+1 second per posting, against 0.05-0.13 seconds for other boards. This is
+consistent with page contention, but the live run cannot be replayed.
 
 ## Fix (smallest scoped)
 
@@ -128,5 +133,12 @@ stated as unknown.
   correctness test passes on code with no cache.
 - **`frontend/check-discovery-poll.cjs`:** single-flight polling (including
   after a failure) and the estimate wording.
+- **`tests/test_perf_discovery_poll.py`:** on an isolated small database, the
+  old replay requests `/api/jobs` on every round, the new replay requests it
+  only once, and new rounds do not overlap.
 
-Machine readings above are rounded. The raw replays stay outside Git.
+Machine readings above are rounded; the three raw JSON replays stay outside
+Git. Their SHA-256 digests in table order are
+`2e0805df2cd19888b1151343befa6d19a562ceacf004c62493eb432a1c58f121`,
+`761a95c376deb1e7dc556456bc24f413823a7486a3e45c101193bcf6f78e018e`,
+and `6b0d775e3c508173973a667f87ef63e990c088d36dae955ad7da0e524a71a9ab`.
