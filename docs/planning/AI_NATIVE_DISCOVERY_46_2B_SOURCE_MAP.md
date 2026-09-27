@@ -6,16 +6,16 @@
 
 - `EXISTING_PERMITTED_ADAPTER` — An adapter ASTRA already has and may use (Greenhouse, Lever, Ashby).
 - `SMARTRECRUITERS_OWNER_DECISION` — The employer's own page links a SmartRecruiters board. ASTRA has a legacy SmartRecruiters path, but its API terms are an unsettled Owner decision.
-- `MANUAL_LINK` — A verified official link shown to the user, with a verified reason ASTRA cannot read the postings. It is never counted as an automatically found or confirmed-open job.
-- `UNRESOLVED` — The permitted Owner-machine route established neither a readable board nor a verified official link; the exact blocker is given. Later remote web observations remain follow-up evidence until Owner-browser confirmation.
+- `MANUAL_LINK` — A verified official jobs or application route shown to the user, with a verified reason ASTRA cannot read the postings or application guidance. It is never counted as an automatically found or confirmed-open job.
+- `UNRESOLVED` — The permitted Owner-machine route established neither a readable board nor a verified jobs or application route; the exact blocker is given. An employer-directed general company profile is a navigation lead, not a verified jobs fallback. Later remote web observations remain follow-up evidence until Owner-browser confirmation.
 
 **Result: 0 existing permitted adapter, 0 SmartRecruiters (Owner decision), 48 `MANUAL_LINK`, 7 unresolved, out of 55 employers.**
 
-**v5 update (2026-09-27): 0 supported feed, 49 `MANUAL_LINK`, 6 unresolved.** Only the seven unresolved rows were re-researched from the Owner's machine. Data: [`discovery_46_2b_source_map_v5_unresolved.json`](../evaluation/discovery_46_2b_source_map_v5_unresolved.json), with every request's robots decision, status and time. The v4 data file is unchanged.
+**v5 update (2026-09-27): 0 supported feed, 48 `MANUAL_LINK`, 7 unresolved.** All seven unresolved rows were re-researched from the Owner's machine. PureHealth's own careers URL now redirects to its LinkedIn company profile, but no jobs or application route was verified there; it remains unresolved. Data: [`discovery_46_2b_source_map_v5_unresolved.json`](../evaluation/discovery_46_2b_source_map_v5_unresolved.json), with every request's robots decision, status and time. The v4 data file is unchanged.
 
 | Employer | v5 outcome | Direct-link fallback | What decides it (2026-09-27) |
 |---|---|---|---|
-| PureHealth | `MANUAL_LINK` | https://purehealth.ae/careers/ | The employer's own careers path redirects (301) to its LinkedIn company page. LinkedIn's robots.txt disallows ASTRA, and it is not a job feed. No challenge was met or bypassed. |
+| PureHealth | `UNRESOLVED` | none verified | Its own [careers URL](https://purehealth.ae/careers/) redirects (301) to a LinkedIn company profile. That is an official navigation lead, but the destination was not fetched because robots.txt disallows ASTRA; no jobs or application route was verified. No challenge was bypassed. |
 | Zayed University | `UNRESOLVED` | none verified | `zu.ac.ae` still resets the TLS connection at robots.txt. The Oracle CX_1 site is titled "Zayed University", but that is branding only. |
 | Abu Dhabi Public Health Centre | `UNRESOLVED` | none verified | The careers page returns a WAF "Request Rejected" page, which was not bypassed. The FAQ loads but shows no careers answer or e-mail route, so the earlier remote lead is unconfirmed. |
 | Department of Health - Abu Dhabi | `UNRESOLVED` | none usable | The homepage's "Careers" link goes to `aderp.abudhabi.ae`, whose certificate has expired: unreadable, and a browser would warn. `/en/careers` returns a 404. |
@@ -23,7 +23,9 @@
 | Higher Colleges of Technology | `UNRESOLVED` | none verified | robots.txt still redirects in a loop, so it is unreachable. The Oracle CX_1 "HCT" title is branding only. |
 | du | `UNRESOLVED` | none verified | robots.txt disallows all paths. The Oracle CX_1001 "du Careers" title is branding only. |
 
-The six unresolved rows need the Owner's browser to confirm each employer's own careers link before any becomes a `MANUAL_LINK`. None has a Greenhouse, Lever or Ashby board. The Owner's separate controlled scan of configured board sources neither covers nor validates these employers.
+The seven unresolved rows need the Owner's browser to confirm each employer's own jobs or application route before any becomes a `MANUAL_LINK`. None has a verified Greenhouse, Lever or Ashby board. The Owner's separate controlled scan of configured board sources neither covers nor validates these employers.
+
+The earlier remote follow-up below called PureHealth's destination a LinkedIn jobs page. The Owner-machine v5 observation verified only a redirect to a **company profile**; the earlier description is superseded for classification purposes.
 
 No researched UAE employer uses Greenhouse, Lever or Ashby, so no row is covered automatically. A `MANUAL_LINK` is a link for the user to open. It is never an automatically found job, and never a confirmed-open one.
 
@@ -48,7 +50,7 @@ The zero `SMARTRECRUITERS_OWNER_DECISION` outcome is a classification count, not
 
 ## Remote web follow-up: official leads pending Owner-browser confirmation (2026-09-26)
 
-This follow-up read official employer pages through a remote web reader. It did not make an HTTP request from the Owner's machine or call a job-site API. The original Owner-machine robots, WAF and TLS blockers remain as recorded in the JSON request log. The leads below require Owner-browser confirmation before they can become verified manual destinations. All affected rows remain `UNRESOLVED` under the original v4 evidence protocol; the aggregate stays 48 `MANUAL_LINK` and 7 unresolved.
+This follow-up read official employer pages through a remote web reader. It did not make an HTTP request from the Owner's machine or call a job-site API. The original v4 Owner-machine robots, WAF and TLS blockers remain in that version's JSON request log; the v5 observations above supersede them where they differ. The leads below require Owner-browser confirmation before they can become verified manual destinations. All affected rows remain `UNRESOLVED`; the aggregate stays 48 `MANUAL_LINK` and 7 unresolved.
 
 | Employer | Official employer page opened by remote web reader | Forward link observed | Pending check |
 |---|---|---|---|
@@ -58,7 +60,7 @@ This follow-up read official employer pages through a remote web reader. It did 
 | du | https://www.du.ae/corporate/sitemap | “Join Us” → https://fa-ewnx-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/jobs?mode=location | Owner browser confirms the forward link and destination; du's robots policy still prevents ASTRA from reading its site. The Oracle page title was “du Careers”; its JavaScript listings were not independently inspected. |
 | Abu Dhabi Public Health Centre | https://www.adphc.gov.ae/FAQs | The official Arabic FAQ publishes `Hr@adphc.gov.ae` for sending a CV. | Owner browser confirms the current page and contact. This is a possible manual contact route, not a readable job board or evidence of any current vacancy; no email was sent. |
 
-PureHealth's `/careers/` page remotely redirected to its company LinkedIn jobs page. This is a potential manual link, not evidence that the SEHA Oracle board covers PureHealth or that a posting is open. The Owner-machine Cloudflare block remains and the row remains `UNRESOLVED`. ADPHC, DoH's own vacancy path, and du also remain unresolved for automated coverage.
+The remote follow-up described PureHealth's `/careers/` redirect as a LinkedIn jobs page. The later Owner-machine v5 request established a redirect to a company profile only. Its earlier Cloudflare block was not reproduced on that path, but a jobs or application route remains unverified and the row stays `UNRESOLVED`. This does not establish that the SEHA Oracle board covers PureHealth or that a posting is open. ADPHC, DoH's own vacancy path, and du also remain unresolved for automated coverage.
 
 The Oracle destinations still have no ASTRA adapter. A confirmed browser link could support a manual destination; it would not make an employer automatically covered or prove that a posting is open. The JSON keeps the remote web follow-up outside `evidence_requests`, which records only the original Owner-machine research.
 
@@ -123,7 +125,7 @@ The Oracle destinations still have no ASTRA adapter. A confirmed browser link co
 
 ## Unresolved, with the exact blocker
 
-The table records the original Owner-machine permitted-route blockers. The HCT and Emirates Islamic forward-link evidence above is a later, separate web observation pending Owner-browser confirmation.
+The table records the original v4 Owner-machine permitted-route blockers. The HCT and Emirates Islamic forward-link evidence above is a later, separate web observation pending Owner-browser confirmation. For PureHealth, the v5 Owner-machine redirect observation above supersedes the v4 Cloudflare access finding while leaving the outcome unresolved.
 
 | Employer | Sector | Link tried | Blocker | Unverified lead under Owner-machine protocol | Record |
 |---|---|---|---|---|---|

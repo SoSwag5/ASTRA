@@ -13,11 +13,11 @@
  ],
  "counts": {
   "supported_feed": 0,
-  "MANUAL_LINK": 49,
-  "UNRESOLVED": 6,
+  "MANUAL_LINK": 48,
+  "UNRESOLVED": 7,
   "employers": 55
  },
- "counts_note": "v4 had 0 / 48 / 7. PureHealth moves to MANUAL_LINK; the other six stay UNRESOLVED.",
+ "counts_note": "v4 had 0 / 48 / 7. The seven rows were re-researched; none has a newly verified jobs or application route. PureHealth has an employer-directed company-profile lead, but no verified jobs fallback.",
  "not_claimed": [
   "No posting is claimed open, and no row is covered automatically.",
   "The Owner's separate controlled scan of configured board sources does not cover or validate these employers."
@@ -26,12 +26,13 @@
   {
    "employer": "PureHealth",
    "v4_outcome": "UNRESOLVED",
-   "v5_outcome": "MANUAL_LINK",
+   "v5_outcome": "UNRESOLVED",
    "supported_feed": null,
-   "direct_link_fallback": "https://purehealth.ae/careers/",
+   "direct_link_fallback": null,
+   "official_navigation_lead": "https://purehealth.ae/careers/",
    "destination": "The employer's own careers path answers HTTP 301 to its LinkedIn company page, https://www.linkedin.com/company/purehealthae/.",
-   "why_astra_cannot_read": "LinkedIn robots.txt disallows this client, and LinkedIn is not an ASTRA source. The destination is a company page, not a job feed.",
-   "evidence": "Official: the redirect is served by the employer's own domain (forward-link rule). purehealth.ae robots.txt answered 403, which RFC 9309 treats as unavailable; the one careers request was answered with a redirect, not a challenge, so no bot protection was met or bypassed. The earlier v4 Cloudflare block on this host was not reproduced for this path."
+   "blocker": "The destination is a LinkedIn company profile, not a verified jobs or application page. LinkedIn robots.txt disallows this client, so no jobs route there was checked. It is an employer-directed navigation lead, not a working direct-link fallback.",
+   "evidence": "The redirect is served by the employer's own domain. purehealth.ae robots.txt answered 403, which RFC 9309 treats as unavailable; the one careers request was answered with a redirect, not a challenge, so no bot protection was met or bypassed. The earlier v4 Cloudflare block on this host was not reproduced for this path."
   },
   {
    "employer": "Zayed University",

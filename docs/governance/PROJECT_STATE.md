@@ -328,10 +328,11 @@ Since this #46 closeout, the Owner authorized bounded #46.2 work. **#46.2-A
 manual scan control is merged** through [PR #73](https://github.com/SoSwag5/ASTRA/pull/73)
 at `2d40c8067996f9f919bda63b716507d371bc8daa`, after independent review of
 the final head `37e2ee360631e2d22335a35320da1a593ce12e6c`. This is source
-integration evidence, not a claim that the Owner installation has been started
-or scanned. **#46.2-B/C remains draft:** [PR #71](https://github.com/SoSwag5/ASTRA/pull/71)
-still carries the earlier integration; this work with merged A, adds B source research, and carries the Discovery
-responsiveness fix below. It is local and not yet pushed.
+integration evidence; the separate Owner-data scan is recorded below.
+**#46.2-B/C remains draft:** The corrected integration candidate includes
+merged A, B source research, and the Discovery responsiveness fix below.
+[PR #71](https://github.com/SoSwag5/ASTRA/pull/71) is its hosted draft; its
+head must match the final handoff SHA before review or merge.
 
 **#46.2-B:**
 
@@ -345,14 +346,16 @@ responsiveness fix below. It is local and not yet pushed.
   - Details are in the [controlled-scan record](../planning/AI_NATIVE_DISCOVERY_46_2B_CONTROLLED_SCAN.md).
     Source names stay private.
 - **Source map v5 re-researched the seven unresolved employers.**
-  - PureHealth now has a direct-link fallback.
-  - Six remain unresolved and need Owner-browser confirmation.
-  - No employer of the 55 has a Greenhouse, Lever or Ashby feed (0 / 49 / 6).
-- **Discovery responsiveness fix** (local `fix/46.2-b-discovery-responsiveness`,
-  from `master`, for independent review).
+  - PureHealth's own careers URL redirects to a LinkedIn company profile, but
+    no jobs or application route was verified there. It remains unresolved.
+  - All seven remain unresolved and need Owner-browser confirmation.
+  - No employer of the 55 has a verified Greenhouse, Lever or Ashby feed
+    (0 supported feeds / 48 manual routes / 7 unresolved).
+- **Discovery responsiveness fix** (based on `master`, carried by the B/C
+  integration candidate, for fresh independent review).
   - *Cause.* Polled endpoints decoded every run's per-posting decision audit on
-    each poll, and page refreshes stacked. On a fictional database this took
-    over 4 s per request, used 2.6 GB, and slowed a concurrent scan 35-fold.
+    each poll, and page refreshes could stack. A corrected fictional page
+    replay checks the old and new request sets before comparing timings.
   - *Fix.* Summaries are cached per run version, the Today lookup gets
     `LIMIT 1`, the page runs one refresh at a time, and the job list is
     refetched only on change.
@@ -376,10 +379,10 @@ challenge. G and H are not started.
 
 **Next actions:**
 
-- Independent review of the responsiveness fix and of this reconciled draft.
-- Owner decisions on pushing them, on E v3, and on the six unresolved
-  employers.
+- Hosted checks and fresh independent review of the responsiveness fix and
+  reconciled draft at the final PR #71 head before any B/C merge.
+- Owner decisions on E v3 and the seven unresolved employers.
 - Keep #47, #48 and v1.2 work separate.
 - Do not tag, publish a release, or modify v1.0.0.
 - Preserve the parked `hardening/l2-r13-r14` branch and all concurrent
-  worktrees.ch and all concurrent worktrees.
+  worktrees.
