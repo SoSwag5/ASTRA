@@ -75,8 +75,8 @@ Source names and per-source figures stay in the Owner's private record.
 
 - **Coverage of UAE employers without a permitted adapter.** Source map v4
   records none of its researched UAE employers on Greenhouse, Lever or Ashby.
-  Some have verified `MANUAL_LINK` destinations; seven remain unresolved. A
-  scan says nothing about either group.
+  Some have verified `MANUAL_LINK` destinations (50 after the v6 closeout of
+  2026-09-27); five remain unresolved. A scan says nothing about either group.
 - **That any posting is open.** A fetched posting is evidence of what the
   board served at that moment, not of availability or eligibility.
 - **UAE coverage from board reachability alone.** A readable board may return

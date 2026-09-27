@@ -1,0 +1,694 @@
+{
+ "artifact": "astra-46-2b-source-map-v6-closeout",
+ "version": 6,
+ "evidence_date": "2026-09-27",
+ "supersedes_rows_of": "discovery_46_2b_source_map_v5_unresolved.json and discovery_46_2b_source_map_v4.json (both kept unchanged)",
+ "scope": "The 7 rows that v5 left UNRESOLVED. The other 48 rows keep their v4 evidence. This is research, not a scan: no source was added, enabled or fetched, no job-listing API was called, and no e-mail was sent.",
+ "rules": [
+  "Owner-machine requests only, with the v5 User-Agent and at least 2 seconds between requests to one host.",
+  "robots.txt honoured with an RFC 9309 matcher: 4xx = unavailable (allowed), 5xx or network/TLS failure = disallow all. Redirects are never followed automatically; each hop is logged, and more than five hops is treated conservatively as disallow all.",
+  "No cookie is kept or replayed. No login, apply path, CAPTCHA or bot-protection bypass. A challenge or rejection page, TLS reset or certificate error ends the attempt on that host, and nothing is retried with a different client or a remote reader.",
+  "Officialness: only the employer's own domain, or a destination linked or redirected to from it, counts. ATS branding and company profiles alone stay unverified leads.",
+  "A MANUAL_LINK needs a jobs or application route published on the employer's own site and a verified reason ASTRA cannot read the postings. The destination's listings need not have been seen (as for SSMC in v3), and the row never counts as coverage or as an open posting.",
+  "'Supported feed' means an ASTRA adapter it may use (Greenhouse, Lever or Ashby). SmartRecruiters stays an Owner decision."
+ ],
+ "counts": {
+  "supported_feed": 0,
+  "MANUAL_LINK": 50,
+  "UNRESOLVED": 5,
+  "employers": 55
+ },
+ "counts_note": "v5 had 0 / 48 / 7. PureHealth and ADPHC now have a jobs or application route published on their own sites. The other five stay UNRESOLVED.",
+ "not_claimed": [
+  "No posting is claimed open, and no row is covered automatically.",
+  "A MANUAL_LINK is a link for the user to open; ASTRA does not read it.",
+  "The Owner's controlled scan (run 107) of nine configured board sources neither covers nor validates any of these seven employers."
+ ],
+ "rows": [
+  {
+   "employer": "PureHealth",
+   "v5_outcome": "UNRESOLVED",
+   "v6_outcome": "MANUAL_LINK",
+   "supported_feed": null,
+   "official_link": "https://www.linkedin.com/jobs/search/?f_C=2682519%2C14622592%2C68859272%2C78987929%2C343358%2C873130%2C78448321&geoId=92000000&origin=COMPANY_PAGE_JOBS_CLUSTER_EXPANSION&originToLandingJobPostings=3810609489%2C3816333616%2C3823108145%2C3812881060%2C3820247667%2C3815710338%2C3800548661%2C3800547239%2C3800542963&position=1&pageNum=0",
+   "official_link_source": "https://purehealth.ae/ (homepage), an icon-list link labelled 'Careers'.",
+   "platform": "LinkedIn Jobs search (third-party), filtered by seven LinkedIn company IDs chosen by the employer.",
+   "why_astra_cannot_read": "LinkedIn's robots.txt disallows every path for this client, including /jobs/search/. The destination was not requested.",
+   "evidence": "PureHealth's homepage served normally (HTTP 200, no challenge) at 2026-09-27T13:41:17Z and again at 13:43:05Z. Its main-menu and footer 'Careers' links and /careers/ (HTTP 301) go to the LinkedIn company profile; a separate 'Careers' link on the same page goes to the LinkedIn jobs search above. The employer's own page establishes that link.",
+   "caveats": [
+    "The destination's listings were not seen, and the entities behind the seven company IDs were not verified.",
+    "The link, as published, is not UAE-filtered (geoId 92000000) and carries LinkedIn session-style parameters, so it may change without notice.",
+    "LinkedIn may ask a browser user to sign in."
+   ],
+   "not_a_route": "The homepage presents TalentOne (talentone.ae) as a separate human-resource-management portfolio company. talentone.ae's own 'Careers' link goes to an Oracle Candidate Experience site (CX_6007). That is TalentOne's route, not a PureHealth route, and it is not used here."
+  },
+  {
+   "employer": "Zayed University",
+   "v5_outcome": "UNRESOLVED",
+   "v6_outcome": "UNRESOLVED",
+   "supported_feed": null,
+   "direct_link_fallback": null,
+   "unverified_lead": "https://fa-evge-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/",
+   "blocker": "www.zu.ac.ae and zu.ac.ae both reset the TLS connection at robots.txt (WinError 10054), so no ZU page may be fetched and none can show a forward link.",
+   "owner_browser_check": "Open https://www.zu.ac.ae/main/en/careers/ and confirm where its staff-vacancies link goes."
+  },
+  {
+   "employer": "Abu Dhabi Public Health Centre (ADPHC)",
+   "v5_outcome": "UNRESOLVED",
+   "v6_outcome": "MANUAL_LINK",
+   "supported_feed": null,
+   "official_link": "https://www.adphc.gov.ae/en/FAQs",
+   "application_route": "The official FAQ answers 'How can I apply for vacancies at ADPHC?' with 'You can email your CV to HR@adphc.gov.ae' (Arabic page: Hr@adphc.gov.ae).",
+   "platform": "No readable job board. Application guidance is a CV sent by e-mail, as for EWEC.",
+   "why_astra_cannot_read": "/en/Careers is allowed by robots.txt but returns a web-application-firewall 'Request Rejected' page (not bypassed). The only verified route is e-mail application guidance; there is no board or feed to read.",
+   "evidence": "The FAQ page (HTTP 200, allowed by robots.txt, which disallows only /sitecore) is a Sitecore SXA search shell. Its answers load from the page's own declared endpoint, /en/sxa/search/results/ and /ar-AE/sxa/search/results/, which returned the answer above in both languages at 2026-09-27T13:44:54-55Z. v5 read only the shell, so it saw no answer.",
+   "caveats": [
+    "This is application guidance, not evidence of any current vacancy. No e-mail was sent.",
+    "What /en/Careers lists, if anything, is unknown.",
+    "An unrelated FAQ answer on the same site also mentions a CV; it is recorded in the request log and not used."
+   ]
+  },
+  {
+   "employer": "Department of Health - Abu Dhabi (DoH)",
+   "v5_outcome": "UNRESOLVED",
+   "v6_outcome": "UNRESOLVED",
+   "supported_feed": null,
+   "direct_link_fallback": null,
+   "official_link_observed": "DoH's homepage (https://www.doh.gov.ae/en/) still links 'Careers' to an Oracle E-Business Suite page on aderp.abudhabi.ae.",
+   "blocker": "aderp.abudhabi.ae still fails TLS verification ('certificate has expired'). The presented certificate (GlobalSign RSA OV SSL CA 2018) expired on 2025-09-09. Its robots.txt is unreadable, nothing there is fetched, and a browser would warn. /en/careers on doh.gov.ae redirects to a 404 page.",
+   "owner_browser_check": "Only useful after DoH renews the certificate; ASTRA will not offer a link that raises a certificate warning."
+  },
+  {
+   "employer": "Emirates Islamic",
+   "v5_outcome": "UNRESOLVED",
+   "v6_outcome": "UNRESOLVED",
+   "supported_feed": null,
+   "direct_link_fallback": null,
+   "unverified_lead": "https://fa-evlo-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2",
+   "blocker": "robots.txt, /en/about-us/careers and the /en homepage all return a Cloudflare 'Attention Required' challenge (HTTP 403), which was not bypassed.",
+   "owner_browser_check": "Open https://www.emiratesislamic.ae/en/about-us/careers and confirm where its 'View Vacancies' link goes."
+  },
+  {
+   "employer": "Higher Colleges of Technology",
+   "v5_outcome": "UNRESOLVED",
+   "v6_outcome": "UNRESOLVED",
+   "supported_feed": null,
+   "direct_link_fallback": null,
+   "unverified_lead": "https://iaavey.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1",
+   "blocker": "robots.txt on www.hct.ac.ae and hct.ac.ae redirects /robots.txt -> /robots.txt/ -> /robots.txt// and then to itself. The first hops set a cookie, which was not kept. After more than five hops it is treated as disallow all, so no HCT page is fetched.",
+   "protocol_note": "RFC 9309 section 2.3.1.2 permits (MAY) treating more than five redirects as 'unavailable', which would allow access. This research keeps the conservative reading used in v4 and v5; changing it is an Owner decision.",
+   "owner_browser_check": "Open https://hct.ac.ae/en/careers/ and confirm where its 'Current Vacancies' link goes."
+  },
+  {
+   "employer": "du (Emirates Integrated Telecommunications)",
+   "v5_outcome": "UNRESOLVED",
+   "v6_outcome": "UNRESOLVED",
+   "supported_feed": null,
+   "direct_link_fallback": null,
+   "unverified_lead": "https://fa-ewnx-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001",
+   "blocker": "du.ae's robots.txt applies 'Disallow: /' to all agents, so neither /about-us/careers nor /corporate/sitemap was requested.",
+   "owner_browser_check": "Open du's careers page and confirm where its 'Join Us' link goes."
+  }
+ ],
+ "requests": {
+  "user_agent": "ASTRA-source-research/1.0 (read-only official careers-page check; robots.txt honoured)",
+  "client": "Python 3.13.2, httpx 0.28.1, OpenSSL 3.0.15, certificate verification on",
+  "note": "Times are UTC. Served page bodies stayed outside Git. One ADPHC robots.txt read was made outside the logging script to display the rule text; it is listed with an approximate time.",
+  "by_employer": {
+   "PureHealth": [
+    {
+     "utc": "2026-09-27T13:41:15+00:00",
+     "url": "https://purehealth.ae/robots.txt",
+     "purpose": "robots",
+     "status": 403,
+     "robots_result": "UNAVAILABLE_ALLOW",
+     "challenge": "Cloudflare"
+    },
+    {
+     "utc": "2026-09-27T13:41:15+00:00",
+     "url": "https://purehealth.ae/careers/",
+     "purpose": "official careers page",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 301,
+     "fetched": true,
+     "redirect_to": "https://www.linkedin.com/company/purehealthae/",
+     "set_cookie_on_redirect": false
+    },
+    {
+     "utc": "2026-09-27T13:41:17+00:00",
+     "url": "https://purehealth.ae/",
+     "purpose": "official homepage: careers link check",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 200,
+     "fetched": true,
+     "title": "PureHealth",
+     "job_links_in_served_html": [
+      {
+       "text": "Careers",
+       "href": "https://www.linkedin.com/company/purehealthae/"
+      },
+      {
+       "text": "Careers",
+       "href": "https://www.linkedin.com/jobs/search/?f_C=2682519%2C14622592%2C68859272%2C78987929%2C343358%2C873130%2C78448321&geoId=92000000&origin=COMPANY_PAGE_JOBS_CLUSTER_EXPANSION&originToLandingJobPostings=3810609489%2C3816333616%2C3823108145%2C3812881060%2C3820247667%2C3815710338%2C3800548661%2C3800547239%2C3800542963&position=1&pageNum=0"
+      },
+      {
+       "text": "Explore",
+       "href": "https://talentone.ae"
+      }
+     ]
+    },
+    {
+     "utc": "2026-09-27T13:41:19+00:00",
+     "url": "https://purehealth.ae/sitemap.xml",
+     "purpose": "official sitemap: careers path check",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 301,
+     "fetched": true,
+     "redirect_to": "https://purehealth.ae/sitemap_index.xml",
+     "set_cookie_on_redirect": false
+    },
+    {
+     "utc": "2026-09-27T13:43:05+00:00",
+     "url": "https://purehealth.ae/robots.txt",
+     "purpose": "robots",
+     "status": 403,
+     "robots_result": "UNAVAILABLE_ALLOW",
+     "challenge": "Cloudflare"
+    },
+    {
+     "utc": "2026-09-27T13:43:05+00:00",
+     "url": "https://purehealth.ae/",
+     "purpose": "official homepage: link context",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 200,
+     "fetched": true,
+     "title": "PureHealth",
+     "job_links_in_served_html": [
+      {
+       "text": "Careers",
+       "href": "https://www.linkedin.com/company/purehealthae/"
+      },
+      {
+       "text": "Careers",
+       "href": "https://www.linkedin.com/jobs/search/?f_C=2682519%2C14622592%2C68859272%2C78987929%2C343358%2C873130%2C78448321&geoId=92000000&origin=COMPANY_PAGE_JOBS_CLUSTER_EXPANSION&originToLandingJobPostings=3810609489%2C3816333616%2C3823108145%2C3812881060%2C3820247667%2C3815710338%2C3800548661%2C3800547239%2C3800542963&position=1&pageNum=0"
+      },
+      {
+       "text": "Explore",
+       "href": "https://talentone.ae"
+      }
+     ]
+    },
+    {
+     "utc": "2026-09-27T13:43:07+00:00",
+     "url": "https://purehealth.ae/sitemap_index.xml",
+     "purpose": "official sitemap index",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 200,
+     "fetched": true,
+     "title": "",
+     "observed": [
+      "https://purehealth.ae/post-sitemap.xml",
+      "https://purehealth.ae/page-sitemap.xml",
+      "https://purehealth.ae/category-sitemap.xml",
+      "https://purehealth.ae/post_tag-sitemap.xml",
+      "https://purehealth.ae/author-sitemap.xml"
+     ]
+    },
+    {
+     "utc": "2026-09-27T13:43:10+00:00",
+     "url": "https://purehealth.ae/page-sitemap.xml",
+     "purpose": "official page sitemap: careers path check",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 200,
+     "fetched": true,
+     "title": "",
+     "observed": []
+    },
+    {
+     "utc": "2026-09-27T13:43:12+00:00",
+     "url": "https://talentone.ae/robots.txt",
+     "purpose": "robots",
+     "status": 403,
+     "robots_result": "UNAVAILABLE_ALLOW",
+     "challenge": "Cloudflare"
+    },
+    {
+     "utc": "2026-09-27T13:43:12+00:00",
+     "url": "https://talentone.ae",
+     "purpose": "destination of PureHealth homepage \"Explore\" link",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 200,
+     "fetched": true,
+     "title": "TalentOne",
+     "job_links_in_served_html": [
+      {
+       "text": "",
+       "href": "https://talentone.ae"
+      },
+      {
+       "text": "Home",
+       "href": "https://talentone.ae/"
+      },
+      {
+       "text": "About Us",
+       "href": "https://talentone.ae/about-us/"
+      },
+      {
+       "text": "Careers",
+       "href": "https://fa-eutv-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_6007"
+      },
+      {
+       "text": "FAQs",
+       "href": "https://talentone.ae/faqs/"
+      },
+      {
+       "text": "Contact Us",
+       "href": "https://talentone.ae/contact-us/"
+      },
+      {
+       "text": "",
+       "href": "https://talentone.ae/about-us/"
+      },
+      {
+       "text": "Read More",
+       "href": "https://talentone.ae/about-us/"
+      },
+      {
+       "text": "Instagram",
+       "href": "https://www.instagram.com/talentoneae/"
+      },
+      {
+       "text": "Linkedin",
+       "href": "https://www.linkedin.com/company/talentoneae/"
+      },
+      {
+       "text": "X-twitter",
+       "href": "https://x.com/TalentOne_ae"
+      },
+      {
+       "text": "Youtube",
+       "href": "https://www.youtube.com/@TalentOneae"
+      },
+      {
+       "text": "[email protected]",
+       "href": "https://talentone.ae/cdn-cgi/l/email-protection"
+      },
+      {
+       "text": "Privacy & Terms",
+       "href": "https://talentone.ae/privacy-terms/"
+      },
+      {
+       "text": "FAQ",
+       "href": "https://talentone.ae/faqs/"
+      }
+     ]
+    },
+    {
+     "utc": "2026-09-27T13:45:27+00:00",
+     "url": "https://www.linkedin.com/robots.txt",
+     "purpose": "robots",
+     "status": 200,
+     "robots_result": "PARSED",
+     "rules_applicable": 1
+    },
+    {
+     "utc": "2026-09-27T13:45:28+00:00",
+     "url": "https://www.linkedin.com/jobs/search/?f_C=...",
+     "purpose": "robots evaluation of the PureHealth-published Careers link (page not requested)",
+     "robots": "disallowed by disallow '/'",
+     "fetched": false
+    }
+   ],
+   "Zayed University": [
+    {
+     "utc": "2026-09-27T13:41:21+00:00",
+     "url": "https://www.zu.ac.ae/robots.txt",
+     "purpose": "robots",
+     "robots_result": "UNREACHABLE_DISALLOW",
+     "error": "ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host"
+    },
+    {
+     "utc": "2026-09-27T13:41:21+00:00",
+     "url": "https://www.zu.ac.ae/main/en/careers/",
+     "purpose": "official careers page",
+     "robots": "robots unreachable_disallow: not fetched",
+     "fetched": false
+    },
+    {
+     "utc": "2026-09-27T13:41:21+00:00",
+     "url": "https://zu.ac.ae/robots.txt",
+     "purpose": "robots",
+     "robots_result": "UNREACHABLE_DISALLOW",
+     "error": "ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host"
+    },
+    {
+     "utc": "2026-09-27T13:41:21+00:00",
+     "url": "https://zu.ac.ae/main/en/careers/",
+     "purpose": "official careers page (apex host)",
+     "robots": "robots unreachable_disallow: not fetched",
+     "fetched": false
+    }
+   ],
+   "Abu Dhabi Public Health Centre (ADPHC)": [
+    {
+     "utc": "2026-09-27T13:41:21+00:00",
+     "url": "https://www.adphc.gov.ae/robots.txt",
+     "purpose": "robots",
+     "status": 200,
+     "robots_result": "PARSED",
+     "rules_applicable": 2
+    },
+    {
+     "utc": "2026-09-27T13:41:22+00:00",
+     "url": "https://www.adphc.gov.ae/en/Careers",
+     "purpose": "official careers page",
+     "robots": "allowed",
+     "status": 200,
+     "fetched": true,
+     "title": "Request Rejected",
+     "bot_protection": "WAF Request Rejected: challenge or rejection page; not bypassed"
+    },
+    {
+     "utc": "2026-09-27T13:41:23+00:00",
+     "url": "https://www.adphc.gov.ae/FAQs",
+     "purpose": "official FAQ: careers/CV route check",
+     "robots": "allowed",
+     "status": 200,
+     "fetched": true,
+     "title": "الأسئلة الأكثر شيوعاً",
+     "observed": "The served page HTML is a Sitecore SXA search shell; the FAQ answers load from its declared endpoint /{lang}/sxa/search/results/ (checked below)."
+    },
+    {
+     "utc": "2026-09-27T13:41:26+00:00",
+     "url": "https://www.adphc.gov.ae/en/FAQs",
+     "purpose": "official FAQ (English): careers/CV route check",
+     "robots": "allowed",
+     "status": 200,
+     "fetched": true,
+     "title": "Frequently Asked Questions",
+     "observed": "The served page HTML is a Sitecore SXA search shell; the FAQ answers load from its declared endpoint /{lang}/sxa/search/results/ (checked below)."
+    },
+    {
+     "utc": "2026-09-27T13:41:28+00:00",
+     "url": "https://www.adphc.gov.ae/en",
+     "purpose": "official homepage: careers link check",
+     "robots": "allowed",
+     "status": 200,
+     "fetched": true,
+     "title": "Home"
+    },
+    {
+     "utc": "2026-09-27T13:43:16+00:00",
+     "url": "https://www.adphc.gov.ae/robots.txt",
+     "purpose": "robots",
+     "status": 200,
+     "robots_result": "PARSED",
+     "rules_applicable": 2
+    },
+    {
+     "utc": "2026-09-27T13:43:16+00:00",
+     "url": "https://www.adphc.gov.ae/FAQs",
+     "purpose": "official FAQ: how content loads",
+     "robots": "allowed",
+     "status": 200,
+     "fetched": true,
+     "title": "الأسئلة الأكثر شيوعاً"
+    },
+    {
+     "utc": "2026-09-27T13:44:00+00:00",
+     "url": "https://www.adphc.gov.ae/robots.txt",
+     "purpose": "robots (manual read to display rule text; outside the logging script, approximate time)",
+     "status": 200,
+     "observed": "User-agent: * / Disallow: (empty) / Disallow: /sitecore"
+    },
+    {
+     "utc": "2026-09-27T13:44:53+00:00",
+     "url": "https://www.adphc.gov.ae/robots.txt",
+     "purpose": "robots",
+     "status": 200,
+     "robots_result": "PARSED",
+     "rules_applicable": 2
+    },
+    {
+     "utc": "2026-09-27T13:44:54+00:00",
+     "url": "https://www.adphc.gov.ae/ar-AE/sxa/search/results/?s={65B3F913-2B60-4584-BB09-842865BE001C}&itemid={52181603-80D3-487C-99B3-E8A6CE406653}&sig=faqs-listing&v={DA412009-8FA0-4044-9925-5E574C2D926E}&p=100&o=Title_Test,Ascending&l=ar-AE",
+     "purpose": "official FAQ component endpoint (Arabic), as the FAQ page calls it",
+     "robots": "allowed",
+     "status": 200,
+     "fetched": true,
+     "observed": {
+      "faq_items": 9,
+      "vacancies_question": "كيف يمكنني التقديم على الوظائف الشاغرة في المركز؟",
+      "vacancies_answer": "يمكنكم إرسال السيرة الذاتية على البريد الإلكترونيHr@adphc.gov.ae",
+      "faq_item_path": "/ar-AE/Data/FAQs-data/How-can-I-apply-for-vacancies-at-ADPHC"
+     }
+    },
+    {
+     "utc": "2026-09-27T13:44:55+00:00",
+     "url": "https://www.adphc.gov.ae/en/sxa/search/results/?s={65B3F913-2B60-4584-BB09-842865BE001C}&itemid={52181603-80D3-487C-99B3-E8A6CE406653}&sig=faqs-listing&v={DA412009-8FA0-4044-9925-5E574C2D926E}&p=100&o=Title_Test,Ascending&l=en",
+     "purpose": "official FAQ component endpoint (English)",
+     "robots": "allowed",
+     "status": 200,
+     "fetched": true,
+     "observed": {
+      "faq_items": 9,
+      "vacancies_question": "How can I apply for vacancies at ADPHC?",
+      "vacancies_answer": "You can email your CV to HR@adphc.gov.ae",
+      "faq_item_path": "/en/Data/FAQs-data/How-can-I-apply-for-vacancies-at-ADPHC",
+      "anomaly": "The English answer to 'How can I obtain the awareness materials for ADPHC?' also reads 'You can email your CV to Info@adphc.gov.ae'. It answers a different question and is not used as the route."
+     }
+    }
+   ],
+   "Department of Health - Abu Dhabi (DoH)": [
+    {
+     "utc": "2026-09-27T13:41:33+00:00",
+     "url": "https://www.doh.gov.ae/robots.txt",
+     "purpose": "robots",
+     "status": 404,
+     "robots_result": "UNAVAILABLE_ALLOW",
+     "challenge": null
+    },
+    {
+     "utc": "2026-09-27T13:41:35+00:00",
+     "url": "https://www.doh.gov.ae/en/",
+     "purpose": "official homepage: careers link check",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 200,
+     "fetched": true,
+     "title": "Home | Department of Health Abu Dhabi",
+     "observed_link": {
+      "label": "Careers",
+      "host": "aderp.abudhabi.ae",
+      "path": "/OA_HTML/RF.jsp (Oracle E-Business Suite function link)"
+     }
+    },
+    {
+     "utc": "2026-09-27T13:41:36+00:00",
+     "host": "aderp.abudhabi.ae",
+     "purpose": "TLS handshake-only diagnostic (no HTTP request)",
+     "verified": false,
+     "error": "SSLCertVerificationError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1028)",
+     "presented_not_before": "Aug  8 09:26:02 2024 GMT",
+     "presented_not_after": "Sep  9 09:26:01 2025 GMT",
+     "presented_issuer": "GlobalSign RSA OV SSL CA 2018",
+     "presented_san": [
+      "aderp.abudhabi.ae",
+      "www.aderp.abudhabi.ae"
+     ]
+    },
+    {
+     "utc": "2026-09-27T13:41:36+00:00",
+     "url": "https://aderp.abudhabi.ae/robots.txt",
+     "purpose": "robots",
+     "robots_result": "UNREACHABLE_DISALLOW",
+     "error": "SSLCertVerificationError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1028)"
+    },
+    {
+     "utc": "2026-09-27T13:41:36+00:00",
+     "url": "https://aderp.abudhabi.ae/OA_HTML/RF.jsp (query string omitted: session-style function parameters)",
+     "purpose": "DoH homepage Careers link target",
+     "robots": "robots unreachable_disallow: not fetched",
+     "fetched": false
+    },
+    {
+     "utc": "2026-09-27T13:41:36+00:00",
+     "url": "https://www.doh.gov.ae/en/careers",
+     "purpose": "official careers path",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 302,
+     "fetched": true,
+     "redirect_to": "https://www.doh.gov.ae/404?item=%2fcareers&user=extranet%5cAnonymous&site=website",
+     "set_cookie_on_redirect": false
+    }
+   ],
+   "Emirates Islamic": [
+    {
+     "utc": "2026-09-27T13:41:38+00:00",
+     "url": "https://www.emiratesislamic.ae/robots.txt",
+     "purpose": "robots",
+     "status": 403,
+     "robots_result": "UNAVAILABLE_ALLOW",
+     "challenge": "Cloudflare"
+    },
+    {
+     "utc": "2026-09-27T13:41:39+00:00",
+     "url": "https://www.emiratesislamic.ae/en/about-us/careers",
+     "purpose": "official careers page",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 403,
+     "fetched": true,
+     "title": "Attention Required! | Cloudflare",
+     "bot_protection": "Cloudflare: challenge or rejection page; not bypassed"
+    },
+    {
+     "utc": "2026-09-27T13:41:41+00:00",
+     "url": "https://www.emiratesislamic.ae/en",
+     "purpose": "official homepage: careers link check",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 403,
+     "fetched": true,
+     "title": "Attention Required! | Cloudflare",
+     "bot_protection": "Cloudflare: challenge or rejection page; not bypassed"
+    }
+   ],
+   "Higher Colleges of Technology": [
+    {
+     "utc": "2026-09-27T13:41:43+00:00",
+     "url": "https://www.hct.ac.ae/robots.txt",
+     "purpose": "robots",
+     "status": 301,
+     "redirect_to": "https://hct.ac.ae/robots.txt/",
+     "set_cookie_on_redirect": true
+    },
+    {
+     "utc": "2026-09-27T13:41:43+00:00",
+     "url": "https://hct.ac.ae/robots.txt/",
+     "purpose": "robots",
+     "status": 301,
+     "redirect_to": "https://hct.ac.ae/robots.txt//",
+     "set_cookie_on_redirect": true
+    },
+    {
+     "utc": "2026-09-27T13:41:45+00:00",
+     "url": "https://hct.ac.ae/robots.txt//",
+     "purpose": "robots",
+     "status": 301,
+     "redirect_to": "https://hct.ac.ae/robots.txt//",
+     "set_cookie_on_redirect": false
+    },
+    {
+     "utc": "2026-09-27T13:41:47+00:00",
+     "url": "https://hct.ac.ae/robots.txt//",
+     "purpose": "robots",
+     "status": 301,
+     "redirect_to": "https://hct.ac.ae/robots.txt//",
+     "set_cookie_on_redirect": false
+    },
+    {
+     "utc": "2026-09-27T13:41:49+00:00",
+     "url": "https://hct.ac.ae/robots.txt//",
+     "purpose": "robots",
+     "status": 301,
+     "redirect_to": "https://hct.ac.ae/robots.txt//",
+     "set_cookie_on_redirect": false
+    },
+    {
+     "utc": "2026-09-27T13:41:51+00:00",
+     "url": "https://hct.ac.ae/robots.txt//",
+     "purpose": "robots",
+     "status": 301,
+     "redirect_to": "https://hct.ac.ae/robots.txt//",
+     "set_cookie_on_redirect": false,
+     "robots_result": "UNREACHABLE_DISALLOW (redirect loop; conservative)"
+    },
+    {
+     "utc": "2026-09-27T13:41:51+00:00",
+     "url": "https://www.hct.ac.ae/en/careers/",
+     "purpose": "official careers page",
+     "robots": "robots unreachable_disallow: not fetched",
+     "fetched": false
+    },
+    {
+     "utc": "2026-09-27T13:41:53+00:00",
+     "url": "https://hct.ac.ae/robots.txt",
+     "purpose": "robots",
+     "status": 301,
+     "redirect_to": "https://hct.ac.ae/robots.txt/",
+     "set_cookie_on_redirect": false
+    },
+    {
+     "utc": "2026-09-27T13:41:55+00:00",
+     "url": "https://hct.ac.ae/robots.txt/",
+     "purpose": "robots",
+     "status": 301,
+     "redirect_to": "https://hct.ac.ae/robots.txt//",
+     "set_cookie_on_redirect": false
+    },
+    {
+     "utc": "2026-09-27T13:41:57+00:00",
+     "url": "https://hct.ac.ae/robots.txt//",
+     "purpose": "robots",
+     "status": 301,
+     "redirect_to": "https://hct.ac.ae/robots.txt//",
+     "set_cookie_on_redirect": false
+    },
+    {
+     "utc": "2026-09-27T13:41:59+00:00",
+     "url": "https://hct.ac.ae/robots.txt//",
+     "purpose": "robots",
+     "status": 301,
+     "redirect_to": "https://hct.ac.ae/robots.txt//",
+     "set_cookie_on_redirect": false
+    },
+    {
+     "utc": "2026-09-27T13:42:01+00:00",
+     "url": "https://hct.ac.ae/robots.txt//",
+     "purpose": "robots",
+     "status": 301,
+     "redirect_to": "https://hct.ac.ae/robots.txt//",
+     "set_cookie_on_redirect": false
+    },
+    {
+     "utc": "2026-09-27T13:42:03+00:00",
+     "url": "https://hct.ac.ae/robots.txt//",
+     "purpose": "robots",
+     "status": 301,
+     "redirect_to": "https://hct.ac.ae/robots.txt//",
+     "set_cookie_on_redirect": false,
+     "robots_result": "UNREACHABLE_DISALLOW (redirect loop; conservative)"
+    },
+    {
+     "utc": "2026-09-27T13:42:03+00:00",
+     "url": "https://hct.ac.ae/en/careers/",
+     "purpose": "official careers page (apex host)",
+     "robots": "robots unreachable_disallow: not fetched",
+     "fetched": false
+    }
+   ],
+   "du (Emirates Integrated Telecommunications)": [
+    {
+     "utc": "2026-09-27T13:42:03+00:00",
+     "url": "https://www.du.ae/robots.txt",
+     "purpose": "robots",
+     "status": 200,
+     "robots_result": "PARSED",
+     "rules_applicable": 1
+    },
+    {
+     "utc": "2026-09-27T13:42:03+00:00",
+     "url": "https://www.du.ae/about-us/careers",
+     "purpose": "official careers page",
+     "robots": "disallowed by disallow '/'",
+     "fetched": false
+    },
+    {
+     "utc": "2026-09-27T13:42:03+00:00",
+     "url": "https://www.du.ae/corporate/sitemap",
+     "purpose": "official sitemap page",
+     "robots": "disallowed by disallow '/'",
+     "fetched": false
+    }
+   ]
+  }
+ }
+}

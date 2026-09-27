@@ -1,8 +1,10 @@
 # #46.2-B Discovery responsiveness and scan-time estimate
 
-**Status:** corrected candidate based on `master` at
-`2d40c8067996f9f919bda63b716507d371bc8daa`, for fresh independent
-review. 2026-09-27 (Asia/Dubai). Measured on a fictional, isolated database;
+**Status:** merged to `master` with [PR #71](https://github.com/SoSwag5/ASTRA/pull/71)
+at `a4983d455d2dde5a20c1ea7303e3fae2d8dc145d` (reviewed head
+`810143a43100e3dda72b550c75b9e57de99df33a`), based on `master` at
+`2d40c8067996f9f919bda63b716507d371bc8daa`. 2026-09-27 (Asia/Dubai).
+Measured on a fictional, isolated database;
 no live scan, source call or Owner data was used to test it.
 
 ## What was observed

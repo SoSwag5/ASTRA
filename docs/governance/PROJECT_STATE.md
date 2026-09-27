@@ -1,8 +1,8 @@
 # ASTRA project state
 
-**Snapshot date:** 2026-09-27 (Asia/Dubai), refreshed for the #46.2-B controlled
-scan, the Discovery responsiveness fix and the E decisions. The #46 closeout
-below remains historical evidence.
+**Snapshot date:** 2026-09-27 (Asia/Dubai), refreshed for the PR #71 (#46.2-B/C)
+merge, the #46.2-B v6 source-map closeout and the E v3 decision review. The #46
+closeout below remains historical evidence.
 **Rule:** This is a handoff snapshot, not a substitute for live verification.
 Refresh it at session end when repository or release state changes.
 
@@ -269,6 +269,8 @@ or merged.
   PR #68. Its #46 integration base was
   `11a69b0921d55072aa4f552a0319320ab73d6741`
   (tree `e0b8648f8dab8172c59de3c8df84d631263eb1d8`), the #45 squash merge.
+- Current `master` head: `a4983d455d2dde5a20c1ea7303e3fae2d8dc145d`, the PR #71
+  (#46.2-B/C) merge of 2026-09-27; the #46 entries in this section are historical.
 - No implementation branch is active. `feature/46-application-reconciliation-state-model`
   is merged; #45 was merged without independent review, while #46's final head
   `006e9111a196e940d8d11163548ef642c2007e5c` was independently reviewed and
@@ -329,59 +331,118 @@ manual scan control is merged** through [PR #73](https://github.com/SoSwag5/ASTR
 at `2d40c8067996f9f919bda63b716507d371bc8daa`, after independent review of
 the final head `37e2ee360631e2d22335a35320da1a593ce12e6c`. This is source
 integration evidence; the separate Owner-data scan is recorded below.
-**#46.2-B/C remains draft:** The corrected integration candidate includes
-merged A, B source research, and the Discovery responsiveness fix below.
-[PR #71](https://github.com/SoSwag5/ASTRA/pull/71) is its hosted draft; its
-head must match the final handoff SHA before review or merge.
 
-**#46.2-B:**
+**#46.2-B/C integration is merged.**
+[PR #71](https://github.com/SoSwag5/ASTRA/pull/71) merged into `master` on
+2026-09-27 as merge commit `a4983d455d2dde5a20c1ea7303e3fae2d8dc145d`. Its
+parents are `2d40c8067996f9f919bda63b716507d371bc8daa` (A) and the PR head
+`810143a43100e3dda72b550c75b9e57de99df33a`.
 
-- **One controlled scan has run (run 107, 2026-09-27).** It fetched nine
-  configured Ashby, Lever and Greenhouse sources through the merged A build's
-  in-app preview and confirmation. The Owner delegated the in-app controls for
-  this run.
-  - 924 postings checked, 72 UAE-located, 79 new; no source error.
-  - One board's detail enrichment was partial.
-  - The run took 439 s against a preview estimate of "under a minute".
-  - Details are in the [controlled-scan record](../planning/AI_NATIVE_DISCOVERY_46_2B_CONTROLLED_SCAN.md).
-    Source names stay private.
-- **Source map v5 re-researched the seven unresolved employers.**
-  - PureHealth's own careers URL redirects to a LinkedIn company profile, but
-    no jobs or application route was verified there. It remains unresolved.
-  - All seven remain unresolved and need Owner-browser confirmation.
-  - No employer of the 55 has a verified Greenhouse, Lever or Ashby feed
-    (0 supported feeds / 48 manual routes / 7 unresolved).
-- **Discovery responsiveness fix** (based on `master`, carried by the B/C
-  integration candidate, for fresh independent review).
-  - *Cause.* Polled endpoints decoded every run's per-posting decision audit on
-    each poll, and page refreshes could stack. A corrected fictional page
-    replay checks the old and new request sets before comparing timings.
-  - *Fix.* Summaries are cached per run version, the Today lookup gets
-    `LIMIT 1`, the page runs one refresh at a time, and the job list is
-    refetched only on change.
-  - *Estimate.* The preview now uses posting volume and shows the slowest
-    recent pace.
-  - *A contracts preserved:* preview, single-use confirmation, scope binding,
-    Stop and restart handling. See the
-    [responsiveness note](../evaluation/DISCOVERY_46_2B_RESPONSIVENESS.md).
+- *Review.* The Owner's handoff records `810143a` as the independently reviewed
+  head. GitHub records no review on the PR, and the review notes are not in
+  Git.
+- *Post-merge CI on `a4983d4`* ([run 36322023733](https://github.com/SoSwag5/ASTRA/actions/runs/36322023733))
+  passed. That covers Python 3.13 and 3.14 tests (each runs the publication
+  gate), Security Verification, SCA, and CodeQL for python,
+  javascript-typescript and actions. Scorecard also passed.
+  `dependency-review` runs only on pull requests and reports `skipped` on push.
+- *What changed in production.*
+  - The Discovery responsiveness fix: run summaries, the Today lookup, page
+    polling and the scan-time estimate.
+  - `scripts/verify_sources.py` is retired to a no-op, so nothing fetches
+    outside Start Scan.
+  - No source was added, enabled or reconfigured. No SmartRecruiters decision
+    was made.
+- *What the merge does not establish.* It does not validate any semantic
+  quality, it does not cover the 55 researched employers, and it does not show
+  that any posting is open.
+
+Three kinds of #46.2-B/C evidence stay separate. None stands in for another.
+
+1. **Source coverage (B research).**
+   - PR #71 carried source map v4 and v5: 0 supported feed, 48 `MANUAL_LINK`
+     and 7 unresolved, out of 55 employers.
+   - The v6 closeout on `research/46.2-b-closeout-e-decision` (pending
+     independent review, not merged) rechecked the seven from the Owner's
+     machine on 2026-09-27. Its result is 0 / 50 / 5.
+   - Two employers moved to `MANUAL_LINK`:
+     - PureHealth's homepage publishes a "Careers" link to a LinkedIn jobs
+       search.
+     - ADPHC's official FAQ gives CV-by-e-mail application guidance.
+   - Five stay unresolved:
+     - Zayed University: TLS reset.
+     - DoH: its careers host has an expired certificate.
+     - Emirates Islamic: Cloudflare challenge.
+     - HCT: robots.txt redirect loop.
+     - du: robots.txt disallows all paths.
+   - No employer of the 55 has a Greenhouse, Lever or Ashby feed. A
+     `MANUAL_LINK` is never coverage or an open posting. See the
+     [source map](../planning/AI_NATIVE_DISCOVERY_46_2B_SOURCE_MAP.md).
+2. **Semantic quality (C).**
+   - The role-understanding candidate is offline and shadow-only.
+     Production discovery and ranking do not import it, and no AI model is
+     connected.
+   - On 15 assisted, in-sample development items it agreed with 14 Owner
+     tiers. That shows no improvement on unseen jobs.
+   - The 12-job blind holdout stays **sealed**. See the
+     [C status](../evaluation/DISCOVERY_46_2C_PUBLIC_STATUS.md).
+3. **Controlled scan (run 107, 2026-09-27).**
+   - The scan fetched nine configured Ashby, Lever and Greenhouse sources
+     through the merged A build's in-app preview and confirmation. The Owner
+     delegated the in-app controls for this run.
+   - 924 postings checked, 72 UAE-located, 79 new; no source error.
+   - One board's detail enrichment was partial.
+   - The run took 439 s against a preview estimate of "under a minute".
+   - It proves only that those nine feeds could be fetched through the manual
+     confirmation path on that date. It proves nothing about #41 accuracy,
+     posting availability, or the 55-employer map. Source names stay
+     private. See the
+     [controlled-scan record](../planning/AI_NATIVE_DISCOVERY_46_2B_CONTROLLED_SCAN.md).
+
+**Discovery responsiveness fix (merged with PR #71).**
+
+- *Cause.* Polled endpoints decoded every run's per-posting decision audit on
+  each poll, and page refreshes could stack.
+- *Fix.* Summaries are cached per run version, the Today lookup gets
+  `LIMIT 1`, the page runs one refresh at a time, and the job list is refetched
+  only on change. The preview estimate now uses posting volume and shows the
+  slowest recent pace.
+- *Evidence.* It is measured on a fictional replay only. It did not measure
+  scan-worker throughput or prove the cause of run 107's 439 s.
+- *A contracts preserved:* preview, single-use confirmation, scope binding,
+  Stop and restart handling. See the
+  [responsiveness note](../evaluation/DISCOVERY_46_2B_RESPONSIVENESS.md).
 
 **#46.2-E:**
 
 - **E v2** (local `research/46.2-e-hybrid-comparison-v2` at `94fd479`) was
   independently reviewed as **REPORT ACCURATE**. Its hybrid showed **no
   measured improvement** and stays unadopted.
-- **E v3** (local `research/46.2-e-v3-plan`) is a pre-registered plan, awaiting
-  Owner approval and an independent measurement author. It tests one
-  mechanism: alias morphology in current search. Nothing was run.
+- **E v3** (local `research/46.2-e-v3-plan` at `931a108`) is a pre-registered
+  plan that tests one mechanism, alias morphology in current search. Nothing
+  was run.
+- **A decision review** of that plan is on
+  `research/46.2-b-closeout-e-decision`:
+  [E v3 decision review](../planning/DISCOVERY_46_2E_V3_DECISION_REVIEW.md).
+  It recommends keeping the one mechanism but amending the plan before any
+  measurement set exists. The candidate must reach both title matchers, and
+  the miss metric must not depend on the top-20 cutoff. The measurement set
+  needs an author outside this repository and its sessions. The review awaits
+  an Owner decision; no set was created and no search design was adopted.
 
 **#46.2-F** remains **NOT VALIDATED** pending a genuinely independent fictional
 challenge. G and H are not started.
 
 **Next actions:**
 
-- Hosted checks and fresh independent review of the responsiveness fix and
-  reconciled draft at the final PR #71 head before any B/C merge.
-- Owner decisions on E v3 and the seven unresolved employers.
+- Independent review of the B v6 closeout and E decision review at the exact
+  handoff SHA before any push.
+- Owner decisions:
+  - approve, amend or reject the E v3 amendments;
+  - name the independent measurement author and second labeller;
+  - do the Owner-browser checks for the five unresolved employers;
+  - decide whether HCT's robots redirect loop may be read as RFC 9309
+    "unavailable".
 - Keep #47, #48 and v1.2 work separate.
 - Do not tag, publish a release, or modify v1.0.0.
 - Preserve the parked `hardening/l2-r13-r14` branch and all concurrent
