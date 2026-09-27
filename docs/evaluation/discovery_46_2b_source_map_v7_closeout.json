@@ -55,16 +55,17 @@
    }
   }
  ],
+ "tool_note": "Both logs were produced by scripts/source_route_check.py at commit e5e5725e95719d13a849b639584af917158d4891 (git blob e3f0a31b041a63f6cbc67a444952599d3b4e4c2b), as each log records. A later commit changed only that file's module docstring, to disclose the unverified certificate-date diagnostic; its behaviour is unchanged.",
  "rules": [
   "Every request was made from the Owner's machine by scripts/source_route_check.py at the tool commit above, with the v5/v6 User-Agent. The raw logs are the tool's own output, committed unchanged.",
   "Pacing: at least 2 seconds between contacts with one host (HTTP requests and TLS handshakes), counted from the end of the previous contact to the start of the next. The logs record every start and end time in milliseconds; every same-host interval in both runs was at least 2.000 s. This is a v7 result only. The v6 log does not establish its intended minimum, and nothing here changes that.",
   "robots.txt per RFC 9309, compared after section 2.2.2 normalisation on the exact path sent. 404 and other 4xx answers mean robots is unavailable (allowed), except 401, 403 and 429. Those, 5xx, a network or TLS failure, a bot-protection page, HTML served as robots.txt, a 3xx without a usable redirect and more than five redirects all mean disallow all.",
-  "Redirects were never followed automatically, no cookie was kept or sent, certificates were verified, and login, apply, registration and account URLs and hosts were refused. A bot-protection page on any request blocked that host for the rest of the run.",
+  "Redirects were never followed automatically, no cookie was kept or sent, and login, apply, registration and account URLs and hosts were refused. A bot-protection page on any request blocked that host for the rest of the run. certificates were verified for every HTTP request and for the verified handshake of the TLS diagnostic. After that handshake failed, one separate diagnostic handshake read aderp.abudhabi.ae's presented certificate without verification, only to report its dates; it sent no HTTP request and nothing from the host was used.",
   "Officialness: the employer's own domain, or a destination the employer's own page links or redirects to. ATS branding and company profiles alone stay unverified leads.",
   "DNS steps resolved conventional careers hostnames on the employer's own domain without contacting them. The one that resolved was followed up by a separate, recorded plan."
  ],
  "rule_changes_disclosed": [
-  "v4 treated a Cloudflare 403 at robots.txt as \"do not fetch this host\". Its PureHealth record says that continuing would mean working around bot protection. v5 and v6 instead read the same response as RFC 9309 \"unavailable, allowed\", without saying so. PureHealth's v6 MANUAL_LINK was obtained that way, and so were v6's two Emirates Islamic page requests (both answered with a challenge, which was not bypassed). v7 restores the v4 rule. No Owner decision authorised the v5/v6 reading.",
+  "v4 treated a Cloudflare 403 at robots.txt as \"do not fetch this host\". Its PureHealth record says that continuing would mean working around bot protection. v5 and v6 instead read the same response as RFC 9309 \"unavailable, allowed\". v6 stated that 4xx rule, but neither record said it reversed v4's treatment. PureHealth's v6 MANUAL_LINK was obtained that way, and so were v6's two Emirates Islamic page requests (both answered with a challenge, which was not bypassed). v7 restores the v4 rule. No Owner decision authorised the v5/v6 reading.",
   "v7 blocks a host for the rest of the run after any bot-protection page. v4 to v6 stopped only the challenged path; v4 itself read another ADPHC path after a path-level rejection. ADPHC's v6 MANUAL_LINK is therefore consistent with the v4 rule and is not reopened.",
   "HCT: the conservative reading of more than five robots redirects is unchanged. RFC 9309 would permit reading it as \"unavailable\"; that remains an Owner decision and is not relaxed here."
  ],
@@ -111,7 +112,7 @@
    "v6_outcome": "UNRESOLVED",
    "v7_outcome": "UNRESOLVED",
    "official_page": "https://www.emiratesislamic.ae/en/about-us/careers",
-   "observed": "robots.txt answered HTTP 403 with a Cloudflare challenge page at 18:17:13Z.",
+   "observed": "robots.txt answered HTTP 403 with a Cloudflare bot-protection page at 18:17:13Z.",
    "access_decision": "bot-protection page at robots.txt: the host was blocked for the run, and neither the careers page nor the homepage was requested. Nothing was bypassed.",
    "destination": null,
    "unverified_lead": "https://fa-evlo-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2",
@@ -134,7 +135,7 @@
    "v6_outcome": "UNRESOLVED",
    "v7_outcome": "UNRESOLVED",
    "official_page": "https://www.du.ae/about-us/careers",
-   "observed": "robots.txt (HTTP 200, text/plain) gives all agents one applicable rule, \"Disallow: /\", at 18:17:22Z. careers.du.ae and jobs.du.ae do not resolve.",
+   "observed": "robots.txt (HTTP 200, text/plain) gives the * group, which applies to this client, one rule, \"Disallow: /\", at 18:17:22Z. careers.du.ae and jobs.du.ae do not resolve.",
    "access_decision": "disallowed by robots.txt: neither the careers page nor the sitemap page was requested.",
    "destination": null,
    "unverified_lead": "https://fa-ewnx-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001",
@@ -145,9 +146,9 @@
    "v6_outcome": "MANUAL_LINK",
    "v7_outcome": "UNRESOLVED",
    "official_page": "https://purehealth.ae/",
-   "observed": "robots.txt answered HTTP 403 with a Cloudflare challenge page at 18:17:22Z, as in v4, v5 and v6.",
+   "observed": "robots.txt answered HTTP 403 with a Cloudflare block page at 18:17:22Z, as in v4, v5 and v6.",
    "access_decision": "bot-protection page at robots.txt: under the restored v4 rule the host is not fetchable, so the homepage was not requested and its v6 \"Careers\" link could not be re-verified.",
-   "destination": "v6 observed a homepage \"Careers\" link to a LinkedIn jobs search (see the v6 data); that observation was made under the undisclosed v5/v6 robots reading.",
+   "destination": "v6 observed a homepage \"Careers\" link to a LinkedIn jobs search (see the v6 data); that observation was made under the v5/v6 robots reading, which reversed v4's rule without saying so.",
    "owner_decisions": [
     "Whether a Cloudflare 403 at robots.txt may be read as RFC 9309 \"unavailable\". v4 and v7 say no. If yes, PureHealth can return to MANUAL_LINK on its v6 evidence.",
     "Whether an employer-published link to a third-party (LinkedIn) jobs search counts as a MANUAL_LINK route. The map's Markdown officialness rule does not cover it."
@@ -160,6 +161,6 @@
   "v5 (kept unchanged): the DoH 404 page after /en/careers is labelled \"bot_protection\". That was a classifier false positive; it is an ordinary not-found page, as v4 and v6 recorded.",
   "v6 (kept unchanged): \"The presented certificate (GlobalSign RSA OV SSL CA 2018) expired\" names the issuing CA. The certificate that expired is the leaf for aderp.abudhabi.ae, issued by that CA.",
   "v6 (kept unchanged): its request log does not establish the intended two-second same-host minimum. The v6 script stamped each entry before its wait, to the second. v7 does not change that finding.",
-  "The Emirates Islamic \"later independent access check\" added to the source map with v6 (robots.txt HTTP 200 with an HTML page) was not logged with a time, URL or status. v7 logged robots.txt answering 403 with a Cloudflare challenge. Access varies, and the row stays UNRESOLVED either way."
+  "The Emirates Islamic \"later independent access check\" added to the source map with v6 (robots.txt HTTP 200 with an HTML page) was not logged with a time, URL or status. v7 logged robots.txt answering 403 with a Cloudflare bot-protection page. Access varies, and the row stays UNRESOLVED either way."
  ]
 }

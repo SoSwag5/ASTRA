@@ -32,7 +32,10 @@ Rules it enforces, from the #46.2-B source-map protocol:
   run. Interstitial or block pages count at any status; scripts that ordinary
   pages also load (a CAPTCHA widget, a bot-detection script) count only on a
   401, 403, 429 or 503 response, and are otherwise just logged;
-- certificates are verified; a TLS failure makes the host unreadable;
+- certificates are verified for every HTTP request and TLS diagnostic, and a
+  TLS failure makes the host unreadable. After a failed verified handshake, the
+  TLS diagnostic may make one more handshake without verification, only to
+  read the presented certificate's dates; it sends no HTTP request;
 - login, apply, registration and account URLs and host names are refused
   without a request, and the path that would be sent must equal the path that
   was checked;

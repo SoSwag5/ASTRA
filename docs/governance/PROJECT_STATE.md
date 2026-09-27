@@ -389,16 +389,17 @@ Three kinds of #46.2-B/C evidence stay separate. None stands in for another.
      The v6 log still does not establish its own pacing. **Result: 0 / 49 / 6.**
    - PureHealth is `UNRESOLVED` again. Its robots.txt still answers with a
      Cloudflare 403. v4 treated that as "do not fetch this host". v5 and v6
-     read it as "unavailable" without disclosure, which is how the v6
-     homepage read was made. v7 restores the v4 rule.
+     read it as "unavailable"; v6 stated that 4xx rule but not that it
+     reversed v4. That is how the v6 homepage read was made. v7 restores the
+     v4 rule.
    - Six are unresolved, each with an exact Owner-browser action:
      - Zayed University: TLS reset, also on `careers.zu.ac.ae`.
      - DoH: its careers link goes to a host whose certificate expired on
        2025-09-09.
-     - Emirates Islamic: Cloudflare challenge at robots.txt.
+     - Emirates Islamic: Cloudflare bot-protection page at robots.txt.
      - HCT: robots.txt redirect loop.
      - du: robots.txt disallows all paths.
-     - PureHealth: Cloudflare challenge at robots.txt.
+     - PureHealth: Cloudflare block page at robots.txt.
    - No researched employer has a *verified* Greenhouse, Lever or Ashby
      board, so no controlled scan was prepared and run 107 was not repeated.
      A `MANUAL_LINK` is never coverage or an open posting. See the
