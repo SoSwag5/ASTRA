@@ -34,6 +34,7 @@ import sys
 import tempfile
 import threading
 import time
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -202,9 +203,11 @@ def stop_server(proc, pid):
     proc.wait(timeout=30)
 
 
-def measure(data, tree, seconds=45, act_at=12.0, sequential_reps=3, client='old'):
+def measure(data, tree, seconds=45, act_at=12.0, sequential_reps=3, client='old', poll_interval=5.0):
     """Start a server on a copy of `data`, replay the Discovery page, return the measurements."""
     import httpx
+    if client not in ('old', 'new') or poll_interval <= 0:
+        raise ValueError('Choose an old/new client and a positive polling interval')
     work = Path(tempfile.mkdtemp(prefix='astra-perf-'))
     copy_data = work / 'data'
     shutil.copytree(data, copy_data)
@@ -213,20 +216,28 @@ def measure(data, tree, seconds=45, act_at=12.0, sequential_reps=3, client='old'
     base = f'http://127.0.0.1:{PORT}'
     out = {'build': health.get('build'), 'client': client, 'endpoints': {}, 'page': {}}
     try:
-        with httpx.Client(base_url=base, timeout=300) as client:
+        with httpx.Client(base_url=base, timeout=300) as probe_client:
             for path in POLL + ('/api/dashboard',):
                 walls, sizes = [], []
                 for _ in range(sequential_reps):
                     t = time.perf_counter()
-                    reply = client.get(path)
+                    reply = probe_client.get(path)
                     walls.append(time.perf_counter() - t)
                     sizes.append(len(reply.content))
                     reply.raise_for_status()
                 out['endpoints'][path] = {'median_s': round(statistics.median(walls), 3), 'bytes': sizes[-1]}
-            source = next(s for s in client.get('/api/search/overview').json()['sources'] if s['enabled'])
+            source = next(s for s in probe_client.get('/api/search/overview').json()['sources'] if s['enabled'])
         _, cpu_before = _process_stats(pid)
         lock = threading.Lock()
         rounds, in_flight, peak_in_flight, act, jobs_at = [], [0], [0], {}, [None]
+        request_counts, skipped_rounds, request_errors = Counter(), [0], []
+
+        def checked_get(http_client, path):
+            try:
+                http_client.get(path).raise_for_status()
+            except Exception as exc:
+                with lock:
+                    request_errors.append(f'{path}: {type(exc).__name__}: {exc}')
 
         def paths():
             if client == 'old':
@@ -237,21 +248,27 @@ def measure(data, tree, seconds=45, act_at=12.0, sequential_reps=3, client='old'
             return POLL_LIGHT
 
         def one_round():
-            if client == 'new' and in_flight[0]:
-                return                            # single-flight: skip while a round is pending
             with lock:
+                if client == 'new' and in_flight[0]:
+                    skipped_rounds[0] += 1        # single-flight: skip while a round is pending
+                    return
                 in_flight[0] += 1
                 peak_in_flight[0] = max(peak_in_flight[0], in_flight[0])
             t = time.perf_counter()
-            with httpx.Client(base_url=base, timeout=600) as c:
-                threads = [threading.Thread(target=c.get, args=(p,)) for p in paths()]
-                for th in threads:
-                    th.start()
-                for th in threads:
-                    th.join()
-            with lock:
-                rounds.append(time.perf_counter() - t)
-                in_flight[0] -= 1
+            try:
+                requested = paths()
+                with lock:
+                    request_counts.update(requested)
+                with httpx.Client(base_url=base, timeout=600) as c:
+                    threads = [threading.Thread(target=checked_get, args=(c, p)) for p in requested]
+                    for th in threads:
+                        th.start()
+                    for th in threads:
+                        th.join()
+            finally:
+                with lock:
+                    rounds.append(time.perf_counter() - t)
+                    in_flight[0] -= 1
 
         def pause_source():
             t = time.perf_counter()
@@ -259,7 +276,7 @@ def measure(data, tree, seconds=45, act_at=12.0, sequential_reps=3, client='old'
                 c.post('/api/records/sources', json={'id': source['id'], 'enabled': False}).raise_for_status()
                 act['saved_s'] = round(time.perf_counter() - t, 3)
                 for group in (POLL, RELOAD):      # the page's load(), then the app's reload()
-                    threads = [threading.Thread(target=c.get, args=(p,)) for p in group]
+                    threads = [threading.Thread(target=checked_get, args=(c, p)) for p in group]
                     for th in threads:
                         th.start()
                     for th in threads:
@@ -274,14 +291,18 @@ def measure(data, tree, seconds=45, act_at=12.0, sequential_reps=3, client='old'
             if acted is None and time.perf_counter() - started >= act_at:
                 acted = threading.Thread(target=pause_source)
                 acted.start()
-            time.sleep(5)
+            time.sleep(poll_interval)
             if acted is None and time.perf_counter() - started >= act_at:
                 acted = threading.Thread(target=pause_source)
                 acted.start()
         for worker in workers + ([acted] if acted else []):
             worker.join()
+        if request_errors:
+            raise RuntimeError(f'Polling replay failed: {request_errors[:5]}')
         peak, cpu_after = _process_stats(pid)
         out['page'] = {'seconds': seconds, 'rounds_started': len(workers),
+                       'rounds_completed': len(rounds), 'rounds_skipped': skipped_rounds[0],
+                       'request_counts': dict(request_counts),
                        'round_median_s': round(statistics.median(rounds), 2), 'round_max_s': round(max(rounds), 2),
                        'peak_rounds_in_flight': peak_in_flight[0], 'pause_action': act,
                        'server_cpu_s': round(cpu_after - cpu_before, 1) if cpu_before is not None else None,
