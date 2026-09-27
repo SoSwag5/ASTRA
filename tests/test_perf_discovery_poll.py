@@ -103,7 +103,7 @@ def test_replay_refuses_a_failed_pause_action(tmp_path, monkeypatch):
                      act_at=0, sequential_reps=1, poll_interval=0.3)
 
 
-def test_replay_shutdown_closes_its_authenticated_server(tmp_path):
+def test_replay_shutdown_closes_its_identity_matched_server(tmp_path):
     data = tmp_path / 'data'
     data.mkdir()
     proc, health, port, nonce = perf.start_server(perf.ROOT, data)
