@@ -11,7 +11,7 @@
 
 **Current result (v6, 2026-09-27): 0 supported feed, 0 SmartRecruiters (Owner decision), 50 `MANUAL_LINK`, 5 unresolved, out of 55 employers.** v4 and v5 each recorded 0 / 48 / 7.
 
-**v6 closeout (2026-09-27).** The seven rows v5 left unresolved were rechecked from the Owner's machine between 13:41 and 13:45 UTC. The User-Agent and robots rules were the same as v5. Redirects were logged hop by hop, no cookie was kept, and any challenge, TLS reset or certificate error ended the attempt on that host. No remote reader was used. Two employers' own sites now establish a route; five stay unresolved. Data: [`discovery_46_2b_source_map_v6_closeout.json`](../evaluation/discovery_46_2b_source_map_v6_closeout.json), with 53 dated log entries. The v4 and v5 data files are unchanged. v5 ([data](../evaluation/discovery_46_2b_source_map_v5_unresolved.json)) had re-researched the same seven rows earlier that day and left all of them unresolved.
+**v6 closeout (2026-09-27).** The seven rows v5 left unresolved were rechecked from the Owner's machine between 13:41 and 13:45 UTC. The User-Agent and robots rules were the same as v5. Redirects were logged hop by hop and no cookie was kept. A challenge on a content page, TLS reset or certificate error ended the attempt on that host. PureHealth's `/robots.txt` returned HTTP 403 with a challenge; under the recorded RFC 9309 rule that made robots unavailable, so its normally served homepage was read without bypassing the challenge. No remote reader was used. Two employers' own sites now establish a route; five stay unresolved. Data: [`discovery_46_2b_source_map_v6_closeout.json`](../evaluation/discovery_46_2b_source_map_v6_closeout.json), with 53 dated log entries. The v4 and v5 data files are unchanged. v5 ([data](../evaluation/discovery_46_2b_source_map_v5_unresolved.json)) had re-researched the same seven rows earlier that day and left all of them unresolved.
 
 | Employer | v6 outcome | Official link | What decides it (2026-09-27) |
 |---|---|---|---|
@@ -22,6 +22,14 @@
 | Emirates Islamic | `UNRESOLVED` | none verified | robots.txt, the careers page and the homepage all return a Cloudflare challenge, not bypassed. The Oracle CX_2 site's title is branding only. |
 | Higher Colleges of Technology | `UNRESOLVED` | none verified | robots.txt redirects `/robots.txt` → `/robots.txt/` → `/robots.txt//`, then to itself, and is treated as disallow all. RFC 9309 permits, but does not require, reading more than five redirects as "unavailable", which would allow access. Relaxing the conservative rule used since v4 is an Owner decision. The Oracle CX_1 "HCT" title is branding only. |
 | du | `UNRESOLVED` | none verified | robots.txt still disallows every path for all agents. The Oracle CX_1001 "du Careers" title is branding only. |
+
+**Later independent access check (same date, separate from the v6 request log).**
+Emirates Islamic's `/robots.txt` returned HTTP 200 with an HTML homepage rather
+than parseable robots rules. The reviewer also received a careers-page response
+before identifying that robots fallback; that response is excluded from the
+classification. Under this map's conservative unreadable-robots rule, Emirates
+Islamic stays `UNRESOLVED`. Access appears to vary between requests, and no
+bot-protection challenge was bypassed.
 
 The five unresolved rows need the Owner's browser to confirm each employer's own jobs or application route before any becomes a `MANUAL_LINK`. DoH's is useful only after its certificate is renewed. None of the seven has a verified Greenhouse, Lever or Ashby board. The Owner's separate controlled scan of configured board sources neither covers nor validates these employers.
 

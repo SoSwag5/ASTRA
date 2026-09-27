@@ -153,9 +153,12 @@ would "fail" and drop a mechanism it never tested.
 - Each matcher retries only after its literal match fails. A normalised match
   counts as the same family match. Nothing else in #41 changes, and no
   provenance-pinned file is edited.
-- The freeze commit holds the wrapper, the harness, tests on fictional
-  development data, and an empty hash manifest. It is independently reviewed
-  before the handover.
+- A pre-authoring implementation commit holds the wrapper, the harness, tests
+  on fictional development data, and an empty hash manifest. It is
+  independently reviewed before the measurement-set author starts. After the
+  set's hashes are published, a separate freeze commit fills only the manifest;
+  the candidate and harness must remain byte-identical to the reviewed
+  implementation commit.
 
 ### Measurement set: author, labels and custody
 
@@ -171,7 +174,14 @@ would "fail" and drop a mechanism it never tested.
   author and second labeller settle disagreements together under the rubric,
   and the report records that. The Owner does not adjudicate.
 - **Custodian:** the Owner holds the files and publishes their hashes, but
-  does not edit, grade or open them before the handover.
+  does not inspect, edit or grade their contents. Mechanical sampling and
+  transfer to the second labeller are recorded in the custody log.
+- **External authorship record:** the custodian records each human author's,
+  labeller's and adjudicator's identity, role, dated declaration of no
+  candidate exposure, and file-transfer receipt outside the repository. A
+  reviewer checks that record before accepting the custody claim. Hashes and
+  code can verify file identity; they cannot prove who wrote the labels or
+  whether a person was blind to the candidate.
 - **Fallback:** if no human author is available, use an AI session with no
   repository, file system, memory or tools, given only the brief pack. The
   report must label it "AI-authored, repository-blind", and its outcome is
@@ -204,13 +214,19 @@ mechanism or title-form hint.
 
 **Custody, in order.**
 
-1. The author sends the postings file and the labels file to the custodian,
-   outside the repository and outside any AI session.
+1. An independent reviewer accepts the implementation commit before the
+   author starts the measurement set. The author then sends the postings and
+   initial labels to the custodian, outside the repository and any AI session.
 2. The custodian publishes both SHA-256 hashes in a timestamped place, such
-   as a comment on the #46.2 issue.
-3. The implementer commits the frozen candidate, harness and manifest with
-   those hashes. The reviewer confirms that this commit comes after the
-   published hashes and contains no set content.
+   as a comment on the #46.2 issue. Using a recorded seed, the custodian then
+   draws the second labeller's 30% sample. The second labels independently;
+   disagreements are adjudicated, and hashes of the second and final label
+   files are published before the run.
+3. The implementer fills the manifest with the published hashes in a freeze
+   commit. The reviewer checks the external authorship record, publication
+   timestamps and hashes, confirms that the candidate and harness are
+   unchanged from the pre-authoring implementation commit, and verifies that
+   the freeze contains no set content.
 4. The custodian hands over the files. The harness refuses to run on any
    hash mismatch.
 5. There is one run, from a clean tree at the freeze commit. The set, the
@@ -227,8 +243,12 @@ mechanism or title-form hint.
   - `discovery_reason()` screens it as "Unrelated role";
   - it ranks below position *R* among visible postings.
 - *M* is the number of misses.
-- **Applicability *A*** is the number of relevant postings whose titles match
-  no family alias literally at baseline. Only these can change.
+- **Applicability *A*** is the number of relevant postings for which the frozen
+  candidate produces a new family-alias match in at least one title matcher
+  after that matcher's existing earlier checks. A title with no literal match
+  that still matches no alias after normalisation does not count. This is the
+  relevant subset that can test the proposed reduction in misses; newly
+  matched grade-0 postings are tracked by the false-promotion checks.
 
 **Outcomes.**
 
@@ -251,7 +271,7 @@ mechanism or title-form hint.
 
 **Reported every time:**
 
-- *R*, *A*, *M*, kappa, and every metric above;
+- *R*, *A*, *M*, kappa, the literal-nonmatch count, and every metric above;
 - every changed posting, with the alias that matched and the matcher that
   changed it;
 - a 2,000-resample paired bootstrap, which is not decisive.

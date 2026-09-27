@@ -7,7 +7,7 @@
  "rules": [
   "Owner-machine requests only, with the v5 User-Agent and at least 2 seconds between requests to one host.",
   "robots.txt honoured with an RFC 9309 matcher: 4xx = unavailable (allowed), 5xx or network/TLS failure = disallow all. Redirects are never followed automatically; each hop is logged, and more than five hops is treated conservatively as disallow all.",
-  "No cookie is kept or replayed. No login, apply path, CAPTCHA or bot-protection bypass. A challenge or rejection page, TLS reset or certificate error ends the attempt on that host, and nothing is retried with a different client or a remote reader.",
+  "No cookie is kept or replayed. No login, apply path, CAPTCHA or bot-protection bypass. A challenge or rejection on a requested content page, TLS reset or certificate error ends the attempt on that host; nothing is retried with a different client or remote reader. A 4xx response to robots.txt, even if it is a challenge page, is treated as robots unavailable under the separately stated RFC 9309 rule; a normally served content page may then be read without bypassing the challenge.",
   "Officialness: only the employer's own domain, or a destination linked or redirected to from it, counts. ATS branding and company profiles alone stay unverified leads.",
   "A MANUAL_LINK needs a jobs or application route published on the employer's own site and a verified reason ASTRA cannot read the postings. The destination's listings need not have been seen (as for SSMC in v3), and the row never counts as coverage or as an open posting.",
   "'Supported feed' means an ASTRA adapter it may use (Greenhouse, Lever or Ashby). SmartRecruiters stays an Owner decision."
