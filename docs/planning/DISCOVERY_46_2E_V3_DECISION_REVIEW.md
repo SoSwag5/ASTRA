@@ -1,6 +1,6 @@
 # #46.2-E v3: decision review of the alias-morphology plan
 
-**Status:** `DECISION REVIEW FOR OWNER`, 2026-09-27 (Asia/Dubai). Branch
+**Status:** `DECISION REVIEW FOR OWNER`, 2026-09-27 (Asia/Dubai). Originated on
 `research/46.2-b-closeout-e-decision`, based on `master` at
 `a4983d455d2dde5a20c1ea7303e3fae2d8dc145d`.
 
@@ -164,28 +164,37 @@ would "fail" and drop a mechanism it never tested.
 
 **Who.**
 
-- **Author:** a person, not an AI session with access to this repository.
-  They must never have read any ASTRA #46.2-E document, this review, the
+- **Human-authored path:** the author is a person. They must never have read
+  any ASTRA #46.2-E document, this review, the
   #46.2-E section of `PROJECT_STATE.md`, or the E branches. They are not the
   implementer and not the Owner. Ideally they read UAE or GCC security job
   postings for work, for example a security practitioner or an IT recruiter.
 - **Second labeller:** a different person meeting the same exposure rule.
-- **Adjudicator:** a third person meeting the rule. If there is none, the
-  author and second labeller settle disagreements together under the rubric,
-  and the report records that. The Owner does not adjudicate.
+- **Adjudicator:** a third person meeting the rule. For a human-authored set,
+  if there is none, the human author and second labeller settle disagreements
+  together under the rubric, and the report records that. The AI-authored
+  fallback requires a separate human adjudicator. The Owner does not
+  adjudicate.
 - **Custodian:** the Owner holds the files and publishes their hashes, but
   does not inspect, edit or grade their contents. Mechanical sampling and
   transfer to the second labeller are recorded in the custody log.
 - **External authorship record:** the custodian records each human author's,
   labeller's and adjudicator's identity, role, dated declaration of no
-  candidate exposure, and file-transfer receipt outside the repository. A
+  candidate exposure, and file-transfer receipt outside the repository. For
+  the AI fallback, the record identifies the isolated session, its tool and
+  context restrictions, transcript custody and transfer receipt. A
   reviewer checks that record before accepting the custody claim. Hashes and
   code can verify file identity; they cannot prove who wrote the labels or
   whether a person was blind to the candidate.
-- **Fallback:** if no human author is available, use an AI session with no
-  repository, file system, memory or tools, given only the brief pack. The
-  report must label it "AI-authored, repository-blind", and its outcome is
-  capped at `INDICATIVE`: it may show a direction but cannot PASS.
+- **Fallback for authorship only:** if no human author is available, use an AI
+  session with no repository, file system, memory or tools, given only the
+  brief pack. A separate human second labeller and human adjudicator are
+  still required under the same exposure and custody rules below; the 30%
+  independent labels, kappa threshold and pre-run label hashes are not
+  waived. If those people are unavailable, this experiment cannot run under
+  this plan. The report must label the set "AI-authored, repository-blind",
+  and its outcome is capped at `INDICATIVE`: it may show a direction but
+  cannot PASS.
 
 **Brief pack.** The author receives only the following. The implementer
 prepares it; the independent reviewer checks that it contains no result,
@@ -249,29 +258,37 @@ mechanism or title-form hint.
   that still matches no alias after normalisation does not count. This is the
   relevant subset that can test the proposed reduction in misses; newly
   matched grade-0 postings are tracked by the false-promotion checks.
+- **Addressable-miss opportunity *O*** is the number of postings counted in
+  *A* that are also misses under the baseline definition. A relevant posting
+  already visible within the first *R* ranks is applicable but cannot itself
+  supply one of the required two rescued misses.
 
-**Outcomes.**
+**Outcomes, in precedence order (first matching rule wins).**
 
-- **`INCONCLUSIVE`** if *A* < 5, or kappa < 0.60. The set did not exercise
-  the mechanism, or its labels are too unreliable. The candidate is neither
-  adopted nor dropped, and the spent set is not reused for it.
-- **`PASS`** only if every check below holds:
-  1. *M* is at least 2 lower than at baseline and at least 10% lower.
-  2. nDCG@10 is no more than 0.01 below the baseline.
-  3. False promotions stay at or below the baseline in three places: grade-0
-     rows in the top 10, grade-0 rows in the top 20, and grade-0 rows passing
-     the campaign screen.
-  4. No relevant posting is newly hidden or newly screened. Grade-0 rows in
-     the Today strong list do not increase.
-  5. Cost stays within the plan's limits: median time ratio ≤ 1.05 under the
-     ABAB sustained-load protocol, and peak working set no more than 20 MiB
-     above the baseline.
-- **`FAIL`** otherwise.
-- **`INDICATIVE`** replaces `PASS` under the AI-authored fallback.
+1. **`FAIL`** if either label-independent cost limit is exceeded: median
+   candidate/baseline time ratio > 1.05 under the ABAB sustained-load protocol,
+   or peak working set > 20 MiB above baseline. A small applicability count or
+   unreliable labels cannot hide a measured resource regression.
+2. **`INCONCLUSIVE`** if quadratic-weighted kappa is unavailable or < 0.60.
+   Label-dependent quality and safety comparisons cannot decide the candidate.
+3. **`FAIL`** if any safety check fails with reliable labels: nDCG@10 falls by
+   more than 0.01; grade-0 rows increase in the top 10, top 20, campaign
+   screen or Today strong list; or any relevant posting is newly hidden or
+   screened. These regressions count even if *A* is small.
+4. **`INCONCLUSIVE`** if *A* < 5 or *O* < 2. With no preceding regression, the
+   set provides too little directly addressable opportunity to test the
+   required reduction of at least two misses. The spent set is not reused.
+5. **`PASS`** if candidate *M* is at least 2 lower than baseline *M* and at
+   least 10% lower. Otherwise **`FAIL`**. A PASS triggers only a separately
+   reviewed production plan, not adoption.
+
+For an AI-authored, repository-blind set, a would-be `PASS` is reported as
+**`INDICATIVE`**; `FAIL` and `INCONCLUSIVE` retain their meanings. No outcome
+is assigned if the frozen hashes or required run provenance fail verification.
 
 **Reported every time:**
 
-- *R*, *A*, *M*, kappa, the literal-nonmatch count, and every metric above;
+- *R*, *A*, *O*, *M*, kappa, the literal-nonmatch count, and every metric above;
 - every changed posting, with the alias that matched and the matcher that
   changed it;
 - a 2,000-resample paired bootstrap, which is not decisive.
@@ -283,14 +300,20 @@ mechanism or title-form hint.
   provenance-pinned, so the plan needs Owner authorization to regenerate
   `docs/evaluation/fit_evaluation_provenance_v1.json`. A PASS is not adoption.
 - **FAIL:** the candidate is dropped, with every rank change reported.
+- **INCONCLUSIVE:** the candidate is neither adopted nor dropped; any new
+  attempt needs a newly authored set and a new pre-registration.
+- **INDICATIVE:** report direction only; a human-authored independent set is
+  still required before the candidate can PASS.
 
 ## Owner decisions requested
 
 1. Approve E v3.1 as amended here. The alternatives are approving the plan as
    written (not recommended, because of findings 1, 4 and 6) or testing the
    practitioner-function guard first.
-2. Name the author, second labeller and adjudicator under the exposure rule,
-   or accept the AI-authored fallback with its `INDICATIVE` cap.
+2. Name the human author, second labeller and adjudicator under the exposure
+   rule; or choose the AI-authored fallback and name a human second labeller
+   and adjudicator. Both paths require the same independent second-label and
+   custody steps.
 3. Choose where the custodian publishes the hashes. A comment on the #46.2
    issue is recommended.
 
