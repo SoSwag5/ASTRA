@@ -208,7 +208,7 @@ async def app(scope, receive, send):
 
 
 def stop_server(proc, port=None, nonce=None):
-    """Stop the authenticated replay or its own process handle; never trust a reported PID."""
+    """Stop the identity-matched replay or its own process handle; never trust a reported PID."""
     if port is not None and nonce is not None:
         import httpx
         try:
@@ -264,7 +264,7 @@ def start_server(tree, data):
             health_response.raise_for_status()
             health = health_response.json()
             if not isinstance(health, dict) or health.get('ok') is not True or health.get('pid') != identity.get('pid'):
-                raise RuntimeError('health response does not match the authenticated replay process')
+                raise RuntimeError('health response does not match the identity-matched replay process')
             return proc, health, port, nonce
         raise RuntimeError('server did not start')
     except BaseException:

@@ -24,7 +24,7 @@ replays the Discovery page. The first version accidentally shadowed its
 the new polling pattern. The corrected harness has a regression asserting the
 request counts, and fails if a replayed HTTP request or Pause action fails. It
 selects a fresh loopback port, verifies a per-run identity token before sending
-workload requests, and stops only its authenticated replay or own process
+workload requests, and stops only its identity-matched replay or own process
 handle. A fictional port-collision test leaves the unrelated service running.
 `worker` times
 the scan worker's real per-posting path (`add_job`, `analyze`) in-process,
@@ -140,7 +140,7 @@ stated as unknown.
 - **`tests/test_perf_discovery_poll.py`:** on isolated fictional data, the old
   replay requests `/api/jobs` on every round, the new replay requests it only
   once without overlapping rounds, a port collision is refused without
-  stopping the unrelated service, authenticated cleanup closes the replay
+  stopping the unrelated service, identity-matched cleanup closes the replay
   server, and a failed Pause action fails the measurement.
 
 Machine readings above are rounded; the three raw JSON replays stay outside
