@@ -1,7 +1,8 @@
 # ASTRA project state
 
-**Snapshot date:** 2026-09-26 (Asia/Dubai), refreshed for the #46.2-A merge and
-#46.2-B/C draft integration. The #46 closeout below remains historical evidence.
+**Snapshot date:** 2026-09-27 (Asia/Dubai), refreshed for the #46.2-B controlled
+scan, the Discovery responsiveness fix and the E decisions. The #46 closeout
+below remains historical evidence.
 **Rule:** This is a handoff snapshot, not a substitute for live verification.
 Refresh it at session end when repository or release state changes.
 
@@ -329,15 +330,56 @@ at `2d40c8067996f9f919bda63b716507d371bc8daa`, after independent review of
 the final head `37e2ee360631e2d22335a35320da1a593ce12e6c`. This is source
 integration evidence, not a claim that the Owner installation has been started
 or scanned. **#46.2-B/C remains draft:** [PR #71](https://github.com/SoSwag5/ASTRA/pull/71)
-still carries the earlier integration; this local branch reconciles its B/C
-work with merged A and adds provisional B source research. No B live scan has
-run. The Owner selected a target of ten permitted Ashby, Lever and Greenhouse
-sources, subject to verification of the actual configured rows and board links.
-The choice alone does not authorize a scan; the Owner must review the exact
-preview and press Confirm and start scan in ASTRA. See the
-[controlled-scan protocol](../planning/AI_NATIVE_DISCOVERY_46_2B_CONTROLLED_SCAN.md).
+still carries the earlier integration; this work with merged A, adds B source research, and carries the Discovery
+responsiveness fix below. It is local and not yet pushed.
 
-The next B action is to review this reconciled draft and verify the proposed
-source rows with the Owner before any live preview or scan. Keep #47, #48 and
-v1.2 work separate. Do not tag, publish a release, or modify v1.0.0. Preserve
-the parked `hardening/l2-r13-r14` branch and all concurrent worktrees.
+**#46.2-B:**
+
+- **One controlled scan has run (run 107, 2026-09-27).** It fetched nine
+  configured Ashby, Lever and Greenhouse sources through the merged A build's
+  in-app preview and confirmation. The Owner delegated the in-app controls for
+  this run.
+  - 924 postings checked, 72 UAE-located, 79 new; no source error.
+  - One board's detail enrichment was partial.
+  - The run took 439 s against a preview estimate of "under a minute".
+  - Details are in the [controlled-scan record](../planning/AI_NATIVE_DISCOVERY_46_2B_CONTROLLED_SCAN.md).
+    Source names stay private.
+- **Source map v5 re-researched the seven unresolved employers.**
+  - PureHealth now has a direct-link fallback.
+  - Six remain unresolved and need Owner-browser confirmation.
+  - No employer of the 55 has a Greenhouse, Lever or Ashby feed (0 / 49 / 6).
+- **Discovery responsiveness fix** (local `fix/46.2-b-discovery-responsiveness`,
+  from `master`, for independent review).
+  - *Cause.* Polled endpoints decoded every run's per-posting decision audit on
+    each poll, and page refreshes stacked. On a fictional database this took
+    over 4 s per request, used 2.6 GB, and slowed a concurrent scan 35-fold.
+  - *Fix.* Summaries are cached per run version, the Today lookup gets
+    `LIMIT 1`, the page runs one refresh at a time, and the job list is
+    refetched only on change.
+  - *Estimate.* The preview now uses posting volume and shows the slowest
+    recent pace.
+  - *A contracts preserved:* preview, single-use confirmation, scope binding,
+    Stop and restart handling. See the
+    [responsiveness note](../evaluation/DISCOVERY_46_2B_RESPONSIVENESS.md).
+
+**#46.2-E:**
+
+- **E v2** (local `research/46.2-e-hybrid-comparison-v2` at `94fd479`) was
+  independently reviewed as **REPORT ACCURATE**. Its hybrid showed **no
+  measured improvement** and stays unadopted.
+- **E v3** (local `research/46.2-e-v3-plan`) is a pre-registered plan, awaiting
+  Owner approval and an independent measurement author. It tests one
+  mechanism: alias morphology in current search. Nothing was run.
+
+**#46.2-F** remains **NOT VALIDATED** pending a genuinely independent fictional
+challenge. G and H are not started.
+
+**Next actions:**
+
+- Independent review of the responsiveness fix and of this reconciled draft.
+- Owner decisions on pushing them, on E v3, and on the six unresolved
+  employers.
+- Keep #47, #48 and v1.2 work separate.
+- Do not tag, publish a release, or modify v1.0.0.
+- Preserve the parked `hardening/l2-r13-r14` branch and all concurrent
+  worktrees.ch and all concurrent worktrees.
