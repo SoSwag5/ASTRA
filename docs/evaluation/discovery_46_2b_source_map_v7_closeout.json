@@ -1,0 +1,165 @@
+{
+ "artifact": "astra-46-2b-source-map-v7-closeout",
+ "version": 7,
+ "evidence_date": "2026-09-27",
+ "supersedes_rows_of": "discovery_46_2b_source_map_v6_closeout.json (kept unchanged) for Zayed University, DoH, Emirates Islamic, HCT, du and PureHealth. The other 49 rows keep their v4 or v6 evidence.",
+ "scope": "The five employers v6 left UNRESOLVED, plus PureHealth, whose v6 MANUAL_LINK depended on reading its homepage after robots.txt answered with a Cloudflare 403. Research only: no source was added, enabled or fetched through ASTRA, no job-listing API was called, no form was submitted and no e-mail was sent.",
+ "runs": [
+  {
+   "log": "discovery_46_2b_source_map_v7_run.json",
+   "plan": "discovery_46_2b_source_map_v7_plan.json",
+   "log_sha256_lf": "3004e46100e648559154b9ed32319759219aa889c72b5bd87b1a244749e199c1",
+   "plan_sha256_lf": "c792cb6d0c7910c6e0c1694109db96bfd95c394b4ecf30096da4f9b2636d65e2",
+   "tool_commit": "e5e5725e95719d13a849b639584af917158d4891",
+   "tool_git_blob": "e3f0a31b041a63f6cbc67a444952599d3b4e4c2b",
+   "started_at_utc": "2026-09-27T18:17:01.073+00:00",
+   "finished_at_utc": "2026-09-27T18:17:23.446+00:00",
+   "aborted": null,
+   "contacts_by_host": {
+    "www.zu.ac.ae": 2,
+    "www.doh.gov.ae": 4,
+    "aderp.abudhabi.ae": 3,
+    "www.emiratesislamic.ae": 1,
+    "www.hct.ac.ae": 1,
+    "hct.ac.ae": 5,
+    "www.du.ae": 1,
+    "purehealth.ae": 1
+   },
+   "pacing": {
+    "min_interval_s": 2.0,
+    "measured_from": "end of the previous contact with the host to the start of the next",
+    "same_host_intervals": 10,
+    "smallest_same_host_interval_s": 2.0,
+    "all_intervals_at_least_minimum": true
+   }
+  },
+  {
+   "log": "discovery_46_2b_source_map_v7_followup_run.json",
+   "plan": "discovery_46_2b_source_map_v7_followup_plan.json",
+   "log_sha256_lf": "47c2b06b8ba6c403720a0d053c47ddb7a41749f332983866b12bca36518222ef",
+   "plan_sha256_lf": "637fc3d5e3f0c9e36d88b2bd09801edca5b19415184680c8ac464da22fd21368",
+   "tool_commit": "e5e5725e95719d13a849b639584af917158d4891",
+   "tool_git_blob": "e3f0a31b041a63f6cbc67a444952599d3b4e4c2b",
+   "started_at_utc": "2026-09-27T18:18:23.942+00:00",
+   "finished_at_utc": "2026-09-27T18:18:24.332+00:00",
+   "aborted": null,
+   "contacts_by_host": {
+    "careers.zu.ac.ae": 1
+   },
+   "pacing": {
+    "min_interval_s": 2.0,
+    "measured_from": "end of the previous contact with the host to the start of the next",
+    "same_host_intervals": 0,
+    "smallest_same_host_interval_s": null,
+    "all_intervals_at_least_minimum": true
+   }
+  }
+ ],
+ "rules": [
+  "Every request was made from the Owner's machine by scripts/source_route_check.py at the tool commit above, with the v5/v6 User-Agent. The raw logs are the tool's own output, committed unchanged.",
+  "Pacing: at least 2 seconds between contacts with one host (HTTP requests and TLS handshakes), counted from the end of the previous contact to the start of the next. The logs record every start and end time in milliseconds; every same-host interval in both runs was at least 2.000 s. This is a v7 result only. The v6 log does not establish its intended minimum, and nothing here changes that.",
+  "robots.txt per RFC 9309, compared after section 2.2.2 normalisation on the exact path sent. 404 and other 4xx answers mean robots is unavailable (allowed), except 401, 403 and 429. Those, 5xx, a network or TLS failure, a bot-protection page, HTML served as robots.txt, a 3xx without a usable redirect and more than five redirects all mean disallow all.",
+  "Redirects were never followed automatically, no cookie was kept or sent, certificates were verified, and login, apply, registration and account URLs and hosts were refused. A bot-protection page on any request blocked that host for the rest of the run.",
+  "Officialness: the employer's own domain, or a destination the employer's own page links or redirects to. ATS branding and company profiles alone stay unverified leads.",
+  "DNS steps resolved conventional careers hostnames on the employer's own domain without contacting them. The one that resolved was followed up by a separate, recorded plan."
+ ],
+ "rule_changes_disclosed": [
+  "v4 treated a Cloudflare 403 at robots.txt as \"do not fetch this host\". Its PureHealth record says that continuing would mean working around bot protection. v5 and v6 instead read the same response as RFC 9309 \"unavailable, allowed\", without saying so. PureHealth's v6 MANUAL_LINK was obtained that way, and so were v6's two Emirates Islamic page requests (both answered with a challenge, which was not bypassed). v7 restores the v4 rule. No Owner decision authorised the v5/v6 reading.",
+  "v7 blocks a host for the rest of the run after any bot-protection page. v4 to v6 stopped only the challenged path; v4 itself read another ADPHC path after a path-level rejection. ADPHC's v6 MANUAL_LINK is therefore consistent with the v4 rule and is not reopened.",
+  "HCT: the conservative reading of more than five robots redirects is unchanged. RFC 9309 would permit reading it as \"unavailable\"; that remains an Owner decision and is not relaxed here."
+ ],
+ "counts": {
+  "supported_feed": 0,
+  "SMARTRECRUITERS_OWNER_DECISION": 0,
+  "MANUAL_LINK": 49,
+  "UNRESOLVED": 6,
+  "employers": 55
+ },
+ "counts_note": "v6 had 0 / 50 / 5. PureHealth returns to UNRESOLVED; the other five stay UNRESOLVED. No new supported feed was verified.",
+ "scan": "No new permitted Greenhouse, Lever or Ashby feed was verified, so no controlled scan scope was prepared, ASTRA was not started, and run 107 was not repeated.",
+ "not_claimed": [
+  "No posting is claimed open, and no row is covered automatically.",
+  "A MANUAL_LINK is a link for the user to open; ASTRA does not read it.",
+  "The nine-source controlled scan (run 107) neither covers nor validates any of these employers.",
+  "Nothing here measures semantic relevance (#46.2-C)."
+ ],
+ "rows": [
+  {
+   "employer": "Zayed University",
+   "v6_outcome": "UNRESOLVED",
+   "v7_outcome": "UNRESOLVED",
+   "official_page": "https://www.zu.ac.ae/main/en/careers/",
+   "observed": "www.zu.ac.ae (195.229.145.125) reset the TLS handshake at 18:17:01Z and again at robots.txt at 18:17:03Z. careers.zu.ac.ae resolves (195.229.145.123) but also reset the connection at robots.txt (18:18:24Z). jobs.zu.ac.ae does not resolve.",
+   "access_decision": "robots unreachable (network or TLS failure) on both hosts: no ZU page was requested.",
+   "destination": null,
+   "unverified_lead": "https://fa-evge-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/",
+   "owner_browser_action": "Open https://www.zu.ac.ae/main/en/careers/ in a browser and record, with the date, where its \"Staff Vacancies\" and faculty links go."
+  },
+  {
+   "employer": "Department of Health - Abu Dhabi (DoH)",
+   "v6_outcome": "UNRESOLVED",
+   "v7_outcome": "UNRESOLVED",
+   "official_page": "https://www.doh.gov.ae/en/ (and the Arabic homepage https://www.doh.gov.ae/ar/)",
+   "observed": "Both homepages served normally (HTTP 200) and link \"Careers\" / \"الوظائف\" to an Oracle E-Business Suite page on aderp.abudhabi.ae (/OA_HTML/RF.jsp). /en/careers redirects (302) to a 404 page.",
+   "destination": "https://aderp.abudhabi.ae/OA_HTML/RF.jsp (employer-published, not usable)",
+   "access_decision": "aderp.abudhabi.ae failed certificate verification (\"certificate has expired\") at robots.txt, so nothing there was requested. The leaf certificate for aderp.abudhabi.ae (SAN aderp.abudhabi.ae, www.aderp.abudhabi.ae; issued by GlobalSign RSA OV SSL CA 2018) expired on 2025-09-09, read from a separate handshake with no HTTP request.",
+   "why_not_manual_link": "The route is employer-published, but a browser would show a certificate warning. ASTRA does not offer a link that requires clicking through one.",
+   "owner_browser_action": "None until DoH renews the aderp.abudhabi.ae certificate. Then open the homepage \"Careers\" link and record where it goes."
+  },
+  {
+   "employer": "Emirates Islamic",
+   "v6_outcome": "UNRESOLVED",
+   "v7_outcome": "UNRESOLVED",
+   "official_page": "https://www.emiratesislamic.ae/en/about-us/careers",
+   "observed": "robots.txt answered HTTP 403 with a Cloudflare challenge page at 18:17:13Z.",
+   "access_decision": "bot-protection page at robots.txt: the host was blocked for the run, and neither the careers page nor the homepage was requested. Nothing was bypassed.",
+   "destination": null,
+   "unverified_lead": "https://fa-evlo-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2",
+   "owner_browser_action": "Open https://www.emiratesislamic.ae/en/about-us/careers and record, with the date, where its \"View Vacancies\" link goes."
+  },
+  {
+   "employer": "Higher Colleges of Technology",
+   "v6_outcome": "UNRESOLVED",
+   "v7_outcome": "UNRESOLVED",
+   "official_page": "https://www.hct.ac.ae/en/careers/",
+   "observed": "www.hct.ac.ae/robots.txt redirected (301) to hct.ac.ae/robots.txt/, then /robots.txt//, which redirected to itself; six contacts between 18:17:14Z and 18:17:22Z. careers.hct.ac.ae and jobs.hct.ac.ae do not resolve.",
+   "access_decision": "more than five robots redirects: disallow all (conservative). No HCT page was requested.",
+   "destination": null,
+   "unverified_lead": "https://iaavey.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1",
+   "owner_decision": "Whether the RFC 9309 \"unavailable\" reading of more than five redirects may be used. Default: no.",
+   "owner_browser_action": "Open https://hct.ac.ae/en/careers/ and record, with the date, where its \"Current Vacancies\" link goes."
+  },
+  {
+   "employer": "du (Emirates Integrated Telecommunications)",
+   "v6_outcome": "UNRESOLVED",
+   "v7_outcome": "UNRESOLVED",
+   "official_page": "https://www.du.ae/about-us/careers",
+   "observed": "robots.txt (HTTP 200, text/plain) gives all agents one applicable rule, \"Disallow: /\", at 18:17:22Z. careers.du.ae and jobs.du.ae do not resolve.",
+   "access_decision": "disallowed by robots.txt: neither the careers page nor the sitemap page was requested.",
+   "destination": null,
+   "unverified_lead": "https://fa-ewnx-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001",
+   "owner_browser_action": "Open du's careers page, or the \"Join Us\" link on https://www.du.ae/corporate/sitemap, and record, with the date, where it goes."
+  },
+  {
+   "employer": "PureHealth",
+   "v6_outcome": "MANUAL_LINK",
+   "v7_outcome": "UNRESOLVED",
+   "official_page": "https://purehealth.ae/",
+   "observed": "robots.txt answered HTTP 403 with a Cloudflare challenge page at 18:17:22Z, as in v4, v5 and v6.",
+   "access_decision": "bot-protection page at robots.txt: under the restored v4 rule the host is not fetchable, so the homepage was not requested and its v6 \"Careers\" link could not be re-verified.",
+   "destination": "v6 observed a homepage \"Careers\" link to a LinkedIn jobs search (see the v6 data); that observation was made under the undisclosed v5/v6 robots reading.",
+   "owner_decisions": [
+    "Whether a Cloudflare 403 at robots.txt may be read as RFC 9309 \"unavailable\". v4 and v7 say no. If yes, PureHealth can return to MANUAL_LINK on its v6 evidence.",
+    "Whether an employer-published link to a third-party (LinkedIn) jobs search counts as a MANUAL_LINK route. The map's Markdown officialness rule does not cover it."
+   ],
+   "owner_browser_action": "Open https://purehealth.ae/ and record, with the date, where its \"Careers\" links go."
+  }
+ ],
+ "errata": [
+  "v5 (kept unchanged): the PureHealth evidence says \"the one careers request\". Its log shows three careers-path requests (06:13:01, 06:13:05 and 06:13:06Z). Its robots.txt 403 was a Cloudflare block page, as v4 and v6 recorded, so bot protection was met, though not bypassed.",
+  "v5 (kept unchanged): the DoH 404 page after /en/careers is labelled \"bot_protection\". That was a classifier false positive; it is an ordinary not-found page, as v4 and v6 recorded.",
+  "v6 (kept unchanged): \"The presented certificate (GlobalSign RSA OV SSL CA 2018) expired\" names the issuing CA. The certificate that expired is the leaf for aderp.abudhabi.ae, issued by that CA.",
+  "v6 (kept unchanged): its request log does not establish the intended two-second same-host minimum. The v6 script stamped each entry before its wait, to the second. v7 does not change that finding.",
+  "The Emirates Islamic \"later independent access check\" added to the source map with v6 (robots.txt HTTP 200 with an HTML page) was not logged with a time, URL or status. v7 logged robots.txt answering 403 with a Cloudflare challenge. Access varies, and the row stays UNRESOLVED either way."
+ ]
+}

@@ -1,0 +1,699 @@
+{
+ "tool": {
+  "file": "scripts/source_route_check.py",
+  "sha256_lf": "158a9df8e94f6fd9931603b61498619ec5f4a5d177c6b407d9c9007ef019e952",
+  "git_blob_lf": "e3f0a31b041a63f6cbc67a444952599d3b4e4c2b"
+ },
+ "user_agent": "ASTRA-source-research/1.0 (read-only official careers-page check; robots.txt honoured)",
+ "client": {
+  "python": "3.13.2",
+  "httpx": "0.28.1",
+  "openssl": "OpenSSL 3.0.15 3 Sep 2024"
+ },
+ "plan_sha256": "c792cb6d0c7910c6e0c1694109db96bfd95c394b4ecf30096da4f9b2636d65e2",
+ "plan": {
+  "artifact": "astra-46-2b-source-map-v7-plan",
+  "purpose": "Bounded, read-only recheck of the five employers source map v6 left UNRESOLVED, plus PureHealth, whose v6 MANUAL_LINK was obtained after its robots.txt answered with a Cloudflare 403, which the v4 rule treats as 'do not fetch this host'. Run once with scripts/source_route_check.py from the Owner's machine. No ATS tenant is requested on branding alone, no job-listing API is called, no form is submitted and no e-mail is sent.",
+  "notes": [
+   "DNS steps only resolve conventional careers hostnames on the employer's own registered domain; they contact no host. A resolving name is followed up only in a separate, recorded plan.",
+   "HCT: only the www origin is requested. Its robots.txt redirects to the apex host, so one check covers both hosts without repeating the six-contact loop.",
+   "ZU: the presented certificate is not read, because the TLS connection is reset before a certificate is presented.",
+   "PureHealth: one robots check under the restored v4 rule. Only if robots.txt is readable and allows it is the homepage requested, to see whether it still links 'Careers' to a jobs route."
+  ],
+  "employers": [
+   {
+    "employer": "Zayed University",
+    "steps": [
+     {
+      "id": "zu-dns-www",
+      "kind": "dns",
+      "host": "www.zu.ac.ae"
+     },
+     {
+      "id": "zu-dns-careers",
+      "kind": "dns",
+      "host": "careers.zu.ac.ae"
+     },
+     {
+      "id": "zu-dns-jobs",
+      "kind": "dns",
+      "host": "jobs.zu.ac.ae"
+     },
+     {
+      "id": "zu-tls",
+      "kind": "tls",
+      "host": "www.zu.ac.ae",
+      "read_presented_certificate": false
+     },
+     {
+      "id": "zu-careers",
+      "kind": "page",
+      "url": "https://www.zu.ac.ae/main/en/careers/",
+      "purpose": "official careers page (staff-vacancies link)"
+     },
+     {
+      "id": "zu-careers-links",
+      "kind": "links",
+      "from": "zu-careers",
+      "match": "vacanc|career|job|oraclecloud|interfolio",
+      "max": 2,
+      "purpose": "forward link from the official careers page"
+     }
+    ]
+   },
+   {
+    "employer": "Department of Health - Abu Dhabi (DoH)",
+    "steps": [
+     {
+      "id": "doh-home",
+      "kind": "page",
+      "url": "https://www.doh.gov.ae/en/",
+      "purpose": "official homepage: Careers link"
+     },
+     {
+      "id": "doh-home-links",
+      "kind": "links",
+      "from": "doh-home",
+      "match": "career|vacanc|job|recruit",
+      "max": 2,
+      "purpose": "Careers link target"
+     },
+     {
+      "id": "doh-erp-tls",
+      "kind": "tls",
+      "host": "aderp.abudhabi.ae",
+      "purpose": "TLS handshake-only diagnostic of the Careers link host (no HTTP request)"
+     },
+     {
+      "id": "doh-ar-home",
+      "kind": "page",
+      "url": "https://www.doh.gov.ae/ar/",
+      "purpose": "official Arabic homepage: careers link"
+     },
+     {
+      "id": "doh-careers",
+      "kind": "page",
+      "url": "https://www.doh.gov.ae/en/careers",
+      "purpose": "documented careers path"
+     }
+    ]
+   },
+   {
+    "employer": "Emirates Islamic",
+    "steps": [
+     {
+      "id": "ei-careers",
+      "kind": "page",
+      "url": "https://www.emiratesislamic.ae/en/about-us/careers",
+      "purpose": "official careers page ('View Vacancies' link)"
+     },
+     {
+      "id": "ei-careers-links",
+      "kind": "links",
+      "from": "ei-careers",
+      "match": "vacanc|career|job|oraclecloud",
+      "max": 2,
+      "purpose": "forward link from the official careers page"
+     },
+     {
+      "id": "ei-home",
+      "kind": "page",
+      "url": "https://www.emiratesislamic.ae/en",
+      "purpose": "official homepage: careers link"
+     }
+    ]
+   },
+   {
+    "employer": "Higher Colleges of Technology",
+    "steps": [
+     {
+      "id": "hct-dns-careers",
+      "kind": "dns",
+      "host": "careers.hct.ac.ae"
+     },
+     {
+      "id": "hct-dns-jobs",
+      "kind": "dns",
+      "host": "jobs.hct.ac.ae"
+     },
+     {
+      "id": "hct-careers",
+      "kind": "page",
+      "url": "https://www.hct.ac.ae/en/careers/",
+      "purpose": "official careers page ('Current Vacancies' link)"
+     },
+     {
+      "id": "hct-careers-links",
+      "kind": "links",
+      "from": "hct-careers",
+      "match": "vacanc|career|job|oraclecloud",
+      "max": 2,
+      "purpose": "forward link from the official careers page"
+     }
+    ]
+   },
+   {
+    "employer": "du (Emirates Integrated Telecommunications)",
+    "steps": [
+     {
+      "id": "du-dns-careers",
+      "kind": "dns",
+      "host": "careers.du.ae"
+     },
+     {
+      "id": "du-dns-jobs",
+      "kind": "dns",
+      "host": "jobs.du.ae"
+     },
+     {
+      "id": "du-careers",
+      "kind": "page",
+      "url": "https://www.du.ae/about-us/careers",
+      "purpose": "official careers page"
+     },
+     {
+      "id": "du-sitemap",
+      "kind": "page",
+      "url": "https://www.du.ae/corporate/sitemap",
+      "purpose": "official sitemap page ('Join Us' link)"
+     }
+    ]
+   },
+   {
+    "employer": "PureHealth",
+    "steps": [
+     {
+      "id": "ph-home",
+      "kind": "page",
+      "url": "https://purehealth.ae/",
+      "purpose": "official homepage: 'Careers' link (v6 route), only if robots permits"
+     }
+    ]
+   }
+  ]
+ },
+ "started_at_utc": "2026-09-27T18:17:01.073+00:00",
+ "finished_at_utc": "2026-09-27T18:17:23.446+00:00",
+ "aborted": null,
+ "log": [
+  {
+   "step": "zu-dns-www",
+   "employer": "Zayed University",
+   "host": "www.zu.ac.ae",
+   "purpose": "DNS resolution only (no contact with the host)",
+   "resolved_at_utc": "2026-09-27T18:17:01.416+00:00",
+   "addresses": [
+    "195.229.145.125"
+   ]
+  },
+  {
+   "step": "zu-dns-careers",
+   "employer": "Zayed University",
+   "host": "careers.zu.ac.ae",
+   "purpose": "DNS resolution only (no contact with the host)",
+   "resolved_at_utc": "2026-09-27T18:17:01.483+00:00",
+   "addresses": [
+    "195.229.145.123"
+   ]
+  },
+  {
+   "step": "zu-dns-jobs",
+   "employer": "Zayed University",
+   "host": "jobs.zu.ac.ae",
+   "purpose": "DNS resolution only (no contact with the host)",
+   "resolved_at_utc": "2026-09-27T18:17:01.492+00:00",
+   "error": "gaierror: [Errno 11001] getaddrinfo failed"
+  },
+  {
+   "started_at_utc": "2026-09-27T18:17:01.500+00:00",
+   "since_prev_contact_end_s": null,
+   "ended_at_utc": "2026-09-27T18:17:01.609+00:00",
+   "step": "zu-tls",
+   "employer": "Zayed University",
+   "host": "www.zu.ac.ae",
+   "purpose": "TLS handshake-only diagnostic (no HTTP request)",
+   "verified": false,
+   "error": "ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host"
+  },
+  {
+   "started_at_utc": "2026-09-27T18:17:03.609+00:00",
+   "since_prev_contact_end_s": 2.0,
+   "ended_at_utc": "2026-09-27T18:17:03.660+00:00",
+   "url": "https://www.zu.ac.ae/robots.txt",
+   "purpose": "robots",
+   "error": "ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host",
+   "robots_result": "UNREACHABLE_DISALLOW"
+  },
+  {
+   "step": "zu-careers",
+   "employer": "Zayed University",
+   "purpose": "official careers page (staff-vacancies link)",
+   "url": "https://www.zu.ac.ae/main/en/careers/",
+   "robots": "UNREACHABLE_DISALLOW",
+   "requested": false,
+   "decision": "not requested: robots UNREACHABLE_DISALLOW (ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host)",
+   "decided_at_utc": "2026-09-27T18:17:03.660+00:00"
+  },
+  {
+   "step": "zu-careers-links",
+   "employer": "Zayed University",
+   "purpose": "forward link from the official careers page",
+   "url": null,
+   "requested": false,
+   "decision": "no link from zu-careers matched 'vacanc|career|job|oraclecloud|interfolio'",
+   "decided_at_utc": "2026-09-27T18:17:03.660+00:00"
+  },
+  {
+   "started_at_utc": "2026-09-27T18:17:03.660+00:00",
+   "since_prev_contact_end_s": null,
+   "ended_at_utc": "2026-09-27T18:17:04.025+00:00",
+   "url": "https://www.doh.gov.ae/robots.txt",
+   "purpose": "robots",
+   "status": 404,
+   "content_type": "text/html",
+   "set_cookie_seen": true,
+   "robots_result": "UNAVAILABLE_ALLOW"
+  },
+  {
+   "started_at_utc": "2026-09-27T18:17:06.026+00:00",
+   "since_prev_contact_end_s": 2.001,
+   "ended_at_utc": "2026-09-27T18:17:06.955+00:00",
+   "step": "doh-home",
+   "employer": "Department of Health - Abu Dhabi (DoH)",
+   "purpose": "official homepage: Careers link",
+   "url": "https://www.doh.gov.ae/en/",
+   "robots": "UNAVAILABLE_ALLOW",
+   "requested": true,
+   "status": 200,
+   "content_type": "text/html; charset=utf-8",
+   "bytes": 60111,
+   "set_cookie_seen": true,
+   "title": "Home | Department of Health Abu Dhabi",
+   "job_links": [
+    {
+     "text": "Careers",
+     "href": "https://aderp.abudhabi.ae/OA_HTML/RF.jsp?function_id=14296&resp_id=65924&resp_appl_id=800&security_group_id=0&lang_code=US&oas=u8oY8Kwhon0F2YImRXzz3g..&params=0JFSwWwM1xrVbsnalEVtXfUhRfya0T5-bEpTdHw3D6YH1LI59g8UAFfMPVLN.AgF",
+     "class": null
+    },
+    {
+     "text": "",
+     "href": "https://www.linkedin.com/company/department-of-health-abu-dhabi",
+     "class": "other_ats:linkedin"
+    }
+   ],
+   "permitted_adapter_links": []
+  },
+  {
+   "started_at_utc": "2026-09-27T18:17:06.971+00:00",
+   "since_prev_contact_end_s": null,
+   "ended_at_utc": "2026-09-27T18:17:07.013+00:00",
+   "url": "https://aderp.abudhabi.ae/robots.txt",
+   "purpose": "robots",
+   "error": "SSLCertVerificationError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1028)",
+   "robots_result": "UNREACHABLE_DISALLOW"
+  },
+  {
+   "step": "doh-home-links#1",
+   "employer": "Department of Health - Abu Dhabi (DoH)",
+   "purpose": "Careers link target",
+   "url": "https://aderp.abudhabi.ae/OA_HTML/RF.jsp?function_id=14296&resp_id=65924&resp_appl_id=800&security_group_id=0&lang_code=US&oas=u8oY8Kwhon0F2YImRXzz3g..&params=0JFSwWwM1xrVbsnalEVtXfUhRfya0T5-bEpTdHw3D6YH1LI59g8UAFfMPVLN.AgF",
+   "robots": "UNREACHABLE_DISALLOW",
+   "requested": false,
+   "decision": "not requested: robots UNREACHABLE_DISALLOW (SSLCertVerificationError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1028))",
+   "decided_at_utc": "2026-09-27T18:17:07.013+00:00"
+  },
+  {
+   "started_at_utc": "2026-09-27T18:17:09.014+00:00",
+   "since_prev_contact_end_s": 2.0,
+   "ended_at_utc": "2026-09-27T18:17:09.144+00:00",
+   "step": "doh-erp-tls",
+   "employer": "Department of Health - Abu Dhabi (DoH)",
+   "host": "aderp.abudhabi.ae",
+   "purpose": "TLS handshake-only diagnostic of the Careers link host (no HTTP request)",
+   "verified": false,
+   "error": "SSLCertVerificationError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1028)",
+   "presented_certificate": {
+    "started_at_utc": "2026-09-27T18:17:11.144+00:00",
+    "since_prev_contact_end_s": 2.0,
+    "ended_at_utc": "2026-09-27T18:17:11.277+00:00",
+    "read": true,
+    "not_before": "Aug  8 09:26:02 2024 GMT",
+    "not_after": "Sep  9 09:26:01 2025 GMT",
+    "subject": "aderp.abudhabi.ae",
+    "issuer": "GlobalSign RSA OV SSL CA 2018",
+    "subject_alt_names": [
+     "aderp.abudhabi.ae",
+     "www.aderp.abudhabi.ae"
+    ]
+   }
+  },
+  {
+   "started_at_utc": "2026-09-27T18:17:11.277+00:00",
+   "since_prev_contact_end_s": 4.321,
+   "ended_at_utc": "2026-09-27T18:17:11.666+00:00",
+   "step": "doh-ar-home",
+   "employer": "Department of Health - Abu Dhabi (DoH)",
+   "purpose": "official Arabic homepage: careers link",
+   "url": "https://www.doh.gov.ae/ar/",
+   "robots": "UNAVAILABLE_ALLOW",
+   "requested": true,
+   "status": 200,
+   "content_type": "text/html; charset=utf-8",
+   "bytes": 64175,
+   "set_cookie_seen": true,
+   "title": "الصفحة الرئيسية | دائرة الصحة أبوظبي",
+   "job_links": [
+    {
+     "text": "الوظائف",
+     "href": "https://aderp.abudhabi.ae/OA_HTML/RF.jsp?function_id=14296&resp_id=65924&resp_appl_id=800&security_group_id=0&lang_code=US&oas=u8oY8Kwhon0F2YImRXzz3g..&params=0JFSwWwM1xrVbsnalEVtXfUhRfya0T5-bEpTdHw3D6YH1LI59g8UAFfMPVLN.AgF",
+     "class": null
+    },
+    {
+     "text": "",
+     "href": "https://www.linkedin.com/company/department-of-health-abu-dhabi",
+     "class": "other_ats:linkedin"
+    }
+   ],
+   "permitted_adapter_links": []
+  },
+  {
+   "started_at_utc": "2026-09-27T18:17:13.667+00:00",
+   "since_prev_contact_end_s": 2.001,
+   "ended_at_utc": "2026-09-27T18:17:13.713+00:00",
+   "step": "doh-careers",
+   "employer": "Department of Health - Abu Dhabi (DoH)",
+   "purpose": "documented careers path",
+   "url": "https://www.doh.gov.ae/en/careers",
+   "robots": "UNAVAILABLE_ALLOW",
+   "requested": true,
+   "status": 302,
+   "content_type": "text/html; charset=utf-8",
+   "bytes": 184,
+   "set_cookie_seen": true,
+   "redirect_to": "https://www.doh.gov.ae/404?item=%2fcareers&user=extranet%5cAnonymous&site=website",
+   "redirect_to_class": null
+  },
+  {
+   "started_at_utc": "2026-09-27T18:17:13.713+00:00",
+   "since_prev_contact_end_s": null,
+   "ended_at_utc": "2026-09-27T18:17:14.353+00:00",
+   "url": "https://www.emiratesislamic.ae/robots.txt",
+   "purpose": "robots",
+   "status": 403,
+   "content_type": "text/html; charset=UTF-8",
+   "set_cookie_seen": false,
+   "challenge": "Cloudflare: not bypassed; host blocked for the rest of the run",
+   "robots_result": "CHALLENGE_DISALLOW"
+  },
+  {
+   "step": "ei-careers",
+   "employer": "Emirates Islamic",
+   "purpose": "official careers page ('View Vacancies' link)",
+   "url": "https://www.emiratesislamic.ae/en/about-us/careers",
+   "robots": "CHALLENGE_DISALLOW",
+   "requested": false,
+   "decision": "not requested: robots CHALLENGE_DISALLOW (bot-protection page at robots.txt (Cloudflare))",
+   "decided_at_utc": "2026-09-27T18:17:14.353+00:00"
+  },
+  {
+   "step": "ei-careers-links",
+   "employer": "Emirates Islamic",
+   "purpose": "forward link from the official careers page",
+   "url": null,
+   "requested": false,
+   "decision": "no link from ei-careers matched 'vacanc|career|job|oraclecloud'",
+   "decided_at_utc": "2026-09-27T18:17:14.353+00:00"
+  },
+  {
+   "step": "ei-home",
+   "employer": "Emirates Islamic",
+   "purpose": "official homepage: careers link",
+   "url": "https://www.emiratesislamic.ae/en",
+   "requested": false,
+   "decision": "not requested: host blocked earlier (Cloudflare)",
+   "decided_at_utc": "2026-09-27T18:17:14.353+00:00"
+  },
+  {
+   "step": "hct-dns-careers",
+   "employer": "Higher Colleges of Technology",
+   "host": "careers.hct.ac.ae",
+   "purpose": "DNS resolution only (no contact with the host)",
+   "resolved_at_utc": "2026-09-27T18:17:14.353+00:00",
+   "error": "gaierror: [Errno 11001] getaddrinfo failed"
+  },
+  {
+   "step": "hct-dns-jobs",
+   "employer": "Higher Colleges of Technology",
+   "host": "jobs.hct.ac.ae",
+   "purpose": "DNS resolution only (no contact with the host)",
+   "resolved_at_utc": "2026-09-27T18:17:14.363+00:00",
+   "error": "gaierror: [Errno 11001] getaddrinfo failed"
+  },
+  {
+   "started_at_utc": "2026-09-27T18:17:14.372+00:00",
+   "since_prev_contact_end_s": null,
+   "ended_at_utc": "2026-09-27T18:17:14.511+00:00",
+   "url": "https://www.hct.ac.ae/robots.txt",
+   "purpose": "robots",
+   "status": 301,
+   "content_type": "text/html; charset=iso-8859-1",
+   "set_cookie_seen": true,
+   "redirect_to": "https://hct.ac.ae/robots.txt/",
+   "robots_result": "REDIRECT"
+  },
+  {
+   "started_at_utc": "2026-09-27T18:17:14.511+00:00",
+   "since_prev_contact_end_s": null,
+   "ended_at_utc": "2026-09-27T18:17:14.617+00:00",
+   "url": "https://hct.ac.ae/robots.txt/",
+   "purpose": "robots",
+   "status": 301,
+   "content_type": "text/html; charset=iso-8859-1",
+   "set_cookie_seen": true,
+   "redirect_to": "https://hct.ac.ae/robots.txt//",
+   "robots_result": "REDIRECT"
+  },
+  {
+   "started_at_utc": "2026-09-27T18:17:16.617+00:00",
+   "since_prev_contact_end_s": 2.0,
+   "ended_at_utc": "2026-09-27T18:17:16.637+00:00",
+   "url": "https://hct.ac.ae/robots.txt//",
+   "purpose": "robots",
+   "status": 301,
+   "content_type": "text/html; charset=iso-8859-1",
+   "set_cookie_seen": false,
+   "redirect_to": "https://hct.ac.ae/robots.txt//",
+   "robots_result": "REDIRECT"
+  },
+  {
+   "started_at_utc": "2026-09-27T18:17:18.637+00:00",
+   "since_prev_contact_end_s": 2.001,
+   "ended_at_utc": "2026-09-27T18:17:18.653+00:00",
+   "url": "https://hct.ac.ae/robots.txt//",
+   "purpose": "robots",
+   "status": 301,
+   "content_type": "text/html; charset=iso-8859-1",
+   "set_cookie_seen": false,
+   "redirect_to": "https://hct.ac.ae/robots.txt//",
+   "robots_result": "REDIRECT"
+  },
+  {
+   "started_at_utc": "2026-09-27T18:17:20.653+00:00",
+   "since_prev_contact_end_s": 2.0,
+   "ended_at_utc": "2026-09-27T18:17:20.672+00:00",
+   "url": "https://hct.ac.ae/robots.txt//",
+   "purpose": "robots",
+   "status": 301,
+   "content_type": "text/html; charset=iso-8859-1",
+   "set_cookie_seen": false,
+   "redirect_to": "https://hct.ac.ae/robots.txt//",
+   "robots_result": "REDIRECT"
+  },
+  {
+   "started_at_utc": "2026-09-27T18:17:22.672+00:00",
+   "since_prev_contact_end_s": 2.0,
+   "ended_at_utc": "2026-09-27T18:17:22.689+00:00",
+   "url": "https://hct.ac.ae/robots.txt//",
+   "purpose": "robots",
+   "status": 301,
+   "content_type": "text/html; charset=iso-8859-1",
+   "set_cookie_seen": false,
+   "redirect_to": "https://hct.ac.ae/robots.txt//",
+   "robots_result": "REDIRECT"
+  },
+  {
+   "url": "https://hct.ac.ae/robots.txt//",
+   "purpose": "robots",
+   "requested": false,
+   "decision": "more than five redirects (conservative; RFC 9309 would permit \"unavailable\")",
+   "decided_at_utc": "2026-09-27T18:17:22.689+00:00",
+   "robots_result": "UNREACHABLE_DISALLOW"
+  },
+  {
+   "step": "hct-careers",
+   "employer": "Higher Colleges of Technology",
+   "purpose": "official careers page ('Current Vacancies' link)",
+   "url": "https://www.hct.ac.ae/en/careers/",
+   "robots": "UNREACHABLE_DISALLOW",
+   "requested": false,
+   "decision": "not requested: robots UNREACHABLE_DISALLOW (more than five redirects (conservative; RFC 9309 would permit \"unavailable\"))",
+   "decided_at_utc": "2026-09-27T18:17:22.689+00:00"
+  },
+  {
+   "step": "hct-careers-links",
+   "employer": "Higher Colleges of Technology",
+   "purpose": "forward link from the official careers page",
+   "url": null,
+   "requested": false,
+   "decision": "no link from hct-careers matched 'vacanc|career|job|oraclecloud'",
+   "decided_at_utc": "2026-09-27T18:17:22.689+00:00"
+  },
+  {
+   "step": "du-dns-careers",
+   "employer": "du (Emirates Integrated Telecommunications)",
+   "host": "careers.du.ae",
+   "purpose": "DNS resolution only (no contact with the host)",
+   "resolved_at_utc": "2026-09-27T18:17:22.689+00:00",
+   "error": "gaierror: [Errno 11001] getaddrinfo failed"
+  },
+  {
+   "step": "du-dns-jobs",
+   "employer": "du (Emirates Integrated Telecommunications)",
+   "host": "jobs.du.ae",
+   "purpose": "DNS resolution only (no contact with the host)",
+   "resolved_at_utc": "2026-09-27T18:17:22.721+00:00",
+   "error": "gaierror: [Errno 11001] getaddrinfo failed"
+  },
+  {
+   "started_at_utc": "2026-09-27T18:17:22.749+00:00",
+   "since_prev_contact_end_s": null,
+   "ended_at_utc": "2026-09-27T18:17:22.936+00:00",
+   "url": "https://www.du.ae/robots.txt",
+   "purpose": "robots",
+   "status": 200,
+   "content_type": "text/plain; charset=UTF-8",
+   "set_cookie_seen": true,
+   "applicable_rules": [
+    "disallow: /"
+   ],
+   "robots_result": "PARSED"
+  },
+  {
+   "step": "du-careers",
+   "employer": "du (Emirates Integrated Telecommunications)",
+   "purpose": "official careers page",
+   "url": "https://www.du.ae/about-us/careers",
+   "robots": "PARSED",
+   "robots_rule": "disallow '/'",
+   "requested": false,
+   "decision": "not requested: disallowed by disallow '/'",
+   "decided_at_utc": "2026-09-27T18:17:22.937+00:00"
+  },
+  {
+   "step": "du-sitemap",
+   "employer": "du (Emirates Integrated Telecommunications)",
+   "purpose": "official sitemap page ('Join Us' link)",
+   "url": "https://www.du.ae/corporate/sitemap",
+   "robots": "PARSED",
+   "robots_rule": "disallow '/'",
+   "requested": false,
+   "decision": "not requested: disallowed by disallow '/'",
+   "decided_at_utc": "2026-09-27T18:17:22.937+00:00"
+  },
+  {
+   "started_at_utc": "2026-09-27T18:17:22.937+00:00",
+   "since_prev_contact_end_s": null,
+   "ended_at_utc": "2026-09-27T18:17:23.446+00:00",
+   "url": "https://purehealth.ae/robots.txt",
+   "purpose": "robots",
+   "status": 403,
+   "content_type": "text/html; charset=UTF-8",
+   "set_cookie_seen": true,
+   "challenge": "Cloudflare: not bypassed; host blocked for the rest of the run",
+   "robots_result": "CHALLENGE_DISALLOW"
+  },
+  {
+   "step": "ph-home",
+   "employer": "PureHealth",
+   "purpose": "official homepage: 'Careers' link (v6 route), only if robots permits",
+   "url": "https://purehealth.ae/",
+   "robots": "CHALLENGE_DISALLOW",
+   "requested": false,
+   "decision": "not requested: robots CHALLENGE_DISALLOW (bot-protection page at robots.txt (Cloudflare))",
+   "decided_at_utc": "2026-09-27T18:17:23.446+00:00"
+  }
+ ],
+ "robots": {
+  "https://www.zu.ac.ae": {
+   "kind": "UNREACHABLE_DISALLOW",
+   "reason": "ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host"
+  },
+  "https://www.doh.gov.ae": {
+   "kind": "UNAVAILABLE_ALLOW",
+   "reason": "HTTP 404"
+  },
+  "https://aderp.abudhabi.ae": {
+   "kind": "UNREACHABLE_DISALLOW",
+   "reason": "SSLCertVerificationError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1028)"
+  },
+  "https://www.emiratesislamic.ae": {
+   "kind": "CHALLENGE_DISALLOW",
+   "reason": "bot-protection page at robots.txt (Cloudflare)"
+  },
+  "https://www.hct.ac.ae": {
+   "kind": "UNREACHABLE_DISALLOW",
+   "reason": "more than five redirects (conservative; RFC 9309 would permit \"unavailable\")"
+  },
+  "https://www.du.ae": {
+   "kind": "PARSED",
+   "reason": "1 applicable rules"
+  },
+  "https://purehealth.ae": {
+   "kind": "CHALLENGE_DISALLOW",
+   "reason": "bot-protection page at robots.txt (Cloudflare)"
+  }
+ },
+ "blocked_hosts": {
+  "www.zu.ac.ae": "network or TLS failure",
+  "aderp.abudhabi.ae": "network or TLS failure",
+  "www.emiratesislamic.ae": "Cloudflare",
+  "purehealth.ae": "Cloudflare"
+ },
+ "pacing": {
+  "min_interval_s": 2.0,
+  "measured_from": "end of the previous contact with the host to the start of the next",
+  "same_host_intervals": 10,
+  "smallest_same_host_interval_s": 2.0,
+  "all_intervals_at_least_minimum": true,
+  "by_host": {
+   "www.zu.ac.ae": [
+    2.0
+   ],
+   "www.doh.gov.ae": [
+    2.001,
+    4.321,
+    2.001
+   ],
+   "aderp.abudhabi.ae": [
+    2.0,
+    2.0
+   ],
+   "hct.ac.ae": [
+    2.0,
+    2.001,
+    2.0,
+    2.0
+   ]
+  }
+ },
+ "contacts_by_host": {
+  "www.zu.ac.ae": 2,
+  "www.doh.gov.ae": 4,
+  "aderp.abudhabi.ae": 3,
+  "www.emiratesislamic.ae": 1,
+  "www.hct.ac.ae": 1,
+  "hct.ac.ae": 5,
+  "www.du.ae": 1,
+  "purehealth.ae": 1
+ }
+}

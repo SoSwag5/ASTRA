@@ -54,8 +54,8 @@ manual confirmation path on that date.
 - The accuracy of the #41 classifications.
 - That any posting is open.
 - Anything about the excluded sources.
-- Coverage of the 55-employer map: none of its employers uses a board these
-  adapters read.
+- Coverage of the 55-employer map. No researched employer has a *verified*
+  board these adapters read, so this scan's results say nothing about them.
 
 Source names and per-source figures stay in the Owner's private record.
 
@@ -75,8 +75,8 @@ Source names and per-source figures stay in the Owner's private record.
 
 - **Coverage of UAE employers without a permitted adapter.** Source map v4
   records none of its researched UAE employers on Greenhouse, Lever or Ashby.
-  Some have verified `MANUAL_LINK` destinations (50 after the v6 closeout of
-  2026-09-27); five remain unresolved. A scan says nothing about either group.
+  Some have verified `MANUAL_LINK` destinations (49 after the v7 closeout of
+  2026-09-27); six remain unresolved. A scan says nothing about either group.
 - **That any posting is open.** A fetched posting is evidence of what the
   board served at that moment, not of availability or eligibility.
 - **UAE coverage from board reachability alone.** A readable board may return

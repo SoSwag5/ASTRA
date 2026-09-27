@@ -1,8 +1,10 @@
 # #46.2-B Discovery responsiveness and scan-time estimate
 
 **Status:** merged to `master` with [PR #71](https://github.com/SoSwag5/ASTRA/pull/71)
-at `a4983d455d2dde5a20c1ea7303e3fae2d8dc145d` (reviewed head
-`810143a43100e3dda72b550c75b9e57de99df33a`), based on `master` at
+at `a4983d455d2dde5a20c1ea7303e3fae2d8dc145d` (head
+`810143a43100e3dda72b550c75b9e57de99df33a`, recorded as independently
+reviewed in the Owner's handoff; GitHub records no review on the PR and the
+review notes are not in Git), based on `master` at
 `2d40c8067996f9f919bda63b716507d371bc8daa`. 2026-09-27 (Asia/Dubai).
 Measured on a fictional, isolated database;
 no live scan, source call or Owner data was used to test it.
@@ -118,7 +120,8 @@ typical pace and, when materially longer, the slowest recent pace:
 - With run 107 in the history, the next preview says up to about 7 minutes.
 
 It still could not have predicted 439 seconds: that run was about five times
-slower than this device's usual pace, which the contention above explains.
+slower than this device's usual pace. Page contention is consistent with that,
+but the fictional replay does not establish it as the cause.
 When any source has no posting count, the estimate stays per source, as
 before, now with its slowest figure too. With no finished scan it is still
 stated as unknown.

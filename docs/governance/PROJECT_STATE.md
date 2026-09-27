@@ -1,8 +1,8 @@
 # ASTRA project state
 
-**Snapshot date:** 2026-09-27 (Asia/Dubai), refreshed for the PR #71 (#46.2-B/C)
-merge, the #46.2-B v6 source-map closeout and the E v3 decision review. The #46
-closeout below remains historical evidence.
+**Snapshot date:** 2026-09-27 (Asia/Dubai), refreshed for the PR #74 merge and
+the #46.2-B v7 source-map closeout. The #46 closeout below remains historical
+evidence.
 **Rule:** This is a handoff snapshot, not a substitute for live verification.
 Refresh it at session end when repository or release state changes.
 
@@ -202,7 +202,8 @@ evidence chain and run URLs.
   validation** was performed, no live Gmail or private user data was used, and
   **real-world reconciliation accuracy remains unmeasured**. **R-18 remains
   OPEN** and **no residual-risk acceptance or release approval is implied**.
-  #46.2, #47 and #48 are **not started**, and no tag, release or publication
+  At that closeout #46.2, #47 and #48 had **not started** (for later #46.2
+  progress see *Exact next action* below), and no tag, release or publication
   work was performed.
 - Governance integration advances `master` from the frozen release commit without
   moving or modifying the immutable v1.0.0 tag, source, or artifacts.
@@ -269,9 +270,13 @@ or merged.
   PR #68. Its #46 integration base was
   `11a69b0921d55072aa4f552a0319320ab73d6741`
   (tree `e0b8648f8dab8172c59de3c8df84d631263eb1d8`), the #45 squash merge.
-- Current `master` head: `a4983d455d2dde5a20c1ea7303e3fae2d8dc145d`, the PR #71
-  (#46.2-B/C) merge of 2026-09-27; the #46 entries in this section are historical.
-- No implementation branch is active. `feature/46-application-reconciliation-state-model`
+- `master` head at this refresh: `89d2f907caa49487d585f4268339cd4092c1a267`,
+  the PR #74 merge of 2026-09-27. Its parents are
+  `a4983d455d2dde5a20c1ea7303e3fae2d8dc145d` (the PR #71 merge) and the
+  reviewed head `9906c782f4c6b3e0bca28ec88551c7212b6d1fc0`. Its tree,
+  `c557e396f28247cb3e34e0a8c82e44f5fecaa313`, equals the reviewed head's. The #46
+  entries in this section are historical.
+- At the #46 closeout no implementation branch was active. `feature/46-application-reconciliation-state-model`
   is merged; #45 was merged without independent review, while #46's final head
   `006e9111a196e940d8d11163548ef642c2007e5c` was independently reviewed and
   approved before merge.
@@ -357,26 +362,46 @@ parents are `2d40c8067996f9f919bda63b716507d371bc8daa` (A) and the PR head
   quality, it does not cover the 55 researched employers, and it does not show
   that any posting is open.
 
+**#46.2-B source closeout (v6) and the E v3 decision review are merged.**
+[PR #74](https://github.com/SoSwag5/ASTRA/pull/74) merged into `master` on
+2026-09-27 as `89d2f907caa49487d585f4268339cd4092c1a267`. Its parents are
+`a4983d4` and the head `9906c782f4c6b3e0bca28ec88551c7212b6d1fc0` of
+`fix/46.2-b-closeout-e-review`, and its tree is identical to that head's.
+
+- *Review.* The PR record reports an independent read-only review with
+  **APPROVE** at `9906c78`. GitHub records no review object.
+- *Post-merge CI* ([run 36327990794](https://github.com/SoSwag5/ASTRA/actions/runs/36327990794))
+  and Scorecard ([run 36327990625](https://github.com/SoSwag5/ASTRA/actions/runs/36327990625))
+  passed on `89d2f90`. `dependency-review` was skipped on push, as designed.
+
 Three kinds of #46.2-B/C evidence stay separate. None stands in for another.
 
 1. **Source coverage (B research).**
    - PR #71 carried source map v4 and v5: 0 supported feed, 48 `MANUAL_LINK`
      and 7 unresolved, out of 55 employers.
-   - The v6 closeout on `research/46.2-b-closeout-e-decision` (pending
-     independent review, not merged) rechecked the seven from the Owner's
-     machine on 2026-09-27. Its result is 0 / 50 / 5.
-   - Two employers moved to `MANUAL_LINK`:
-     - PureHealth's homepage publishes a "Careers" link to a LinkedIn jobs
-       search.
-     - ADPHC's official FAQ gives CV-by-e-mail application guidance.
-   - Five stay unresolved:
-     - Zayed University: TLS reset.
-     - DoH: its careers host has an expired certificate.
-     - Emirates Islamic: Cloudflare challenge.
+   - PR #74 carried v6: 0 / 50 / 5. PureHealth and ADPHC became
+     `MANUAL_LINK`.
+   - The **v7 closeout** on `fix/46.2-b-final-closeout` is this change,
+     pending independent review. It rechecked the five v6-unresolved
+     employers and PureHealth once from the Owner's machine on 2026-09-27.
+     The committed tool `scripts/source_route_check.py` did the checks with
+     enforced, logged pacing: every same-host interval was at least 2.000 s.
+     The v6 log still does not establish its own pacing. **Result: 0 / 49 / 6.**
+   - PureHealth is `UNRESOLVED` again. Its robots.txt still answers with a
+     Cloudflare 403. v4 treated that as "do not fetch this host". v5 and v6
+     read it as "unavailable" without disclosure, which is how the v6
+     homepage read was made. v7 restores the v4 rule.
+   - Six are unresolved, each with an exact Owner-browser action:
+     - Zayed University: TLS reset, also on `careers.zu.ac.ae`.
+     - DoH: its careers link goes to a host whose certificate expired on
+       2025-09-09.
+     - Emirates Islamic: Cloudflare challenge at robots.txt.
      - HCT: robots.txt redirect loop.
      - du: robots.txt disallows all paths.
-   - No employer of the 55 has a Greenhouse, Lever or Ashby feed. A
-     `MANUAL_LINK` is never coverage or an open posting. See the
+     - PureHealth: Cloudflare challenge at robots.txt.
+   - No researched employer has a *verified* Greenhouse, Lever or Ashby
+     board, so no controlled scan was prepared and run 107 was not repeated.
+     A `MANUAL_LINK` is never coverage or an open posting. See the
      [source map](../planning/AI_NATIVE_DISCOVERY_46_2B_SOURCE_MAP.md).
 2. **Semantic quality (C).**
    - The role-understanding candidate is offline and shadow-only.
@@ -421,8 +446,7 @@ Three kinds of #46.2-B/C evidence stay separate. None stands in for another.
 - **E v3** (local `research/46.2-e-v3-plan` at `931a108`) is a pre-registered
   plan that tests one mechanism, alias morphology in current search. Nothing
   was run.
-- **A decision review** of that plan is on
-  `research/46.2-b-closeout-e-decision`:
+- **A decision review** of that plan was merged with PR #74:
   [E v3 decision review](../planning/DISCOVERY_46_2E_V3_DECISION_REVIEW.md).
   It recommends keeping the one mechanism but amending the plan before any
   measurement set exists. The candidate must reach both title matchers, and
@@ -435,14 +459,19 @@ challenge. G and H are not started.
 
 **Next actions:**
 
-- Independent review of the B v6 closeout and E decision review at the exact
-  handoff SHA before any push.
+- Independent review of the B v7 closeout at its exact final SHA, then its
+  pull request, required checks and merge. Codex then verifies the merged B
+  before C starts.
 - Owner decisions:
-  - approve, amend or reject the E v3 amendments;
-  - name the independent measurement author and second labeller;
-  - do the Owner-browser checks for the five unresolved employers;
+  - do the Owner-browser checks for the six unresolved employers (the source
+    map gives each exact action);
   - decide whether HCT's robots redirect loop may be read as RFC 9309
-    "unavailable".
+    "unavailable";
+  - decide whether a bot-protection 403 at robots.txt may be read as
+    "unavailable" (PureHealth) and whether an employer-published third-party
+    jobs-search link counts as a `MANUAL_LINK` route;
+  - approve, amend or reject the E v3 amendments;
+  - name the independent measurement author and second labeller.
 - Keep #47, #48 and v1.2 work separate.
 - Do not tag, publish a release, or modify v1.0.0.
 - Preserve the parked `hardening/l2-r13-r14` branch and all concurrent

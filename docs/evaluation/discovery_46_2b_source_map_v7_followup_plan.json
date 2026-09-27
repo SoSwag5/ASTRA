@@ -1,0 +1,42 @@
+{
+ "artifact": "astra-46-2b-source-map-v7-followup-plan",
+ "purpose": "Follow-up required by the v7 plan: careers.zu.ac.ae, a hostname on Zayed University's own registered domain, resolved in the v7 run (to a different address from www.zu.ac.ae). Its robots.txt is checked first; its root page is read only if robots permits, and any link it gives is followed only through the same checks. No ATS tenant is requested on branding alone, no job-listing API is called, no form is submitted and no e-mail is sent.",
+ "notes": [
+  "A page on careers.zu.ac.ae is an official Zayed University page (the employer's own domain). The Oracle CX_1 lead stays unverified unless an official ZU page links to it."
+ ],
+ "employers": [
+  {
+   "employer": "Zayed University",
+   "steps": [
+    {
+     "id": "zu-careers-host",
+     "kind": "page",
+     "url": "https://careers.zu.ac.ae/",
+     "purpose": "root page of the resolving careers hostname on ZU's own domain"
+    },
+    {
+     "id": "zu-careers-host-redirect",
+     "kind": "redirect",
+     "from": "zu-careers-host",
+     "purpose": "where the root page sends a visitor, if it redirects"
+    },
+    {
+     "id": "zu-careers-host-links",
+     "kind": "links",
+     "from": "zu-careers-host",
+     "match": "vacanc|career|job|oraclecloud|interfolio|staff|faculty",
+     "max": 2,
+     "purpose": "forward link from the careers host"
+    },
+    {
+     "id": "zu-careers-host-redirect-links",
+     "kind": "links",
+     "from": "zu-careers-host-redirect",
+     "match": "vacanc|career|job|oraclecloud|interfolio|staff|faculty",
+     "max": 2,
+     "purpose": "forward link from the page the root redirects to"
+    }
+   ]
+  }
+ ]
+}
