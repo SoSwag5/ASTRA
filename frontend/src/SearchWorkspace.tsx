@@ -1,10 +1,17 @@
 import {Recall} from './Recall';
-import React,{useEffect,useState} from 'react';
+import React,{useEffect,useRef,useState} from 'react';
 import {formatDateTime,timeZone} from './locale';
 import {compareJobs} from './jobOrder';
 type Row=Record<string,any>;
 type Props={api:(path:string,method?:string,data?:any)=>Promise<any>;openJob:(j:Row)=>void;refresh:()=>Promise<any>};
 const when=(value:string)=>value?formatDateTime(value):'Not scanned yet';
+// A poll still waiting for the server must not be joined by another one. With
+// a fixed interval, a load slower than the interval otherwise stacks requests.
+export function singleFlight(fn:()=>Promise<any>){let busy=false;return async()=>{if(busy)return false;busy=true;try{await fn();return true}finally{busy=false}}}
+const about=(s:number)=>s<60?'under a minute':`about ${Math.round(s/60)} minute${Math.round(s/60)===1?'':'s'}`;
+// The preview's time estimate: the typical pace from this device's finished scans,
+// and the slowest recent pace when it is materially longer.
+export function estimateText(w:Row){if(w.estimated_seconds==null)return 'Unknown — no finished scan on this device yet';const typical=about(w.estimated_seconds);const text=typical[0].toUpperCase()+typical.slice(1);return w.estimated_seconds_slowest!=null&&w.estimated_seconds_slowest>=1.5*w.estimated_seconds&&w.estimated_seconds_slowest>=60?`${text}; up to ${about(w.estimated_seconds_slowest)} at the slowest recent pace`:text}
 export function ScanProgress({activeScan,cancellable,stopSaving,onStop}:{activeScan:Row;cancellable:boolean;stopSaving:boolean;onStop:()=>void}){
  const progress=activeScan.progress||{};
  const retryStop=Boolean(activeScan.cancel_requested_at&&activeScan.stop_durable===false);
@@ -14,14 +21,17 @@ export function Discovery({api,openJob,refresh}:Props){
  const [data,setData]=useState<Row>({sources:[],runs:[]}),[jobs,setJobs]=useState<Row[]>([]),[cfg,setCfg]=useState<Row>({}),[error,setError]=useState(''),[pending,setPending]=useState(false),[name,setName]=useState(''),[url,setUrl]=useState('');
  const [scanState,setScanState]=useState<Row>({}),[preview,setPreview]=useState<Row|null>(null),[starting,setStarting]=useState(false),[stopSaving,setStopSaving]=useState(false);
  const [view,setView]=useState(localStorage.getItem('discoveryView')||'active'),[query,setQuery]=useState(''),[days,setDays]=useState('0'),[source,setSource]=useState(''),[sort,setSort]=useState('uae_first');
- async function load(){const [d,j,c,s]=await Promise.all([api('/search/overview'),api('/jobs'),api('/settings'),api('/scan/status')]);setData(d);setJobs(j);setCfg(c);setScanState(s)}
+ // The job list is the heaviest response. A poll refetches it only when a scan's
+ // progress or the latest run changed, or once a minute; every action reloads it.
+ const jobsSeen=useRef({key:'',at:0});
+ async function load(force=true){const [d,c,s]=await Promise.all([api('/search/overview'),api('/settings'),api('/scan/status')]);const key=[d.runs[0]?.id,d.runs[0]?.status,d.runs[0]?.updated_at,s.active?.progress?.sources_done].join(':');if(force||key!==jobsSeen.current.key||Date.now()-jobsSeen.current.at>=60000){setJobs(await api('/jobs'));jobsSeen.current={key,at:Date.now()}}setData(d);setCfg(c);setScanState(s)}
  // Manual-only scanning: Start Scan only opens a preview of the scope and
  // workload. Nothing is fetched until the Owner confirms, and the confirmation
  // token is single-use, so one confirmation starts at most one scan.
  async function openPreview(sourceId?:number){setError('');try{setPreview(await api('/scan/preview','POST',sourceId?{source_id:sourceId}:{}))}catch(e:any){setError(e.message)}}
  async function confirmScan(){if(!preview||starting)return;setStarting(true);setError('');try{await api('/scan/start','POST',{token:preview.token});await load()}catch(e:any){setError(e.message)}finally{setPreview(null);setStarting(false)}}
  async function stopScan(){const run=scanState.active;if(!run||stopSaving)return;setStopSaving(true);setError('');try{await api('/scan/cancel','POST',{run_id:run.id})}catch(e:any){setError(e.message)}finally{try{await load()}catch(e:any){setError(e.message)}setStopSaving(false)}}
- useEffect(()=>{let alive=true;const poll=()=>{if(alive)load().catch(e=>setError(e.message))};poll();const timer=setInterval(poll,5000);return()=>{alive=false;clearInterval(timer)}},[]);
+ useEffect(()=>{let alive=true;const tick=singleFlight(()=>load(false).catch(e=>setError(e.message)));const poll=()=>{if(alive)tick()};poll();const timer=setInterval(poll,5000);return()=>{alive=false;clearInterval(timer)}},[]);
  useEffect(()=>{refresh().catch(e=>setError(e.message))},[data.runs[0]?.id,data.runs[0]?.status]);
  async function act(fn:()=>Promise<any>){setPending(true);setError('');try{await fn();await load();await refresh()}catch(e:any){setError(e.message)}finally{setPending(false)}}
  const active=(j:Row)=>!['SKIP','APPLIED','RECRUITER_CONTACT','SCREENING','ASSESSMENT','INTERVIEW','FINAL_INTERVIEW','OFFER','HIRED','REJECTED','WITHDRAWN','NO_RESPONSE','ARCHIVED'].includes(j.status);
@@ -30,9 +40,8 @@ export function Discovery({api,openJob,refresh}:Props){
  const latest=data.runs.find((r:Row)=>r.status!=='RUNNING');
  const activeScan=scanState.active;
  const running=pending||starting||data.running||!!activeScan;
- const duration=(s?:number|null)=>s==null?'Unknown — no finished scan on this device yet':s<60?'Under a minute':`About ${Math.round(s/60)} minute${Math.round(s/60)===1?'':'s'}`;
  return <><div className="discoveryhero panel"><div><div className="eyebrow">YOUR DAILY JOB SEARCH</div><h2>Scan. Shortlist. Follow through.</h2><p>Public company boards, filtered for your roles and locations. New matches are scored automatically.</p><small>Scans run only when you press Start Scan. Nothing scans when Windows or ASTRA starts, on a timer, or after a restart. · {timeZone()}</small>{scanState.last?.status==='INTERRUPTED'&&<small className="notice">Your last scan was interrupted when the app stopped. It was not restarted.</small>}{(scanState.last?.scope_changed_sources||[]).length>0&&<small className="notice">Your last scan did not check {scanState.last.scope_changed_sources.map((s:Row)=>`${s.name} (${String(s.change).toLowerCase()} after you confirmed)`).join(', ')}.</small>}</div><button className="primary startscan" disabled={running||!!preview} onClick={()=>openPreview()}>{activeScan?'Scan in progress…':'Start Scan'}</button></div>
- {preview&&!activeScan&&<section className="panel spaced" role="dialog" aria-label="Review scan before starting"><h2>Review this scan before it starts</h2><p>{preview.scope.single_source?'One source':'Every enabled source'} will be checked once. Nothing is fetched until you confirm.</p><ul>{preview.scope.sources.map((s:Row)=><li key={s.id}><strong>{s.name}</strong> · {s.adapter} · {s.postings_last_seen!=null?`${s.postings_last_seen} postings last time`:'no earlier scan'}</li>)}</ul><p>Roles: {preview.scope.career_tracks.join(', ')||'your saved focus'} ({preview.scope.target_roles} role titles) · Locations: {preview.scope.locations.join(', ')||'not set'}</p><p>Expected workload: {preview.workload.sources} source{preview.workload.sources===1?'':'s'} · {preview.workload.postings_last_seen!=null?`about ${preview.workload.postings_last_seen} postings`:'posting count unknown'} · {duration(preview.workload.estimated_seconds)}</p><small>{preview.workload.requests}</small><div className="actions spaced"><button className="primary" disabled={starting} onClick={confirmScan}>{starting?'Starting…':'Confirm and start scan'}</button><button className="secondary" disabled={starting} onClick={()=>setPreview(null)}>Cancel</button></div></section>}
+ {preview&&!activeScan&&<section className="panel spaced" role="dialog" aria-label="Review scan before starting"><h2>Review this scan before it starts</h2><p>{preview.scope.single_source?'One source':'Every enabled source'} will be checked once. Nothing is fetched until you confirm.</p><ul>{preview.scope.sources.map((s:Row)=><li key={s.id}><strong>{s.name}</strong> · {s.adapter} · {s.postings_last_seen!=null?`${s.postings_last_seen} postings last time`:'no earlier scan'}</li>)}</ul><p>Roles: {preview.scope.career_tracks.join(', ')||'your saved focus'} ({preview.scope.target_roles} role titles) · Locations: {preview.scope.locations.join(', ')||'not set'}</p><p>Expected workload: {preview.workload.sources} source{preview.workload.sources===1?'':'s'} · {preview.workload.postings_last_seen!=null?`about ${preview.workload.postings_last_seen} postings`:'posting count unknown'} · {estimateText(preview.workload)}</p><small>Estimate: {preview.workload.estimate_basis}. {preview.workload.requests}</small><div className="actions spaced"><button className="primary" disabled={starting} onClick={confirmScan}>{starting?'Starting…':'Confirm and start scan'}</button><button className="secondary" disabled={starting} onClick={()=>setPreview(null)}>Cancel</button></div></section>}
  {activeScan&&<ScanProgress activeScan={activeScan} cancellable={!!scanState.cancellable} stopSaving={stopSaving} onStop={stopScan}/>}
  {error&&<p role="alert" className="notice">{error}</p>}
  <div className="metrics spaced">{[['Open shortlist',jobs.filter(active).length],['New in 7 days',jobs.filter(j=>active(j)&&fresh(j)).length],['Enabled sources',data.sources.filter((s:Row)=>s.enabled).length],['Sources needing attention',data.sources.filter((s:Row)=>s.enabled&&s.result?.error).length]].map(([label,value])=><div className="metric" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
