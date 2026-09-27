@@ -322,24 +322,51 @@ def _active_run(db):
                      .order_by(AutomationRun.id.desc()))
 
 
+def _number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
 def _estimate(db, sources):
-    """Workload from this installation's own history; UNKNOWN where none."""
-    runs = list(db.scalars(select(AutomationRun)
-                           .where(AutomationRun.task == 'discover',
-                                  AutomationRun.status.in_(['COMPLETED', 'PARTIAL']))
-                           .order_by(AutomationRun.id.desc()).limit(20)))
-    per_source = [r.report['duration_seconds'] / r.report['sources_attempted'] for r in runs
-                  if (r.report or {}).get('sources_attempted') and
-                  isinstance(r.report.get('duration_seconds'), (int, float))]
+    """Workload from this installation's own history; UNKNOWN where none.
+
+    Sources differ in size by two orders of magnitude, so when every source
+    has a posting count from its last scan and finished scans recorded how
+    many postings they checked, the estimate is seconds per posting checked
+    (median, and the slowest of those scans) times the postings these sources
+    returned last time. Otherwise it is seconds per source, as before. Both
+    figures come from this device's finished scans, whose pace also reflects
+    whatever else the computer was doing then.
+    """
+    from .run_reports import summaries
+    ids = list(db.scalars(select(AutomationRun.id)
+                          .where(AutomationRun.task == 'discover',
+                                 AutomationRun.status.in_(['COMPLETED', 'PARTIAL']))
+                          .order_by(AutomationRun.id.desc()).limit(20)))
+    reports = [summary['report'] for summary in summaries(db, ids).values()]
+    per_source = [r['duration_seconds'] / r['sources_attempted'] for r in reports
+                  if r.get('sources_attempted') and _number(r.get('duration_seconds'))]
+    per_posting = [r['duration_seconds'] / r['scanned'] for r in reports
+                   if _number(r.get('scanned')) and r['scanned'] > 0 and _number(r.get('duration_seconds'))]
     known = [s for s in sources if isinstance(s.details.get('jobs_fetched'), int)]
-    seconds = round(statistics.median(per_source) * len(sources)) if per_source and sources else None
+    postings = sum(s.details['jobs_fetched'] for s in known) if known else None
+    if per_posting and sources and len(known) == len(sources) and postings:
+        seconds, slowest = (round(statistics.median(per_posting) * postings), round(max(per_posting) * postings))
+        basis = ('median and slowest seconds per posting checked over the last %d finished scans, '
+                 'times the postings these sources returned last time' % len(per_posting))
+    elif per_source and sources:
+        seconds, slowest = (round(statistics.median(per_source) * len(sources)),
+                            round(max(per_source) * len(sources)))
+        basis = 'median and slowest seconds per source over the last %d finished scans' % len(per_source)
+    else:
+        seconds = slowest = None
+        basis = 'no finished scan on this installation yet'
     return {
         'sources': len(sources),
-        'postings_last_seen': sum(s.details['jobs_fetched'] for s in known) if known else None,
+        'postings_last_seen': postings,
         'sources_without_history': len(sources) - len(known),
         'estimated_seconds': seconds,
-        'estimate_basis': ('median seconds per source over the last %d finished scans' % len(per_source)
-                           if per_source else 'no finished scan on this installation yet'),
+        'estimated_seconds_slowest': slowest,
+        'estimate_basis': basis,
         'requests': ('At least one public request per source. SmartRecruiters sources also make one '
                      'request per UAE posting, and Greenhouse sources may fetch posting details, '
                      'each within its existing per-source budget. Nothing is submitted anywhere.'),
@@ -640,11 +667,16 @@ def _view(run, stop=None, durable_record=None):
 
 @router.get('/status')
 def status():
+    from .run_reports import summaries
     with Session() as db:
         running = _active_run(db)
-        last = db.scalar(select(AutomationRun)
-                         .where(AutomationRun.task == 'discover', AutomationRun.status != 'RUNNING')
-                         .order_by(AutomationRun.id.desc()))
+        # The last finished run, read without its per-posting decision audit:
+        # _view() uses only summary fields, and this endpoint is polled.
+        last_id = db.scalar(select(AutomationRun.id)
+                            .where(AutomationRun.task == 'discover', AutomationRun.status != 'RUNNING')
+                            .order_by(AutomationRun.id.desc()).limit(1))
+        found = summaries(db, [last_id]).get(last_id) if last_id is not None else None
+        last = SimpleNamespace(id=last_id, **found) if found else None
         with _cancel_guard:
             stop = _cancel.get(running.id) if running is not None else None
         durable_record = (_read_stop_record(running)
