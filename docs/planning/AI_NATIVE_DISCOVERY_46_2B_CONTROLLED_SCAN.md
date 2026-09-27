@@ -1,6 +1,7 @@
 # #46.2-B — controlled live scan: scope protocol (2026-09-26)
 
-**Status:** `PROPOSED`. No scan was run. The Owner selected a proposed scope of
+**Status:** protocol `PROPOSED` 2026-09-26; one scan run under it on 2026-09-27
+(see *Outcome* below). Before that scan: the Owner selected a proposed scope of
 **ten permitted sources: three Ashby, four Lever, and three Greenhouse**. That
 selection does not start a scan. The live B scan starts only after the Owner
 reviews that exact scope in ASTRA's manual Start Scan preview and presses
@@ -10,6 +11,53 @@ with the Owner directly, not recorded here.
 
 Source research: [source map v4](AI_NATIVE_DISCOVERY_46_2B_SOURCE_MAP.md)
 ([data](../evaluation/discovery_46_2b_source_map_v4.json)).
+
+## Outcome (2026-09-27): one controlled scan, run 107
+
+**Status:** `COMPLETED` for this one scan.
+
+**Scope.** Preflight found that one proposed Ashby board returned HTTP 404,
+the same as a nonexistent board. The Owner therefore narrowed the scope to
+**nine** configured sources: two Ashby, four Lever and three Greenhouse. The
+Owner also excluded that Ashby board and every SmartRecruiters source.
+
+**How it started.**
+- The build was merged #46.2-A (`2d40c80`), run from a separate runtime
+  checkout against the Owner's data.
+- The legacy scheduled task stayed disabled, and a verified backup was taken
+  first.
+- The out-of-scope sources were paused.
+- The Owner delegated the in-app controls for this run. The preview was
+  checked against exactly the nine sources, CYBERSECURITY, 20 role titles and
+  the four locations, then **Confirm and start scan** was pressed in ASTRA.
+- No direct start endpoint was used.
+
+**Result.**
+- 9 sources fetched, 0 failed, 0 not fetched.
+- 924 postings checked, 79 new, 845 already stored.
+- 72 had a UAE location by the run's location rule; 67 of those were
+  plausible under #41.
+- No source error.
+- One Greenhouse board completed its list, but its detail enrichment stopped
+  at the per-source budget (partial detail).
+- Three of the nine returned no UAE-located posting in this run. That is an
+  observed result, not proof that those employers have no UAE roles.
+- The run took 439 seconds. The preview said "under a minute"; see
+  [the responsiveness note](../evaluation/DISCOVERY_46_2B_RESPONSIVENESS.md)
+  for why.
+- A verified backup was taken after the run.
+
+**What it proves.** These nine configured feeds could be fetched through the
+manual confirmation path on that date.
+
+**What it does not prove.**
+- The accuracy of the #41 classifications.
+- That any posting is open.
+- Anything about the excluded sources.
+- Coverage of the 55-employer map: none of its employers uses a board these
+  adapters read.
+
+Source names and per-source figures stay in the Owner's private record.
 
 ## What a B live scan can prove
 

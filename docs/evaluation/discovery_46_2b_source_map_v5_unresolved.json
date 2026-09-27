@@ -1,0 +1,517 @@
+{
+ "artifact": "astra-46-2b-source-map-v5-unresolved",
+ "version": 5,
+ "evidence_date": "2026-09-27",
+ "supersedes_rows_of": "discovery_46_2b_source_map_v4.json (kept unchanged)",
+ "scope": "Only the 7 rows that v4 left UNRESOLVED. The other 48 rows keep their v4 evidence. This is research, not a scan: no source was added, enabled or fetched, and no job-listing API was called.",
+ "rules": [
+  "Owner-machine requests only, descriptive read-only User-Agent, a pause between requests to one host.",
+  "robots.txt honoured with an RFC 9309 matcher: 4xx = unavailable (allowed), 5xx or network failure = disallow all, redirects followed up to five hops.",
+  "No login, apply path, CAPTCHA or bot-protection bypass; a challenge or rejection page ends the attempt.",
+  "Officialness: only the employer's own domain, or an ATS or destination linked or redirected to from it, counts. ATS branding alone stays an unverified lead.",
+  "'Supported feed' means an ASTRA adapter it may use (Greenhouse, Lever or Ashby). SmartRecruiters stays an Owner decision."
+ ],
+ "counts": {
+  "supported_feed": 0,
+  "MANUAL_LINK": 49,
+  "UNRESOLVED": 6,
+  "employers": 55
+ },
+ "counts_note": "v4 had 0 / 48 / 7. PureHealth moves to MANUAL_LINK; the other six stay UNRESOLVED.",
+ "not_claimed": [
+  "No posting is claimed open, and no row is covered automatically.",
+  "The Owner's separate controlled scan of configured board sources does not cover or validate these employers."
+ ],
+ "rows": [
+  {
+   "employer": "PureHealth",
+   "v4_outcome": "UNRESOLVED",
+   "v5_outcome": "MANUAL_LINK",
+   "supported_feed": null,
+   "direct_link_fallback": "https://purehealth.ae/careers/",
+   "destination": "The employer's own careers path answers HTTP 301 to its LinkedIn company page, https://www.linkedin.com/company/purehealthae/.",
+   "why_astra_cannot_read": "LinkedIn robots.txt disallows this client, and LinkedIn is not an ASTRA source. The destination is a company page, not a job feed.",
+   "evidence": "Official: the redirect is served by the employer's own domain (forward-link rule). purehealth.ae robots.txt answered 403, which RFC 9309 treats as unavailable; the one careers request was answered with a redirect, not a challenge, so no bot protection was met or bypassed. The earlier v4 Cloudflare block on this host was not reproduced for this path."
+  },
+  {
+   "employer": "Zayed University",
+   "v4_outcome": "UNRESOLVED",
+   "v5_outcome": "UNRESOLVED",
+   "supported_feed": null,
+   "direct_link_fallback": null,
+   "unverified_lead": "https://fa-evge-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/",
+   "blocker": "www.zu.ac.ae still resets the TLS connection at robots.txt (WinError 10054), so ZU's own careers page cannot be read to show a forward link.",
+   "evidence": "The Oracle Candidate Experience landing page answered 200 with the title 'Zayed University': branding only, not an official link under the rule."
+  },
+  {
+   "employer": "Abu Dhabi Public Health Centre (ADPHC)",
+   "v4_outcome": "UNRESOLVED",
+   "v5_outcome": "UNRESOLVED",
+   "supported_feed": null,
+   "direct_link_fallback": null,
+   "blocker": "/en/Careers is allowed by robots.txt but returns a web-application-firewall 'Request Rejected' page (not bypassed).",
+   "evidence": "The Arabic FAQ page loads, but its served HTML has no careers answer or ADPHC e-mail address, so the earlier remote-reader lead (a CV e-mail route) is not confirmed from this machine."
+  },
+  {
+   "employer": "Department of Health - Abu Dhabi (DoH)",
+   "v4_outcome": "UNRESOLVED",
+   "v5_outcome": "UNRESOLVED",
+   "supported_feed": null,
+   "direct_link_fallback": null,
+   "official_link_observed": "DoH's homepage (https://www.doh.gov.ae/en/) links 'Careers' to an Oracle E-Business Suite page on aderp.abudhabi.ae.",
+   "blocker": "aderp.abudhabi.ae fails TLS verification ('certificate has expired'), so its robots.txt is unreadable and nothing there is fetched; a browser would show a certificate warning. /en/careers on doh.gov.ae redirects to a 404 page.",
+   "evidence": "The official link is verified from the employer's page, but its destination is not usable, so it is not offered as a working fallback."
+  },
+  {
+   "employer": "Emirates Islamic",
+   "v4_outcome": "UNRESOLVED",
+   "v5_outcome": "UNRESOLVED",
+   "supported_feed": null,
+   "direct_link_fallback": null,
+   "unverified_lead": "https://fa-evlo-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2",
+   "blocker": "Both /en/about-us/careers and /en/careers return a Cloudflare 'Attention Required' challenge (HTTP 403, not bypassed).",
+   "evidence": "The Oracle landing page answered 200 titled 'Emirate Islamic Bank Recruitment Team': branding only."
+  },
+  {
+   "employer": "Higher Colleges of Technology",
+   "v4_outcome": "UNRESOLVED",
+   "v5_outcome": "UNRESOLVED",
+   "supported_feed": null,
+   "direct_link_fallback": null,
+   "unverified_lead": "https://iaavey.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1",
+   "blocker": "robots.txt on hct.ac.ae and www.hct.ac.ae still redirects in a loop, so it is treated as unreachable and no HCT page is fetched.",
+   "evidence": "The Oracle landing page answered 200 titled 'HCT': branding only."
+  },
+  {
+   "employer": "du (Emirates Integrated Telecommunications)",
+   "v4_outcome": "UNRESOLVED",
+   "v5_outcome": "UNRESOLVED",
+   "supported_feed": null,
+   "direct_link_fallback": null,
+   "unverified_lead": "https://fa-ewnx-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001",
+   "blocker": "du.ae robots.txt disallows every path for all agents, so no du page is fetched.",
+   "evidence": "The Oracle landing page answered 200 titled 'du Careers': branding only."
+  }
+ ],
+ "requests": {
+  "user_agent": "ASTRA-source-research/1.0 (read-only official careers-page check; robots.txt honoured)",
+  "requests": {
+   "Zayed University": [
+    {
+     "utc": "2026-09-27T06:12:57+00:00",
+     "url": "https://www.zu.ac.ae/robots.txt",
+     "purpose": "robots",
+     "robots_result": "UNREACHABLE_DISALLOW",
+     "error": "ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host"
+    },
+    {
+     "utc": "2026-09-27T06:12:57+00:00",
+     "url": "https://www.zu.ac.ae/main/en/careers/",
+     "purpose": "official careers page",
+     "robots": "robots unreachable_disallow: not fetched",
+     "fetched": false
+    },
+    {
+     "utc": "2026-09-27T06:12:57+00:00",
+     "url": "https://www.zu.ac.ae/main/en/careers/index",
+     "purpose": "official careers page",
+     "robots": "robots unreachable_disallow: not fetched",
+     "fetched": false
+    },
+    {
+     "utc": "2026-09-27T06:12:58+00:00",
+     "url": "https://fa-evge-saasfaprod1.fa.ocs.oraclecloud.com/robots.txt",
+     "purpose": "robots",
+     "robots_result": "UNAVAILABLE_ALLOW",
+     "status": 404
+    },
+    {
+     "utc": "2026-09-27T06:13:00+00:00",
+     "url": "https://fa-evge-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/",
+     "purpose": "candidate ATS landing page (HTML shell only; no job API)",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 200,
+     "title": "Zayed University",
+     "fetched": true
+    }
+   ],
+   "PureHealth": [
+    {
+     "utc": "2026-09-27T06:13:00+00:00",
+     "url": "https://purehealth.ae/robots.txt",
+     "purpose": "robots",
+     "robots_result": "UNAVAILABLE_ALLOW",
+     "status": 403
+    },
+    {
+     "utc": "2026-09-27T06:13:01+00:00",
+     "url": "https://purehealth.ae/careers/",
+     "purpose": "official careers page",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 301,
+     "redirect_to": "https://www.linkedin.com/company/purehealthae/",
+     "fetched": true
+    },
+    {
+     "utc": "2026-09-27T06:13:02+00:00",
+     "url": "https://www.linkedin.com/robots.txt",
+     "purpose": "robots",
+     "robots_result": "PARSED",
+     "status": 200
+    },
+    {
+     "utc": "2026-09-27T06:13:02+00:00",
+     "url": "https://www.linkedin.com/company/purehealthae/",
+     "purpose": "official careers page",
+     "robots": "disallowed by '/'",
+     "fetched": false
+    },
+    {
+     "utc": "2026-09-27T06:13:03+00:00",
+     "url": "https://www.purehealth.ae/robots.txt",
+     "purpose": "robots",
+     "robots_result": "UNAVAILABLE_ALLOW",
+     "status": 403
+    },
+    {
+     "utc": "2026-09-27T06:13:05+00:00",
+     "url": "https://www.purehealth.ae/careers/",
+     "purpose": "official careers page",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 301,
+     "redirect_to": "https://purehealth.ae/careers/",
+     "fetched": true
+    },
+    {
+     "utc": "2026-09-27T06:13:06+00:00",
+     "url": "https://purehealth.ae/careers/",
+     "purpose": "official careers page",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 301,
+     "redirect_to": "https://www.linkedin.com/company/purehealthae/",
+     "fetched": true
+    },
+    {
+     "utc": "2026-09-27T06:13:06+00:00",
+     "url": "https://www.linkedin.com/company/purehealthae/",
+     "purpose": "official careers page",
+     "robots": "disallowed by '/'",
+     "fetched": false
+    }
+   ],
+   "Abu Dhabi Public Health Centre (ADPHC)": [
+    {
+     "utc": "2026-09-27T06:13:06+00:00",
+     "url": "https://www.adphc.gov.ae/robots.txt",
+     "purpose": "robots",
+     "robots_result": "PARSED",
+     "status": 200
+    },
+    {
+     "utc": "2026-09-27T06:13:07+00:00",
+     "url": "https://www.adphc.gov.ae/en/Careers",
+     "purpose": "official careers page",
+     "robots": "allowed",
+     "status": 200,
+     "title": "Request Rejected",
+     "bot_protection": "challenge or rejection page; not bypassed",
+     "fetched": true
+    },
+    {
+     "utc": "2026-09-27T06:13:09+00:00",
+     "url": "https://www.adphc.gov.ae/FAQs",
+     "purpose": "official careers page",
+     "robots": "allowed",
+     "status": 200,
+     "title": "الأسئلة الأكثر شيوعاً",
+     "fetched": true
+    },
+    {
+     "utc": "2026-09-27T06:14:31+00:00",
+     "url": "https://www.adphc.gov.ae/FAQs",
+     "purpose": "FAQ text check",
+     "status": 200,
+     "observed": "No careers answer or ADPHC e-mail address in the served HTML; the earlier remote-reader lead is not confirmed."
+    }
+   ],
+   "Department of Health - Abu Dhabi (DoH)": [
+    {
+     "utc": "2026-09-27T06:13:09+00:00",
+     "url": "https://www.doh.gov.ae/robots.txt",
+     "purpose": "robots",
+     "robots_result": "UNAVAILABLE_ALLOW",
+     "status": 404
+    },
+    {
+     "utc": "2026-09-27T06:13:11+00:00",
+     "url": "https://www.doh.gov.ae/en/",
+     "purpose": "official careers page",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 200,
+     "title": "Home | Department of Health Abu Dhabi",
+     "fetched": true
+    },
+    {
+     "utc": "2026-09-27T06:13:12+00:00",
+     "url": "https://www.doh.gov.ae/en/careers",
+     "purpose": "official careers page",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 302,
+     "redirect_to": "https://www.doh.gov.ae/404?item=%2fcareers&user=extranet%5cAnonymous&site=website",
+     "fetched": true
+    },
+    {
+     "utc": "2026-09-27T06:13:14+00:00",
+     "url": "https://www.doh.gov.ae/404?item=%2fcareers&user=extranet%5cAnonymous&site=website",
+     "purpose": "official careers page",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 200,
+     "title": "404 Page Not Found",
+     "bot_protection": "challenge or rejection page; not bypassed",
+     "fetched": true
+    },
+    {
+     "utc": "2026-09-27T06:14:31+00:00",
+     "url": "https://aderp.abudhabi.ae/robots.txt",
+     "purpose": "robots",
+     "robots_result": "UNREACHABLE_DISALLOW",
+     "error": "SSLCertVerificationError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1028)"
+    },
+    {
+     "utc": "2026-09-27T06:14:31+00:00",
+     "url": "https://aderp.abudhabi.ae/",
+     "purpose": "DoH careers link target",
+     "robots": "robots unreachable_disallow: not fetched",
+     "fetched": false
+    },
+    {
+     "utc": "2026-09-27T06:14:31+00:00",
+     "url": "https://www.doh.gov.ae/en/",
+     "purpose": "homepage link check",
+     "status": 200,
+     "observed_link": {
+      "label": "Careers",
+      "host": "aderp.abudhabi.ae",
+      "path": "/OA_HTML/RF.jsp (Oracle E-Business Suite function link)"
+     }
+    }
+   ],
+   "Emirates Islamic": [
+    {
+     "utc": "2026-09-27T06:13:14+00:00",
+     "url": "https://www.emiratesislamic.ae/robots.txt",
+     "purpose": "robots",
+     "robots_result": "UNAVAILABLE_ALLOW",
+     "status": 403
+    },
+    {
+     "utc": "2026-09-27T06:13:16+00:00",
+     "url": "https://www.emiratesislamic.ae/en/about-us/careers",
+     "purpose": "official careers page",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 403,
+     "title": "Attention Required! | Cloudflare",
+     "bot_protection": "challenge or rejection page; not bypassed",
+     "fetched": true
+    },
+    {
+     "utc": "2026-09-27T06:13:18+00:00",
+     "url": "https://www.emiratesislamic.ae/en/careers",
+     "purpose": "official careers page",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 403,
+     "title": "Attention Required! | Cloudflare",
+     "bot_protection": "challenge or rejection page; not bypassed",
+     "fetched": true
+    },
+    {
+     "utc": "2026-09-27T06:13:18+00:00",
+     "url": "https://fa-evlo-saasfaprod1.fa.ocs.oraclecloud.com/robots.txt",
+     "purpose": "robots",
+     "robots_result": "UNAVAILABLE_ALLOW",
+     "status": 404
+    },
+    {
+     "utc": "2026-09-27T06:13:20+00:00",
+     "url": "https://fa-evlo-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2",
+     "purpose": "candidate ATS landing page (HTML shell only; no job API)",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 200,
+     "title": "Emirate Islamic Bank Recruitment Team",
+     "fetched": true
+    }
+   ],
+   "Higher Colleges of Technology": [
+    {
+     "utc": "2026-09-27T06:13:26+00:00",
+     "url": "https://hct.ac.ae/robots.txt",
+     "purpose": "robots",
+     "robots_result": "UNREACHABLE_DISALLOW",
+     "status": 301
+    },
+    {
+     "utc": "2026-09-27T06:13:26+00:00",
+     "url": "https://hct.ac.ae/en/careers/",
+     "purpose": "official careers page",
+     "robots": "robots unreachable_disallow: not fetched",
+     "fetched": false
+    },
+    {
+     "utc": "2026-09-27T06:13:32+00:00",
+     "url": "https://www.hct.ac.ae/robots.txt",
+     "purpose": "robots",
+     "robots_result": "UNREACHABLE_DISALLOW",
+     "status": 301
+    },
+    {
+     "utc": "2026-09-27T06:13:32+00:00",
+     "url": "https://www.hct.ac.ae/en/careers/",
+     "purpose": "official careers page",
+     "robots": "robots unreachable_disallow: not fetched",
+     "fetched": false
+    },
+    {
+     "utc": "2026-09-27T06:13:32+00:00",
+     "url": "https://iaavey.fa.ocs.oraclecloud.com/robots.txt",
+     "purpose": "robots",
+     "robots_result": "UNAVAILABLE_ALLOW",
+     "status": 404
+    },
+    {
+     "utc": "2026-09-27T06:13:34+00:00",
+     "url": "https://iaavey.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1",
+     "purpose": "candidate ATS landing page (HTML shell only; no job API)",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 200,
+     "title": "HCT",
+     "fetched": true
+    }
+   ],
+   "du (Emirates Integrated Telecommunications)": [
+    {
+     "utc": "2026-09-27T06:13:34+00:00",
+     "url": "https://www.du.ae/robots.txt",
+     "purpose": "robots",
+     "robots_result": "PARSED",
+     "status": 200
+    },
+    {
+     "utc": "2026-09-27T06:13:34+00:00",
+     "url": "https://www.du.ae/corporate/sitemap",
+     "purpose": "official careers page",
+     "robots": "disallowed by '/'",
+     "fetched": false
+    },
+    {
+     "utc": "2026-09-27T06:13:34+00:00",
+     "url": "https://www.du.ae/about-us/careers",
+     "purpose": "official careers page",
+     "robots": "disallowed by '/'",
+     "fetched": false
+    },
+    {
+     "utc": "2026-09-27T06:13:35+00:00",
+     "url": "https://fa-ewnx-saasfaprod1.fa.ocs.oraclecloud.com/robots.txt",
+     "purpose": "robots",
+     "robots_result": "UNAVAILABLE_ALLOW",
+     "status": 404
+    },
+    {
+     "utc": "2026-09-27T06:13:36+00:00",
+     "url": "https://fa-ewnx-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001",
+     "purpose": "candidate ATS landing page (HTML shell only; no job API)",
+     "robots": "robots unavailable (4xx): allowed",
+     "status": 200,
+     "title": "du Careers",
+     "fetched": true
+    }
+   ]
+  },
+  "robots": {
+   "https://www.zu.ac.ae": {
+    "kind": "UNREACHABLE_DISALLOW",
+    "status": null,
+    "error": "ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host",
+    "redirect_hops": 0
+   },
+   "https://fa-evge-saasfaprod1.fa.ocs.oraclecloud.com": {
+    "kind": "UNAVAILABLE_ALLOW",
+    "status": 404,
+    "error": null,
+    "redirect_hops": 0
+   },
+   "https://purehealth.ae": {
+    "kind": "UNAVAILABLE_ALLOW",
+    "status": 403,
+    "error": null,
+    "redirect_hops": 0
+   },
+   "https://www.linkedin.com": {
+    "kind": "PARSED",
+    "status": 200,
+    "error": null,
+    "redirect_hops": 0
+   },
+   "https://www.purehealth.ae": {
+    "kind": "UNAVAILABLE_ALLOW",
+    "status": 403,
+    "error": null,
+    "redirect_hops": 0
+   },
+   "https://www.adphc.gov.ae": {
+    "kind": "PARSED",
+    "status": 200,
+    "error": null,
+    "redirect_hops": 0
+   },
+   "https://www.doh.gov.ae": {
+    "kind": "UNAVAILABLE_ALLOW",
+    "status": 404,
+    "error": null,
+    "redirect_hops": 0
+   },
+   "https://www.emiratesislamic.ae": {
+    "kind": "UNAVAILABLE_ALLOW",
+    "status": 403,
+    "error": null,
+    "redirect_hops": 0
+   },
+   "https://fa-evlo-saasfaprod1.fa.ocs.oraclecloud.com": {
+    "kind": "UNAVAILABLE_ALLOW",
+    "status": 404,
+    "error": null,
+    "redirect_hops": 0
+   },
+   "https://hct.ac.ae": {
+    "kind": "UNREACHABLE_DISALLOW",
+    "status": 301,
+    "error": null,
+    "redirect_hops": 5
+   },
+   "https://www.hct.ac.ae": {
+    "kind": "UNREACHABLE_DISALLOW",
+    "status": 301,
+    "error": null,
+    "redirect_hops": 5
+   },
+   "https://iaavey.fa.ocs.oraclecloud.com": {
+    "kind": "UNAVAILABLE_ALLOW",
+    "status": 404,
+    "error": null,
+    "redirect_hops": 0
+   },
+   "https://www.du.ae": {
+    "kind": "PARSED",
+    "status": 200,
+    "error": null,
+    "redirect_hops": 0
+   },
+   "https://fa-ewnx-saasfaprod1.fa.ocs.oraclecloud.com": {
+    "kind": "UNAVAILABLE_ALLOW",
+    "status": 404,
+    "error": null,
+    "redirect_hops": 0
+   }
+  }
+ }
+}

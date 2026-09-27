@@ -11,6 +11,20 @@
 
 **Result: 0 existing permitted adapter, 0 SmartRecruiters (Owner decision), 48 `MANUAL_LINK`, 7 unresolved, out of 55 employers.**
 
+**v5 update (2026-09-27): 0 supported feed, 49 `MANUAL_LINK`, 6 unresolved.** Only the seven unresolved rows were re-researched from the Owner's machine. Data: [`discovery_46_2b_source_map_v5_unresolved.json`](../evaluation/discovery_46_2b_source_map_v5_unresolved.json), with every request's robots decision, status and time. The v4 data file is unchanged.
+
+| Employer | v5 outcome | Direct-link fallback | What decides it (2026-09-27) |
+|---|---|---|---|
+| PureHealth | `MANUAL_LINK` | https://purehealth.ae/careers/ | The employer's own careers path redirects (301) to its LinkedIn company page. LinkedIn's robots.txt disallows ASTRA, and it is not a job feed. No challenge was met or bypassed. |
+| Zayed University | `UNRESOLVED` | none verified | `zu.ac.ae` still resets the TLS connection at robots.txt. The Oracle CX_1 site is titled "Zayed University", but that is branding only. |
+| Abu Dhabi Public Health Centre | `UNRESOLVED` | none verified | The careers page returns a WAF "Request Rejected" page, which was not bypassed. The FAQ loads but shows no careers answer or e-mail route, so the earlier remote lead is unconfirmed. |
+| Department of Health - Abu Dhabi | `UNRESOLVED` | none usable | The homepage's "Careers" link goes to `aderp.abudhabi.ae`, whose certificate has expired: unreadable, and a browser would warn. `/en/careers` returns a 404. |
+| Emirates Islamic | `UNRESOLVED` | none verified | Both careers paths return a Cloudflare challenge, which was not bypassed. The Oracle CX_2 site's title is branding only. |
+| Higher Colleges of Technology | `UNRESOLVED` | none verified | robots.txt still redirects in a loop, so it is unreachable. The Oracle CX_1 "HCT" title is branding only. |
+| du | `UNRESOLVED` | none verified | robots.txt disallows all paths. The Oracle CX_1001 "du Careers" title is branding only. |
+
+The six unresolved rows need the Owner's browser to confirm each employer's own careers link before any becomes a `MANUAL_LINK`. None has a Greenhouse, Lever or Ashby board. The Owner's separate controlled scan of configured board sources neither covers nor validates these employers.
+
 No researched UAE employer uses Greenhouse, Lever or Ashby, so no row is covered automatically. A `MANUAL_LINK` is a link for the user to open. It is never an automatically found job, and never a confirmed-open one.
 
 The zero `SMARTRECRUITERS_OWNER_DECISION` outcome is a classification count, not a count of employers using that platform. Masdar and Etihad Airways are recorded as `MANUAL_LINK` on SmartRecruiters. Its API access remains an Owner decision; no SmartRecruiters API call was made for this research.
