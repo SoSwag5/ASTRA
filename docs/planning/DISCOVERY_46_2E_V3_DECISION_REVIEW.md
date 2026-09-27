@@ -258,10 +258,20 @@ mechanism or title-form hint.
   that still matches no alias after normalisation does not count. This is the
   relevant subset that can test the proposed reduction in misses; newly
   matched grade-0 postings are tracked by the false-promotion checks.
-- **Addressable-miss opportunity *O*** is the number of postings counted in
-  *A* that are also misses under the baseline definition. A relevant posting
-  already visible within the first *R* ranks is applicable but cannot itself
-  supply one of the required two rescued misses.
+- **Causally addressable opportunity *O*** is the number of postings counted
+  in *A* that are baseline misses **and** for which the frozen alias change
+  can affect every active reason for that miss. For `discovery_reason()`'s
+  "Unrelated role" screen, `recall.role` must gain a family match. For a
+  visible posting below rank *R*, `assessment.assess_domain` must gain a
+  family match. For a #41 hide, the hide must be domain-related and
+  `assessment.assess_domain` must gain a family match. A user exclusion,
+  confirmed eligibility conflict, geography incompatibility or independent
+  seniority hard rejection is not addressable by this title-alias change.
+  If a posting has two active miss reasons, both must meet these tests.
+  Record the baseline miss reasons and the affected matcher for each counted
+  posting. This is a pre-outcome causal eligibility check, not a requirement
+  that the candidate actually rescues the posting; a genuinely addressable
+  posting that stays missed still counts toward *O* and can cause `FAIL`.
 
 **Outcomes, in precedence order (first matching rule wins).**
 
@@ -276,7 +286,7 @@ mechanism or title-form hint.
    screen or Today strong list; or any relevant posting is newly hidden or
    screened. These regressions count even if *A* is small.
 4. **`INCONCLUSIVE`** if *A* < 5 or *O* < 2. With no preceding regression, the
-   set provides too little directly addressable opportunity to test the
+   set provides too little causally addressable opportunity to test the
    required reduction of at least two misses. The spent set is not reused.
 5. **`PASS`** if candidate *M* is at least 2 lower than baseline *M* and at
    least 10% lower. Otherwise **`FAIL`**. A PASS triggers only a separately
