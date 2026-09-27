@@ -27,7 +27,9 @@ import ctypes
 import json
 import os
 import random
+import secrets
 import shutil
+import socket
 import statistics
 import subprocess
 import sys
@@ -38,7 +40,6 @@ from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PORT = 8791
 POLL = ('/api/search/overview', '/api/jobs', '/api/settings', '/api/scan/status')
 POLL_LIGHT = ('/api/search/overview', '/api/settings', '/api/scan/status')
 JOBS_EVERY = 60.0
@@ -175,32 +176,100 @@ def _process_stats(pid):
         kernel32.CloseHandle(handle)
 
 
+def _free_loopback_port():
+    with socket.socket() as listener:
+        listener.bind(('127.0.0.1', 0))
+        return listener.getsockname()[1]
+
+
+_REPLAY_WRAPPER = '''import json
+import os
+import threading
+from backend.main import app as inner
+
+async def app(scope, receive, send):
+    if scope['type'] == 'http' and scope['path'] == '/__astra_perf_identity':
+        body = json.dumps({'nonce': os.environ['ASTRA_PERF_NONCE'], 'pid': os.getpid()}).encode()
+        await send({'type': 'http.response.start', 'status': 200,
+                    'headers': [(b'content-type', b'application/json')]})
+        await send({'type': 'http.response.body', 'body': body})
+        return
+    if scope['type'] == 'http' and scope['path'] == '/__astra_perf_stop':
+        headers = dict(scope['headers'])
+        authorized = headers.get(b'x-astra-perf-nonce') == os.environ['ASTRA_PERF_NONCE'].encode()
+        await send({'type': 'http.response.start', 'status': 200 if authorized else 403,
+                    'headers': []})
+        await send({'type': 'http.response.body', 'body': b''})
+        if authorized:
+            threading.Timer(0.1, os._exit, args=(0,)).start()
+        return
+    await inner(scope, receive, send)
+'''
+
+
+def stop_server(proc, port=None, nonce=None):
+    """Stop the authenticated replay or its own process handle; never trust a reported PID."""
+    if port is not None and nonce is not None:
+        import httpx
+        try:
+            httpx.post(f'http://127.0.0.1:{port}/__astra_perf_stop',
+                       headers={'x-astra-perf-nonce': nonce}, timeout=3)
+            proc.wait(timeout=5)
+            return
+        except (httpx.RequestError, subprocess.TimeoutExpired):
+            pass
+    if proc.poll() is None:
+        proc.terminate()
+    try:
+        proc.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=30)
+
+
 def start_server(tree, data):
-    env = dict(os.environ, HUNTER_DATA_DIR=str(data), HUNTER_PORT=str(PORT))
+    port = _free_loopback_port()
+    nonce = secrets.token_urlsafe(32)
+    (Path(data).parent / 'astra_perf_wrapper.py').write_text(_REPLAY_WRAPPER, encoding='utf-8')
+    env = dict(os.environ, HUNTER_DATA_DIR=str(data), HUNTER_PORT=str(port), ASTRA_PERF_NONCE=nonce)
     env.pop('DATABASE_URL', None)
     env.pop('APP_TOKEN', None)
     python = Path(tree) / '.venv' / 'Scripts' / 'python.exe'
     python = python if python.exists() else Path(sys.executable)
-    proc = subprocess.Popen([str(python), '-m', 'uvicorn', 'backend.main:app', '--host', '127.0.0.1', '--port',
-                             str(PORT), '--no-access-log'], cwd=str(tree), env=env,
+    proc = subprocess.Popen([str(python), '-m', 'uvicorn', 'astra_perf_wrapper:app', '--app-dir',
+                             str(Path(data).parent), '--host', '127.0.0.1', '--port', str(port),
+                             '--no-access-log'], cwd=str(tree), env=env,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     import httpx
-    for _ in range(120):
-        time.sleep(0.5)
-        try:
-            health = httpx.get(f'http://127.0.0.1:{PORT}/api/health', timeout=5).json()
-            return proc, health
-        except httpx.HTTPError:
+    try:
+        for _ in range(120):
             if proc.poll() is not None:
                 raise RuntimeError('server exited during startup')
-    proc.kill()
-    raise RuntimeError('server did not start')
-
-
-def stop_server(proc, pid):
-    subprocess.run(['taskkill', '/PID', str(pid), '/T', '/F'], capture_output=True)
-    subprocess.run(['taskkill', '/PID', str(proc.pid), '/T', '/F'], capture_output=True)
-    proc.wait(timeout=30)
+            time.sleep(0.5)
+            try:
+                response = httpx.get(f'http://127.0.0.1:{port}/__astra_perf_identity', timeout=5)
+            except httpx.RequestError:
+                continue
+            if proc.poll() is not None:
+                raise RuntimeError('server exited during startup')
+            if response.status_code != 200:
+                raise RuntimeError('replay port is served by a different process')
+            try:
+                identity = response.json()
+            except ValueError as exc:
+                raise RuntimeError('unexpected health response on replay port') from exc
+            if not isinstance(identity, dict) or identity.get('nonce') != nonce:
+                raise RuntimeError('replay port is served by a different process')
+            health_response = httpx.get(f'http://127.0.0.1:{port}/api/health', timeout=5)
+            health_response.raise_for_status()
+            health = health_response.json()
+            if not isinstance(health, dict) or health.get('ok') is not True or health.get('pid') != identity.get('pid'):
+                raise RuntimeError('health response does not match the authenticated replay process')
+            return proc, health, port, nonce
+        raise RuntimeError('server did not start')
+    except BaseException:
+        stop_server(proc)
+        raise
 
 
 def measure(data, tree, seconds=45, act_at=12.0, sequential_reps=3, client='old', poll_interval=5.0):
@@ -210,10 +279,14 @@ def measure(data, tree, seconds=45, act_at=12.0, sequential_reps=3, client='old'
         raise ValueError('Choose an old/new client and a positive polling interval')
     work = Path(tempfile.mkdtemp(prefix='astra-perf-'))
     copy_data = work / 'data'
-    shutil.copytree(data, copy_data)
-    proc, health = start_server(tree, copy_data)
+    try:
+        shutil.copytree(data, copy_data)
+        proc, health, port, nonce = start_server(tree, copy_data)
+    except BaseException:
+        shutil.rmtree(work, ignore_errors=True)
+        raise
     pid = health['pid']
-    base = f'http://127.0.0.1:{PORT}'
+    base = f'http://127.0.0.1:{port}'
     out = {'build': health.get('build'), 'client': client, 'endpoints': {}, 'page': {}}
     try:
         with httpx.Client(base_url=base, timeout=300) as probe_client:
@@ -230,7 +303,7 @@ def measure(data, tree, seconds=45, act_at=12.0, sequential_reps=3, client='old'
         _, cpu_before = _process_stats(pid)
         lock = threading.Lock()
         rounds, in_flight, peak_in_flight, act, jobs_at = [], [0], [0], {}, [None]
-        request_counts, skipped_rounds, request_errors = Counter(), [0], []
+        request_counts, skipped_rounds, request_errors, action_errors = Counter(), [0], [], []
 
         def checked_get(http_client, path):
             try:
@@ -265,6 +338,9 @@ def measure(data, tree, seconds=45, act_at=12.0, sequential_reps=3, client='old'
                         th.start()
                     for th in threads:
                         th.join()
+            except Exception as exc:
+                with lock:
+                    request_errors.append(f'round: {type(exc).__name__}: {exc}')
             finally:
                 with lock:
                     rounds.append(time.perf_counter() - t)
@@ -272,16 +348,20 @@ def measure(data, tree, seconds=45, act_at=12.0, sequential_reps=3, client='old'
 
         def pause_source():
             t = time.perf_counter()
-            with httpx.Client(base_url=base, timeout=600) as c:
-                c.post('/api/records/sources', json={'id': source['id'], 'enabled': False}).raise_for_status()
-                act['saved_s'] = round(time.perf_counter() - t, 3)
-                for group in (POLL, RELOAD):      # the page's load(), then the app's reload()
-                    threads = [threading.Thread(target=checked_get, args=(c, p)) for p in group]
-                    for th in threads:
-                        th.start()
-                    for th in threads:
-                        th.join()
-            act['refreshed_s'] = round(time.perf_counter() - t, 3)
+            try:
+                with httpx.Client(base_url=base, timeout=600) as c:
+                    c.post('/api/records/sources', json={'id': source['id'], 'enabled': False}).raise_for_status()
+                    act['saved_s'] = round(time.perf_counter() - t, 3)
+                    for group in (POLL, RELOAD):      # the page's load(), then the app's reload()
+                        threads = [threading.Thread(target=checked_get, args=(c, p)) for p in group]
+                        for th in threads:
+                            th.start()
+                        for th in threads:
+                            th.join()
+                act['refreshed_s'] = round(time.perf_counter() - t, 3)
+            except Exception as exc:
+                with lock:
+                    action_errors.append(f'{type(exc).__name__}: {exc}')
 
         started, workers, acted = time.perf_counter(), [], None
         while time.perf_counter() - started < seconds:
@@ -297,6 +377,8 @@ def measure(data, tree, seconds=45, act_at=12.0, sequential_reps=3, client='old'
                 acted.start()
         for worker in workers + ([acted] if acted else []):
             worker.join()
+        if action_errors or (acted is not None and not {'saved_s', 'refreshed_s'} <= act.keys()):
+            raise RuntimeError(f'Pause action failed or incomplete: {action_errors[:5]}')
         if request_errors:
             raise RuntimeError(f'Polling replay failed: {request_errors[:5]}')
         peak, cpu_after = _process_stats(pid)
@@ -309,7 +391,7 @@ def measure(data, tree, seconds=45, act_at=12.0, sequential_reps=3, client='old'
                        'server_peak_working_set_mib': round(peak / 2**20) if peak else None,
                        'total_s': round(time.perf_counter() - started, 1)}
     finally:
-        stop_server(proc, pid)
+        stop_server(proc, port, nonce)
         shutil.rmtree(work, ignore_errors=True)
     return out
 

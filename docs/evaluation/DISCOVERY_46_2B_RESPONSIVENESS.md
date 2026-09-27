@@ -22,7 +22,11 @@ decision audit, about 170 MB in total, which is 99% of all report data.
 replays the Discovery page. The first version accidentally shadowed its
 `old`/`new` client-mode argument with an HTTP client, so both page arms used
 the new polling pattern. The corrected harness has a regression asserting the
-request counts, and fails if any replayed HTTP request fails. `worker` times
+request counts, and fails if a replayed HTTP request or Pause action fails. It
+selects a fresh loopback port, verifies a per-run identity token before sending
+workload requests, and stops only its authenticated replay or own process
+handle. A fictional port-collision test leaves the unrelated service running.
+`worker` times
 the scan worker's real per-posting path (`add_job`, `analyze`) in-process,
 with and without that page open; its earlier readings are separate from the
 corrected page replay below.
@@ -45,15 +49,15 @@ The hypothesis was partly right. The main cause was elsewhere:
 
 | Fictional database, same laptop, corrected 45 s replays | Before (`2d40c80`), old page | Fixed server, old page | Fixed server, new page |
 |---|---:|---:|---:|
-| `/api/search/overview`, median | 1.716 s | 0.008 s | 0.008 s |
-| `/api/scan/status`, median | 1.745 s | 0.003 s | 0.003 s |
-| `/api/jobs`, median; response size | 0.461 s; 12.6 MB | 0.532 s; 12.6 MB | 0.533 s; 12.6 MB |
+| `/api/search/overview`, median | 1.838 s | 0.013 s | 0.010 s |
+| `/api/scan/status`, median | 2.093 s | 0.004 s | 0.004 s |
+| `/api/jobs`, median; response size | 0.620 s; 12.6 MB | 0.702 s; 12.6 MB | 0.586 s; 12.6 MB |
 | `/api/jobs` requests / 9 poll rounds | 9 | 9 | 1 |
-| Page refresh round, median / longest | 3.57 / 5.36 s | 0.74 / 0.82 s | 0.22 / 0.68 s |
+| Page refresh round, median / longest | 5.01 / 8.60 s | 0.75 / 1.39 s | 0.22 / 0.73 s |
 | Peak refresh rounds in flight | 2 | 1 | 1 |
-| Pause saved / page refreshed after Pause | 0.810 / 11.103 s | 0.371 / 1.953 s | 0.302 / 1.524 s |
-| Server CPU during the 45 s replay | 37.3 s | 5.8 s | 1.8 s |
-| Server peak working set | 1,227 MiB | 209 MiB | 228 MiB |
+| Pause saved / page refreshed after Pause | 0.360 / 9.936 s | 0.315 / 2.026 s | 0.361 / 1.679 s |
+| Server CPU during the 45 s replay | 43.9 s | 6.0 s | 2.0 s |
+| Server peak working set | 2,182 MiB | 210 MiB | 212 MiB |
 
 The corrected replay establishes the page-load reduction; it does not itself
 measure scan-worker throughput or prove the cause of run 107's 439 seconds.
@@ -133,12 +137,14 @@ stated as unknown.
   correctness test passes on code with no cache.
 - **`frontend/check-discovery-poll.cjs`:** single-flight polling (including
   after a failure) and the estimate wording.
-- **`tests/test_perf_discovery_poll.py`:** on an isolated small database, the
-  old replay requests `/api/jobs` on every round, the new replay requests it
-  only once, and new rounds do not overlap.
+- **`tests/test_perf_discovery_poll.py`:** on isolated fictional data, the old
+  replay requests `/api/jobs` on every round, the new replay requests it only
+  once without overlapping rounds, a port collision is refused without
+  stopping the unrelated service, authenticated cleanup closes the replay
+  server, and a failed Pause action fails the measurement.
 
 Machine readings above are rounded; the three raw JSON replays stay outside
 Git. Their SHA-256 digests in table order are
-`2e0805df2cd19888b1151343befa6d19a562ceacf004c62493eb432a1c58f121`,
-`761a95c376deb1e7dc556456bc24f413823a7486a3e45c101193bcf6f78e018e`,
-and `6b0d775e3c508173973a667f87ef63e990c088d36dae955ad7da0e524a71a9ab`.
+`7d2bad6c45834b090965e58fe136ba3f920e588430045f36f40a10b2752bd503`,
+`9c8cefc0a2d3ea9807f517caf81320f7ddd5c39b00c909d5b67521edab09f44c`,
+and `a71f4eff5bf73d505826bd4d9b3e4b188b7e593b7078c66e5c45472857e84e89`.
