@@ -16,22 +16,29 @@ def parse_date(value):
 @router.get('/overview')
 def overview():
     from .main import task_lock
+    from .run_reports import summaries
     with Session() as db:
         cfg=settings(db)
-        runs=list(db.scalars(select(AutomationRun).where(AutomationRun.task=='discover').order_by(AutomationRun.id.desc()).limit(100)))
+        # Only columns stored before the report are read here; each run's
+        # timestamps and report (without its per-posting decision audit,
+        # which this view never returns) come from run_reports.
+        ids=list(db.scalars(select(AutomationRun.id).where(AutomationRun.task=='discover').order_by(AutomationRun.id.desc()).limit(100)))
+        found=summaries(db,ids)
+        runs=[{'id':rid,'created_at':found[rid]['created_at'],'updated_at':found[rid]['updated_at'],'task':'discover',
+               'status':found[rid]['status'],'report':found[rid]['report']} for rid in ids if rid in found]
         sources=[]
         for source in db.scalars(select(JobSource).where(JobSource.adapter!='manual').order_by(JobSource.name)):
             result=None; checked=None
             for run in runs:
-                result=next((s for s in run.report.get('sources',[]) if s.get('id')==source.id or ('id' not in s and s.get('name')==source.name)),None)
-                if result is not None: checked=run.updated_at; break
+                result=next((s for s in run['report'].get('sources',[]) if s.get('id')==source.id or ('id' not in s and s.get('name')==source.name)),None)
+                if result is not None: checked=run['updated_at']; break
             sources.append({**serialize(source),'last_scan':checked,'result':result})
         # Discovery is manual-only: there is never a scheduled next scan, and
         # 'enabled' (automatic scanning) is always False whatever legacy
         # settings are stored. See backend/scan_control.py.
         return {'running':task_lock.locked(),'enabled':False,'scan_mode':'MANUAL_ONLY',
                 'interval_hours':cfg['discovery_interval_hours'],'next_scan':None,
-                'sources':sources,'runs':[{**serialize(r),'report':{k:v for k,v in r.report.items() if k!='decisions'}} for r in runs[:20]]}
+                'sources':sources,'runs':runs[:20]}
 
 MAX_TELEMETRY_RUNS=20
 DEFAULT_TELEMETRY_RUNS=5
