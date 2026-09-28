@@ -10,6 +10,7 @@ import pytest
 from scripts import source_route_check as src
 
 UA_HEADER = src.USER_AGENT
+PUBLIC = '93.184.216.34'  # a globally routable address; tests never connect to it
 
 
 class FakeTime:
@@ -50,6 +51,7 @@ def no_network(monkeypatch):
         raise AssertionError('network access attempted in a fictional test')
     monkeypatch.setattr(socket, 'create_connection', refuse)
     monkeypatch.setattr(socket, 'getaddrinfo', refuse)
+    monkeypatch.setattr(src, '_resolve', lambda host: [PUBLIC])
 
 
 def html(body, **headers):
@@ -62,8 +64,9 @@ def robots(text, status=200):
 
 def checker(site, fake=None, **kwargs):
     fake = fake or FakeTime()
+    kwargs.setdefault('resolver', lambda host: [PUBLIC])
     return src.RouteChecker(transport=httpx.MockTransport(site), clock=fake.clock, sleep=fake.sleep,
-                            wall=fake.wall, resolver=lambda host: ['192.0.2.1'], **kwargs), fake
+                            wall=fake.wall, **kwargs), fake
 
 
 def plan(*steps, employer='Fictional Employer'):
@@ -409,30 +412,31 @@ def test_pacing_rechecks_after_a_short_sleep_and_reports_a_violation():
     assert check.report()['pacing']['all_intervals_at_least_minimum'] is False
 
 
-def test_tls_certificate_read_skipped_at_the_host_cap(monkeypatch):
+def test_tls_steps_respect_the_host_cap(monkeypatch):
     monkeypatch.setattr(src, 'MAX_CONTACTS_PER_HOST', 1)
-    check, _ = checker(Site({}), tls_probe=lambda host: {'verified': False, 'error': 'expired'},
-                       cert_reader=lambda host: {'read': True})
-    entry = entries(check.run(plan({'id': 't', 'kind': 'tls', 'host': 'erp.example.test'})), 't')[0]
-    assert entry['error'] == 'expired' and entry['presented_certificate']['read'] is False
+    check, _ = checker(Site({}), tls_probe=lambda host, addresses: {'verified': False, 'error': 'expired'})
+    report = check.run(plan({'id': 't', 'kind': 'tls', 'host': 'erp.example.test'},
+                            {'id': 'u', 'kind': 'tls', 'host': 'erp.example.test'}))
+    assert entries(report, 't')[0]['error'] == 'expired'
+    assert entries(report, 'u')[0]['decision'] == 'not requested: per-host contact cap reached for erp.example.test'
 
 
-def test_tls_diagnostic_is_paced_and_sends_no_http_request():
+def test_tls_diagnostic_is_one_checked_handshake_and_sends_no_http_request():
     site = Site({})
     probes = []
-    check, fake = checker(site, tls_probe=lambda host: probes.append(host) or {'verified': False, 'error': 'expired'},
-                          cert_reader=lambda host: probes.append(host) or {'read': True, 'not_after': 'Jan  1 00:00:00 2029 GMT'})
+    check, fake = checker(site, tls_probe=lambda host, addresses: probes.append((host, addresses)) or
+                          {'verified': False, 'error': 'expired'})
     report = check.run(plan({'id': 't', 'kind': 'tls', 'host': 'erp.example.test'}))
     entry = entries(report, 't')[0]
-    assert probes == ['erp.example.test', 'erp.example.test'] and site.requests == []
-    assert fake.sleeps == [2.0] and entry['presented_certificate']['since_prev_contact_end_s'] == 2.0
+    assert probes == [('erp.example.test', [PUBLIC])] and site.requests == [] and fake.sleeps == []
+    assert report['contacts_by_host'] == {'erp.example.test': 1} and 'presented_certificate' not in entry
 
 
 def test_dns_step_contacts_no_host():
     site = Site({})
     check, fake = checker(site)
     report = check.run(plan({'id': 'd', 'kind': 'dns', 'host': 'careers.example.test'}))
-    assert entries(report, 'd')[0]['addresses'] == ['192.0.2.1']
+    assert entries(report, 'd')[0]['addresses'] == [PUBLIC] and entries(report, 'd')[0]['public'] is True
     assert site.requests == [] and fake.sleeps == [] and report['contacts_by_host'] == {}
 
 
@@ -595,18 +599,18 @@ def test_tls_step_respects_challenge_blocks_and_canonical_host_names():
     site = Site({('bank.example.test', '/robots.txt'): httpx.Response(
         403, headers={'content-type': 'text/html'}, text='<title>Attention Required! | Cloudflare</title>')})
     probes = []
-    check, _ = checker(site, tls_probe=lambda host: probes.append(host) or {'verified': True})
+    check, _ = checker(site, tls_probe=lambda host, addresses: probes.append(host) or {'verified': True})
     report = check.run(plan(page('p', 'https://bank.example.test/'), {'id': 't', 'kind': 'tls', 'host': 'BANK.example.test.'},
                             {'id': 'u', 'kind': 'tls', 'host': 'Other.Example.Test.'}))
     assert entries(report, 't')[0]['requested'] is False and probes == ['other.example.test']
 
 
-def test_a_run_cap_during_the_certificate_read_keeps_the_handshake_entry(monkeypatch):
+def test_the_run_cap_after_a_tls_step_keeps_its_entry(monkeypatch):
     monkeypatch.setattr(src, 'MAX_CONTACTS_PER_RUN', 1)
-    check, _ = checker(Site({}), tls_probe=lambda host: {'verified': False, 'error': 'expired'},
-                       cert_reader=lambda host: {'read': True})
-    report = check.run(plan({'id': 't', 'kind': 'tls', 'host': 'erp.example.test'}))
-    assert report['aborted'] == 'per-run contact cap reached'
+    site = Site({('w.example.test', '/robots.txt'): robots('', 404)})
+    check, _ = checker(site, tls_probe=lambda host, addresses: {'verified': False, 'error': 'expired'})
+    report = check.run(plan({'id': 't', 'kind': 'tls', 'host': 'erp.example.test'}, page('p', 'https://w.example.test/')))
+    assert report['aborted'] == 'per-run contact cap reached' and site.requests == []
     assert entries(report, 't')[0]['error'] == 'expired' and report['contacts_by_host'] == {'erp.example.test': 1}
 
 
@@ -695,3 +699,168 @@ def test_the_tls_diagnostic_pins_tls_1_2_even_where_the_default_allows_less(monk
     context = src._tls_context()
     assert context.minimum_version == ssl.TLSVersion.TLSv1_2
     assert context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname is True
+
+
+# --- destinations: only public internet addresses are ever contacted ----------------
+import types  # noqa: E402
+
+NON_PUBLIC_URLS = ['https://127.0.0.1/', 'https://127.1/careers', 'https://2130706433/', 'https://0x7f000001/',
+                   'https://[::1]/', 'https://[::ffff:127.0.0.1]/', 'https://10.1.2.3/', 'https://172.16.0.1/',
+                   'https://192.168.1.1/', 'https://169.254.169.254/latest', 'https://100.64.0.1/',
+                   'https://0.0.0.0/', 'https://240.0.0.1/', 'https://224.0.0.1/', 'https://[fe80::1]/',
+                   'https://[fd00::1]/', 'https://[2001:db8::1]/', 'https://localhost/', 'https://jobs.localhost/']
+
+
+@pytest.mark.parametrize('url', NON_PUBLIC_URLS)
+def test_non_public_literals_and_local_names_are_refused_before_any_contact(url):
+    with pytest.raises(src.BlockedDestination):
+        src.canonical(url)
+    with pytest.raises(src.PlanError):
+        src.validate_plan(plan(page('p', url)))
+
+
+@pytest.mark.parametrize('answer', [['127.0.0.1'], ['10.0.0.7'], ['169.254.169.254'], ['::1'], ['fd00::1'],
+                                    ['100.64.0.1'], ['::ffff:10.0.0.1'], ['224.0.0.1'], ['0.0.0.0'],
+                                    [PUBLIC, '192.168.0.2'], []])
+def test_a_name_resolving_to_any_non_public_address_is_never_contacted(answer):
+    site = Site({('rebind.example.test', '/robots.txt'): robots('', 404), ('rebind.example.test', '/'): html('x')})
+    check, fake = checker(site, resolver=lambda host: answer,
+                          tls_probe=lambda host, addresses: pytest.fail('TLS probe reached a non-public host'))
+    report = check.run(plan(page('p', 'https://rebind.example.test/'), {'id': 't', 'kind': 'tls', 'host': 'rebind.example.test'}))
+    assert site.requests == [] and fake.sleeps == [] and report['contacts_by_host'] == {}
+    assert report['blocked_hosts'] == {'rebind.example.test': 'not a public internet address'}
+    assert entries(report, 'p')[0]['requested'] is False and entries(report, 't')[0]['requested'] is False
+
+
+def test_a_name_that_does_not_resolve_is_never_contacted():
+    def resolver(host):
+        raise OSError('no such host')
+    site = Site({('gone.example.test', '/robots.txt'): robots('', 404)})
+    check, _ = checker(site, resolver=resolver)
+    report = check.run(plan(page('p', 'https://gone.example.test/')))
+    assert site.requests == [] and 'did not resolve' in report['robots']['https://gone.example.test']['reason']
+
+
+def test_links_and_redirects_cannot_reach_loopback_or_private_hosts():
+    answers = {'official.example.test': [PUBLIC], 'intranet.example.test': ['10.0.0.9']}
+    site = Site({('official.example.test', '/robots.txt'): robots('', 404),
+                 ('official.example.test', '/careers'): html('<a href="https://127.0.0.1/jobs">Jobs</a>'
+                                                             '<a href="https://[::1]/jobs">Jobs</a>'
+                                                             '<a href="https://intranet.example.test/jobs">More jobs</a>'),
+                 ('official.example.test', '/move'): httpx.Response(302, headers={'location': 'https://127.0.0.1/robots.txt'}),
+                 ('official.example.test', '/move2'): httpx.Response(302, headers={'location': 'https://intranet.example.test/x'})})
+    check, _ = checker(site, resolver=lambda host: answers[host])
+    report = check.run(plan(page('c', 'https://official.example.test/careers'),
+                            {'id': 'l', 'kind': 'links', 'from': 'c', 'match': 'job', 'max': 3},
+                            page('m', 'https://official.example.test/move'), {'id': 'r', 'kind': 'redirect', 'from': 'm'},
+                            page('n', 'https://official.example.test/move2'), {'id': 's', 'kind': 'redirect', 'from': 'n'}))
+    assert {host for host, _ in site.paths()} == {'official.example.test'}
+    assert all(entries(report, f'l#{n}')[0]['requested'] is False for n in (1, 2, 3))
+    assert entries(report, 'r')[0]['requested'] is False and entries(report, 's')[0]['requested'] is False
+
+
+def test_a_robots_redirect_to_a_non_public_host_is_refused():
+    answers = {'a.example.test': [PUBLIC], 'b.example.test': [PUBLIC], 'inside.example.test': ['192.168.7.7']}
+    site = Site({('a.example.test', '/robots.txt'): httpx.Response(301, headers={'location': 'https://127.0.0.1/robots.txt'}),
+                 ('b.example.test', '/robots.txt'): httpx.Response(301, headers={'location': 'https://inside.example.test/robots.txt'})})
+    check, _ = checker(site, resolver=lambda host: answers[host])
+    report = check.run(plan(page('a', 'https://a.example.test/careers'), page('b', 'https://b.example.test/careers')))
+    assert site.paths() == [('a.example.test', '/robots.txt'), ('b.example.test', '/robots.txt')]
+    assert report['robots']['https://a.example.test']['kind'] == 'UNREACHABLE_DISALLOW'
+    assert 'non-public' in report['robots']['https://b.example.test']['reason']
+
+
+def test_tls_steps_refuse_non_public_literals():
+    check, _ = checker(Site({}), tls_probe=lambda host, addresses: pytest.fail('probe must not run'))
+    report = check.run(plan({'id': 't', 'kind': 'tls', 'host': '127.0.0.1'}, {'id': 'u', 'kind': 'tls', 'host': '[fe80::1]'}))
+    assert entries(report, 't')[0]['requested'] is False and entries(report, 'u')[0]['requested'] is False
+
+
+def test_dns_steps_do_not_record_non_public_answers():
+    check, _ = checker(Site({}), resolver=lambda host: ['10.0.0.1'])
+    entry = entries(check.run(plan({'id': 'd', 'kind': 'dns', 'host': 'inside.example.test'})), 'd')[0]
+    assert entry['public'] is False and '10.0.0.1' not in json.dumps(entry)
+
+
+class _FakeStream:
+    def __init__(self, peer):
+        self.peer, self.closed = peer, False
+
+    def get_extra_info(self, name):
+        return types.SimpleNamespace(getpeername=lambda: (self.peer, 443)) if name == 'socket' else None
+
+    def close(self):
+        self.closed = True
+
+
+class _FakeInner:
+    def __init__(self, peer_for=None):
+        self.peer_for, self.calls, self.streams = peer_for or {}, [], []
+
+    def connect_tcp(self, host, port, **kwargs):
+        self.calls.append((host, port))
+        stream = _FakeStream(self.peer_for.get(host, host))
+        self.streams.append(stream)
+        return stream
+
+
+def test_the_pinned_backend_connects_only_to_checked_addresses():
+    import httpcore
+    inner = _FakeInner()
+    backend = src.PinnedBackend({'jobs.example.test': [PUBLIC]}, inner)
+    stream = backend.connect_tcp('jobs.example.test', 443)
+    assert inner.calls == [(PUBLIC, 443)] and stream.peer == PUBLIC
+    for host, port in (('other.example.test', 443), ('jobs.example.test', 80)):
+        with pytest.raises(httpcore.ConnectError):
+            backend.connect_tcp(host, port)
+    assert inner.calls == [(PUBLIC, 443)]
+    with pytest.raises(httpcore.ConnectError):
+        backend.connect_unix_socket('/tmp/socket')
+
+
+@pytest.mark.parametrize('peer', ['127.0.0.1', '10.0.0.1', '8.8.8.8'])
+def test_the_pinned_backend_refuses_a_connection_that_reached_another_address(peer):
+    import httpcore
+    inner = _FakeInner({PUBLIC: peer})
+    backend = src.PinnedBackend({'jobs.example.test': [PUBLIC]}, inner)
+    with pytest.raises(httpcore.ConnectError, match='unchecked address'):
+        backend.connect_tcp('jobs.example.test', 443)
+    assert inner.streams[0].closed is True
+
+
+def test_the_default_client_is_pinned_and_ignores_proxy_settings(monkeypatch):
+    for name in ('HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY', 'https_proxy', 'all_proxy'):
+        monkeypatch.setenv(name, 'http://127.0.0.1:9')
+    live = src.RouteChecker()
+    backend = live.client._transport._pool._network_backend
+    assert isinstance(backend, src.PinnedBackend) and backend.pins is live.pins
+    assert live.client.trust_env is False and live.client._mounts == {}
+    site = Site({('p.example.test', '/robots.txt'): robots('', 404), ('p.example.test', '/'): html('x')})
+    check, _ = checker(site)
+    check.run(plan(page('h', 'https://p.example.test/')))
+    assert site.paths() == [('p.example.test', '/robots.txt'), ('p.example.test', '/')]
+
+
+class _FakeSocket:
+    def __init__(self, peer):
+        self.peer, self.closed = peer, False
+
+    def getpeername(self):
+        return (self.peer, 443)
+
+    def close(self):
+        self.closed = True
+
+
+def test_the_tls_probe_checks_the_connected_address(monkeypatch):
+    made = []
+
+    def fake_connect(address, timeout=None):
+        made.append(address)
+        return _FakeSocket('127.0.0.1')
+    monkeypatch.setattr(src.socket, 'create_connection', fake_connect)
+    result = src._tls_probe('jobs.example.test', [PUBLIC])
+    assert made == [(PUBLIC, 443)] and result['verified'] is False and 'unchecked address' in result['error']
+    with pytest.raises(src.BlockedDestination):
+        src._connect_checked('jobs.example.test', ['10.0.0.1'])
+    assert made == [(PUBLIC, 443)]

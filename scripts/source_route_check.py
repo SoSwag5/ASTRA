@@ -34,10 +34,16 @@ Rules it enforces, from the #46.2-B source-map protocol:
   run. Interstitial or block pages count at any status; scripts that ordinary
   pages also load (a CAPTCHA widget, a bot-detection script) count only on a
   401, 403, 429 or 503 response, and are otherwise just logged;
+- every contact goes only to a public internet address. IP literals that are
+  not public (including legacy IPv4 spellings) and localhost names are refused
+  outright. A host name is resolved once per run and refused if any address is
+  loopback, private, link-local, shared, reserved, multicast or otherwise not
+  globally routable. Connections are then made only to those checked
+  addresses, the connected peer address is checked again, and environment
+  proxy settings are ignored;
 - certificates are verified for every HTTP request and TLS diagnostic, and a
-  TLS failure makes the host unreadable. After a failed verified handshake, the
-  TLS diagnostic may make one more handshake without verification, only to
-  read the presented certificate's dates; it sends no HTTP request;
+  TLS failure makes the host unreadable. The tool never makes an unverified
+  handshake;
 - login, apply, registration and account URLs and host names are refused
   without a request, and the path that would be sent must equal the path that
   was checked;
@@ -45,6 +51,7 @@ Rules it enforces, from the #46.2-B source-map protocol:
 """
 import argparse
 import hashlib
+import ipaddress
 import json
 import re
 import socket
@@ -57,6 +64,8 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urljoin, urlsplit
 
+import certifi
+import httpcore
 import httpx
 
 USER_AGENT = 'ASTRA-source-research/1.0 (read-only official careers-page check; robots.txt honoured)'
@@ -119,6 +128,105 @@ class RefusedURL(PlanError):
     """A URL this tool never requests."""
 
 
+class BlockedDestination(RefusedURL):
+    """A destination that is not a public internet address."""
+
+
+# --- destinations ----------------------------------------------------------------
+def _address_is_public(address):
+    """True only for a globally routable unicast address (IPv4-mapped, 6to4 and
+    Teredo IPv6 forms are judged by the IPv4 addresses they carry)."""
+    try:
+        ip = ipaddress.ip_address(str(address).split('%', 1)[0].strip('[]'))
+    except ValueError:
+        return False
+    if ip.version == 6:
+        if ip.ipv4_mapped:
+            return _address_is_public(ip.ipv4_mapped)
+        if ip.sixtofour:
+            return _address_is_public(ip.sixtofour)
+        if ip.teredo:
+            return all(_address_is_public(part) for part in ip.teredo)
+    return ip.is_global and not ip.is_multicast
+
+
+def _literal_address(host):
+    """The IP address a host string denotes literally, including legacy IPv4
+    spellings such as '127.1' or '2130706433', or None for a host name."""
+    try:
+        return ipaddress.ip_address(host.strip('[]'))
+    except ValueError:
+        pass
+    if not re.fullmatch(r'[0-9a-fA-Fx.]+', host) or not re.search(r'\d', host):
+        return None
+    try:
+        return ipaddress.ip_address(socket.inet_aton(host))
+    except OSError:
+        return None
+
+
+def _resolve(host):
+    """Every address the system resolver gives for host (no contact with the host)."""
+    return sorted({info[4][0] for info in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)})
+
+
+def _same_address(one, two):
+    try:
+        return ipaddress.ip_address(str(one).split('%', 1)[0]) == ipaddress.ip_address(str(two).split('%', 1)[0])
+    except ValueError:
+        return False
+
+
+class PinnedBackend(httpcore.NetworkBackend):
+    """Connects only to the addresses the checker resolved and approved for a
+    host, on port 443, and checks the address it actually connected to."""
+
+    def __init__(self, pins, inner=None):
+        self.pins = pins
+        self.inner = inner or httpcore.SyncBackend()
+
+    def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
+        host = str(host).lower().rstrip('.')
+        addresses = self.pins.get(host)
+        if not addresses or port != 443:
+            raise httpcore.ConnectError(f'refused: {host}:{port} was not checked as a public destination')
+        last = None
+        for address in addresses:
+            try:
+                stream = self.inner.connect_tcp(address, port, timeout=timeout, local_address=local_address,
+                                                socket_options=socket_options)
+            except httpcore.ConnectError as exc:
+                last = exc
+                continue
+            sock = stream.get_extra_info('socket')
+            peer = sock.getpeername()[0] if sock is not None else None
+            if peer is None or not _address_is_public(peer) or not _same_address(peer, address):
+                stream.close()
+                raise httpcore.ConnectError(f'refused: the connection for {host} reached an unchecked address')
+            return stream
+        raise last or httpcore.ConnectError(f'refused: no checked address for {host}')
+
+    def connect_unix_socket(self, path, timeout=None, socket_options=None):
+        raise httpcore.ConnectError('refused: unix sockets are never used')
+
+    def sleep(self, seconds):
+        time.sleep(seconds)
+
+
+def _https_context():
+    """Certificate- and host-verifying context for HTTP requests, TLS 1.2 or later."""
+    context = ssl.create_default_context(cafile=certifi.where())
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    return context
+
+
+def pinned_transport(pins, inner=None):
+    """An httpx transport whose every connection goes through PinnedBackend."""
+    transport = httpx.HTTPTransport(verify=_https_context(), trust_env=False)
+    transport._pool = httpcore.ConnectionPool(ssl_context=_https_context(), network_backend=PinnedBackend(pins, inner))
+    return transport
+
+
 # --- URLs ----------------------------------------------------------------------
 def normalise(raw):
     """RFC 9309 s2.2.2: percent-encode octets outside printable ASCII, decode
@@ -176,6 +284,11 @@ def canonical(url):
         raise RefusedURL('refused: no host')
     if any(REFUSED_HOST_LABEL.fullmatch(label) for label in host.split('.')):
         raise RefusedURL('refused: login, apply, registration or account host')
+    if host == 'localhost' or host.endswith('.localhost'):
+        raise BlockedDestination('refused: a local host name')
+    literal = _literal_address(host)
+    if literal is not None and not _address_is_public(literal):
+        raise BlockedDestination('refused: not a public internet address')
     raw_path = parsed.raw_path.decode('ascii')
     path, _, query = raw_path.partition('?')
     path = _remove_dot_segments(normalise(path or '/'))
@@ -325,16 +438,17 @@ def tool_identity(path=None):
 # --- the checker ---------------------------------------------------------------
 class RouteChecker:
     def __init__(self, transport=None, clock=time.monotonic, sleep=time.sleep,
-                 wall=lambda: datetime.now(timezone.utc), resolver=None, tls_probe=None, cert_reader=None,
+                 wall=lambda: datetime.now(timezone.utc), resolver=None, tls_probe=None,
                  min_interval=MIN_INTERVAL):
         if min_interval < MIN_INTERVAL:
             raise PlanError(f'min_interval may not be below {MIN_INTERVAL} s')
         self.min_interval = min_interval
         self.clock, self.sleep, self.wall = clock, sleep, wall
-        self.resolver = resolver or (lambda host: sorted({info[4][0] for info in socket.getaddrinfo(host, 443)}))
+        self.resolver = resolver or _resolve
         self.tls_probe = tls_probe or _tls_probe
-        self.cert_reader = cert_reader or _read_presented_certificate
-        self.client = httpx.Client(transport=transport, follow_redirects=False, timeout=TIMEOUT, verify=True,
+        self.pins = {}  # host -> the checked public addresses every connection must use
+        self.client = httpx.Client(transport=transport or pinned_transport(self.pins), trust_env=False,
+                                   follow_redirects=False, timeout=TIMEOUT, verify=True,
                                    headers={'User-Agent': USER_AGENT,
                                             'Accept': 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5'},
                                    event_hooks={'request': [self._request_guard]})
@@ -373,6 +487,26 @@ class RouteChecker:
         if stamp['since_prev_contact_end_s'] is not None and self.intervals and self.intervals[-1]['host'] == host:
             self.intervals.pop()
 
+    def _destination(self, host):
+        """The checked public addresses for host, resolved once per run.
+        Raises BlockedDestination if host does not resolve or any address is not public."""
+        if host in self.pins:
+            return self.pins[host]
+        literal = _literal_address(host)
+        if literal is not None:
+            addresses = [str(literal)]
+        else:
+            try:
+                addresses = list(self.resolver(host))
+            except (OSError, UnicodeError) as exc:
+                raise BlockedDestination(f'refused: {host} did not resolve ({_error_text(exc)})') from exc
+        if not addresses:
+            raise BlockedDestination(f'refused: {host} resolved to no address')
+        if not all(_address_is_public(address) for address in addresses):
+            raise BlockedDestination(f'refused: {host} resolves to a non-public address')
+        self.pins[host] = addresses
+        return addresses
+
     @staticmethod
     def _request_guard(request):
         if request.method != 'GET':
@@ -381,8 +515,14 @@ class RouteChecker:
             raise PlanError('a cookie was about to be sent')
 
     def _get(self, target):
-        """One paced GET of a canonical target; the body is capped; cookies are discarded."""
+        """One paced GET of a canonical target; the body is capped; cookies are discarded.
+        Returns (None, {'refused': reason}) without any contact for a non-public destination."""
         host = target['host']
+        try:
+            self._destination(host)
+        except BlockedDestination as exc:
+            self.blocked_hosts[host] = 'not a public internet address'
+            return None, {'refused': str(exc)}
         stamp = self._pace(host)
         try:
             with self.client.stream('GET', target['url']) as response:
@@ -425,6 +565,11 @@ class RouteChecker:
                 entry.update(requested=False, decision=refusal, decided_at_utc=_utc_ms(self.wall()))
                 break
             stamp, got = self._get(target)
+            if 'refused' in got:
+                decision = {'kind': 'UNREACHABLE_DISALLOW', 'reason': got['refused']}
+                entry.update(url=target['url'], requested=False, decision=got['refused'],
+                             decided_at_utc=_utc_ms(self.wall()))
+                break
             entry = {**stamp, **entry, 'url': target['url']}
             if 'error' in got:
                 entry['error'] = got['error']
@@ -497,6 +642,8 @@ class RouteChecker:
             if not allowed:
                 return self._skip(entry, f'not requested: disallowed by {why}')
         stamp, got = self._get(target)
+        if 'refused' in got:
+            return self._skip(entry, got['refused'])
         entry = {**stamp, **entry, 'requested': True}
         if 'error' in got:
             entry['error'] = got['error']
@@ -580,8 +727,7 @@ class RouteChecker:
         return self.page(step, employer, target)
 
     def tls(self, step, employer):
-        """Verified handshake only. If it fails, a second, separately paced handshake
-        reads the presented certificate's dates. Neither sends an HTTP request."""
+        """One verified handshake to a checked public address; no HTTP request."""
         base = {'step': step['id'], 'employer': employer, 'host': step['host'],
                 'purpose': step.get('purpose', 'TLS handshake-only diagnostic (no HTTP request)')}
         try:
@@ -590,29 +736,27 @@ class RouteChecker:
             return self._skip(base, str(exc))
         if self.blocked_hosts.get(host, 'network or TLS failure') != 'network or TLS failure':
             return self._skip(base, f'not requested: host blocked earlier ({self.blocked_hosts[host]})')
+        try:
+            addresses = self._destination(host)
+        except BlockedDestination as exc:
+            self.blocked_hosts[host] = 'not a public internet address'
+            return self._skip(base, str(exc))
         stamp = self._pace(host)
-        probe = self.tls_probe(host)
+        probe = self.tls_probe(host, addresses)
         self._done(host, stamp)
-        entry = self._record({**stamp, **base, 'host': host, **probe})
-        if not entry.get('verified') and step.get('read_presented_certificate', True):
-            try:
-                second = self._pace(host)
-            except HostCapReached as exc:
-                entry['presented_certificate'] = {'read': False, 'reason': str(exc)}
-                return entry
-            reading = self.cert_reader(host)
-            self._done(host, second)
-            entry['presented_certificate'] = {**second, **reading}
-        return entry
+        return self._record({**stamp, **base, 'host': host, **probe})
 
     def dns(self, step, employer):
         entry = {'step': step['id'], 'employer': employer, 'host': step['host'],
                  'purpose': step.get('purpose', 'DNS resolution only (no contact with the host)'),
                  'resolved_at_utc': _utc_ms(self.wall())}
         try:
-            entry['addresses'] = self.resolver(step['host'])
-        except OSError as exc:
+            addresses = list(self.resolver(step['host']))
+        except (OSError, UnicodeError) as exc:
             entry['error'] = _error_text(exc)
+        else:
+            entry['public'] = bool(addresses) and all(_address_is_public(a) for a in addresses)
+            entry['addresses'] = addresses if entry['public'] else '[not all public; not recorded]'
         return self._record(entry)
 
     def _skip(self, entry, reason):
@@ -690,40 +834,42 @@ def _tls_context():
     return context
 
 
-def _tls_probe(host):
-    """Verified TLS handshake only; no HTTP request."""
+def _connect_checked(host, addresses, port=443):
+    """A TCP connection to one of the checked public addresses; the connected
+    peer must be that address. Raises BlockedDestination or OSError."""
+    last = None
+    for address in addresses:
+        if not _address_is_public(address):
+            raise BlockedDestination(f'refused: {host} resolves to a non-public address')
+        try:
+            raw = socket.create_connection((address, port), timeout=TIMEOUT)
+        except OSError as exc:
+            last = exc
+            continue
+        peer = raw.getpeername()[0]
+        if not _address_is_public(peer) or not _same_address(peer, address):
+            raw.close()
+            raise BlockedDestination(f'refused: the connection for {host} reached an unchecked address')
+        return raw
+    raise last or OSError(f'no checked address for {host}')
+
+
+def _tls_probe(host, addresses):
+    """Verified TLS handshake to a checked public address; no HTTP request."""
     context = _tls_context()
     try:
-        with socket.create_connection((host, 443), timeout=TIMEOUT) as raw, context.wrap_socket(raw, server_hostname=host) as tls:
+        raw = _connect_checked(host, addresses)
+    except BlockedDestination as exc:
+        return {'verified': False, 'error': str(exc)}
+    except OSError as exc:
+        return {'verified': False, 'error': _error_text(exc)}
+    try:
+        with raw, context.wrap_socket(raw, server_hostname=host) as tls:
             cert = tls.getpeercert()
             return {'verified': True, 'not_after': cert.get('notAfter'),
                     'issuer': dict(x[0] for x in cert.get('issuer', ())).get('commonName')}
     except (OSError, ssl.SSLError) as exc:
         return {'verified': False, 'error': _error_text(exc)}
-
-
-def _read_presented_certificate(host):
-    """Read the certificate a host presents, to report its dates. No HTTP request is
-    sent and nothing from the host is used; this is a diagnostic, not access."""
-    try:
-        pem = ssl.get_server_certificate((host, 443), timeout=TIMEOUT)
-        decoder = getattr(ssl._ssl, '_test_decode_cert', None)  # CPython helper; absent elsewhere
-        if not decoder:
-            return {'read': False, 'reason': 'no certificate decoder in this Python'}
-        import os
-        import tempfile
-        with tempfile.NamedTemporaryFile('w', suffix='.pem', delete=False) as handle:
-            handle.write(pem)
-        try:
-            info = decoder(handle.name)
-        finally:
-            os.unlink(handle.name)
-        return {'read': True, 'not_before': info.get('notBefore'), 'not_after': info.get('notAfter'),
-                'subject': dict(x[0] for x in info.get('subject', ())).get('commonName'),
-                'issuer': dict(x[0] for x in info.get('issuer', ())).get('commonName'),
-                'subject_alt_names': [value for _, value in info.get('subjectAltName', ())][:5]}
-    except (OSError, ssl.SSLError, ValueError) as exc:
-        return {'read': False, 'reason': _error_text(exc)}
 
 
 KINDS = {'page': ('url',), 'links': ('from', 'match'), 'redirect': ('from',), 'tls': ('host',), 'dns': ('host',)}

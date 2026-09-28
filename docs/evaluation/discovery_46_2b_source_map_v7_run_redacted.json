@@ -1,4 +1,20 @@
 {
+ "redaction": {
+  "derivative_of": "the raw v7 run log written by scripts/source_route_check.py at e5e5725 (see \"tool\")",
+  "raw_sha256_lf": "3004e46100e648559154b9ed32319759219aa889c72b5bd87b1a244749e199c1",
+  "raw_custody": "private: kept by the Owner outside Git; not published",
+  "rule": "Every value of the opaque Oracle E-Business Suite query parameters \"oas\" and \"params\" in DoH's published Careers link is replaced by [REDACTED-sha256:<SHA-256 of the value>]. Nothing else is changed.",
+  "why": "The same values were served, without cookies, to three independent anonymous fetches about 12 hours apart (06:14Z, 13:41Z and 18:17Z on 2026-09-27) on both language homepages, so they are not per-visitor session values and no active secret is indicated. Oracle does not document them, so they are withheld as a precaution, as the v6 record already did.",
+  "redacted_values": {
+   "oas": [
+    "f18d578445eb16bae8646f6154e1ba027dad30299899367e86bf4d7c8868e208"
+   ],
+   "params": [
+    "b5dabb27ba1730ba62c0d099c01d58b23e3bc98787f7d260147c99a432f1aeba"
+   ]
+  },
+  "occurrences_redacted": 6
+ },
  "tool": {
   "file": "scripts/source_route_check.py",
   "sha256_lf": "158a9df8e94f6fd9931603b61498619ec5f4a5d177c6b407d9c9007ef019e952",
@@ -292,7 +308,7 @@
    "job_links": [
     {
      "text": "Careers",
-     "href": "https://aderp.abudhabi.ae/OA_HTML/RF.jsp?function_id=14296&resp_id=65924&resp_appl_id=800&security_group_id=0&lang_code=US&oas=u8oY8Kwhon0F2YImRXzz3g..&params=0JFSwWwM1xrVbsnalEVtXfUhRfya0T5-bEpTdHw3D6YH1LI59g8UAFfMPVLN.AgF",
+     "href": "https://aderp.abudhabi.ae/OA_HTML/RF.jsp?function_id=14296&resp_id=65924&resp_appl_id=800&security_group_id=0&lang_code=US&oas=[REDACTED-sha256:f18d578445eb16bae8646f6154e1ba027dad30299899367e86bf4d7c8868e208]&params=[REDACTED-sha256:b5dabb27ba1730ba62c0d099c01d58b23e3bc98787f7d260147c99a432f1aeba]",
      "class": null
     },
     {
@@ -316,7 +332,7 @@
    "step": "doh-home-links#1",
    "employer": "Department of Health - Abu Dhabi (DoH)",
    "purpose": "Careers link target",
-   "url": "https://aderp.abudhabi.ae/OA_HTML/RF.jsp?function_id=14296&resp_id=65924&resp_appl_id=800&security_group_id=0&lang_code=US&oas=u8oY8Kwhon0F2YImRXzz3g..&params=0JFSwWwM1xrVbsnalEVtXfUhRfya0T5-bEpTdHw3D6YH1LI59g8UAFfMPVLN.AgF",
+   "url": "https://aderp.abudhabi.ae/OA_HTML/RF.jsp?function_id=14296&resp_id=65924&resp_appl_id=800&security_group_id=0&lang_code=US&oas=[REDACTED-sha256:f18d578445eb16bae8646f6154e1ba027dad30299899367e86bf4d7c8868e208]&params=[REDACTED-sha256:b5dabb27ba1730ba62c0d099c01d58b23e3bc98787f7d260147c99a432f1aeba]",
    "robots": "UNREACHABLE_DISALLOW",
    "requested": false,
    "decision": "not requested: robots UNREACHABLE_DISALLOW (SSLCertVerificationError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: certificate has expired (_ssl.c:1028))",
@@ -365,7 +381,7 @@
    "job_links": [
     {
      "text": "الوظائف",
-     "href": "https://aderp.abudhabi.ae/OA_HTML/RF.jsp?function_id=14296&resp_id=65924&resp_appl_id=800&security_group_id=0&lang_code=US&oas=u8oY8Kwhon0F2YImRXzz3g..&params=0JFSwWwM1xrVbsnalEVtXfUhRfya0T5-bEpTdHw3D6YH1LI59g8UAFfMPVLN.AgF",
+     "href": "https://aderp.abudhabi.ae/OA_HTML/RF.jsp?function_id=14296&resp_id=65924&resp_appl_id=800&security_group_id=0&lang_code=US&oas=[REDACTED-sha256:f18d578445eb16bae8646f6154e1ba027dad30299899367e86bf4d7c8868e208]&params=[REDACTED-sha256:b5dabb27ba1730ba62c0d099c01d58b23e3bc98787f7d260147c99a432f1aeba]",
      "class": null
     },
     {
