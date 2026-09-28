@@ -864,3 +864,74 @@ def test_the_tls_probe_checks_the_connected_address(monkeypatch):
     with pytest.raises(src.BlockedDestination):
         src._connect_checked('jobs.example.test', ['10.0.0.1'])
     assert made == [(PUBLIC, 443)]
+
+
+# --- review of e3c0952: IPv6 space outside global unicast, legacy literals ------------
+REVIEW_NON_PUBLIC = ['::7f00:1', '::a00:1', '::ffff:0:7f00:1', '400::1', '5f00::1', '64:ff9b::7f00:1',
+                     '64:ff9b::a9fe:a9fe', '64:ff9b::808:808', 'fec0::1', '::', 'ff02::1', '2001:db8::1',
+                     '2002:a00:1::1', '2001:0:4136:e378:8000:63bf:3fff:fdd2', '255.255.255.255', '198.18.0.1']
+
+
+@pytest.mark.parametrize('address', REVIEW_NON_PUBLIC)
+def test_non_global_ipv6_and_special_ipv4_are_never_public(address):
+    assert src._address_is_public(address) is False
+
+
+@pytest.mark.parametrize('address', ['93.184.216.34', '2606:4700:4700::1111', '2a00:1450:4001:80b::200e', '::ffff:8.8.8.8'])
+def test_global_unicast_addresses_are_public(address):
+    assert src._address_is_public(address) is True
+
+
+@pytest.mark.parametrize('address', REVIEW_NON_PUBLIC)
+def test_a_resolver_answer_in_non_global_space_is_refused_and_never_pinned(address):
+    site = Site({('n.example.test', '/robots.txt'): robots('', 404), ('n.example.test', '/'): html('x')})
+    check, _ = checker(site, resolver=lambda host: [address],
+                       tls_probe=lambda host, addresses: pytest.fail('TLS probe reached a non-public host'))
+    report = check.run(plan(page('p', 'https://n.example.test/'), {'id': 't', 'kind': 'tls', 'host': 'n.example.test'}))
+    assert site.requests == [] and check.pins == {} and report['contacts_by_host'] == {}
+    with pytest.raises(src.BlockedDestination):
+        src._connect_checked('n.example.test', [address])
+
+
+@pytest.mark.parametrize('peer', ['::7f00:1', '64:ff9b::a9fe:a9fe', 'fec0::1'])
+def test_the_pinned_backend_refuses_a_non_global_ipv6_peer(peer):
+    import httpcore
+    inner = _FakeInner({'2606:4700:4700::1111': peer})
+    backend = src.PinnedBackend({'jobs.example.test': ['2606:4700:4700::1111']}, inner)
+    with pytest.raises(httpcore.ConnectError, match='unchecked address'):
+        backend.connect_tcp('jobs.example.test', 443)
+    assert inner.streams[0].closed is True
+
+
+@pytest.mark.parametrize('host, expected', [('4294967295', '255.255.255.255'), ('0xffffffff', '255.255.255.255'),
+                                            ('0xff.0xff.0xff.0xff', '255.255.255.255'), ('0xff.0xffffff', '255.255.255.255'),
+                                            ('0177.0.0.1', '127.0.0.1'), ('0x7f.1', '127.0.0.1'), ('127.1', '127.0.0.1')])
+def test_legacy_ipv4_spellings_parse_the_same_everywhere_and_are_refused(host, expected):
+    assert str(src._literal_address(host)) == expected
+    with pytest.raises(src.RefusedURL):  # BlockedDestination, or an invalid URL where httpx rejects the spelling
+        src.canonical(f'https://{host}/')
+    with pytest.raises(src.PlanError):
+        src.validate_plan(plan(page('p', f'https://{host}/')))
+
+
+@pytest.mark.parametrize('host', ['www.du.ae', '1.2.3.4.5', '08.1.1.1', 'careers.example.test'])
+def test_host_names_are_not_mistaken_for_legacy_literals(host):
+    assert src._literal_address(host) is None
+
+
+def test_a_public_ipv6_literal_in_a_link_is_bracketed_not_fatal():
+    site = Site({('o.example.test', '/robots.txt'): robots('', 404),
+                 ('o.example.test', '/careers'): html('<a href="https://[2606:4700:4700::1111]/jobs">Jobs</a>'),
+                 ('[2606:4700:4700::1111]', '/robots.txt'): robots('', 404),
+                 ('[2606:4700:4700::1111]', '/jobs'): html('<title>Jobs</title>'),
+                 ('2606:4700:4700::1111', '/robots.txt'): robots('', 404),
+                 ('2606:4700:4700::1111', '/jobs'): html('<title>Jobs</title>')})
+    probes = []
+    check, _ = checker(site, tls_probe=lambda host, addresses: probes.append((host, addresses)) or {'verified': True})
+    report = check.run(plan(page('c', 'https://o.example.test/careers'),
+                            {'id': 'l', 'kind': 'links', 'from': 'c', 'match': 'job'},
+                            {'id': 't', 'kind': 'tls', 'host': '2606:4700:4700::1111'}))
+    assert report['aborted'] is None
+    assert entries(report, 'l#1')[0]['requested'] is True
+    assert probes == [('2606:4700:4700::1111', ['2606:4700:4700::1111'])]
+    assert src.canonical('https://[2606:4700:4700::1111]/jobs')['url'] == 'https://[2606:4700:4700::1111]/jobs'

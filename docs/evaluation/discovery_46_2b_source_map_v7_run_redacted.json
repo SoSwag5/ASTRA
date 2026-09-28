@@ -4,7 +4,7 @@
   "raw_sha256_lf": "3004e46100e648559154b9ed32319759219aa889c72b5bd87b1a244749e199c1",
   "raw_custody": "private: kept by the Owner outside Git; not published",
   "rule": "Every value of the opaque Oracle E-Business Suite query parameters \"oas\" and \"params\" in DoH's published Careers link is replaced by [REDACTED-sha256:<SHA-256 of the value>]. Nothing else is changed.",
-  "why": "The same values were served, without cookies, to three independent anonymous fetches about 12 hours apart (06:14Z, 13:41Z and 18:17Z on 2026-09-27) on both language homepages, so they are not per-visitor session values and no active secret is indicated. Oracle does not document them, so they are withheld as a precaution, as the v6 record already did.",
+  "why": "The same values were served to three independent anonymous fetches about 12 hours apart (06:14Z, 13:41Z and 18:17Z on 2026-09-27) on both language homepages. The 06:14Z (v5) and 18:17Z (v7) fetches sent no cookie. The 13:41Z (v6) fetch used a client that keeps cookies, so it could have sent back a cookie from an earlier response on the same host. The two cookie-less fetches alone, about 12 hours apart, show that the values are not per-visitor session values, and no active secret is indicated. Oracle does not document them, so they are withheld as a precaution, as the v6 record already did.",
   "redacted_values": {
    "oas": [
     "f18d578445eb16bae8646f6154e1ba027dad30299899367e86bf4d7c8868e208"

@@ -38,9 +38,9 @@ Rules it enforces, from the #46.2-B source-map protocol:
   not public (including legacy IPv4 spellings) and localhost names are refused
   outright. A host name is resolved once per run and refused if any address is
   loopback, private, link-local, shared, reserved, multicast or otherwise not
-  globally routable. Connections are then made only to those checked
-  addresses, the connected peer address is checked again, and environment
-  proxy settings are ignored;
+  globally routable; IPv6 must also lie in global unicast space (2000::/3).
+  Connections are then made only to those checked addresses, the connected
+  peer address is checked again, and environment proxy settings are ignored;
 - certificates are verified for every HTTP request and TLS diagnostic, and a
   TLS failure makes the host unreadable. The tool never makes an unverified
   handshake;
@@ -133,21 +133,61 @@ class BlockedDestination(RefusedURL):
 
 
 # --- destinations ----------------------------------------------------------------
+GLOBAL_UNICAST_V6 = ipaddress.ip_network('2000::/3')
+
+
 def _address_is_public(address):
-    """True only for a globally routable unicast address (IPv4-mapped, 6to4 and
-    Teredo IPv6 forms are judged by the IPv4 addresses they carry)."""
+    """True only for a globally routable unicast address.
+
+    IPv4 must be global and not multicast or reserved. IPv6 must lie in global
+    unicast space (2000::/3), which excludes IPv4-compatible and translated forms
+    (::/8, 64:ff9b::/96), site-local fec0::/10, 100::/8 and 5f00::/16, and must
+    also be global and not reserved, site-local or multicast. An IPv4-mapped
+    address is judged as its IPv4 address; 6to4 and Teredo addresses must also
+    carry public IPv4 addresses."""
     try:
         ip = ipaddress.ip_address(str(address).split('%', 1)[0].strip('[]'))
     except ValueError:
         return False
+    if ip.version == 6 and ip.ipv4_mapped:
+        return _address_is_public(ip.ipv4_mapped)
+    if ip.is_multicast or ip.is_reserved or ip.is_private or ip.is_loopback or ip.is_link_local \
+            or ip.is_unspecified or not ip.is_global:
+        return False
     if ip.version == 6:
-        if ip.ipv4_mapped:
-            return _address_is_public(ip.ipv4_mapped)
-        if ip.sixtofour:
-            return _address_is_public(ip.sixtofour)
-        if ip.teredo:
-            return all(_address_is_public(part) for part in ip.teredo)
-    return ip.is_global and not ip.is_multicast
+        if ip not in GLOBAL_UNICAST_V6 or ip.is_site_local:
+            return False
+        if ip.sixtofour and not _address_is_public(ip.sixtofour):
+            return False
+        if ip.teredo and not all(_address_is_public(part) for part in ip.teredo):
+            return False
+    return True
+
+
+def _legacy_ipv4(host):
+    """The IPv4 address a legacy inet_aton spelling denotes ('127.1', '2130706433',
+    '0x7f.1', '0177.0.0.1', '4294967295'), parsed without the platform's
+    resolver, or None if host is not such a spelling."""
+    parts = host.split('.')
+    if not 1 <= len(parts) <= 4:
+        return None
+    values = []
+    for part in parts:
+        if re.fullmatch(r'0[xX][0-9a-fA-F]*', part):
+            values.append(int(part[2:] or '0', 16))
+        elif re.fullmatch(r'0[0-7]+', part):
+            values.append(int(part, 8))
+        elif re.fullmatch(r'0|[1-9][0-9]*', part):
+            values.append(int(part))
+        else:
+            return None
+    *head, last = values
+    if any(value > 255 for value in head) or last >= 1 << (32 - 8 * len(head)):
+        return None
+    number = last
+    for index, value in enumerate(head):
+        number |= value << (24 - 8 * index)
+    return ipaddress.IPv4Address(number)
 
 
 def _literal_address(host):
@@ -156,13 +196,7 @@ def _literal_address(host):
     try:
         return ipaddress.ip_address(host.strip('[]'))
     except ValueError:
-        pass
-    if not re.fullmatch(r'[0-9a-fA-Fx.]+', host) or not re.search(r'\d', host):
-        return None
-    try:
-        return ipaddress.ip_address(socket.inet_aton(host))
-    except OSError:
-        return None
+        return _legacy_ipv4(host)
 
 
 def _resolve(host):
@@ -271,7 +305,7 @@ def canonical(url):
     user information, and for login, apply, registration or account URLs."""
     try:
         parsed = httpx.URL(url)
-    except (httpx.InvalidURL, TypeError) as exc:
+    except (httpx.InvalidURL, TypeError, ValueError) as exc:  # ValueError: e.g. ipaddress on '0177.0.0.1'
         raise RefusedURL(f'refused: not a valid URL ({exc})') from exc
     if parsed.scheme != 'https':
         raise RefusedURL('refused: only https is requested')
@@ -295,14 +329,21 @@ def canonical(url):
     target = path + (('?' + normalise(query)) if query else '')
     if REFUSED.search(unquote(target)):
         raise RefusedURL('refused: login, apply, registration or account URL')
-    url = f'https://{host}{target}'
-    sent = httpx.URL(url).raw_path.decode('ascii')
+    netloc = f'[{host}]' if ':' in host else host
+    url = f'https://{netloc}{target}'
+    try:
+        sent = httpx.URL(url).raw_path.decode('ascii')
+    except (httpx.InvalidURL, ValueError) as exc:
+        raise RefusedURL(f'refused: not a valid URL ({exc})') from exc
     if sent != target:
         raise RefusedURL(f'refused: the path that would be sent ({sent}) differs from the checked path ({target})')
-    return {'url': url, 'host': host, 'origin': f'https://{host}', 'match_path': target}
+    return {'url': url, 'host': host, 'origin': f'https://{netloc}', 'match_path': target}
 
 
 def canonical_host(host):
+    host = str(host).strip()
+    if ':' in host and not host.startswith('['):
+        host = f'[{host}]'
     return canonical(f'https://{host}/')['host']
 
 
