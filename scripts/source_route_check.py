@@ -26,8 +26,10 @@ Rules it enforces, from the #46.2-B source-map protocol:
   but does not require, treating it as unavailable. The stricter 4xx rule
   follows the v4 map, which treated a bot-protection 403 on robots.txt as
   "do not fetch this host";
-- redirects are never followed automatically. Each hop is logged, and only a
-  plan step may request the target, after that host's own robots check;
+- page redirects are never followed automatically. Each hop is logged, and
+  only a plan step may request the target, after that host's own robots check.
+  robots.txt redirects are followed, paced and logged, up to five hops, as
+  RFC 9309 expects; a 3xx without a usable Location ends the robots check;
 - a bot-protection page on any request blocks that host for the rest of the
   run. Interstitial or block pages count at any status; scripts that ordinary
   pages also load (a CAPTCHA widget, a bot-detection script) count only on a
@@ -547,7 +549,16 @@ class RouteChecker:
             entry['found'] = sorted(set(m.group(0)[:200] for m in re.finditer(step['find'], text)))[:20]
         return self._record(entry)
 
+    def _source_not_requested(self, step, employer):
+        source = self.results.get(step['from']) or {}
+        if source.get('requested') is False:
+            return self._skip({'step': step['id'], 'employer': employer, 'purpose': step.get('purpose', ''),
+                               'url': None}, f"not requested: source step {step['from']} was not requested")
+        return None
+
     def links(self, step, employer):
+        if self._source_not_requested(step, employer):
+            return None
         source = self.results.get(step['from']) or {}
         pattern = re.compile(step['match'], re.I)
         picked = [l['href'] for l in source.get('job_links', []) if pattern.search(l['text'] + ' ' + l['href'])]
@@ -559,6 +570,8 @@ class RouteChecker:
             self.page({**step, 'id': f"{step['id']}#{number}"}, employer, href)
 
     def redirect(self, step, employer):
+        if self._source_not_requested(step, employer):
+            return None
         source = self.results.get(step['from']) or {}
         target = source.get('redirect_to')
         if not target:
@@ -645,8 +658,11 @@ class RouteChecker:
 
 def _join(base, href):
     """urljoin that returns None for a value it cannot use."""
+    href = (href or '').strip()
+    if not href:
+        return None
     try:
-        joined = urljoin(base, (href or '').strip())
+        joined = urljoin(base, href)
         urlsplit(joined).hostname  # raises on a malformed authority
         return joined or None
     except ValueError:

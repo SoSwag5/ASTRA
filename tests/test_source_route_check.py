@@ -650,3 +650,31 @@ def test_a_path_the_client_would_rewrite_is_refused(monkeypatch):
     monkeypatch.setattr(src.httpx, 'URL', Rewriting)
     with pytest.raises(src.RefusedURL, match='differs from the checked path'):
         src.canonical('https://h.example.test/private-free/x')
+
+
+# --- review of 8e206cd: minor notes -------------------------------------------------
+@pytest.mark.parametrize('response', [httpx.Response(302), httpx.Response(301, headers={'location': '   '})])
+def test_a_robots_3xx_without_a_usable_location_stops_after_one_request(response):
+    site = Site({('q.example.test', '/robots.txt'): response})
+    check, fake = checker(site)
+    report = check.run(plan(page('c', 'https://q.example.test/careers')))
+    assert site.paths() == [('q.example.test', '/robots.txt')] and fake.sleeps == []
+    assert report['robots']['https://q.example.test']['reason'].endswith('without a usable redirect')
+
+
+def test_a_page_3xx_with_a_blank_location_records_an_error_not_itself():
+    site = Site({('q.example.test', '/robots.txt'): robots('', 404),
+                 ('q.example.test', '/move'): httpx.Response(302, headers={'location': '  '})})
+    check, _ = checker(site)
+    entry = entries(check.run(plan(page('m', 'https://q.example.test/move'))), 'm')[0]
+    assert 'redirect_to' not in entry and entry['redirect_error'] == 'unusable Location header'
+
+
+def test_follow_on_steps_say_when_their_source_was_not_requested():
+    site = Site({('z.example.test', '/robots.txt'): robots('User-agent: *\nDisallow: /\n')})
+    check, _ = checker(site)
+    report = check.run(plan(page('c', 'https://z.example.test/careers'),
+                            {'id': 'l', 'kind': 'links', 'from': 'c', 'match': 'job'},
+                            {'id': 'r', 'kind': 'redirect', 'from': 'c'}))
+    assert entries(report, 'l')[0]['decision'] == 'not requested: source step c was not requested'
+    assert entries(report, 'r')[0]['decision'] == 'not requested: source step c was not requested'
