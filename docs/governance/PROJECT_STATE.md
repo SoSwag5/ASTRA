@@ -382,8 +382,8 @@ Three kinds of #46.2-B/C evidence stay separate. None stands in for another.
    - PR #74 carried v6: 0 / 50 / 5. PureHealth and ADPHC became
      `MANUAL_LINK`.
    - The **v7 closeout** on `fix/46.2-b-final-closeout` is this change
-     ([PR #75](https://github.com/SoSwag5/ASTRA/pull/75)); its independent
-     review and merge are recorded on that pull request. It rechecked the
+     ([PR #75](https://github.com/SoSwag5/ASTRA/pull/75)); check that pull
+     request for its current review and merge status. It rechecked the
      five v6-unresolved employers and PureHealth once from the Owner's
      machine on 2026-09-27. The committed tool `scripts/source_route_check.py`
      did the checks with enforced, logged pacing: every same-host interval was
@@ -400,8 +400,9 @@ Three kinds of #46.2-B/C evidence stay separate. None stands in for another.
      reversed v4. That is how the v6 homepage read was made. v7 restores the
      v4 rule.
    - Six are unresolved, each with an exact Owner-browser action:
-     - Zayed University: a verified TLS handshake to `www.zu.ac.ae` was
-       reset, and the robots.txt requests to `www.zu.ac.ae` and
+     - Zayed University: a certificate-verifying TLS handshake to
+       `www.zu.ac.ae` was attempted but reset before verification completed,
+       and the robots.txt requests to `www.zu.ac.ae` and
        `careers.zu.ac.ae` ended in a connection reset.
      - DoH: its careers link goes to a host whose certificate expired on
        2025-09-09.
