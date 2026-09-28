@@ -399,7 +399,7 @@ Three kinds of #46.2-B/C evidence stay separate. None stands in for another.
      - Emirates Islamic: Cloudflare bot-protection page at robots.txt.
      - HCT: robots.txt redirect loop.
      - du: robots.txt disallows all paths.
-     - PureHealth: Cloudflare block page at robots.txt.
+     - PureHealth: Cloudflare bot-protection page (403) at robots.txt.
    - No researched employer has a *verified* Greenhouse, Lever or Ashby
      board, so no controlled scan was prepared and run 107 was not repeated.
      A `MANUAL_LINK` is never coverage or an open posting. See the
