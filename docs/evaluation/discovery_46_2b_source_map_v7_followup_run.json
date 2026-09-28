@@ -1,0 +1,127 @@
+{
+ "tool": {
+  "file": "scripts/source_route_check.py",
+  "sha256_lf": "158a9df8e94f6fd9931603b61498619ec5f4a5d177c6b407d9c9007ef019e952",
+  "git_blob_lf": "e3f0a31b041a63f6cbc67a444952599d3b4e4c2b"
+ },
+ "user_agent": "ASTRA-source-research/1.0 (read-only official careers-page check; robots.txt honoured)",
+ "client": {
+  "python": "3.13.2",
+  "httpx": "0.28.1",
+  "openssl": "OpenSSL 3.0.15 3 Sep 2024"
+ },
+ "plan_sha256": "637fc3d5e3f0c9e36d88b2bd09801edca5b19415184680c8ac464da22fd21368",
+ "plan": {
+  "artifact": "astra-46-2b-source-map-v7-followup-plan",
+  "purpose": "Follow-up required by the v7 plan: careers.zu.ac.ae, a hostname on Zayed University's own registered domain, resolved in the v7 run (to a different address from www.zu.ac.ae). Its robots.txt is checked first; its root page is read only if robots permits, and any link it gives is followed only through the same checks. No ATS tenant is requested on branding alone, no job-listing API is called, no form is submitted and no e-mail is sent.",
+  "notes": [
+   "A page on careers.zu.ac.ae is an official Zayed University page (the employer's own domain). The Oracle CX_1 lead stays unverified unless an official ZU page links to it."
+  ],
+  "employers": [
+   {
+    "employer": "Zayed University",
+    "steps": [
+     {
+      "id": "zu-careers-host",
+      "kind": "page",
+      "url": "https://careers.zu.ac.ae/",
+      "purpose": "root page of the resolving careers hostname on ZU's own domain"
+     },
+     {
+      "id": "zu-careers-host-redirect",
+      "kind": "redirect",
+      "from": "zu-careers-host",
+      "purpose": "where the root page sends a visitor, if it redirects"
+     },
+     {
+      "id": "zu-careers-host-links",
+      "kind": "links",
+      "from": "zu-careers-host",
+      "match": "vacanc|career|job|oraclecloud|interfolio|staff|faculty",
+      "max": 2,
+      "purpose": "forward link from the careers host"
+     },
+     {
+      "id": "zu-careers-host-redirect-links",
+      "kind": "links",
+      "from": "zu-careers-host-redirect",
+      "match": "vacanc|career|job|oraclecloud|interfolio|staff|faculty",
+      "max": 2,
+      "purpose": "forward link from the page the root redirects to"
+     }
+    ]
+   }
+  ]
+ },
+ "started_at_utc": "2026-09-27T18:18:23.942+00:00",
+ "finished_at_utc": "2026-09-27T18:18:24.332+00:00",
+ "aborted": null,
+ "log": [
+  {
+   "started_at_utc": "2026-09-27T18:18:24.245+00:00",
+   "since_prev_contact_end_s": null,
+   "ended_at_utc": "2026-09-27T18:18:24.331+00:00",
+   "url": "https://careers.zu.ac.ae/robots.txt",
+   "purpose": "robots",
+   "error": "ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host",
+   "robots_result": "UNREACHABLE_DISALLOW"
+  },
+  {
+   "step": "zu-careers-host",
+   "employer": "Zayed University",
+   "purpose": "root page of the resolving careers hostname on ZU's own domain",
+   "url": "https://careers.zu.ac.ae/",
+   "robots": "UNREACHABLE_DISALLOW",
+   "requested": false,
+   "decision": "not requested: robots UNREACHABLE_DISALLOW (ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host)",
+   "decided_at_utc": "2026-09-27T18:18:24.331+00:00"
+  },
+  {
+   "step": "zu-careers-host-redirect",
+   "employer": "Zayed University",
+   "purpose": "where the root page sends a visitor, if it redirects",
+   "url": null,
+   "requested": false,
+   "decision": "zu-careers-host did not redirect",
+   "decided_at_utc": "2026-09-27T18:18:24.331+00:00"
+  },
+  {
+   "step": "zu-careers-host-links",
+   "employer": "Zayed University",
+   "purpose": "forward link from the careers host",
+   "url": null,
+   "requested": false,
+   "decision": "no link from zu-careers-host matched 'vacanc|career|job|oraclecloud|interfolio|staff|faculty'",
+   "decided_at_utc": "2026-09-27T18:18:24.331+00:00"
+  },
+  {
+   "step": "zu-careers-host-redirect-links",
+   "employer": "Zayed University",
+   "purpose": "forward link from the page the root redirects to",
+   "url": null,
+   "requested": false,
+   "decision": "no link from zu-careers-host-redirect matched 'vacanc|career|job|oraclecloud|interfolio|staff|faculty'",
+   "decided_at_utc": "2026-09-27T18:18:24.331+00:00"
+  }
+ ],
+ "robots": {
+  "https://careers.zu.ac.ae": {
+   "kind": "UNREACHABLE_DISALLOW",
+   "reason": "ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host"
+  }
+ },
+ "blocked_hosts": {
+  "careers.zu.ac.ae": "network or TLS failure"
+ },
+ "pacing": {
+  "min_interval_s": 2.0,
+  "measured_from": "end of the previous contact with the host to the start of the next",
+  "same_host_intervals": 0,
+  "smallest_same_host_interval_s": null,
+  "all_intervals_at_least_minimum": true,
+  "by_host": {}
+ },
+ "contacts_by_host": {
+  "careers.zu.ac.ae": 1
+ }
+}
