@@ -683,9 +683,16 @@ def _error_text(exc):
     return f'{type(inner).__name__}: {inner}'
 
 
+def _tls_context():
+    """Certificate- and host-verifying context that refuses TLS 1.0 and 1.1."""
+    context = ssl.create_default_context()
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    return context
+
+
 def _tls_probe(host):
     """Verified TLS handshake only; no HTTP request."""
-    context = ssl.create_default_context()
+    context = _tls_context()
     try:
         with socket.create_connection((host, 443), timeout=TIMEOUT) as raw, context.wrap_socket(raw, server_hostname=host) as tls:
             cert = tls.getpeercert()

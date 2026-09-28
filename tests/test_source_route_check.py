@@ -678,3 +678,10 @@ def test_follow_on_steps_say_when_their_source_was_not_requested():
                             {'id': 'r', 'kind': 'redirect', 'from': 'c'}))
     assert entries(report, 'l')[0]['decision'] == 'not requested: source step c was not requested'
     assert entries(report, 'r')[0]['decision'] == 'not requested: source step c was not requested'
+
+
+def test_the_tls_diagnostic_verifies_and_refuses_tls_before_1_2():
+    import ssl
+    context = src._tls_context()
+    assert context.minimum_version >= ssl.TLSVersion.TLSv1_2
+    assert context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname is True
