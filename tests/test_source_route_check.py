@@ -680,8 +680,18 @@ def test_follow_on_steps_say_when_their_source_was_not_requested():
     assert entries(report, 'r')[0]['decision'] == 'not requested: source step c was not requested'
 
 
-def test_the_tls_diagnostic_verifies_and_refuses_tls_before_1_2():
+def test_the_tls_diagnostic_pins_tls_1_2_even_where_the_default_allows_less(monkeypatch):
     import ssl
+    real = ssl.create_default_context
+
+    def permissive(*args, **kwargs):  # a Python or OpenSSL whose default still allows TLS 1.0
+        import warnings
+        context = real(*args, **kwargs)
+        with warnings.catch_warnings():  # TLSVersion.TLSv1 is deprecated; that is the point here
+            warnings.simplefilter('ignore', DeprecationWarning)
+            context.minimum_version = ssl.TLSVersion.TLSv1
+        return context
+    monkeypatch.setattr(src.ssl, 'create_default_context', permissive)
     context = src._tls_context()
-    assert context.minimum_version >= ssl.TLSVersion.TLSv1_2
+    assert context.minimum_version == ssl.TLSVersion.TLSv1_2
     assert context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname is True
