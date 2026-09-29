@@ -34,8 +34,9 @@ from . import career_tracks
 SCHEMA_VERSION = 'role-understanding-2'
 POLICY_VERSION = 'shadow-placement-2'
 # How verify() reads evidence: 1 = v1/v2 candidate, 2 = first v3 freeze,
-# 3 = after independent review round 1, 4 = after round 2, 5 = after round 3.
-VERIFIER_VERSION = 'verifier-5'
+# 3 = after independent review round 1, 4 = after round 2, 5 = after round 3,
+# 6 = after round 4.
+VERIFIER_VERSION = 'verifier-6'
 
 PROMINENT, LOWER, SUGGESTED_HIDDEN, UNPLACED = 'PROMINENT', 'LOWER', 'SUGGESTED_HIDDEN', 'UNPLACED'
 TIER_RANK = {PROMINENT: 0, LOWER: 1, SUGGESTED_HIDDEN: 2, UNPLACED: 3}
@@ -147,7 +148,7 @@ _REQUIRED_MARKERS = _STRONG_REQUIRED | {'essential', 'minimum', 'basic'}
 _HEADING_WORDS = {'qualification', 'qualifications', 'requirement', 'requirements', 'experience', 'experiences',
                   'skill', 'skills', 'criteria', 'education', 'attributes', 'competency', 'competencies', 'knowledge',
                   'certification', 'certifications', 'and', '&', '/', 'work', 'job', 'key', 'candidate', 'role',
-                  'have', 'haves', 'the', 'following', 'include', 'includes'} | _REQUIRED_MARKERS
+                  'have', 'haves', 'the', 'following', 'include', 'includes', 'profile', 'background'} | _REQUIRED_MARKERS
 _BULLET = re.compile(r'^\s*(?:[^\w\s]+|\d{1,2}[.)])\s*')
 _SENTENCE_END = re.compile(r'(?<=[.;!?])\s+')
 # A figure continued from a larger number or a range: "15", "1.5", "4-7", "4 to 7".
@@ -381,8 +382,7 @@ def _segment_heading(segment, partial=False):
         if not words or len(words) > 6:
             return []
         sentence = text[-1] in '.;!?,'
-        if _pure_preferred(clean) or (not bulleted and not sentence and
-                                      (_preferred_phrase(clean) or _PREFERRED_START.match(clean))):
+        if _pure_preferred(clean) or (not bulleted and not sentence and _preferred_phrase(clean)):
             return ['preferred']                                   # "- Preferred Qualifications", "**Nice to have**"
         return ['required'] if not bulleted and not sentence and _required_heading(clean) else []
     kinds = []
@@ -391,7 +391,12 @@ def _segment_heading(segment, partial=False):
         words = head.split()
         if not words:
             continue
-        if index == len(heads) - 1 and standalone:
+        if partial and index == len(heads) - 1:                    # the span's own label governs its figure
+            if len(words) <= 12 and _PREFERRED_HEAD.search(head):
+                kinds.append('preferred')                          # "- Preferred: 7 years", "Nice to have: 7 years"
+            elif _required_heading(head) or (index > 0 and _required_tail(head)):
+                kinds.append('required')                           # "Minimum Qualifications: 7 years"
+        elif index == len(heads) - 1 and standalone:
             if _pure_preferred(head) or _preferred_phrase(head) or (4 <= len(words) <= 12 and _PREFERRED_HEAD.search(head)):
                 kinds.append('preferred')                          # a heading or lead-in: "It would be an asset to have:"
             elif _required_heading(head):

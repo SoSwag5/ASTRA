@@ -544,7 +544,7 @@ def test_assessor_request_explains_every_function_and_the_range_rule():
         assert f'{name} = ' in request['instructions']
     assert 'lower bound' in request['instructions'] and 'never infer nationality' in request['instructions']
     assert (ru.SCHEMA_VERSION, ru.POLICY_VERSION, ru.VERIFIER_VERSION) == (
-        'role-understanding-2', 'shadow-placement-2', 'verifier-5')
+        'role-understanding-2', 'shadow-placement-2', 'verifier-6')
 
 
 UNHASHABLE_KINDS = [['DESIGNATED_NATIONALS'], {'k': 'DESIGNATED_NATIONALS'}, {'DESIGNATED_NATIONALS'}, None, 3]
@@ -701,7 +701,8 @@ def test_a_negated_all_nationalities_is_still_a_restriction(text, kept, uae):
     ('Requirements:\nDegree\nNice to have:\nBasic knowledge: Python scripting\n' + CLOUD, 7, CLOUD, None),
     ('Requirements:\nDegree\nNice to have:\nBasic skills: Python\n' + CLOUD, 7, CLOUD, None),
     ('Requirements:\nDegree\nNice to have:\nEssential skills: Python\n' + CLOUD, 7, CLOUD, None),
-    ('Requirements:\nDegree\nNice to have:\nMinimum Work Experience: 5 years in a SOC', 5, '5 years in a SOC', None),
+    # the span's own label names a requirement: it governs the figure even below a preferred heading (round 4)
+    ('Requirements:\nDegree\nNice to have:\nMinimum Work Experience: 5 years in a SOC', 5, '5 years in a SOC', 5),
     ('Requirements:\nDegree in IT\nPreferred nationality: UAE National\n' + CLOUD, 7, CLOUD, 7),
     ('Requirements:\nDegree in IT\nPreferred gender: Male\n' + CLOUD, 7, CLOUD, 7),
     ('Requirements:\nDegree in IT\nPreferred language: Arabic\n' + CLOUD, 7, CLOUD, 7),
@@ -723,3 +724,34 @@ def test_uae_passport_wording_is_a_uae_restriction():
     _, placed = _placed(posting, _answer('SECURITY_OPERATIONS', 0.9, [SOC_DUTY],
                                          wording=[{'kind': 'DESIGNATED_NATIONALS', 'text': text}]), OWNER_V3)
     assert placed['warnings'] and 'targets UAE nationals' in placed['warnings'][0] and placed['tier'] == ru.LOWER
+
+
+# --- independent review round 4 (2026-09-29): the span's own label governs its figure ---
+
+REQ_LIST = 'Requirements:\n- Degree in IT\n'
+
+
+@pytest.mark.parametrize('tail,expected', [
+    (REQ_LIST + '- Nice to have: ' + CLOUD, None),
+    (REQ_LIST + '- Preferred: ' + CLOUD, None),
+    (REQ_LIST + 'It would be an advantage to have: ' + CLOUD, None),
+    (REQ_LIST + 'Bonus points if you have: ' + CLOUD, None),
+    (REQ_LIST + 'Candidates with this are preferred: ' + CLOUD, None),
+    ('Requirements: Degree in IT. It would be a plus to have: ' + CLOUD, None),
+    ('Requirements: Degree in IT. Preferred Education, Skills, Knowledge and Experience: ' + CLOUD, None),
+    ('Requirements: Degree in IT Preferred Skills and Experience Include: ' + CLOUD, None),
+    (REQ_LIST + 'Preferred Qualifications – ' + CLOUD, None),
+    ('Preferred Qualifications:\n- CISSP\nBasic Qualifications: ' + CLOUD, 7),
+    ('Preferred Qualifications:\n- CISSP\nMinimum Qualifications: ' + CLOUD, 7),
+    ('Preferred:\n- CISSP\nEssential: ' + CLOUD, 7),
+    ('Preferred qualifications:\n You meet the following requirements: ' + CLOUD, None),
+    ('Requirements:\nDegree in IT\nAsset management tools (SCCM)\n' + CLOUD, 7),
+    ('Requirements:\nDegree in IT\nAsset management experience\n' + CLOUD, 7),
+    ('Requirements:\nDegree in IT\nPreferred language Arabic\n' + CLOUD, 7),
+    ('Requirements:\nDegree in IT\nOptional overtime\n' + CLOUD, 7),
+    ('Requirements:\nDegree in IT\nDesired start date ASAP\n' + CLOUD, 7),
+    ('Requirements:\nDegree in IT\nDesired Candidate Profile\n' + CLOUD, None),
+])
+def test_round_four_span_labels_and_items(tail, expected):
+    posting = {'title': 'SOC Analyst', 'description': SOC_DUTY + '.\n' + tail}
+    assert ru.verify(_answer('SECURITY_OPERATIONS', 0.9, [SOC_DUTY], 7, CLOUD), posting)['required_years_min'] == expected

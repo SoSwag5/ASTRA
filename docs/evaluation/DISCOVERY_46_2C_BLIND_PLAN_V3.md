@@ -452,3 +452,27 @@ still unchanged.
 - The custody docstring warns against amending, as well as rebasing or
   squashing, between seal and compare.
 - `VERIFIER_VERSION` is `verifier-5`.
+
+### Round 4 (same day, before any seal)
+
+The fourth freeze (`d2366fe`, frozen at `b99398c`) was re-reviewed read-only.
+All round-3 findings were fixed. The verdict was REQUEST CHANGES for one new
+regression in the harmful direction: the round-3 handling of the span's own
+line ignored a preference label on that line ("- Preferred: 7 years", "- Nice
+to have: 7 years", "It would be an advantage to have: 7 years"). Changes:
+
+- *The span's own label governs its figure.* A preference phrase in the label
+  before the span (at most 12 words, bulleted or not) makes the figure
+  preferred. A label that is itself a requirement heading ("Minimum
+  Qualifications: 7 years", "Essential: 7 years") makes it required, even
+  below a preferred section. The reviewer had noted that case as by design;
+  it is now read as required because the label names the figure directly. A
+  sentence that merely ends in "requirements" ("You meet the following
+  requirements:") does not count.
+- *Colon-less lines.* A line with no colon is a preferred heading only when it
+  is a pure heading phrase ("Preferred Qualifications", "Desired Candidate
+  Profile", "• Nice to have"). "Preferred language Arabic", "Optional
+  overtime", "Desired start date ASAP" and "Asset management tools" are items
+  and keep the required figure below them.
+- "profile" and "background" are heading words.
+- `VERIFIER_VERSION` is `verifier-6`.
