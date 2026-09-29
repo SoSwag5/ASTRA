@@ -525,3 +525,30 @@ colon-less field lines that start with a strong preference word ("Preferred
 language Arabic", "Desired start date ASAP"). These can raise M3, never M2.
 
 `VERIFIER_VERSION` is `verifier-7`.
+
+### Round 6 (same day, before any seal)
+
+The sixth freeze (`0f65e5c`) was re-reviewed against the convergence standard
+above. Custody, freeze, tests and the development report passed, and the
+round-5 fixes held. There was one blocking item: a negated requirement ("Preferred but not
+required: 7 years", "Nice to have, not a must") counted as a strong required
+marker. One negation rule now applies everywhere:
+
+- "not (a/an) required / mandatory / must / essential / compulsory /
+  necessary" and "non-mandatory" are preference phrases in headings, labels
+  and clauses. A negated marker never counts as a requirement.
+- On the span's own label, a preference phrase that leads the label wins
+  ("Nice to have - must include SIEM"). A strong required marker wins only
+  over a later, incidental preference ("Required, Arabic a plus").
+- "Beneficial", "Would be a plus" and "Would be an advantage" count as
+  preference starters.
+- `VERIFIER_VERSION` is `verifier-8`.
+
+*Residual ambiguity, unchanged:*
+
+- the three forms listed in round 5;
+- an inline "Required skills: Python" item below a preferred section, which
+  resets to required, as rule 2 states;
+- a weak item label on the span's own line below a preferred section
+  ("Minimum Work Experience: 7 years"), which is read as preferred, as rule 2
+  states.

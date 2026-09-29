@@ -544,7 +544,7 @@ def test_assessor_request_explains_every_function_and_the_range_rule():
         assert f'{name} = ' in request['instructions']
     assert 'lower bound' in request['instructions'] and 'never infer nationality' in request['instructions']
     assert (ru.SCHEMA_VERSION, ru.POLICY_VERSION, ru.VERIFIER_VERSION) == (
-        'role-understanding-2', 'shadow-placement-2', 'verifier-7')
+        'role-understanding-2', 'shadow-placement-2', 'verifier-8')
 
 
 UNHASHABLE_KINDS = [['DESIGNATED_NATIONALS'], {'k': 'DESIGNATED_NATIONALS'}, {'DESIGNATED_NATIONALS'}, None, 3]
@@ -787,4 +787,45 @@ def test_round_four_span_labels_and_items(tail, expected):
 ])
 def test_round_five_rule_set(tail, expected):
     posting = {'title': 'SOC Analyst', 'description': SOC_DUTY + '.\n' + tail}
+    assert ru.verify(_answer('SECURITY_OPERATIONS', 0.9, [SOC_DUTY], 7, CLOUD), posting)['required_years_min'] == expected
+
+
+# --- independent review round 6 (2026-09-29): a negated requirement is a preference ---
+
+NEGATED = ['Preferred but not required', 'Preferred, but not required', 'Not required but preferred',
+           'Preferred but not mandatory', 'Desirable but not required', 'Nice to have, not a must',
+           'Preferred not required', 'Bonus, not required', 'Advantageous but not mandatory', 'Optional, not required',
+           'Preferred (not required)', 'Desirable (but not mandatory)', 'Non-mandatory']
+
+
+@pytest.mark.parametrize('label', NEGATED)
+@pytest.mark.parametrize('form', ['bullet_inline', 'inline', 'standalone_colon', 'colonless'])
+def test_negated_requirement_labels_are_preferences(label, form):
+    lines = {'bullet_inline': f'- {label}: {CLOUD}', 'inline': f'{label}: {CLOUD}',
+             'standalone_colon': f'{label}:\n{CLOUD}', 'colonless': f'{label}\n{CLOUD}'}
+    posting = {'title': 'SOC Analyst', 'description': f'{SOC_DUTY}.\nRequirements:\n- Degree in IT\n{lines[form]}'}
+    assert ru.verify(_answer('SECURITY_OPERATIONS', 0.9, [SOC_DUTY], 7, CLOUD), posting)['required_years_min'] is None
+
+
+@pytest.mark.parametrize('tail,expected', [
+    (CLOUD + ', not required.', None),
+    (CLOUD + ' (not mandatory).', None),
+    ('Requirements:\n- Degree in IT\nWould be a plus\n' + CLOUD, None),
+    ('Requirements:\n- Degree in IT\nBeneficial Skills\n' + CLOUD, None),
+    ('Requirements:\n- Degree in IT\n- Must not be employed by a competitor: ' + CLOUD, 7),
+    ('Requirements:\n- Degree in IT\n- Required (not negotiable): ' + CLOUD, 7),
+])
+def test_negation_only_where_it_negates_a_requirement(tail, expected):
+    posting = {'title': 'SOC Analyst', 'description': SOC_DUTY + '.\n' + tail}
+    assert ru.verify(_answer('SECURITY_OPERATIONS', 0.9, [SOC_DUTY], 7, CLOUD), posting)['required_years_min'] == expected
+
+
+@pytest.mark.parametrize('label,expected', [
+    ('Nice to have - must include SIEM', None),        # a leading preference governs the label
+    ('Preferred experience (must be in UAE)', None),   # an aside about something else is ignored
+    ('Required, Arabic a plus', 7),                    # a strong marker beats a later, incidental preference
+    ('Required (bonus if Arabic)', 7),
+])
+def test_span_label_order_decides_between_preference_and_requirement(label, expected):
+    posting = {'title': 'SOC Analyst', 'description': f'{SOC_DUTY}.\nRequirements:\n- Degree in IT\n- {label}: {CLOUD}'}
     assert ru.verify(_answer('SECURITY_OPERATIONS', 0.9, [SOC_DUTY], 7, CLOUD), posting)['required_years_min'] == expected

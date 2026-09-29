@@ -35,8 +35,8 @@ SCHEMA_VERSION = 'role-understanding-2'
 POLICY_VERSION = 'shadow-placement-2'
 # How verify() reads evidence: 1 = v1/v2 candidate, 2 = first v3 freeze,
 # 3 = after independent review round 1, 4 = after round 2, 5 = after round 3,
-# 6 = after round 4, 7 = after round 5.
-VERIFIER_VERSION = 'verifier-7'
+# 6 = after round 4, 7 = after round 5, 8 = after round 6.
+VERIFIER_VERSION = 'verifier-8'
 
 PROMINENT, LOWER, SUGGESTED_HIDDEN, UNPLACED = 'PROMINENT', 'LOWER', 'SUGGESTED_HIDDEN', 'UNPLACED'
 TIER_RANK = {PROMINENT: 0, LOWER: 1, SUGGESTED_HIDDEN: 2, UNPLACED: 3}
@@ -126,8 +126,11 @@ OPTIONAL_RESPONSE_KEYS = {'assessor'}
 # Experience that is only preferred is never treated as required. Wherever the
 # text is ambiguous the reading falls toward "not required": a wrongly required
 # figure can hide a relevant job, a wrongly preferred one cannot.
-_PREFERENCE_WORDS = re.compile(r'\b(?:prefer(?:red|ably|ence)?|desir(?:ed|able)|advantage(?:ous)?|'
-                               r'nice to haves?|good to haves?|ideally|a plus|bonus|optional)\b', re.I)
+_NEGATED_REQUIREMENT = (r'not\s+(?:an?\s+)?(?:required|mandatory|must|essential|compulsory|necessary)|'
+                         r'non[\s-]?(?:mandatory|essential)')
+_PREFERENCE_WORDS = re.compile(r'\b(?:prefer(?:red|ably|ence)?|desir(?:ed|able)|advantage(?:ous)?|beneficial|'
+                               r'nice to haves?|good to haves?|ideally|a plus|bonus|optional|' + _NEGATED_REQUIREMENT + r')\b',
+                               re.I)
 # Headings. A preference phrase anywhere in a lead-in line ("The following
 # would be nice to have:"), or at the START of any other heading ("Preferred
 # Qualifications and Experience:", "Nice to have", "Desirable criteria:"), makes
@@ -136,15 +139,17 @@ _PREFERENCE_WORDS = re.compile(r'\b(?:prefer(?:red|ably|ence)?|desir(?:ed|able)|
 # "Minimum Work Experience", "Basic Qualifications") -- never an item such as
 # "Basic Python scripting" or "Qualifications: CISSP". Any leading glyph or
 # number is a bullet, and a bulleted item with content is never a heading.
-_PREFERRED_HEAD = re.compile(r'\b(?:prefer(?:red|ably)?|desir(?:ed|able)|advantage(?:ous|s)?|nice[\s-]to[\s-]haves?|'
-                             r'good[\s-]to[\s-]haves?|bonus|optional|a plus|ideally|an asset|stand out)\b', re.I)
+_PREFERRED_HEAD = re.compile(r'\b(?:prefer(?:red|ably)?|desir(?:ed|able)|advantage(?:ous|s)?|beneficial|'
+                             r'nice[\s-]to[\s-]haves?|good[\s-]to[\s-]haves?|bonus|optional|a plus|ideally|an asset|'
+                             r'stand out|' + _NEGATED_REQUIREMENT + r')\b', re.I)
 _PREFERRED_START = re.compile(r'^(?:(?:additional|other)\s+)?(?:preferred|desired|desirable|optional|bonus|advantageous|'
                               r'assets?|nice[\s-]to[\s-]haves?|good[\s-]to[\s-]haves?)\b', re.I)
 # A strong starter makes a short colon-less line a preferred heading whatever
 # follows ("Preferred but not required", "Nice to have for this role"); weak
 # starters (optional, asset) need a pure heading phrase.
 _STRONG_PREFERRED_START = re.compile(r'^(?:(?:additional|other)\s+)?(?:preferred|desired|desirable|bonus|advantageous|'
-                                     r'nice[\s-]to[\s-]haves?|good[\s-]to[\s-]haves?)\b', re.I)
+                                     r'beneficial|would be (?:a plus|an advantage|beneficial)|'
+                                     r'nice[\s-]to[\s-]haves?|good[\s-]to[\s-]haves?|' + _NEGATED_REQUIREMENT + r')\b', re.I)
 # Strong markers name a requirement outright; weak ones ("basic", "minimum",
 # "essential") also start ordinary items ("Basic knowledge: Python"). Below a
 # preferred heading, only a stand-alone heading or a strong marker resets.
@@ -163,10 +168,10 @@ _YEARS_AFTER = re.compile(r'\s*\+?\s*(?:years?|yrs?)\b', re.I)
 _CLAUSE_BREAK = re.compile(r'[.;:•,()\[\]\n]')
 # A following clause that is only a preference phrase ("..., preferred";
 # "(desirable)") -- not one that prefers something else ("preferably in banking").
-_PREFERENCE_CLAUSE = re.compile(r'^\s*(?:(?:is|are|would be|will be|being)\s+)?(?:an?\s+)?'
-                                r'(?:prefer(?:red|ably)?|desir(?:ed|able)|advantage(?:ous)?|nice to haves?|'
-                                r'good to haves?|ideally|plus|bonus|optional)\b(?!\s+(?:in|with|within|from|for|at|on|to)\b)',
-                                re.I)
+_PREFERENCE_CLAUSE = re.compile(r'^\s*(?:(?:is|are|would be|will be|being|but)\s+)?(?:an?\s+)?'
+                                r'(?:prefer(?:red|ably)?|desir(?:ed|able)|advantage(?:ous)?|beneficial|nice to haves?|'
+                                r'good to haves?|ideally|plus|bonus|optional|' + _NEGATED_REQUIREMENT + r')\b'
+                                r'(?!\s+(?:in|with|within|from|for|at|on|to)\b)', re.I)
 # "3-5 years", "between 3 and 7 years", "3-to-7 yrs": the required minimum is
 # the lower bound. Only ranges directly followed by years count ("2-3 days"
 # and "Grade 3-6" are not experience).
@@ -317,7 +322,8 @@ def _required_heading(text):
 
 
 _PREF_TOKENS = {'preferred', 'desired', 'desirable', 'optional', 'advantageous', 'bonus', 'nice', 'good', 'to',
-                'asset', 'assets', 'additional', 'other', 'plus', 'a'}
+                'asset', 'assets', 'additional', 'other', 'plus', 'a', 'an', 'but', 'not', 'non', 'compulsory',
+                'necessary', 'beneficial', 'would', 'be', 'advantage', 'non-mandatory', 'non-essential'}
 
 
 def _tokens(text):
@@ -416,8 +422,10 @@ def _segment_heading(segment, partial=False):
             continue
         if partial and index == len(heads) - 1:                    # the span's own label governs its figure
             label = _label_without_other_preferences(head)
-            strong = any(_bare(w) in _STRONG_REQUIRED for w in label.split())
-            if len(words) <= 12 and _PREFERRED_HEAD.search(label) and not strong:
+            unnegated = re.sub(r'\b' + _NEGATED_REQUIREMENT + r'\b', ' ', label, flags=re.I)
+            strong = any(_bare(w) in _STRONG_REQUIRED for w in unnegated.split())
+            leads = bool(_PREFERRED_START.match(label.strip()) or _STRONG_PREFERRED_START.match(label.strip()))
+            if len(words) <= 12 and _PREFERRED_HEAD.search(label) and (leads or not strong):
                 kinds.append('preferred')                          # "- Preferred: 7 years", "Qualifications (preferred): 7 years"
             elif _required_kind(label):
                 kinds.append(_required_kind(label))                # weak markers cannot reset a preferred section
