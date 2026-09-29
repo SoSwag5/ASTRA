@@ -1,8 +1,8 @@
 # ASTRA project state
 
-**Snapshot date:** 2026-09-27 (Asia/Dubai), refreshed for the PR #74 merge and
-the #46.2-B v7 source-map closeout. The #46 closeout below remains historical
-evidence.
+**Snapshot date:** 2026-09-29 (Asia/Dubai), refreshed for the PR #75 merge
+(#46.2-B v7) and the #46.2-C blind-round preparation. The #46 closeout below
+remains historical evidence.
 **Rule:** This is a handoff snapshot, not a substitute for live verification.
 Refresh it at session end when repository or release state changes.
 
@@ -362,6 +362,14 @@ parents are `2d40c8067996f9f919bda63b716507d371bc8daa` (A) and the PR head
   quality, it does not cover the 55 researched employers, and it does not show
   that any posting is open.
 
+**#46.2-B v7 closeout is merged.**
+[PR #75](https://github.com/SoSwag5/ASTRA/pull/75) merged into `master` on
+2026-09-28 as `902c80b30db6d4a73f95a0c56b567a0683a2ad09`, from head
+`58bc50f2c8b2e9da4854f9eaa8831e60f5bde827`. Post-merge CI
+([run 36459740757](https://github.com/SoSwag5/ASTRA/actions/runs/36459740757))
+and Scorecard ([run 36459740472](https://github.com/SoSwag5/ASTRA/actions/runs/36459740472))
+passed on `902c80b`. The source map stands at 0 / 49 / 6.
+
 **#46.2-B source closeout (v6) and the E v3 decision review are merged.**
 [PR #74](https://github.com/SoSwag5/ASTRA/pull/74) merged into `master` on
 2026-09-27 as `89d2f907caa49487d585f4268339cd4092c1a267`. Its parents are
@@ -414,13 +422,25 @@ Three kinds of #46.2-B/C evidence stay separate. None stands in for another.
      board, so no controlled scan was prepared and run 107 was not repeated.
      A `MANUAL_LINK` is never coverage or an open posting. See the
      [source map](../planning/AI_NATIVE_DISCOVERY_46_2B_SOURCE_MAP.md).
-2. **Semantic quality (C).**
+2. **Semantic quality (C). NOT VALIDATED; blind round prepared, awaiting
+   Owner labels.**
    - The role-understanding candidate is offline and shadow-only.
      Production discovery and ranking do not import it, and no AI model is
-     connected.
-   - On 15 assisted, in-sample development items it agreed with 14 Owner
-     tiers. That shows no improvement on unseen jobs.
-   - The 12-job blind holdout stays **sealed**. See the
+     connected to ASTRA.
+   - Development evidence is in-sample only. The labels were Codex-assisted,
+     and the readings were written after those labels were read.
+     - v2: 14 / 15 agreement against the current path's 2 / 15, recomputed
+       exactly.
+     - v3: 11 / 15 under the Owner's 2026-09-29 band (6+ required years
+       hidden, 3–5 lower).
+   - The blind round is [pre-registered](../evaluation/DISCOVERY_46_2C_BLIND_PLAN_V3.md)
+     with fixed metrics, denominators, exclusions and PASS/FAIL criteria. It
+     was frozen, independently reviewed through seven rounds (approved at
+     `bec6546`; see the
+     [review record](../evaluation/DISCOVERY_46_2C_BLIND_REVIEW_RECORD.md)),
+     then sealed. A fresh reader's holdout readings and the predictions are
+     fixed by hash.
+   - No holdout label exists yet, and the comparison has not run. See the
      [C status](../evaluation/DISCOVERY_46_2C_PUBLIC_STATUS.md).
 3. **Controlled scan (run 107, 2026-09-27).**
    - The scan fetched nine configured Ashby, Lever and Greenhouse sources
@@ -470,9 +490,14 @@ challenge. G and H are not started.
 
 **Next actions:**
 
-- Independent review of the B v7 closeout at its exact final SHA, then its
-  pull request, required checks and merge. Codex then verifies the merged B
-  before C starts.
+- **#46.2-C:**
+  - The Owner labels the 11 readable holdout postings in the private labeling
+    page and reports the SHA-256 that the page shows.
+  - Then the label lock is committed and the fixed comparison runs once.
+  - The result is reviewed at its exact SHA. The C pull request merges only
+    after the full round, review and required checks. A FAIL or INCONCLUSIVE
+    result leaves C unvalidated and leads to a new plan and a fresh set.
+- Codex verifies the C preparation independently, as the Owner requested.
 - Owner decisions:
   - do the Owner-browser checks for the six unresolved employers (the source
     map gives each exact action);
