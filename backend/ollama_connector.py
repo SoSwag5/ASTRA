@@ -31,7 +31,8 @@ delimited and never concatenated into the instructions, and a posting that
 contains the delimiter is refused rather than escaped, because escaping would
 change the text `verify` checks evidence against. Delimiting and verification
 are controls, not proof: a posting can still steer a model's judgement within
-spans that are genuinely verbatim (see the pinned limitations in the tests).
+spans that genuinely occur in the posting (`verify` matches case-insensitively with
+whitespace collapsed; see the pinned limitations in the tests).
 
 No posting or answer text is logged or persisted here. The only text an
 `Outcome` holds is `verify`'s own discard diagnostics, in memory; `report()`
@@ -58,6 +59,7 @@ import httpx
 from . import role_understanding
 
 CONNECTOR_VERSION = 'ollama-connector-1'
+ASSESSOR_LABEL = 'ollama-connector'
 PROMPT_VERSION = 'ollama-role-understanding-prompt-1'
 SCHEMA_VERSION = role_understanding.SCHEMA_VERSION
 
@@ -344,7 +346,9 @@ def _read_json(response, deadline, cancel):
             return _fail(OVERSIZE_RESPONSE, f'body exceeded {MAX_RESPONSE_BYTES} bytes')
     try:
         payload = json.loads(body.decode('utf-8'))
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+    except (UnicodeDecodeError, ValueError, RecursionError) as error:
+        # ValueError covers JSONDecodeError and an integer past Python's digit limit;
+        # RecursionError covers pathological nesting. Neither may escape as a raise.
         return _fail(MALFORMED_RESPONSE, f'body is not JSON ({type(error).__name__})')
     if not isinstance(payload, dict):
         return _fail(MALFORMED_RESPONSE, f'body is {type(payload).__name__}, not an object')
@@ -480,7 +484,9 @@ def installed_models(endpoint, transport=None, cancel=None, deadline=None):
     store = {}
     for entry in models:
         if isinstance(entry, dict) and isinstance(entry.get('name'), str):
-            store[entry['name']] = str(entry.get('digest') or '')
+            digest = str(entry.get('digest') or '')
+            # A name listed twice with different digests is ambiguous: fail closed.
+            store[entry['name']] = digest if store.get(entry['name'], digest) == digest else ''
     return Outcome(reason=ACCEPTED), store
 
 
@@ -501,6 +507,19 @@ def verify_model(endpoint, tag, expected_digest, transport=None, cancel=None, de
     if not re.fullmatch(r'[0-9a-f]{64}', store[tag]) or store[tag] != expected_digest:
         return _fail(MODEL_UNVERIFIED, 'installed model digest does not match the expected digest')
     return None
+
+
+def _still_pinned(outcome, endpoint, tag, expected_digest, transport, cancel, deadline):
+    """Re-read the digest after an answer is accepted. Replies carry no digest, so a tag
+    re-pointed after the pre-call check (or between a retry's attempts) would otherwise be
+    accepted as the pinned artifact. A mismatch turns the answer into MODEL_UNVERIFIED."""
+    if not outcome.accepted:
+        return outcome
+    changed = verify_model(endpoint, tag, expected_digest, transport=transport, cancel=cancel, deadline=deadline)
+    if changed is None:
+        return outcome
+    changed.dispatched = True
+    return changed
 
 
 def _preconditions(endpoint, tag, expected_digest, transport, cancel, floor_bytes, snapshot, deadline):
@@ -543,7 +562,7 @@ def embed(endpoint, tag, texts, expected_digest, transport=None, cancel=None, fl
             return body
         outcome = _validated_embeddings(body, len(texts), tag)
         outcome.dispatched = True
-        return outcome
+        return _still_pinned(outcome, endpoint, tag, expected_digest, transport, cancel, deadline)
 
     return _attempt(call, budget, cancel, started=started)
 
@@ -668,7 +687,7 @@ def understand(posting, endpoint, tag, expected_digest, transport=None, cancel=N
             return body
         outcome = verified_answer(body, posting, tag)
         outcome.dispatched = True
-        return outcome
+        return _still_pinned(outcome, endpoint, tag, expected_digest, transport, cancel, deadline)
 
     return _attempt(call, budget, cancel, started=started)
 
@@ -695,8 +714,8 @@ def verified_answer(body, posting, expected_tag):
         return _fail(MALFORMED_RESPONSE, 'model returned an empty answer', server_timings=timings)
     try:
         raw = json.loads(content)
-    except json.JSONDecodeError as error:
-        return _fail(MALFORMED_RESPONSE, f'answer is not JSON ({error.msg})', server_timings=timings)
+    except (ValueError, RecursionError) as error:
+        return _fail(MALFORMED_RESPONSE, f'answer is not JSON ({type(error).__name__})', server_timings=timings)
     understanding = role_understanding.verify(raw, posting)
     discarded = tuple(str(item) for item in understanding.get('discarded') or ())
     if any(item.startswith(_VERIFIER_REJECT_PREFIX) for item in discarded):
@@ -705,4 +724,6 @@ def verified_answer(body, posting, expected_tag):
     if discarded:
         return _fail(EVIDENCE_REJECTED, f'{len(discarded)} claim(s) not supported by the posting',
                      grounding_discards=discarded, server_timings=timings)
+    # `assessor` is provenance this module owns; a model-supplied label is not kept.
+    understanding['assessor'] = ASSESSOR_LABEL
     return Outcome(reason=ACCEPTED, understanding=understanding, server_timings=timings)

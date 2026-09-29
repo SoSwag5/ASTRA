@@ -913,3 +913,63 @@ def test_versions_are_declared_for_the_report():
     assert oc.SCHEMA_VERSION == ru.SCHEMA_VERSION == FIXTURE['contract']['schema_version']
     assert oc.PROMPT_VERSION == FIXTURE['contract']['prompt_version']
     assert oc.CONNECTOR_VERSION == FIXTURE['contract']['connector_version']
+
+
+# --- Reconciliation hardening (post-audit) ---------------------------------
+def test_a_tag_repointed_after_the_precheck_is_not_accepted():
+    tags_calls = []
+
+    def tags(request):
+        tags_calls.append(request)
+        return respond(tags_body() if len(tags_calls) == 1 else tags_body(((TAG, 'c' * 64), (EMBED_TAG, EMBED_DIGEST))))
+    outcome = understand(chat=chat_body(valid_answer()), tags=tags)
+    assert outcome.reason == oc.MODEL_UNVERIFIED and outcome.dispatched and not outcome.accepted
+
+
+def test_an_unchanged_digest_is_rechecked_and_accepted():
+    seen = []
+    outcome = understand(chat=chat_body(valid_answer()), record=seen)
+    assert outcome.accepted and [r.url.path for r in seen] == ['/api/tags', '/api/chat', '/api/tags']
+
+
+def test_a_duplicate_tag_with_different_digests_is_ambiguous_not_last_wins():
+    for order in ((DIGEST, 'c' * 64), ('c' * 64, DIGEST)):
+        outcome = understand(tags={'models': [{'name': TAG, 'digest': d} for d in order]})
+        assert outcome.reason == oc.MODEL_UNVERIFIED
+
+
+def test_a_model_supplied_assessor_label_is_replaced():
+    outcome = understand(chat=chat_body({**valid_answer(), 'assessor': 'deterministic'}))
+    assert outcome.accepted and outcome.understanding['assessor'] == oc.ASSESSOR_LABEL
+
+
+@pytest.mark.parametrize('content', ['{"a": ' + '9' * 5000 + '}', '[' * 100000 + ']' * 100000], ids=['huge-int', 'deep'])
+def test_a_pathological_answer_is_malformed_not_a_raise(content):
+    outcome = understand(chat=chat_body(content))
+    assert outcome.reason == oc.MALFORMED_RESPONSE
+
+
+@pytest.mark.parametrize('raw', [b'{"a": ' + b'9' * 5000 + b'}', b'[' * 100000 + b']' * 100000], ids=['huge-int', 'deep'])
+def test_a_pathological_http_body_is_malformed_not_a_transport_error(raw):
+    outcome = understand(chat=lambda request: respond(raw))
+    assert outcome.reason == oc.MALFORMED_RESPONSE
+
+
+def _imports_harness(path):
+    for node in ast.walk(ast.parse(path.read_text(encoding='utf-8'))):
+        if isinstance(node, ast.Import) and any('offline_ollama_harness' in a.name for a in node.names):
+            return True
+        if isinstance(node, ast.ImportFrom) and ('offline_ollama_harness' in (node.module or '')
+                                                 or any(a.name == 'offline_ollama_harness' for a in node.names)):
+            return True
+    return False
+
+
+def test_nothing_imports_the_harness_either():
+    allowed = {Path(__file__).resolve()}
+    offenders = [p.relative_to(ROOT).as_posix() for p in
+                 list((ROOT / 'backend').rglob('*.py')) + list((ROOT / 'scripts').rglob('*.py'))
+                 + list((ROOT / 'tests').rglob('*.py'))
+                 if p.resolve() not in allowed and _imports_harness(p)]
+    assert offenders == []
+    assert _imports_harness(Path(__file__))

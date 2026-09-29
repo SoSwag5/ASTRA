@@ -3,10 +3,15 @@
 **Status:** ready for Owner review as an offline, shadow-only integration. The
 connector is not wired into ASTRA discovery, ranking, startup or scan control.
 No live scan ran, no model was selected for production, and no quality gate
-passed. This branch is stacked on the unmerged A/B/C publication branch at
-`452936c61546b2167227d094a107adeab430f874` (draft PR #71).
+passed. This branch was reconciled with `master` after PR #71 (#46.2-A/B/C
+integration) merged; its diff against `master` contains only the D files.
+#46.2-C v3 **failed** its fixed blind criterion and is not validated, so
+nothing here depends on C quality. Merging D means merging a shadow
+connector, not validating C or F and not rolling out a model.
 
-**Date:** 2026-09-23 (Asia/Dubai). The independently remediated transport was
+**Date:** 2026-09-23 (Asia/Dubai); reconciled with `master` 2026-09-29. Sections
+below dated 2026-09-23 are historical observations and were not re-run unless
+the *Reconciliation* section says so. The independently remediated transport was
 committed at `08739b5dc50ee10ffb6e16bc05b15e68f7883d6f`. The fictional
 mocked run was generated from that clean code commit. The local-model run was
 repeated from clean commit `d91ab032aaeff7108bf72af56795c8ecbb4ff3e4`,
@@ -46,7 +51,38 @@ request reached the local model endpoint; it does not, by itself, prove that
 inference completed. Accepted responses and failure reasons are reported
 separately.
 
-## Offline results
+## Reconciliation with master (2026-09-29)
+
+Two commits made after the 2026-09-23 review are kept: real-socket timing tests
+were synchronised to the request actually arriving (`b518ec7`), and an embedding
+integer too large for a float is refused instead of raising (`a27c970`).
+A further read-only audit of the connector found and fixed, with regression
+tests:
+
+- A model answer or HTTP body containing an integer past Python's digit limit
+  or pathological nesting raised out of the connector; it is now
+  `MALFORMED_RESPONSE`.
+- The model digest was checked only before the call, so a tag re-pointed
+  afterwards (or between a retry's attempts) was accepted as the pinned
+  artifact. The digest is now re-read after an answer is accepted; a change is
+  `MODEL_UNVERIFIED`.
+- A tag listed twice with different digests was decided by list order; it now
+  fails closed.
+- A model-supplied `assessor` label was passed through; the connector now sets
+  it.
+- The connector's text called evidence spans "verbatim". The C verifier matches
+  case-insensitively with whitespace collapsed; the text now says so. This is a
+  documented behaviour, not a change.
+- A second test now checks that nothing imports the harness.
+
+Rerun at the reconciled tree: focused D and C-shadow tests, the mocked harness
+(same counts as below; the committed mocked JSON was not regenerated), the full
+suite and the publication gate; the exact figures are in the pull request.
+The local-model smoke run below was **not** repeated and remains a historical
+observation of commit `d91ab03`; the post-audit connector changes have never
+been exercised against a real Ollama.
+
+## Offline results (2026-09-23, historical unless marked)
 
 | Check | Observed result |
 |---|---|
@@ -55,9 +91,9 @@ separately.
 | Local evaluator, 12 fictional postings | 11 requests dispatched; 4 answers accepted, 7 rejected for unsupported evidence, and 1 delimiter-bearing input refused before dispatch. The fixture baseline stayed unchanged on all 8 nonaccepted cases. |
 | Local embedding | 1 request dispatched and accepted with the pinned embedding tag. |
 | Harness status | `COMPLETED WITH REJECTIONS OR FAILURES`, exit code 1. This is a truthful completed smoke test with answer rejections, not a passing quality evaluation. |
-| Focused tests | 268 passed in the review worktree. |
-| Full suite on publication branch | 2,041 passed, 1 skipped, 1 deselected (the known repository-wide publication gate test); frontend was built first. A process-local Git safe-directory setting handled the worktree's sandbox ownership. |
-| Publication gate in a temporary clone containing only this branch | **PASS**, 0 findings. The clone was not used to replace or weaken the repository-wide gate. |
+| Focused tests | 268 passed in the review worktree on 2026-09-23 (superseded; see the pull request for the reconciled count). |
+| Full suite on the earlier publication branch | 2,041 passed, 1 skipped, 1 deselected (the known repository-wide publication gate test); frontend was built first. A process-local Git safe-directory setting handled the worktree's sandbox ownership. |
+| Publication gate in a temporary clone containing only the earlier branch | **PASS**, 0 findings. The clone was not used to replace or weaken the repository-wide gate. |
 
 The local-model run shows that this installed Ollama accepted the schema
 request and returned parsable responses. It does not establish that accepted
@@ -101,8 +137,8 @@ environment and this worktree:
 ```powershell
 $env:OLLAMA_HOST = '127.0.0.1:11434'
 $ollama = Join-Path $env:USERPROFILE 'ollama\ollama.exe'
-$python = Join-Path $env:USERPROFILE 'Documents\CV\ayham-job-hunter\.venv\Scripts\python.exe'
-Set-Location (Join-Path $env:USERPROFILE 'Documents\CV\astra-46-2-d-public')
+$python = '<path to the project virtualenv python.exe>'
+Set-Location <path to your checkout of this branch>
 & $ollama list
 & $python scripts/offline_ollama_harness.py --mode mocked
 & $python scripts/offline_ollama_harness.py --mode live --preflight-only --tag qwen3:4b-instruct-2507-q4_K_M --digest 0edcdef34593eac1aa2be9c7d06c432dcf81945adca5eca2f27662c18f168ba0 --embed-tag qwen3-embedding:0.6b --embed-digest ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d
@@ -118,7 +154,7 @@ not run a scan, access the private evaluation set, or change a database.
 
 ## Handoff
 
-This branch is for hosted review before any merge. #46.2-E may start as a
+This branch needs independent review and the Owner's decision before any merge. #46.2-E may start as a
 separate offline task using fictional or public jobs and the local embedding
 boundary. The evaluator's 4-of-11 acceptance on fictional cases is a reason
 to keep AI assessment behind a switch and continue quality research; it is
