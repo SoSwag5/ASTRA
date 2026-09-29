@@ -544,7 +544,7 @@ def test_assessor_request_explains_every_function_and_the_range_rule():
         assert f'{name} = ' in request['instructions']
     assert 'lower bound' in request['instructions'] and 'never infer nationality' in request['instructions']
     assert (ru.SCHEMA_VERSION, ru.POLICY_VERSION, ru.VERIFIER_VERSION) == (
-        'role-understanding-2', 'shadow-placement-2', 'verifier-6')
+        'role-understanding-2', 'shadow-placement-2', 'verifier-7')
 
 
 UNHASHABLE_KINDS = [['DESIGNATED_NATIONALS'], {'k': 'DESIGNATED_NATIONALS'}, {'DESIGNATED_NATIONALS'}, None, 3]
@@ -701,8 +701,8 @@ def test_a_negated_all_nationalities_is_still_a_restriction(text, kept, uae):
     ('Requirements:\nDegree\nNice to have:\nBasic knowledge: Python scripting\n' + CLOUD, 7, CLOUD, None),
     ('Requirements:\nDegree\nNice to have:\nBasic skills: Python\n' + CLOUD, 7, CLOUD, None),
     ('Requirements:\nDegree\nNice to have:\nEssential skills: Python\n' + CLOUD, 7, CLOUD, None),
-    # the span's own label names a requirement: it governs the figure even below a preferred heading (round 4)
-    ('Requirements:\nDegree\nNice to have:\nMinimum Work Experience: 5 years in a SOC', 5, '5 years in a SOC', 5),
+    # a weak marker on the span's own label does not reset a preferred section (round 5 restores round 3)
+    ('Requirements:\nDegree\nNice to have:\nMinimum Work Experience: 5 years in a SOC', 5, '5 years in a SOC', None),
     ('Requirements:\nDegree in IT\nPreferred nationality: UAE National\n' + CLOUD, 7, CLOUD, 7),
     ('Requirements:\nDegree in IT\nPreferred gender: Male\n' + CLOUD, 7, CLOUD, 7),
     ('Requirements:\nDegree in IT\nPreferred language: Arabic\n' + CLOUD, 7, CLOUD, 7),
@@ -741,17 +741,50 @@ REQ_LIST = 'Requirements:\n- Degree in IT\n'
     ('Requirements: Degree in IT. Preferred Education, Skills, Knowledge and Experience: ' + CLOUD, None),
     ('Requirements: Degree in IT Preferred Skills and Experience Include: ' + CLOUD, None),
     (REQ_LIST + 'Preferred Qualifications – ' + CLOUD, None),
-    ('Preferred Qualifications:\n- CISSP\nBasic Qualifications: ' + CLOUD, 7),
+    ('Preferred Qualifications:\n- CISSP\nBasic Qualifications: ' + CLOUD, 7),      # names a requirement section
     ('Preferred Qualifications:\n- CISSP\nMinimum Qualifications: ' + CLOUD, 7),
-    ('Preferred:\n- CISSP\nEssential: ' + CLOUD, 7),
+    ('Preferred:\n- CISSP\nEssential: ' + CLOUD, None),                              # bare weak marker: ambiguous
+    ('Preferred Qualifications:\n- CISSP\nRequirements: ' + CLOUD, 7),                # strong marker resets
+    ('Preferred Qualifications:\n- CISSP\nBasic Qualifications:\n- ' + CLOUD, 7),     # stand-alone resets
     ('Preferred qualifications:\n You meet the following requirements: ' + CLOUD, None),
     ('Requirements:\nDegree in IT\nAsset management tools (SCCM)\n' + CLOUD, 7),
     ('Requirements:\nDegree in IT\nAsset management experience\n' + CLOUD, 7),
-    ('Requirements:\nDegree in IT\nPreferred language Arabic\n' + CLOUD, 7),
+    ('Requirements:\nDegree in IT\nPreferred language Arabic\n' + CLOUD, None),     # strong starter: round 5
     ('Requirements:\nDegree in IT\nOptional overtime\n' + CLOUD, 7),
-    ('Requirements:\nDegree in IT\nDesired start date ASAP\n' + CLOUD, 7),
+    ('Requirements:\nDegree in IT\nDesired start date ASAP\n' + CLOUD, None),
     ('Requirements:\nDegree in IT\nDesired Candidate Profile\n' + CLOUD, None),
 ])
 def test_round_four_span_labels_and_items(tail, expected):
+    posting = {'title': 'SOC Analyst', 'description': SOC_DUTY + '.\n' + tail}
+    assert ru.verify(_answer('SECURITY_OPERATIONS', 0.9, [SOC_DUTY], 7, CLOUD), posting)['required_years_min'] == expected
+
+
+# --- independent review round 5 (2026-09-29): one rule set, ambiguity falls toward "not required" ---
+
+@pytest.mark.parametrize('tail,expected', [
+    # colon-less headings with a strong preference starter, whatever follows
+    ('Requirements:\nDegree in IT\nNice to have, not required\n' + CLOUD, None),
+    ('Requirements:\nDegree in IT\nPreferred but not required\n' + CLOUD, None),
+    ('Requirements:\nDegree in IT\nPreferred Qualifications (not mandatory)\n' + CLOUD, None),
+    ('Requirements:\nDegree in IT\nPreferred Qualifications for this role\n' + CLOUD, None),
+    ('Requirements:\nDegree in IT\nPreferred Skills for the Position\n' + CLOUD, None),
+    ('Requirements:\nDegree in IT\nNice to have for this role\n' + CLOUD, None),
+    ('Requirements:\nDegree in IT\nDesirable skills and experience in SIEM\n' + CLOUD, None),
+    ('Requirements:\nDegree in IT\nPreferred / Beneficial\n' + CLOUD, None),
+    ('Requirements:\nDegree in IT\nBonus points for\n' + CLOUD, None),
+    # weak starters still need a pure heading phrase
+    ('Requirements:\nDegree in IT\nOptional overtime\n' + CLOUD, 7),
+    ('Requirements:\nDegree in IT\nAsset management tools (SCCM)\n' + CLOUD, 7),
+    # the span's own label: a preference on another noun, or a strong marker, does not make it preferred
+    ('Requirements:\n- Degree in IT\n- Experience (Splunk preferred): ' + CLOUD, 7),
+    ('Requirements:\n- Degree in IT\n- Tools (Azure optional) and experience: ' + CLOUD, 7),
+    ('Requirements:\n- Degree in IT\n- Required (bonus if Arabic): ' + CLOUD, 7),
+    ('Requirements:\n- Degree in IT\n- Qualifications (preferred): ' + CLOUD, None),
+    # weak markers on the span's own label do not reset a preferred section
+    ('Nice to have:\n- CISSP\nBasic knowledge: ' + CLOUD, None),
+    ('Nice to have:\n- CISSP\n- Minimum: ' + CLOUD, None),
+    ('Nice to have:\nCISSP Minimum experience: ' + CLOUD, None),
+])
+def test_round_five_rule_set(tail, expected):
     posting = {'title': 'SOC Analyst', 'description': SOC_DUTY + '.\n' + tail}
     assert ru.verify(_answer('SECURITY_OPERATIONS', 0.9, [SOC_DUTY], 7, CLOUD), posting)['required_years_min'] == expected

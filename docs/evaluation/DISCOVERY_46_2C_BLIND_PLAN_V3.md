@@ -476,3 +476,52 @@ to have: 7 years", "It would be an advantage to have: 7 years"). Changes:
   and keep the required figure below them.
 - "profile" and "background" are heading words.
 - `VERIFIER_VERSION` is `verifier-6`.
+
+### Round 5 (same day, before any seal): the heading rule set, stated once
+
+The fifth freeze (`7041f5f`) was re-reviewed read-only. All round-4 findings
+were fixed. The verdict was REQUEST CHANGES, because the round-4 tightening of
+colon-less lines missed real preferred headings with one extra word
+("Preferred Qualifications for this role", "Nice to have, not required").
+Successive rounds had traded one ambiguous form for another, so the reading of
+headings is now fixed as one rule set, derived from the plan's principle that
+ambiguity falls toward "not required":
+
+1. *Preferred headings.* A line is a preferred heading when any of these holds:
+   - it is a pure heading phrase ("Preferred Qualifications", "Desired
+     Candidate Profile");
+   - it is a heading-word phrase with a preference anywhere
+     ("Required/Preferred Qualifications:");
+   - it is a lead-in of 4–12 words containing a preference phrase, ending in
+     ':';
+   - it is an unbulleted colon-less line of at most 6 words that starts with a
+     strong preference word (preferred, desired, desirable, nice/good to have,
+     bonus, advantageous), whatever follows.
+
+   The weak starters "optional" and "asset(s)" need a pure heading phrase.
+2. *Required resets.* A required heading resets a section fully when it
+   stands alone. Inline (with content after its colon), it resets only with a
+   strong marker (required, requirement(s), mandatory, must), or with a weak
+   marker (basic, minimum, essential) that names a requirement section
+   (qualifications, requirements, criteria). A weak marker on an item noun
+   ("Basic knowledge", "Essential skills", "Minimum Work Experience") never
+   resets a preferred section.
+3. *The span's own label.* The same rules apply to the label on the span's own
+   line. A bracketed aside that prefers something else ("Experience (Splunk
+   preferred)") is ignored, while a bracket that is only a preference phrase
+   ("Qualifications (preferred)") counts. A strong required marker in the
+   label beats an incidental preference.
+4. *Bullets.* Any leading glyph or number is a bullet, and a bulleted item with
+   content is never a heading.
+
+This withdraws the round-4 reading of "Minimum Work Experience: 5 years" below
+a preferred heading; it is required again only through a requirement-section
+noun.
+
+*Accepted residual ambiguity (documented, not fixed):* the reading falls
+toward "not required" for a bare weak marker on the span's label below a
+preferred section ("Essential: 7 years", "- Minimum: 7 years"), and for
+colon-less field lines that start with a strong preference word ("Preferred
+language Arabic", "Desired start date ASAP"). These can raise M3, never M2.
+
+`VERIFIER_VERSION` is `verifier-7`.

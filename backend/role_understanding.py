@@ -35,8 +35,8 @@ SCHEMA_VERSION = 'role-understanding-2'
 POLICY_VERSION = 'shadow-placement-2'
 # How verify() reads evidence: 1 = v1/v2 candidate, 2 = first v3 freeze,
 # 3 = after independent review round 1, 4 = after round 2, 5 = after round 3,
-# 6 = after round 4.
-VERIFIER_VERSION = 'verifier-6'
+# 6 = after round 4, 7 = after round 5.
+VERIFIER_VERSION = 'verifier-7'
 
 PROMINENT, LOWER, SUGGESTED_HIDDEN, UNPLACED = 'PROMINENT', 'LOWER', 'SUGGESTED_HIDDEN', 'UNPLACED'
 TIER_RANK = {PROMINENT: 0, LOWER: 1, SUGGESTED_HIDDEN: 2, UNPLACED: 3}
@@ -140,6 +140,11 @@ _PREFERRED_HEAD = re.compile(r'\b(?:prefer(?:red|ably)?|desir(?:ed|able)|advanta
                              r'good[\s-]to[\s-]haves?|bonus|optional|a plus|ideally|an asset|stand out)\b', re.I)
 _PREFERRED_START = re.compile(r'^(?:(?:additional|other)\s+)?(?:preferred|desired|desirable|optional|bonus|advantageous|'
                               r'assets?|nice[\s-]to[\s-]haves?|good[\s-]to[\s-]haves?)\b', re.I)
+# A strong starter makes a short colon-less line a preferred heading whatever
+# follows ("Preferred but not required", "Nice to have for this role"); weak
+# starters (optional, asset) need a pure heading phrase.
+_STRONG_PREFERRED_START = re.compile(r'^(?:(?:additional|other)\s+)?(?:preferred|desired|desirable|bonus|advantageous|'
+                                     r'nice[\s-]to[\s-]haves?|good[\s-]to[\s-]haves?)\b', re.I)
 # Strong markers name a requirement outright; weak ones ("basic", "minimum",
 # "essential") also start ordinary items ("Basic knowledge: Python"). Below a
 # preferred heading, only a stand-alone heading or a strong marker resets.
@@ -331,6 +336,16 @@ def _pure_preferred(text):
     return bool(match) and _heading_tokens(_tokens(text[match.end():]))
 
 
+def _label_without_other_preferences(text):
+    """A label with bracketed asides that prefer something else removed:
+    "Experience (Splunk preferred)" -> "Experience"; a bracket that is only a
+    preference phrase stays, since it qualifies the label itself:
+    "Qualifications (preferred)"."""
+    def keep(match):
+        return match.group() if _heading_tokens(_tokens(match.group()[1:-1])) else ' '
+    return re.sub(r'\([^)]*\)|\[[^\]]*\]', keep, text)
+
+
 def _preferred_phrase(text):
     """Only heading words, with a preference anywhere: "Required/Preferred
     Qualifications", "Qualifications (preferred)"."""
@@ -338,11 +353,18 @@ def _preferred_phrase(text):
     return 0 < len(tokens) <= 6 and _heading_tokens(tokens) and bool(_PREFERRED_HEAD.search(text))
 
 
+_SECTION_NOUNS = {'qualification', 'qualifications', 'requirement', 'requirements', 'criteria'}
+
+
 def _required_kind(text):
-    """'required' for a strong marker, 'required_weak' for a weak one, else None."""
+    """'required' for a strong marker, or a weak marker naming a requirement
+    section ("Basic Qualifications", "Minimum Requirements"); 'required_weak'
+    for a weak marker on an item noun ("Basic knowledge", "Essential skills",
+    "Minimum Work Experience"); else None."""
     if not _required_heading(text):
         return None
-    return 'required' if any(_bare(w) in _STRONG_REQUIRED for w in text.split()) else 'required_weak'
+    words = {_bare(w) for w in text.split()}
+    return 'required' if words & _STRONG_REQUIRED or words & _SECTION_NOUNS else 'required_weak'
 
 
 def _preferred_tail(text):
@@ -382,8 +404,9 @@ def _segment_heading(segment, partial=False):
         if not words or len(words) > 6:
             return []
         sentence = text[-1] in '.;!?,'
-        if _pure_preferred(clean) or (not bulleted and not sentence and _preferred_phrase(clean)):
-            return ['preferred']                                   # "- Preferred Qualifications", "**Nice to have**"
+        if _pure_preferred(clean) or (not bulleted and not sentence and
+                                      (_preferred_phrase(clean) or _STRONG_PREFERRED_START.match(clean))):
+            return ['preferred']                                   # "- Preferred Qualifications", "Preferred but not required"
         return ['required'] if not bulleted and not sentence and _required_heading(clean) else []
     kinds = []
     for index, head in enumerate(heads):
@@ -392,10 +415,14 @@ def _segment_heading(segment, partial=False):
         if not words:
             continue
         if partial and index == len(heads) - 1:                    # the span's own label governs its figure
-            if len(words) <= 12 and _PREFERRED_HEAD.search(head):
-                kinds.append('preferred')                          # "- Preferred: 7 years", "Nice to have: 7 years"
-            elif _required_heading(head) or (index > 0 and _required_tail(head)):
-                kinds.append('required')                           # "Minimum Qualifications: 7 years"
+            label = _label_without_other_preferences(head)
+            strong = any(_bare(w) in _STRONG_REQUIRED for w in label.split())
+            if len(words) <= 12 and _PREFERRED_HEAD.search(label) and not strong:
+                kinds.append('preferred')                          # "- Preferred: 7 years", "Qualifications (preferred): 7 years"
+            elif _required_kind(label):
+                kinds.append(_required_kind(label))                # weak markers cannot reset a preferred section
+            elif index > 0 and _required_tail(label):
+                kinds.append(_required_tail(label))
         elif index == len(heads) - 1 and standalone:
             if _pure_preferred(head) or _preferred_phrase(head) or (4 <= len(words) <= 12 and _PREFERRED_HEAD.search(head)):
                 kinds.append('preferred')                          # a heading or lead-in: "It would be an asset to have:"
