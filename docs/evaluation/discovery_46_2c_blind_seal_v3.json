@@ -1,0 +1,27 @@
+{
+ "artifact": "discovery_46_2c_blind_seal",
+ "counts": {
+  "holdout_items": 12,
+  "readable": 11,
+  "readings_present": 11,
+  "readings_rejected_whole": 0,
+  "snapshots_hash_verified": 12,
+  "unreadable": [
+   "H04"
+  ]
+ },
+ "declaration": "Declared by the implementing session, not provable by code: no holdout label existed when this record was written. Private files stay outside the repository; only their SHA-256 is published here.",
+ "freeze_manifest_sha256": "742f53aec63767364656e3713c6d10fc0eae2b9cf0f9de1d2f85da9a3b9d1209",
+ "items_sha256": "1116ec119f863c4420f422fa1d06ad66b985bd7c933bd130a4303b69b1847248",
+ "labeling_items_digest": "c0f81af7c23ff368da2c11fe691ea480eb38640f636154c5ec656d2bd789f3ec",
+ "labeling_page_sha256": "b613cb1df9f2b7eee21df3ddec63e1c85a568ce6363e0d6d1c247ff84a34a447",
+ "network_attempts": [],
+ "predictions_sha256": "030099b3187b61c73b25337e27e63787af8bfa52f5a5a79a8697b5869203f7da",
+ "reader": {
+  "declared_by_implementer": "fresh Claude Code general-purpose subagent (claude-opus-5-5), 2026-09-29; received only the bounded reader requests",
+  "declared_in_readings": "claude-opus-5-5"
+ },
+ "readings_sha256": "fc865bca1bed9164025a72ddcd4d27316df1a255e07830dbb986585fdf1aadb5",
+ "requests_sha256": "fe80e182801cb5c7f6867c04b1bd6490c9e71cef96446c41b782f696a43dcaae",
+ "version": "v3"
+}
