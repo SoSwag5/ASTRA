@@ -118,7 +118,7 @@ def overview():
         relevant=[j for j in jobs if fit(j)!='WEAK' and not discovery_reason(serialize(j),settings(db))]
         employers=Counter(norm(j.company) for j in relevant)
         coverage={'jobs':len(jobs),'employers':len({norm(j.company) for j in jobs}),'relevant_jobs':len(relevant),'relevant_employers':len(employers),'top_two_employer_share':sum(n for _,n in employers.most_common(2))/len(relevant) if relevant else None,'locations':dict(Counter(emirate(j.location) for j in relevant)),'fresh_24h':sum(bool(parse_date(j.date_posted) and clock-timedelta(days=1)<=parse_date(j.date_posted)<=clock) for j in relevant),'old_postings_90d':sum(bool(parse_date(j.date_posted) and parse_date(j.date_posted)<clock-timedelta(days=90)) for j in relevant),'posting_date_unknown':sum(not bool(parse_date(j.date_posted)) for j in relevant)}
-        last_run=db.scalar(select(AutomationRun).where(AutomationRun.task=='discover',AutomationRun.status!='RUNNING').order_by(AutomationRun.id.desc()))
+        last_run=db.scalar(select(AutomationRun).where(AutomationRun.task=='discover',AutomationRun.status!='RUNNING').order_by(AutomationRun.id.desc()).limit(1))
         health={}
         if last_run:
             report=last_run.report or {}

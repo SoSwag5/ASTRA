@@ -1,0 +1,181 @@
+{
+ "artifact": "astra-46-2b-source-map-v7-plan",
+ "purpose": "Bounded, read-only recheck of the five employers source map v6 left UNRESOLVED, plus PureHealth, whose v6 MANUAL_LINK was obtained after its robots.txt answered with a Cloudflare 403, which the v4 rule treats as 'do not fetch this host'. Run once with scripts/source_route_check.py from the Owner's machine. No ATS tenant is requested on branding alone, no job-listing API is called, no form is submitted and no e-mail is sent.",
+ "notes": [
+  "DNS steps only resolve conventional careers hostnames on the employer's own registered domain; they contact no host. A resolving name is followed up only in a separate, recorded plan.",
+  "HCT: only the www origin is requested. Its robots.txt redirects to the apex host, so one check covers both hosts without repeating the six-contact loop.",
+  "ZU: the presented certificate is not read, because the TLS connection is reset before a certificate is presented.",
+  "PureHealth: one robots check under the restored v4 rule. Only if robots.txt is readable and allows it is the homepage requested, to see whether it still links 'Careers' to a jobs route."
+ ],
+ "employers": [
+  {
+   "employer": "Zayed University",
+   "steps": [
+    {
+     "id": "zu-dns-www",
+     "kind": "dns",
+     "host": "www.zu.ac.ae"
+    },
+    {
+     "id": "zu-dns-careers",
+     "kind": "dns",
+     "host": "careers.zu.ac.ae"
+    },
+    {
+     "id": "zu-dns-jobs",
+     "kind": "dns",
+     "host": "jobs.zu.ac.ae"
+    },
+    {
+     "id": "zu-tls",
+     "kind": "tls",
+     "host": "www.zu.ac.ae",
+     "read_presented_certificate": false
+    },
+    {
+     "id": "zu-careers",
+     "kind": "page",
+     "url": "https://www.zu.ac.ae/main/en/careers/",
+     "purpose": "official careers page (staff-vacancies link)"
+    },
+    {
+     "id": "zu-careers-links",
+     "kind": "links",
+     "from": "zu-careers",
+     "match": "vacanc|career|job|oraclecloud|interfolio",
+     "max": 2,
+     "purpose": "forward link from the official careers page"
+    }
+   ]
+  },
+  {
+   "employer": "Department of Health - Abu Dhabi (DoH)",
+   "steps": [
+    {
+     "id": "doh-home",
+     "kind": "page",
+     "url": "https://www.doh.gov.ae/en/",
+     "purpose": "official homepage: Careers link"
+    },
+    {
+     "id": "doh-home-links",
+     "kind": "links",
+     "from": "doh-home",
+     "match": "career|vacanc|job|recruit",
+     "max": 2,
+     "purpose": "Careers link target"
+    },
+    {
+     "id": "doh-erp-tls",
+     "kind": "tls",
+     "host": "aderp.abudhabi.ae",
+     "purpose": "TLS handshake-only diagnostic of the Careers link host (no HTTP request)"
+    },
+    {
+     "id": "doh-ar-home",
+     "kind": "page",
+     "url": "https://www.doh.gov.ae/ar/",
+     "purpose": "official Arabic homepage: careers link"
+    },
+    {
+     "id": "doh-careers",
+     "kind": "page",
+     "url": "https://www.doh.gov.ae/en/careers",
+     "purpose": "documented careers path"
+    }
+   ]
+  },
+  {
+   "employer": "Emirates Islamic",
+   "steps": [
+    {
+     "id": "ei-careers",
+     "kind": "page",
+     "url": "https://www.emiratesislamic.ae/en/about-us/careers",
+     "purpose": "official careers page ('View Vacancies' link)"
+    },
+    {
+     "id": "ei-careers-links",
+     "kind": "links",
+     "from": "ei-careers",
+     "match": "vacanc|career|job|oraclecloud",
+     "max": 2,
+     "purpose": "forward link from the official careers page"
+    },
+    {
+     "id": "ei-home",
+     "kind": "page",
+     "url": "https://www.emiratesislamic.ae/en",
+     "purpose": "official homepage: careers link"
+    }
+   ]
+  },
+  {
+   "employer": "Higher Colleges of Technology",
+   "steps": [
+    {
+     "id": "hct-dns-careers",
+     "kind": "dns",
+     "host": "careers.hct.ac.ae"
+    },
+    {
+     "id": "hct-dns-jobs",
+     "kind": "dns",
+     "host": "jobs.hct.ac.ae"
+    },
+    {
+     "id": "hct-careers",
+     "kind": "page",
+     "url": "https://www.hct.ac.ae/en/careers/",
+     "purpose": "official careers page ('Current Vacancies' link)"
+    },
+    {
+     "id": "hct-careers-links",
+     "kind": "links",
+     "from": "hct-careers",
+     "match": "vacanc|career|job|oraclecloud",
+     "max": 2,
+     "purpose": "forward link from the official careers page"
+    }
+   ]
+  },
+  {
+   "employer": "du (Emirates Integrated Telecommunications)",
+   "steps": [
+    {
+     "id": "du-dns-careers",
+     "kind": "dns",
+     "host": "careers.du.ae"
+    },
+    {
+     "id": "du-dns-jobs",
+     "kind": "dns",
+     "host": "jobs.du.ae"
+    },
+    {
+     "id": "du-careers",
+     "kind": "page",
+     "url": "https://www.du.ae/about-us/careers",
+     "purpose": "official careers page"
+    },
+    {
+     "id": "du-sitemap",
+     "kind": "page",
+     "url": "https://www.du.ae/corporate/sitemap",
+     "purpose": "official sitemap page ('Join Us' link)"
+    }
+   ]
+  },
+  {
+   "employer": "PureHealth",
+   "steps": [
+    {
+     "id": "ph-home",
+     "kind": "page",
+     "url": "https://purehealth.ae/",
+     "purpose": "official homepage: 'Careers' link (v6 route), only if robots permits"
+    }
+   ]
+  }
+ ]
+}

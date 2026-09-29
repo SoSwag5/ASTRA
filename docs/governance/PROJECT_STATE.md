@@ -1,28 +1,10 @@
 # ASTRA project state
 
-**Snapshot date:** 2026-09-23 (Asia/Dubai), refreshed for the #46.2-D offline draft PR
+**Snapshot date:** 2026-09-29 (Asia/Dubai), refreshed for the PR #75 merge
+(#46.2-B v7 source-map closeout) and the #46.2-C v3 blind FAIL. The #46
+closeout below remains historical evidence.
 **Rule:** This is a handoff snapshot, not a substitute for live verification.
 Refresh it at session end when repository or release state changes.
-
-## Current #46.2 development
-
-- #46.2-A/B/C is in [draft PR #71](https://github.com/SoSwag5/ASTRA/pull/71)
-  at `452936c61546b2167227d094a107adeab430f874`, unmerged. Source
-  coverage remains research and manual-link evidence, not a live-scan proof.
-  The 16 v2 labels are assisted development feedback; the 12-job blind
-  holdout remains private and unused.
-- #46.2-D is in [draft PR #72](https://github.com/SoSwag5/ASTRA/pull/72),
-  stacked on PR #71. The Ollama connector is offline/shadow only and not
-  imported by production discovery or startup. A local test using fictional
-  postings made 11 evaluator requests (4 accepted, 7 evidence-rejected, plus
-  1 input refused before dispatch) and 1 accepted embedding request. The
-  complete branch suite passed with the known repository-wide publication
-  gate test deselected. The isolated D branch gate passed; the repository-wide
-  gate remains BLOCKED by unrelated historical research refs. See the
-  [reviewed D report](../evaluation/DISCOVERY_46_2D_REVIEWED_OFFLINE_REPORT.md).
-- No live ASTRA scan, real-job AI evaluation, model promotion, merge or release
-  has followed from these drafts. #46.2-E is the next separate offline task;
-  #47 and #48 have not started.
 
 ## Released product
 
@@ -220,9 +202,9 @@ evidence chain and run URLs.
   validation** was performed, no live Gmail or private user data was used, and
   **real-world reconciliation accuracy remains unmeasured**. **R-18 remains
   OPEN** and **no residual-risk acceptance or release approval is implied**.
-  At the time of #46 closeout, #46.2, #47 and #48 were **not started**, and no
-  tag, release or publication work was performed. The dated #46.2 development
-  update above supersedes that historical status.
+  At that closeout #46.2, #47 and #48 had **not started** (for later #46.2
+  progress see *Exact next action* below), and no tag, release or publication
+  work was performed.
 - Governance integration advances `master` from the frozen release commit without
   moving or modifying the immutable v1.0.0 tag, source, or artifacts.
 
@@ -288,7 +270,13 @@ or merged.
   PR #68. Its #46 integration base was
   `11a69b0921d55072aa4f552a0319320ab73d6741`
   (tree `e0b8648f8dab8172c59de3c8df84d631263eb1d8`), the #45 squash merge.
-- No implementation branch is active. `feature/46-application-reconciliation-state-model`
+- `master` head when this snapshot was refreshed:
+  `902c80b30db6d4a73f95a0c56b567a0683a2ad09`, the PR #75 squash merge of
+  2026-09-28. Its single parent is `89d2f907caa49487d585f4268339cd4092c1a267`
+  (the PR #74 merge). Its tree, `1e34cd7689b6053e67ff37ba5b167c7862a35b55`,
+  equals the merged PR head's, `58bc50f2c8b2e9da4854f9eaa8831e60f5bde827`. The #46
+  entries in this section are historical.
+- At the #46 closeout no implementation branch was active. `feature/46-application-reconciliation-state-model`
   is merged; #45 was merged without independent review, while #46's final head
   `006e9111a196e940d8d11163548ef642c2007e5c` was independently reviewed and
   approved before merge.
@@ -343,10 +331,267 @@ unmeasured** — no claim is made about real-world Gmail parsing or
 reconciliation accuracy. **R-18 remains OPEN.** **No residual-risk acceptance,
 certification or release approval is implied.**
 
-The Owner has authorized #46.2-A/B/C and the offline #46.2-D prototype; their
-draft PRs remain unmerged. The next implementation boundary is #46.2-E on
-fictional or public jobs, with separate evidence before any live scan or model
-promotion. Do not start #47, #48 or any v1.2 work without their own approval.
-Do not tag, publish a release, or modify v1.0.0. The parked
-`hardening/l2-r13-r14` branch and separate governance/research worktrees
-remain untouched.
+Since this #46 closeout, the Owner authorized bounded #46.2 work. **#46.2-A
+manual scan control is merged** through [PR #73](https://github.com/SoSwag5/ASTRA/pull/73)
+at `2d40c8067996f9f919bda63b716507d371bc8daa`, after independent review of
+the final head `37e2ee360631e2d22335a35320da1a593ce12e6c`. This is source
+integration evidence; the separate Owner-data scan is recorded below.
+
+**#46.2-B/C integration is merged.**
+[PR #71](https://github.com/SoSwag5/ASTRA/pull/71) merged into `master` on
+2026-09-27 as merge commit `a4983d455d2dde5a20c1ea7303e3fae2d8dc145d`. Its
+parents are `2d40c8067996f9f919bda63b716507d371bc8daa` (A) and the PR head
+`810143a43100e3dda72b550c75b9e57de99df33a`.
+
+- *Review.* The Owner's handoff records `810143a` as the independently reviewed
+  head. GitHub records no review on the PR, and the review notes are not in
+  Git.
+- *Post-merge CI on `a4983d4`* ([run 36322023733](https://github.com/SoSwag5/ASTRA/actions/runs/36322023733))
+  passed. That covers Python 3.13 and 3.14 tests (each runs the publication
+  gate), Security Verification, SCA, and CodeQL for python,
+  javascript-typescript and actions. Scorecard also passed.
+  `dependency-review` runs only on pull requests and reports `skipped` on push.
+- *What changed in production.*
+  - The Discovery responsiveness fix: run summaries, the Today lookup, page
+    polling and the scan-time estimate.
+  - `scripts/verify_sources.py` is retired to a no-op, so nothing fetches
+    outside Start Scan.
+  - No source was added, enabled or reconfigured. No SmartRecruiters decision
+    was made.
+- *What the merge does not establish.* It does not validate any semantic
+  quality, it does not cover the 55 researched employers, and it does not show
+  that any posting is open.
+
+**#46.2-B source closeout (v6) and the E v3 decision review are merged.**
+[PR #74](https://github.com/SoSwag5/ASTRA/pull/74) merged into `master` on
+2026-09-27 as `89d2f907caa49487d585f4268339cd4092c1a267`. Its parents are
+`a4983d4` and the head `9906c782f4c6b3e0bca28ec88551c7212b6d1fc0` of
+`fix/46.2-b-closeout-e-review`, and its tree is identical to that head's.
+
+- *Review.* The PR record reports an independent read-only review with
+  **APPROVE** at `9906c78`. GitHub records no review object.
+- *Post-merge CI* ([run 36327990794](https://github.com/SoSwag5/ASTRA/actions/runs/36327990794))
+  and Scorecard ([run 36327990625](https://github.com/SoSwag5/ASTRA/actions/runs/36327990625))
+  passed on `89d2f90`. `dependency-review` was skipped on push, as designed.
+
+**#46.2-B v7 closeout is merged.**
+[PR #75](https://github.com/SoSwag5/ASTRA/pull/75) merged into `master` on
+2026-09-28 as the squash commit `902c80b30db6d4a73f95a0c56b567a0683a2ad09`,
+from head `58bc50f2c8b2e9da4854f9eaa8831e60f5bde827`. The squash commit's
+tree is identical to that head's.
+
+- *Review.* GitHub records no review decision on PR #75. This snapshot does not
+  restate a review outcome.
+- *Post-merge CI* ([run 36459740757](https://github.com/SoSwag5/ASTRA/actions/runs/36459740757))
+  and Scorecard ([run 36459740472](https://github.com/SoSwag5/ASTRA/actions/runs/36459740472))
+  passed on `902c80b`. `dependency-review` was skipped on push, as designed.
+- *Source map.* It stands at 0 / 49 / 6.
+
+Three kinds of #46.2-B/C evidence stay separate. None stands in for another.
+
+1. **Source coverage (B research).**
+   - PR #71 carried source map v4 and v5: 0 supported feed, 48 `MANUAL_LINK`
+     and 7 unresolved, out of 55 employers.
+   - PR #74 carried v6: 0 / 50 / 5. PureHealth and ADPHC became
+     `MANUAL_LINK`.
+   - The **v7 closeout** from `fix/46.2-b-final-closeout` is merged
+     ([PR #75](https://github.com/SoSwag5/ASTRA/pull/75), `902c80b`). It
+     rechecked the five v6-unresolved employers and PureHealth once from the
+     Owner's machine on 2026-09-27. The committed tool `scripts/source_route_check.py`
+     did the checks with enforced, logged pacing: every same-host interval was
+     at least 2.000 s. The v6 log still does not establish its own pacing.
+     **Result: 0 / 49 / 6.**
+   - The published v7 run log is a marked, redacted derivative. Two opaque
+     parameters in DoH's published Careers link are replaced by their
+     SHA-256, and the unchanged raw log is kept privately by the Owner. The
+     values were already published in PR #75's history, and redaction does
+     not remove them from it.
+   - PureHealth is `UNRESOLVED` again. Its robots.txt still answers with a
+     Cloudflare 403. v4 treated that as "do not fetch this host". v5 and v6
+     read it as "unavailable"; v6 stated that 4xx rule but not that it
+     reversed v4. That is how the v6 homepage read was made. v7 restores the
+     v4 rule.
+   - Six are unresolved, each with an exact Owner-browser action:
+     - Zayed University: a certificate-verifying TLS handshake to
+       `www.zu.ac.ae` was attempted but reset before verification completed,
+       and the robots.txt requests to `www.zu.ac.ae` and
+       `careers.zu.ac.ae` ended in a connection reset.
+     - DoH: its careers link goes to a host whose certificate expired on
+       2025-09-09.
+     - Emirates Islamic: Cloudflare bot-protection page at robots.txt.
+     - HCT: robots.txt redirect loop.
+     - du: robots.txt disallows all paths.
+     - PureHealth: Cloudflare bot-protection page (403) at robots.txt.
+   - No researched employer has a *verified* Greenhouse, Lever or Ashby
+     board, so no controlled scan was prepared and run 107 was not repeated.
+     A `MANUAL_LINK` is never coverage or an open posting. See the
+     [source map](../planning/AI_NATIVE_DISCOVERY_46_2B_SOURCE_MAP.md).
+2. **Semantic quality (C). NOT VALIDATED; the v3 blind round FAILED.**
+   - The role-understanding candidate is offline and shadow-only.
+     Production discovery and ranking do not import it, and no AI model is
+     connected. No candidate is adopted and production is unchanged.
+   - Historical v2 evidence, preserved: on 15 assisted, in-sample development
+     items the v2 candidate agreed with 14 Owner tiers. That shows no
+     improvement on unseen jobs.
+   - The v3 blind round ran once and failed criterion C3. On 11 scored
+     postings (2 Owner-shown, 9 Owner-hidden) the candidate agreed with 5
+     Owner tiers against the current path's 1. The pre-registered bar was 7
+     of 11. C0, C1, C2, C4 and C5 passed. The missed-warning check was
+     untested, because no posting was labelled as targeting UAE nationals. See
+     the [aggregate outcome](../evaluation/DISCOVERY_46_2C_V3_BLIND_OUTCOME.md)
+     and the [C status](../evaluation/DISCOVERY_46_2C_PUBLIC_STATUS.md).
+   - The 12-job holdout is **revealed and consumed**. It must never be reused
+     as blind or used to tune the candidate.
+   - [PR #76](https://github.com/SoSwag5/ASTRA/pull/76) is **CLOSED and NOT
+     MERGED** (closed 2026-09-29, no merge commit), and its candidate is
+     rejected after the blind FAIL. No Owner decision remains about its fate.
+     It was renamed "#46.2-C v3 blind evaluation failed C3 (closed; candidate
+     not merged)". Its earlier "awaiting Owner labels" title and description are
+     historical only. Its pushed head
+     `66c33268e4012ca2d4a192aadc663a0f1e2f23ff` is the sealed, pre-result
+     state.
+   - The full fixed comparison output is retained privately and is not
+     published. The public summary is a redacted derivative, so individual
+     rows cannot be reproduced from this repository. The local branch
+     `research/46.2-c-blind-eval` (head `c0b71c3bb650f3131b493ad8581eb762bf903630`)
+     holds the private output and is preserved as audit evidence. It must not
+     be pushed or merged, and neither may any commit descended from
+     `5e9b47342f0ccd3aa0fb26e650bd9b5809455cc8`.
+   - A v4 plan with a fresh evaluation set is proposed and not started.
+3. **Controlled scan (run 107, 2026-09-27).**
+   - The scan fetched nine configured Ashby, Lever and Greenhouse sources
+     through the merged A build's in-app preview and confirmation. The Owner
+     delegated the in-app controls for this run.
+   - 924 postings checked, 72 UAE-located, 79 new; no source error.
+   - One board's detail enrichment was partial.
+   - The run took 439 s against a preview estimate of "under a minute".
+   - It proves only that those nine feeds could be fetched through the manual
+     confirmation path on that date. It proves nothing about #41 accuracy,
+     posting availability, or the 55-employer map. Source names stay
+     private. See the
+     [controlled-scan record](../planning/AI_NATIVE_DISCOVERY_46_2B_CONTROLLED_SCAN.md).
+
+**Discovery responsiveness fix (merged with PR #71).**
+
+- *Cause.* Polled endpoints decoded every run's per-posting decision audit on
+  each poll, and page refreshes could stack.
+- *Fix.* Summaries are cached per run version, the Today lookup gets
+  `LIMIT 1`, the page runs one refresh at a time, and the job list is refetched
+  only on change. The preview estimate now uses posting volume and shows the
+  slowest recent pace.
+- *Evidence.* It is measured on a fictional replay only. It did not measure
+  scan-worker throughput or prove the cause of run 107's 439 s.
+- *A contracts preserved:* preview, single-use confirmation, scope binding,
+  Stop and restart handling. See the
+  [responsiveness note](../evaluation/DISCOVERY_46_2B_RESPONSIVENESS.md).
+
+**#46.2-E:**
+
+- **E v2** (local `research/46.2-e-hybrid-comparison-v2` at `94fd479`) was
+  independently reviewed as **REPORT ACCURATE**. Its hybrid showed **no
+  measured improvement** and stays unadopted.
+- **E v3** (local `research/46.2-e-v3-plan` at `931a108`) is a pre-registered
+  plan that tests one mechanism, alias morphology in current search. Nothing
+  was run.
+- **A decision review** of that plan was merged with PR #74:
+  [E v3 decision review](../planning/DISCOVERY_46_2E_V3_DECISION_REVIEW.md).
+  It recommends keeping the one mechanism but amending the plan before any
+  measurement set exists. The candidate must reach both title matchers, and
+  the miss metric must not depend on the top-20 cutoff. The measurement set
+  needs an author outside this repository and its sessions. The review awaits
+  an Owner decision; no set was created and no search design was adopted.
+
+**#46.2-F** remains **NOT VALIDATED** pending a genuinely independent fictional
+challenge. G and H are not started.
+
+**Next actions:**
+
+- Independent review of the #46.2-C v3 closeout documentation at its exact
+  final SHA, before any push, pull request or merge. Nothing from it has been
+  pushed.
+- Never push or merge `research/46.2-c-blind-eval` from the local checkout, or
+  any commit descended from `5e9b473`. Do not use a push that includes all
+  local branches. Keep that branch and its worktree as private audit evidence.
+- Owner decisions:
+  - decide whether to commission the C v4 plan and fresh evaluation set, and
+    name a second labeller (see the
+    [aggregate outcome](../evaluation/DISCOVERY_46_2C_V3_BLIND_OUTCOME.md));
+  - do the Owner-browser checks for the six unresolved employers (the source
+    map gives each exact action);
+  - decide whether HCT's robots redirect loop may be read as RFC 9309
+    "unavailable";
+  - decide whether a bot-protection 403 at robots.txt may be read as
+    "unavailable" (PureHealth) and whether an employer-published third-party
+    jobs-search link counts as a `MANUAL_LINK` route;
+  - approve, amend or reject the E v3 amendments;
+  - name the independent measurement author and second labeller.
+- Keep #47, #48 and v1.2 work separate.
+- Do not tag, publish a release, or modify v1.0.0.
+- Preserve the parked `hardening/l2-r13-r14` branch and all concurrent
+  worktrees.
+
+## Session handoff: #46.2-C v3 closeout documentation
+
+- **Session date/time and timezone:** 2026-09-29, Asia/Dubai; time of day not
+  recorded.
+- **Implementation owner:** Claude Code. Codex reviews independently; the Owner
+  controls publication.
+- **Branch and worktree:** `docs/46.2-c-v3-blind-fail-closeout`, in the fresh
+  worktree `astra-46-2-c-v3-closeout`. Local only; nothing was pushed.
+- **Starting SHA / ending SHA:** `902c80b30db6d4a73f95a0c56b567a0683a2ad09`
+  (equal to `origin/master` when checked; no drift) / the commit that contains
+  this record, whose SHA is reported in the review handoff.
+- **Task and release classification:** documentation-only closeout of the
+  #46.2-C v3 blind FAIL. No code, release or version impact.
+- **Work completed:**
+  - Added the aggregate-only
+    [v3 blind outcome](../evaluation/DISCOVERY_46_2C_V3_BLIND_OUTCOME.md).
+  - Updated the [C status](../evaluation/DISCOVERY_46_2C_PUBLIC_STATUS.md),
+    keeping the v2 assisted-evidence paragraph unchanged.
+  - Refreshed this file for the PR #75 merge and the C FAIL.
+- **Files changed:** those three files only.
+- **Tests and checks executed:** on a single-branch clone of the committed
+  branch, whose HEAD and tree matched the worktree's.
+  - Relative-link and anchor check of the three files: 19 links, 0 broken.
+    External URLs were not fetched. The pull requests, workflow runs, commits
+    and permalinks that this change adds were checked against the host with
+    read-only `gh` queries, which also showed that the lock, comparison and
+    local head commits are not on the host.
+  - Publication gate (`scripts/publication_gate.py`): **PASS**, 0 findings.
+  - `tests/security/test_publication_scope.py` and
+    `tests/security/test_assurance_gate.py`: 56 passed, 0 failed, 0 skipped.
+  - A scan of the added lines for item identifiers, machine paths, personal
+    emails and per-posting field names found none, and the full diff was read.
+    The repository has no automated check for per-posting Owner data, so this
+    is a manual review.
+- **Checks not run and why:**
+  - Full test suite and hosted CI: no code changed, and nothing was pushed.
+  - The repository-wide publication gate: it scans every local ref, including
+    the preserved private branch, and this change does not depend on it.
+  - Recomputation of the aggregate counts: the private inputs and results were
+    not opened, by design.
+- **Security findings opened/changed/closed:** none recorded. Codex review
+  found, before any push, that the local C result file carried individual Owner
+  answers and per-posting predictions. It was contained by not publishing it.
+- **ADRs, threat deltas, risk records, and framework deltas:** none.
+- **Owner decisions still required:** whether to commission the C v4 plan and
+  fresh set; and the items under *Next actions*. None remains about PR #76.
+- **Commit(s) and pull request:** two local commits: the closeout and a
+  documentation follow-up that records PR #76 as closed. No pull request was
+  created by this session. PR #76 was not touched by this session; it was
+  closed without merging afterwards (2026-09-29).
+- **Known conflicts, blockers, or branch drift:**
+  - PR #76's branch edits the same C status page and this file with the
+    pre-result "awaiting Owner labels" text. It is closed and not merged, so
+    that text is historical and does not reach `master`.
+  - The E v3 decision review still says the C holdout stays sealed. That was
+    true when it was written (2026-09-27) and it is a dated record, so it is
+    unedited.
+  - The C status page keeps its earlier v2 paragraph unchanged, including one
+    development item identifier and its choices, which were already published.
+    Redacting them now would not unpublish them.
+  - The pushed head of `research/46.2-c-blind-eval` (`66c3326`) is three
+    commits behind the local branch, which was not pushed.
+- **Exact next action:** independent Codex review of this branch at its exact
+  SHA. Publication and a pull request wait for that review and the Owner's
+  decision.
