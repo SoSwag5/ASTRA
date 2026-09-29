@@ -1009,3 +1009,71 @@ def test_non_ascii_text_is_counted_pessimistically_before_dispatch():
     arabic = {**CYBER, 'description': 'م' * 1600}      # 1,600 chars, under MAX_PROMPT_CHARS
     outcome = understand(arabic, chat=chat_body(valid_answer()), record=seen)
     assert outcome.reason == oc.INPUT_REFUSED and seen == []
+
+
+# --- Cancellation or deadline while the client is being built ---------------
+class _Shifted:
+    """`time` stand-in whose clock a test can jump forward deterministically."""
+    def __init__(self):
+        self.offset = 0.0
+
+    def monotonic(self):
+        return time.monotonic() + self.offset
+
+    def __getattr__(self, name):
+        return getattr(time, name)
+
+
+def _hook_client_build(monkeypatch, target_build, on_build):
+    """Run `on_build()` inside the `target_build`-th build_client call (1 = the /api/tags lookup,
+    2 = the model POST), i.e. after the pre-build checks and before any exchange can start."""
+    real, count = oc.build_client, [0]
+
+    def build(transport=None):
+        count[0] += 1
+        if count[0] == target_build:
+            on_build()
+        return real(transport)
+    monkeypatch.setattr(oc, 'build_client', build)
+
+
+def _run(kind, seen, cancel, transport_kwargs=None):
+    transport = router(chat=chat_body(valid_answer()), embed={'model': EMBED_TAG, 'embeddings': [[0.1, 0.2]]},
+                       record=seen)
+    if kind == 'understand':
+        return oc.understand(CYBER, endpoint(), TAG, DIGEST, transport=transport, cancel=cancel, snapshot=AMPLE)
+    return oc.embed(endpoint(), EMBED_TAG, ['fictional text'], EMBED_DIGEST, transport=transport, cancel=cancel,
+                    snapshot=AMPLE)
+
+
+@pytest.mark.parametrize('kind', ['understand', 'embed'])
+@pytest.mark.parametrize('build', [1, 2])
+def test_cancellation_during_client_build_sends_no_model_request(monkeypatch, kind, build):
+    cancel, seen, closed = threading.Event(), [], []
+    _hook_client_build(monkeypatch, build, cancel.set)
+    real_close = httpx.Client.close
+    monkeypatch.setattr(httpx.Client, 'close', lambda self: (closed.append(1), real_close(self))[1])
+    outcome = _run(kind, seen, cancel)
+    assert outcome.reason == oc.CANCELLED and outcome.model_calls == 0 and not outcome.dispatched
+    assert not [r for r in seen if r.url.path in ('/api/chat', '/api/embed')]
+    assert closed, 'the unused client must be closed'
+
+
+@pytest.mark.parametrize('kind', ['understand', 'embed'])
+@pytest.mark.parametrize('build', [1, 2])
+def test_deadline_expiry_during_client_build_sends_no_model_request(monkeypatch, kind, build):
+    clock, seen = _Shifted(), []
+    monkeypatch.setattr(oc, 'time', clock)
+    _hook_client_build(monkeypatch, build, lambda: setattr(clock, 'offset', 10_000.0))
+    outcome = _run(kind, seen, None)
+    assert outcome.reason == oc.TIMEOUT and outcome.model_calls == 0 and not outcome.dispatched
+    assert not [r for r in seen if r.url.path in ('/api/chat', '/api/embed')]
+
+
+@pytest.mark.parametrize('kind', ['understand', 'embed'])
+def test_an_uneventful_client_build_still_sends_the_request(monkeypatch, kind):
+    seen, cancel = [], threading.Event()
+    _hook_client_build(monkeypatch, 2, lambda: None)
+    outcome = _run(kind, seen, cancel)
+    assert outcome.accepted and outcome.model_calls == 1
+    assert [r.url.path for r in seen if r.method == 'POST'] == ['/api/chat' if kind == 'understand' else '/api/embed']

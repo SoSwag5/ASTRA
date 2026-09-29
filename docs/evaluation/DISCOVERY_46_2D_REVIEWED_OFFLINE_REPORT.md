@@ -84,6 +84,15 @@ tests:
   real Ollama that omits or lowers the count for a cached prompt would make
   such a reply fail closed; that behaviour has not been observed here; whether a larger context is worth its cost is an Owner choice.
   The unused `_scrub` helper was removed.
+- Independent assurance review then found that cancellation or deadline expiry
+  during HTTP client construction was not rechecked, so the request was still
+  sent (and counted as a model call) after the call had been cancelled or had
+  timed out. `_request()` now rechecks both after construction, closes the
+  unused client and returns `CANCELLED` or `TIMEOUT` with no request dispatched.
+  Deterministic tests hook client construction for `understand()` and `embed()`,
+  at both the identity lookup and the model request; they fail on the previous
+  code and pass now. A cancel arriving after the exchange has started is still
+  handled by the existing socket-close path.
 
 Rerun at the reconciled tree: focused D and C-shadow tests, the mocked harness
 (same counts as below; the committed mocked JSON was not regenerated), the full

@@ -414,6 +414,19 @@ def _request(method, endpoint, path, payload, deadline, transport=None, cancel=N
     if time.monotonic() >= deadline:
         return _fail(TIMEOUT, 'call budget elapsed before the request was sent')
     client = build_client(transport)
+    # Building a client takes real time; cancellation or the deadline may have arrived meanwhile.
+    # Recheck before any exchange can begin, and close the unused client when refusing.
+    refusal = None
+    if cancel is not None and cancel.is_set():
+        refusal = _fail(CANCELLED, 'cancelled while the client was being built')
+    elif time.monotonic() >= deadline:
+        refusal = _fail(TIMEOUT, 'call budget elapsed while the client was being built')
+    if refusal is not None:
+        try:
+            client.close()
+        except Exception:
+            pass
+        return refusal
     box, done = {}, threading.Event()
 
     def work():
