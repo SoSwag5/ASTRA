@@ -92,6 +92,13 @@ NUM_CTX = 2_048              # benchmark §7: 2K matched 4K on quality with less
 # prompt_eval_count afterwards. Longer postings are refused, not shortened.
 PROMPT_TOKEN_BUDGET = NUM_CTX - MAX_OUTPUT_TOKENS
 MAX_PROMPT_CHARS = 3 * PROMPT_TOKEN_BUDGET
+
+
+def _worst_case_prompt_tokens(text):
+    """Deliberately pessimistic: 3 ASCII chars per token, but one token per non-ASCII character
+    (Arabic and CJK can approach that). An upper-bound heuristic, not a tokenizer."""
+    ascii_chars = sum(1 for ch in text if ord(ch) < 128)
+    return -(-ascii_chars // 3) + (len(text) - ascii_chars)
 KEEP_ALIVE = '30s'           # per request: release VRAM soon after a harness run
 
 # A local safety floor for the offline harness, not an approved gate. #46.2
@@ -655,8 +662,8 @@ def build_messages(posting):
             'DESCRIPTION:\n'
             f"{job['description']}\n"
             + DATA_CLOSE)
-    if len(system) + len(user) > MAX_PROMPT_CHARS:
-        return None, _fail(INPUT_REFUSED, f'prompt is over {MAX_PROMPT_CHARS} chars and could overflow the '
+    if _worst_case_prompt_tokens(system + user) > PROMPT_TOKEN_BUDGET:
+        return None, _fail(INPUT_REFUSED, f'prompt could exceed {PROMPT_TOKEN_BUDGET} tokens and overflow the '
                                           f'{NUM_CTX}-token context window; refused rather than truncated')
     return [{'role': 'system', 'content': system}, {'role': 'user', 'content': user}], None
 
@@ -712,7 +719,11 @@ def verified_answer(body, posting, expected_tag):
         return _fail(MALFORMED_RESPONSE, 'response model or completion marker does not match the request',
                      server_timings=timings)
     evaluated = body.get('prompt_eval_count')
-    if isinstance(evaluated, int) and not isinstance(evaluated, bool) and evaluated > PROMPT_TOKEN_BUDGET:
+    if not isinstance(evaluated, int) or isinstance(evaluated, bool) or evaluated <= 0:
+        # Without the server's own count, a truncated prompt cannot be ruled out: fail closed.
+        return _fail(CONTEXT_EXCEEDED, 'server did not report a positive prompt token count',
+                     server_timings=timings)
+    if evaluated > PROMPT_TOKEN_BUDGET:
         return _fail(CONTEXT_EXCEEDED, 'server evaluated more prompt tokens than the context budget allows',
                      server_timings=timings)
     message = body.get('message') if isinstance(body, dict) else None

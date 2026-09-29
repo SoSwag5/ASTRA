@@ -76,10 +76,13 @@ tests:
 - A second test now checks that nothing imports the harness.
 - Independent review found the chat prompt could overflow the 2,048-token context
   window, which Ollama truncates silently while evidence still verifies against
-  the full text. A prompt over 4,608 characters (3 chars per token, a heuristic)
-  is now refused before dispatch, and a reply whose `prompt_eval_count` exceeds
-  the prompt budget is `CONTEXT_EXCEEDED`. Long postings are therefore refused,
-  not shortened; whether a larger context is worth its cost is an Owner choice.
+  the full text. A prompt whose pessimistic token estimate (3 ASCII characters
+  per token, one token per non-ASCII character; a heuristic, not a tokenizer)
+  exceeds the 1,536-token prompt budget is now refused before dispatch, and a
+  reply whose `prompt_eval_count` is absent, non-positive or above that budget
+  is `CONTEXT_EXCEEDED`. Long postings are therefore refused, not shortened. A
+  real Ollama that omits or lowers the count for a cached prompt would make
+  such a reply fail closed; that behaviour has not been observed here; whether a larger context is worth its cost is an Owner choice.
   The unused `_scrub` helper was removed.
 
 Rerun at the reconciled tree: focused D and C-shadow tests, the mocked harness

@@ -98,7 +98,7 @@ def _streamed(body, status=200):
 def envelope(content):
     """An Ollama `/api/chat` nonstreaming response carrying `content`."""
     return {'model': MOCK_TAG, 'message': {'role': 'assistant', 'content': content}, 'done': True,
-            'total_duration': 0, 'eval_count': 0}
+            'total_duration': 0, 'eval_count': 0, 'prompt_eval_count': 400}
 
 
 def mock_transport(case, cancel, release):

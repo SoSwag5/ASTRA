@@ -54,7 +54,7 @@ def respond(body, status=200, headers=None):
 def chat_body(answer):
     content = answer if isinstance(answer, str) else json.dumps(answer, ensure_ascii=False)
     return {'model': TAG, 'message': {'role': 'assistant', 'content': content}, 'done': True,
-            'total_duration': 5_800_000_000, 'eval_count': 180}
+            'total_duration': 5_800_000_000, 'eval_count': 180, 'prompt_eval_count': 400}
 
 
 def tags_body(store=((TAG, DIGEST), (EMBED_TAG, EMBED_DIGEST))):
@@ -993,3 +993,19 @@ def test_a_server_reported_context_overflow_is_not_accepted():
     assert outcome.reason == oc.CONTEXT_EXCEEDED and outcome.dispatched and not outcome.accepted
     fits = {**chat_body(valid_answer()), 'prompt_eval_count': oc.PROMPT_TOKEN_BUDGET}
     assert understand(chat=fits).accepted
+
+
+@pytest.mark.parametrize('count', [None, 0, -1, True, '400', 12.5])
+def test_a_missing_or_implausible_prompt_token_count_fails_closed(count):
+    body = chat_body(valid_answer())
+    body.pop('prompt_eval_count')
+    if count is not None:
+        body['prompt_eval_count'] = count
+    assert understand(chat=body).reason == oc.CONTEXT_EXCEEDED
+
+
+def test_non_ascii_text_is_counted_pessimistically_before_dispatch():
+    seen = []
+    arabic = {**CYBER, 'description': 'م' * 1600}      # 1,600 chars, under MAX_PROMPT_CHARS
+    outcome = understand(arabic, chat=chat_body(valid_answer()), record=seen)
+    assert outcome.reason == oc.INPUT_REFUSED and seen == []
