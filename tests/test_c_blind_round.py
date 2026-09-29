@@ -520,3 +520,51 @@ def test_cli_refuses_existing_outputs():
     done = subprocess.run([sys.executable, str(ROOT / 'scripts' / 'c_blind_round.py'), 'freeze', '--out',
                            str(ROOT / cbr.PLAN)], capture_output=True, text=True, timeout=120)
     assert done.returncode != 0 and 'refusing to run' in done.stderr
+
+
+def test_real_git_history_helpers_in_a_temporary_repository(tmp_path, monkeypatch):
+    """The real helpers (not FakeGit) against a throwaway repository."""
+    import os
+    repo = tmp_path / 'repo'
+    (repo / 'docs' / 'evaluation').mkdir(parents=True)
+    env = {**os.environ, 'GIT_AUTHOR_NAME': 'Fictional', 'GIT_AUTHOR_EMAIL': 'fictional@example.invalid',
+           'GIT_COMMITTER_NAME': 'Fictional', 'GIT_COMMITTER_EMAIL': 'fictional@example.invalid'}
+
+    def run(*args, when=None):
+        extra = {'GIT_COMMITTER_DATE': when, 'GIT_AUTHOR_DATE': when} if when else {}
+        done = subprocess.run(['git', '-C', str(repo), '-c', 'core.autocrlf=false', *args], capture_output=True,
+                              text=True, env={**env, **extra}, timeout=60)
+        assert done.returncode == 0, done.stderr
+        return done.stdout.strip()
+
+    run('init', '-q')
+    monkeypatch.setattr(common, 'ROOT', repo)
+    monkeypatch.setattr(cbr, 'ROOT', repo)
+    monkeypatch.setattr(cbr, 'RECORDS_DIR', repo / 'docs' / 'evaluation')
+    seal = repo / 'docs' / 'evaluation' / cbr.SEAL_NAME
+    assert cbr.must_be_new(cbr.SEAL_NAME) == seal
+    seal.write_text('{"seal": 1}\n', encoding='utf-8')
+    with pytest.raises(SystemExit, match='written once'):
+        cbr.must_be_new(cbr.SEAL_NAME)                      # exists in the working tree
+    with pytest.raises(SystemExit, match=r'found 0 commit'):
+        cbr.committed_once(cbr.SEAL_NAME)                   # not committed yet
+    run('add', '.')
+    run('commit', '-q', '-m', 'seal', when='2026-09-30T07:00:00+00:00')
+    seal_commit = cbr.committed_once(cbr.SEAL_NAME)
+    assert seal_commit == run('rev-parse', 'HEAD') and cbr.committed(seal)
+    assert cbr.commit_time(seal_commit) == int(datetime.fromisoformat('2026-09-30T07:00:00+00:00').timestamp())
+    (repo / 'other.txt').write_text('x\n', encoding='utf-8')
+    run('add', '.')
+    run('commit', '-q', '-m', 'later')
+    assert cbr.is_ancestor(seal_commit, cbr.head()) and not cbr.is_ancestor(cbr.head(), seal_commit)
+    seal.write_text('{"seal": 2}\n', encoding='utf-8')
+    assert not cbr.committed(seal)                          # changed since HEAD
+    run('checkout', '-q', '--', str(seal.relative_to(repo)))
+    run('rm', '-q', str(seal.relative_to(repo)))
+    run('commit', '-q', '-m', 'remove seal')
+    with pytest.raises(SystemExit, match='written once'):
+        cbr.must_be_new(cbr.SEAL_NAME)                      # deleted, but still in history
+    run('reset', '-q', '--hard', seal_commit)               # rewind history to the seal commit
+    assert len(cbr.path_commits(seal)) == 2                 # the removal stays visible through the reflog
+    with pytest.raises(SystemExit, match='committed exactly once'):
+        cbr.committed_once(cbr.SEAL_NAME)

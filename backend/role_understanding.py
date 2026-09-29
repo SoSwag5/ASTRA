@@ -18,8 +18,8 @@ Two parts, kept apart on purpose:
    reason for every step. Explicit constraints (user blocks, confirmed
    geography or eligibility conflicts, invalid jobs, extreme leadership
    mismatch) stay authoritative and are never overridden by the understanding.
-   Adjacent technical work is always shown lower; required years move a
-   posting only against the user's own configured band.
+   A confident, evidenced adjacent-technical reading is shown lower; required
+   years move a posting only against the user's own configured band.
 
 The understanding never states whether the candidate is eligible. Employer
 eligibility wording is recorded as the employer's wording only; how it
@@ -33,6 +33,9 @@ from . import career_tracks
 
 SCHEMA_VERSION = 'role-understanding-2'
 POLICY_VERSION = 'shadow-placement-2'
+# How verify() reads evidence: 1 = v1/v2 candidate, 2 = first v3 freeze,
+# 3 = after independent review round 1, 4 = after round 2.
+VERIFIER_VERSION = 'verifier-4'
 
 PROMINENT, LOWER, SUGGESTED_HIDDEN, UNPLACED = 'PROMINENT', 'LOWER', 'SUGGESTED_HIDDEN', 'UNPLACED'
 TIER_RANK = {PROMINENT: 0, LOWER: 1, SUGGESTED_HIDDEN: 2, UNPLACED: 3}
@@ -56,8 +59,9 @@ NON_ICT_FUNCTIONS = {
     'PHYSICAL_SECURITY', 'CLINICAL_OR_THERAPY', 'BIOMEDICAL_EQUIPMENT', 'SUPPLY_CHAIN_MATERIALS',
     'MANUFACTURING_PRODUCT_QUALITY', 'OTHER_NON_ICT',
 }
-# Technology-adjacent work (coordination, analysis, functional support):
-# always shown lower -- never hidden for its domain, never prominent.
+# Technology-adjacent work (coordination, analysis, functional support): a
+# confident, evidenced reading is shown lower -- never hidden for its domain,
+# never prominent. A weaker reading leaves the current placement.
 ICT_ADJACENT = 'ICT_ADJACENT'
 ADJACENT_FUNCTIONS = {ICT_ADJACENT}
 UNKNOWN_FUNCTION = 'UNKNOWN'
@@ -123,13 +127,28 @@ OPTIONAL_RESPONSE_KEYS = {'assessor'}
 # figure can hide a relevant job, a wrongly preferred one cannot.
 _PREFERENCE_WORDS = re.compile(r'\b(?:prefer(?:red|ably|ence)?|desir(?:ed|able)|advantage(?:ous)?|'
                                r'nice to haves?|good to haves?|ideally|a plus|bonus|optional)\b', re.I)
-# Words that make a heading a preferred one, and words that make it a required one.
+# Headings. A preference phrase anywhere in a lead-in line ("The following
+# would be nice to have:"), or at the START of any other heading ("Preferred
+# Qualifications and Experience:", "Nice to have", "Desirable criteria:"), makes
+# it preferred. A heading resets a section to required only when it names an
+# explicit requirement marker and otherwise only heading nouns ("Requirements",
+# "Minimum Work Experience", "Basic Qualifications") -- never an item such as
+# "Basic Python scripting" or "Qualifications: CISSP". Any leading glyph or
+# number is a bullet, and a bulleted item with content is never a heading.
 _PREFERRED_HEAD = re.compile(r'\b(?:prefer(?:red|ably)?|desir(?:ed|able)|advantage(?:ous|s)?|nice[\s-]to[\s-]haves?|'
-                             r'good[\s-]to[\s-]haves?|bonus|optional|assets?|a plus|ideally)\b', re.I)
-_REQUIRED_HEAD = re.compile(r'\b(?:required|requirements?|qualifications?|essential|basic|minimum|mandatory|'
-                            r'must[\s-]haves?|what you(?: will)? need)\b', re.I)
-_BULLET = re.compile(r'^[-*•·▪◦–]+\s*')
+                             r'good[\s-]to[\s-]haves?|bonus|optional|a plus|ideally)\b', re.I)
+_PREFERRED_START = re.compile(r'^(?:(?:additional|other)\s+)?(?:preferred|desired|desirable|optional|bonus|advantageous|'
+                              r'nice[\s-]to[\s-]haves?|good[\s-]to[\s-]haves?)\b', re.I)
+_REQUIRED_MARKERS = {'required', 'requirement', 'requirements', 'mandatory', 'essential', 'must', 'minimum', 'basic'}
+_HEADING_WORDS = {'qualification', 'qualifications', 'requirement', 'requirements', 'experience', 'experiences',
+                  'skill', 'skills', 'criteria', 'education', 'attributes', 'competency', 'competencies', 'knowledge',
+                  'certification', 'certifications', 'and', '&', '/', 'work', 'job', 'key', 'candidate', 'role',
+                  'have', 'haves', 'the', 'following', 'include', 'includes'} | _REQUIRED_MARKERS
+_BULLET = re.compile(r'^\s*(?:[^\w\s]+|\d{1,2}[.)])\s*')
 _SENTENCE_END = re.compile(r'(?<=[.;!?])\s+')
+# A figure continued from a larger number or a range: "15", "1.5", "4-7", "4 to 7".
+_NUMBER_BEFORE = re.compile(r'(?:\d|\d[.,]|\d\s*(?:-|–|—|to|and)\s*)$')
+_YEARS_AFTER = re.compile(r'\s*\+?\s*(?:years?|yrs?)\b', re.I)
 # A clause is cut at punctuation, brackets and line breaks.
 _CLAUSE_BREAK = re.compile(r'[.;:•,()\[\]\n]')
 # A following clause that is only a preference phrase ("..., preferred";
@@ -145,9 +164,13 @@ _YEAR_RANGE = re.compile(r'(?<![\d.])(\d{1,2})\s*(?:-to-|–|—|-|to|and)\s*(\d
 # Employer eligibility wording must actually be about nationality, and wording
 # that opens a role to everyone is not a restriction.
 _NATIONALITY_WORDS = re.compile(r'emirati|emiratis[ai]tion|emiratiz|\bnationals?\b|citizens?|\buae national', re.I)
-_UAE_NATIONALS = re.compile(r'emirati|emiratis[ai]tion|emiratiz|\bu\.?a\.?e\.?\b[^.;\n]{0,25}\bnationals?\b|'
-                            r'\bnationals?\b[^.;\n]{0,25}\bu\.?a\.?e\b', re.I)
+_UAE = r'(?:\bu\.?a\.?e\b\.?|\bunited arab emirates\b)'
+_CITIZEN = r'(?:\bnationals?\b|\bcitizens?(?:hip)?\b|\bpassports?\b)'
+_UAE_NATIONALS = re.compile(r'emirati|emiratis[ai]tion|emiratiz|' + _UAE + r'[^.;\n]{0,30}' + _CITIZEN + '|'
+                            + _CITIZEN + r'[^.;\n]{0,30}' + _UAE, re.I)
 _ALL_NATIONALITIES = re.compile(r'\ball\s+nationalit|\ball\s+nationals\b|\bany\s+nationalit|\bregardless of nationalit', re.I)
+# Wording that still restricts even though it mentions "all nationalities".
+_RESTRICTIVE = re.compile(r'\b(?:only|exclusively|reserved|restricted|limited|not|no)\b', re.I)
 
 DEFAULT_PREFERENCES = {
     # None = no seniority band configured: required years never move a posting.
@@ -245,60 +268,99 @@ def _meaningful_duty(span, title, description):
 
 
 def _found_standalone(span, haystack):
-    """Like _found, but the span may not continue a number ("5 years" is not
-    found inside "15 years")."""
+    """Like _found, but a quoted figure may not be the tail of a larger number
+    or of a range: "5 years" is not found in "15 years" or "1.5 years", and
+    "7 years" is not found in "4-7 years" or "4 to 7 years"."""
     span = _norm(span)
     if not span or len(span) > MAX_SPAN:
         return False
     at = haystack.find(span)
     while at >= 0:
         end = at + len(span)
-        if not (span[0].isdigit() and at and haystack[at - 1].isdigit()) and \
-                not (span[-1].isdigit() and end < len(haystack) and haystack[end].isdigit()):
+        continues = span[0].isdigit() and bool(_NUMBER_BEFORE.search(haystack[max(0, at - 12):at]))
+        continued = span[-1].isdigit() and end < len(haystack) and haystack[end].isdigit()
+        if not continues and not continued:
             return True
         at = haystack.find(span, at + 1)
     return False
 
 
-def _raw_span(span, raw):
-    """(start, end) of a normalized span in the raw description, line breaks
-    intact, or None."""
+def _raw_spans(span, raw):
+    """Every (start, end) of a normalized span in the raw description, line
+    breaks intact."""
     pattern = r'\s+'.join(re.escape(token) for token in span.split(' '))
-    match = re.search(pattern, raw, re.I) if pattern else None
-    return (match.start(), match.end()) if match else None
+    return [m.span() for m in re.finditer(pattern, raw, re.I)] if pattern else []
+
+
+def _bare(word):
+    return word.strip('.,;:()[]{}"\'*').casefold()
+
+
+def _required_heading(text):
+    """An explicit requirement marker and otherwise only heading words, at most
+    five: "Requirements", "Minimum Work Experience", "Basic Qualifications"."""
+    words = [_bare(w) for w in text.split()]
+    words = [w for w in words if w]
+    return (0 < len(words) <= 5 and any(w in _REQUIRED_MARKERS for w in words)
+            and all(w in _HEADING_WORDS for w in words) and not _PREFERRED_HEAD.search(text))
+
+
+def _preferred_tail(text):
+    """A preferred heading run into flattened text: "... IT Preferred Qualifications"."""
+    words = text.split()
+    for i in range(max(0, len(words) - 4), len(words)):
+        tail = ' '.join(words[i:])
+        match = _PREFERRED_START.match(tail)
+        if match and all(_bare(w) in _HEADING_WORDS for w in tail[match.end():].split()):
+            return True
+    return False
+
+
+def _required_tail(text):
+    words = text.split()
+    return any(_required_heading(' '.join(words[i:])) for i in range(max(0, len(words) - 4), len(words)))
 
 
 def _segment_heading(segment):
-    """'preferred', 'required' or None for one sentence-sized piece of a line.
-
-    A heading is the text before a ':' or a short line of its own. A preferred
-    word near its start or end makes it preferred -- this also catches a heading
-    run into flattened text ("... IT Preferred Qualifications: 7 years"). Only a
-    short, unbulleted heading can be required, so a bullet label such as
-    "- Qualifications:" never pulls a preferred section back to required.
-    """
+    """'preferred', 'required' or None for one sentence-sized piece of a line;
+    within the piece, the last heading wins."""
     text = segment.strip()
     bulleted = bool(_BULLET.match(text))
-    text = _BULLET.sub('', text)
-    if ':' in text:
-        kind = None
-        for index, head in enumerate(text.split(':')[:-1]):   # every "head:" in order; the last one wins
-            words = head.split()
-            if not words:
-                continue
-            if _PREFERRED_HEAD.search(' '.join(words[:4])) or _PREFERRED_HEAD.search(' '.join(words[-4:])):
+    text = _BULLET.sub('', text).strip()
+    if not text:
+        return None
+    pieces = text.split(':')
+    heads, rest = pieces[:-1], pieces[-1]
+    standalone = not re.sub(r'[\W_]+', '', rest)          # nothing but punctuation after the last ':'
+    if not heads:                                          # a line of its own, no colon
+        words = text.split()
+        if bulleted or len(words) > 6 or text[-1] in '.;!?,':
+            return None
+        if _PREFERRED_START.match(text):
+            return 'preferred'
+        return 'required' if _required_heading(text) else None
+    kind = None
+    for index, head in enumerate(heads):
+        head = head.strip()
+        last = index == len(heads) - 1
+        if not head:
+            continue
+        if last and standalone and len(head.split()) <= 12 and _PREFERRED_HEAD.search(head):
+            kind = 'preferred'                             # a lead-in line: "The following would be nice to have:"
+        elif last and standalone and _required_heading(head):
+            kind = 'required'
+        elif bulleted and index == 0:
+            continue                                       # a bulleted item with content is not a heading
+        elif index == 0 and len(head.split()) <= 5:
+            if _PREFERRED_START.match(head):
                 kind = 'preferred'
-            elif len(words) <= 4 and not (bulleted and index == 0) and _REQUIRED_HEAD.search(head):
+            elif _required_heading(head):
                 kind = 'required'
-        return kind
-    words = text.split()
-    if not words or len(words) > 5:
-        return None
-    if not (_PREFERRED_HEAD.match(text) or _REQUIRED_HEAD.match(text) or text.isupper()):
-        return None
-    if _PREFERRED_HEAD.search(text):
-        return 'preferred'
-    return 'required' if not bulleted and _REQUIRED_HEAD.search(text) else None
+        elif _preferred_tail(head):                        # flattened: after another heading, or long
+            kind = 'preferred'
+        elif _required_tail(head):
+            kind = 'required'
+    return kind
 
 
 def _heading_above(text):
@@ -310,31 +372,40 @@ def _heading_above(text):
     return last
 
 
-def _years_preferred(span, years, raw, description):
-    """True when quoted years are only preferred: a preference word in the same
-    clause as the years figure, a following clause that is only a preference
-    phrase, or a preferred heading as the nearest heading above the span."""
-    s = _norm(span)
-    at = _raw_span(s, raw)
-    if at is None:   # span not in the description (e.g. in the title): judge the span alone
-        text, start, end = s, 0, len(s)
-    else:
-        text, (start, end) = raw, at
-    number = re.search(r'(?<!\d)' + str(years) + r'(?!\d)', text[start:end])
-    if number is None:
-        return bool(_PREFERENCE_WORDS.search(s))
-    num_start, num_end = start + number.start(), start + number.end()
+def _clause_preferred(text, num_start, num_end):
+    """A preference word in the clause of this figure, or a following clause of
+    the same sentence that is only a preference phrase without its own figure."""
     left = max((m.end() for m in _CLAUSE_BREAK.finditer(text, 0, num_start)), default=0)
     right_break = _CLAUSE_BREAK.search(text, num_end)
     right = right_break.start() if right_break else len(text)
     if _PREFERENCE_WORDS.search(text[left:right]):
         return True
-    if right_break and right_break.group() in ',([':   # same sentence continues
+    if right_break and right_break.group() in ',([':
         following = _CLAUSE_BREAK.search(text, right + 1)
         clause = text[right + 1:following.start() if following else len(text)]
-        if len(clause.split()) <= 4 and _PREFERENCE_CLAUSE.search(clause):
+        if len(clause.split()) <= 4 and not re.search(r'\d', clause) and _PREFERENCE_CLAUSE.search(clause):
             return True
-    return at is not None and _heading_above(raw[:at[0]]) == 'preferred'
+    return False
+
+
+def _years_preferred(span, years, raw, description):
+    """True when quoted years are only preferred, judged at EVERY place the span
+    occurs and at every occurrence of the figure followed by "years" (any
+    preferred reading wins): a preference in the figure's clause, or a
+    preferred heading as the nearest heading above."""
+    s = _norm(span)
+    places = [(raw, start, end) for start, end in _raw_spans(s, raw)] or [(s, 0, len(s))]
+    for text, start, end in places:
+        numbers = list(re.finditer(r'(?<!\d)' + str(years) + r'(?!\d)', text[start:end]))
+        with_years = [m for m in numbers if _YEARS_AFTER.match(text, start + m.end())]
+        for number in with_years or numbers:
+            if _clause_preferred(text, start + number.start(), start + number.end()):
+                return True
+        if not numbers and _PREFERENCE_WORDS.search(s):
+            return True
+        if text is raw and _heading_above(raw[:start]) == 'preferred':
+            return True
+    return False
 
 
 def _range_floor(years, span):
@@ -442,7 +513,7 @@ def verify(raw, posting):
             discarded.append('eligibility wording not found verbatim in the posting')
         elif not _NATIONALITY_WORDS.search(text):
             discarded.append('eligibility wording does not mention nationality')
-        elif _ALL_NATIONALITIES.search(text):
+        elif _ALL_NATIONALITIES.search(text) and not _RESTRICTIVE.search(text):
             discarded.append('eligibility wording opens the role to all nationalities; not a restriction')
         else:
             wording.append({'kind': w['kind'], 'text': text})

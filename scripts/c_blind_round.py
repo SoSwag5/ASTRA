@@ -81,6 +81,7 @@ def frozen_paths():
 
 def constants():
     return {'version': VERSION, 'policy_version': ru.POLICY_VERSION, 'schema_version': ru.SCHEMA_VERSION,
+            'verifier_version': ru.VERIFIER_VERSION,
             'clock': CLOCK.isoformat(), 'min_readable_chars': common.MIN_READABLE_CHARS, 'page_seed': PAGE_SEED,
             'expected_items_sha256': EXPECTED_ITEMS_SHA256, 'holdout_ids': list(HOLDOUT_IDS),
             'records': [SEAL_NAME, LOCK_NAME, RESULT_NAME],
@@ -101,8 +102,9 @@ def _rel(path):
 
 
 def path_commits(path):
-    """Every commit on any ref that touched `path`, newest first."""
-    out = common.git('log', '--all', '--format=%H', '--', _rel(path))
+    """Every commit on any ref, or still in the reflog, that touched `path`,
+    newest first."""
+    out = common.git('log', '--all', '--reflog', '--format=%H', '--', _rel(path))
     if out is None:
         common.refuse('Git could not list the history of ' + Path(path).name)
     return out.split()

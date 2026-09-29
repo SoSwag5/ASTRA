@@ -543,7 +543,8 @@ def test_assessor_request_explains_every_function_and_the_range_rule():
     for name in ru.FUNCTIONS:
         assert f'{name} = ' in request['instructions']
     assert 'lower bound' in request['instructions'] and 'never infer nationality' in request['instructions']
-    assert (ru.SCHEMA_VERSION, ru.POLICY_VERSION) == ('role-understanding-2', 'shadow-placement-2')
+    assert (ru.SCHEMA_VERSION, ru.POLICY_VERSION, ru.VERIFIER_VERSION) == (
+        'role-understanding-2', 'shadow-placement-2', 'verifier-4')
 
 
 UNHASHABLE_KINDS = [['DESIGNATED_NATIONALS'], {'k': 'DESIGNATED_NATIONALS'}, {'DESIGNATED_NATIONALS'}, None, 3]
@@ -644,3 +645,48 @@ def test_designated_wording_is_specific_and_its_warning_says_what_it_is(text, ke
 def test_low_confidence_adjacent_reading_leaves_the_engine_placement():
     fa, placed = _placed(ADJ_JOB, _answer('ICT_ADJACENT', 0.65, [ADJ_SPAN]), OWNER_V3)
     assert not placed['understanding_used'] and 'below the 0.7 confidence' in placed['reasons'][0]
+
+
+# --- independent review round 2 (2026-09-29): items never reset a preferred section ---
+
+CLOUD = '7 years of experience in cloud security'
+
+
+@pytest.mark.parametrize('tail,claimed,span,expected', [
+    ('Requirements:\nDegree in IT\nNice to have:\nBasic Python scripting\n' + CLOUD, 7, CLOUD, None),
+    ('Requirements:\nDegree in IT\nNice to have:\nMinimum two certifications\n' + CLOUD, 7, CLOUD, None),
+    ('Requirements:\nDegree in IT\nNice to have:\nEssential Eight familiarity\n' + CLOUD, 7, CLOUD, None),
+    ('Requirements:\nDegree\nNice to have:\n● Professional qualifications: CISSP\n' + CLOUD, 7, CLOUD, None),
+    ('Requirements:\nDegree\nNice to have:\nQualifications: CISSP\n' + CLOUD, 7, CLOUD, None),
+    ('Requirements:\nDegree\nNice to have:\n1. Qualifications: CISSP\n' + CLOUD, 7, CLOUD, None),
+    ('Requirements:\nDegree\nThe following would be nice to have for this role:\n' + CLOUD, 7, CLOUD, None),
+    ('Requirements:\n- Certifications (preferred): CISSP, CEH\n- ' + CLOUD, 7, CLOUD, 7),
+    ('Requirements:\n- Preferably bilingual\n- ' + CLOUD, 7, CLOUD, 7),
+    ('Requirements:\n- Asset management: CMDB and inventory\n- ' + CLOUD, 7, CLOUD, 7),
+    ('Minimum 7 years, ideally 10 years in cloud security.', 7, 'Minimum 7 years, ideally 10 years in cloud security', 7),
+    ('6 days a week on site, 6 years preferred.', 6, '6 days a week on site, 6 years preferred', None),
+    ('4-7 years of experience in cloud security.', 7, CLOUD, None),
+    ('4 to 7 years of experience in cloud security.', 7, CLOUD, None),
+    ('1.5 years of experience.', 5, '5 years of experience', None),
+    ('About us: we have 7 years of experience in cloud security.\nPreferred qualifications:\n' + CLOUD, 7, CLOUD, None),
+    ('Preferred qualifications:\n- CISSP\nKey Requirements:\n- 5 years in a SOC', 5, '5 years in a SOC', 5),
+    ('Nice to have:\n- CISSP\n1. Requirements:\n- 5 years in a SOC', 5, '5 years in a SOC', 5),
+])
+def test_items_never_reset_a_preferred_section_and_requirement_lists_keep_their_figures(tail, claimed, span, expected):
+    posting = {'title': 'SOC Analyst', 'description': SOC_DUTY + '.\n' + tail}
+    assert ru.verify(_answer('SECURITY_OPERATIONS', 0.9, [SOC_DUTY], claimed, span), posting)['required_years_min'] == expected
+
+
+@pytest.mark.parametrize('text,kept,uae', [
+    ('UAE nationals only (applications from all nationalities will not be considered)', True, True),
+    ('Not open to all nationalities: UAE nationals only', True, True),
+    ('This vacancy is for UAE Nationals only and is not open to all nationalities', True, True),
+    ('U.A.E. Nationals only', True, True), ('Citizens of the United Arab Emirates only', True, True),
+    ('UAE citizenship required', True, True),
+])
+def test_a_negated_all_nationalities_is_still_a_restriction(text, kept, uae):
+    posting = {'title': 'Cyber Analyst', 'location': 'Abu Dhabi, United Arab Emirates', 'description': f'{SOC_DUTY}. {text}.'}
+    answer = _answer('SECURITY_OPERATIONS', 0.9, [SOC_DUTY], wording=[{'kind': 'DESIGNATED_NATIONALS', 'text': text}])
+    _, placed = _placed(posting, answer, OWNER_V3)
+    assert bool(placed['warnings']) is kept and placed['tier'] == ru.LOWER
+    assert ('targets UAE nationals' in placed['warnings'][0]) is uae

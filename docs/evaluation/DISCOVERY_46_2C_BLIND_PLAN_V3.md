@@ -388,3 +388,38 @@ Changes:
 - *Development report.* It no longer copies posting titles, quoted employer
   wording or label free text.
 - *INCONCLUSIVE.* The handling is aligned between this plan and the code (§8).
+
+### Round 2 (same day, before any seal)
+
+The second freeze (`4c71258`, frozen at `7b6bed7`) was re-reviewed read-only.
+Every round-1 finding was fixed, or fixed within the documented limits. The
+verdict was REQUEST CHANGES for one new regression in the harmful direction
+and several smaller issues. The hypotheses, metrics and thresholds are still
+unchanged. Changes:
+
+- *Headings.* A section resets to required only at a heading that names an
+  explicit requirement marker (required, requirement(s), minimum, basic,
+  essential, mandatory, must) and otherwise only heading nouns ("Key
+  Requirements", "Minimum Work Experience").
+  - Items do not reset it: "Basic Python scripting", "Minimum two
+    certifications" and "Qualifications: CISSP" are items.
+  - Any leading glyph or number counts as a bullet, and a bulleted item with
+    content is never a heading.
+  - A preferred heading must start with a preference phrase, be a stand-alone
+    lead-in line ("The following would be nice to have:"), or end a flattened
+    run of text. "- Certifications (preferred): CISSP", "- Preferably
+    bilingual" and "Asset management:" no longer turn a requirement list into
+    a preferred one.
+- *Figures.* Every occurrence of the span and of the figure followed by "years"
+  is judged, and any preferred reading wins. A following preference clause
+  that carries its own figure ("ideally 10 years") no longer drops the first
+  figure. A figure that is the tail of a range or a decimal ("4-7 years",
+  "1.5 years") is not accepted from a partial quote.
+- *Nationality wording.* Wording that mentions "all nationalities" is dropped
+  only when nothing in it restricts ("only", "not", "reserved", …). "U.A.E.
+  Nationals", "citizens of the United Arab Emirates" and "UAE citizenship" get
+  the UAE-specific warning.
+- *Custody.* Record history also consults the reflog, so a record commit that
+  was reset away before a push is still seen. A test now runs the real Git
+  helpers against a temporary repository.
+- `VERIFIER_VERSION` is `verifier-4` and is part of the frozen constants.
