@@ -8,7 +8,7 @@ The role-understanding candidate is offline and shadow-only. No AI model is conn
 
 - **Result.** Eleven postings were scored: 2 the Owner showed and 9 the Owner hid. One more had no readable description and was excluded by the fixed rule. Exact tier agreement was 5 of 11 for the candidate against 1 of 11 for the current path. Criterion C3 needed a margin of at least 2 over the current path (met) and agreement of at least 0.60, which is 7 of 11 (not met). C0, C1, C2, C4 and C5 passed.
 - **Untested check.** No posting was labelled as targeting UAE nationals, so the eligibility-warning check for missed warnings passed vacuously and the round is no evidence that the warning appears when it should.
-- **Consequences.** The candidate is rejected. Draft [PR #76](https://github.com/SoSwag5/ASTRA/pull/76), which carries it, is **NOT MERGED**. The 12-job holdout is revealed and consumed, so it must never be reused as blind or used to tune the candidate.
+- **Consequences.** The candidate is rejected. [PR #76](https://github.com/SoSwag5/ASTRA/pull/76), which carried it, is **CLOSED and NOT MERGED**. The 12-job holdout is revealed and consumed, so it must never be reused as blind or used to tune the candidate.
 - **Private retention.** The full fixed comparison output is retained privately and is not published. The outcome page is a redacted derivative, so a reader cannot reproduce individual rows from this repository. The local branch that holds the private output is preserved as audit evidence and is not pushed.
 - **Next.** A v4 plan with a fresh evaluation set is proposed and not started. It needs an Owner decision.
 

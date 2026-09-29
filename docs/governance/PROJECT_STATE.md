@@ -442,10 +442,14 @@ Three kinds of #46.2-B/C evidence stay separate. None stands in for another.
      and the [C status](../evaluation/DISCOVERY_46_2C_PUBLIC_STATUS.md).
    - The 12-job holdout is **revealed and consumed**. It must never be reused
      as blind or used to tune the candidate.
-   - Draft [PR #76](https://github.com/SoSwag5/ASTRA/pull/76) is **NOT MERGED**
-     and its candidate is rejected after the blind FAIL. Its pushed head
+   - [PR #76](https://github.com/SoSwag5/ASTRA/pull/76) is **CLOSED and NOT
+     MERGED** (closed 2026-09-29, no merge commit), and its candidate is
+     rejected after the blind FAIL. No Owner decision remains about its fate.
+     It was renamed "#46.2-C v3 blind evaluation failed C3 (closed; candidate
+     not merged)". Its earlier "awaiting Owner labels" title and description are
+     historical only. Its pushed head
      `66c33268e4012ca2d4a192aadc663a0f1e2f23ff` is the sealed, pre-result
-     state, and its title and description still read "awaiting Owner labels".
+     state.
    - The full fixed comparison output is retained privately and is not
      published. The public summary is a redacted derivative, so individual
      rows cannot be reproduced from this repository. The local branch
@@ -509,8 +513,6 @@ challenge. G and H are not started.
   any commit descended from `5e9b473`. Do not use a push that includes all
   local branches. Keep that branch and its worktree as private audit evidence.
 - Owner decisions:
-  - decide what happens to draft PR #76 (open, not merged, stale title); this
-    closeout did not close or edit it;
   - decide whether to commission the C v4 plan and fresh evaluation set, and
     name a second labeller (see the
     [aggregate outcome](../evaluation/DISCOVERY_46_2C_V3_BLIND_OUTCOME.md));
@@ -572,14 +574,16 @@ challenge. G and H are not started.
   found, before any push, that the local C result file carried individual Owner
   answers and per-posting predictions. It was contained by not publishing it.
 - **ADRs, threat deltas, risk records, and framework deltas:** none.
-- **Owner decisions still required:** the fate of draft PR #76; whether to
-  commission the C v4 plan and fresh set; and the items under *Next actions*.
-- **Commit(s) and pull request:** one local commit. No pull request was
-  created, and PR #76 was not touched.
+- **Owner decisions still required:** whether to commission the C v4 plan and
+  fresh set; and the items under *Next actions*. None remains about PR #76.
+- **Commit(s) and pull request:** two local commits: the closeout and a
+  documentation follow-up that records PR #76 as closed. No pull request was
+  created by this session. PR #76 was not touched by this session; it was
+  closed without merging afterwards (2026-09-29).
 - **Known conflicts, blockers, or branch drift:**
   - PR #76's branch edits the same C status page and this file with the
-    pre-result "awaiting Owner labels" text. Merging it would conflict with
-    this closeout and would misstate C.
+    pre-result "awaiting Owner labels" text. It is closed and not merged, so
+    that text is historical and does not reach `master`.
   - The E v3 decision review still says the C holdout stays sealed. That was
     true when it was written (2026-09-27) and it is a dated record, so it is
     unedited.
@@ -589,5 +593,5 @@ challenge. G and H are not started.
   - The pushed head of `research/46.2-c-blind-eval` (`66c3326`) is three
     commits behind the local branch, which was not pushed.
 - **Exact next action:** independent Codex review of this branch at its exact
-  SHA. Publication, a pull request and any change to PR #76 wait for that
-  review and the Owner's decision.
+  SHA. Publication and a pull request wait for that review and the Owner's
+  decision.

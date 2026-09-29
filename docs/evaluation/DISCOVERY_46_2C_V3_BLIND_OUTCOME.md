@@ -5,11 +5,12 @@ pre-registered criterion, C3. C stays **NOT VALIDATED**. No candidate is adopted
 and nothing in production changed: discovery, ranking, the API and the UI do
 not import the candidate, and no AI model is connected to ASTRA.
 
-The candidate is the v3 role-understanding revision in draft
+The candidate is the v3 role-understanding revision that was carried by
 [PR #76](https://github.com/SoSwag5/ASTRA/pull/76). That pull request is
-**NOT MERGED**, and its candidate is **rejected** after this result. It must not
-be merged or adopted on this evidence. The pull request's title and description
-predate the result and still read "awaiting Owner labels".
+**CLOSED and NOT MERGED**, and its candidate is **rejected** after this result.
+It must not be merged or adopted on this evidence. No Owner decision remains
+about the pull request's fate. Its earlier title and description predate the
+result and read "awaiting Owner labels"; that wording is historical only.
 
 ## What this page is, and is not
 
@@ -38,7 +39,8 @@ predate the result and still read "awaiting Owner labels".
 
 - **Pre-registration.** The
   [blind plan v3](https://github.com/SoSwag5/ASTRA/blob/66c33268e4012ca2d4a192aadc663a0f1e2f23ff/docs/evaluation/DISCOVERY_46_2C_BLIND_PLAN_V3.md)
-  (on the unmerged PR #76 branch, at its pushed head `66c3326`) fixed the
+  (on the branch of the closed, unmerged PR #76, at its pushed head
+  `66c3326`) fixed the
   hypotheses, metrics, denominators, exclusion rules and criteria for the
   round. The plan itself notes that code cannot prove it was written before
   the candidate change; the only independent ordering evidence is the seal's
