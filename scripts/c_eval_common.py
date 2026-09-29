@@ -15,12 +15,11 @@ Fail-closed rules:
 - Readings and labels may name only ids of the selected split.
 
 Importing this module changes nothing global. Scripts call
-``disable_network()`` first.
+``disable_network()`` first; it installs an audit hook for the process.
 """
 import hashlib
 import json
 import re
-import socket
 import subprocess
 import sys
 from pathlib import Path
@@ -50,15 +49,19 @@ def refuse(message):
     raise SystemExit('refusing to run: ' + message)
 
 
+BLOCKED_AUDIT_EVENTS = {'socket.connect', 'socket.getaddrinfo', 'socket.gethostbyname', 'socket.gethostbyaddr',
+                        'socket.getnameinfo', 'socket.sendto', 'socket.sendmsg', 'socket.bind'}
+
+
 def disable_network():
-    """Block DNS and outbound connections for this process (IP literals too)."""
-    def blocked(*args, **kwargs):
-        NETWORK_ATTEMPTS.append(repr(args[-1] if args else None)[:120])
-        raise OSError('offline evaluation: network disabled')
-    socket.getaddrinfo = blocked
-    socket.create_connection = blocked
-    socket.socket.connect = blocked
-    socket.socket.connect_ex = blocked
+    """Block name resolution and every Python socket connect, send-to and bind
+    for the rest of this process, through an audit hook (which cannot be
+    removed). Native code that bypasses Python's socket module is not covered."""
+    def hook(event, args):
+        if event in BLOCKED_AUDIT_EVENTS:
+            NETWORK_ATTEMPTS.append(event)
+            raise OSError('offline evaluation: network disabled')
+    sys.addaudithook(hook)
 
 
 def file_sha256(path):
@@ -68,6 +71,16 @@ def file_sha256(path):
 def text_sha256_lf(path):
     """SHA-256 of a text file with CRLF canonicalised to LF (as the #42 manifest)."""
     return hashlib.sha256(Path(path).read_bytes().replace(b'\r\n', b'\n')).hexdigest()
+
+
+def record_sha256(path):
+    """LF-canonical for files inside the repository (their checkout may be CRLF),
+    exact bytes for private files outside it."""
+    try:
+        Path(path).resolve().relative_to(ROOT)
+    except ValueError:
+        return file_sha256(path)
+    return text_sha256_lf(path)
 
 
 def read_json(path, name):
@@ -233,16 +246,21 @@ def asserts_eligibility(texts):
     return any(ASSERTS_ELIGIBILITY.search(t or '') for t in texts)
 
 
+def git(*args):
+    """Git output in this repository, or None when Git fails."""
+    try:
+        done = subprocess.run(['git', '-C', str(ROOT), *args], capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return done.stdout.strip() if done.returncode == 0 else None
+
+
 def code_identity(paths):
-    """Git HEAD, whether any listed path differs from it, and LF hashes."""
-    def git(*args):
-        try:
-            done = subprocess.run(['git', '-C', str(ROOT), *args], capture_output=True, text=True, timeout=30)
-            return done.stdout.strip() if done.returncode == 0 else None
-        except (OSError, subprocess.SubprocessError):
-            return None
-    return {'git_head': git('rev-parse', 'HEAD'),
-            'paths_differing_from_head': (git('status', '--porcelain', '--', *paths) or '').splitlines(),
+    """Git HEAD, whether any listed path differs from it, and LF hashes.
+    git_ok is False when Git could not answer; callers that gate on it refuse."""
+    head, status = git('rev-parse', 'HEAD'), git('status', '--porcelain', '--', *paths)
+    return {'git_ok': head is not None and status is not None, 'git_head': head,
+            'paths_differing_from_head': (status or '').splitlines(),
             'sha256_lf': {p: text_sha256_lf(ROOT / p) for p in paths}}
 
 

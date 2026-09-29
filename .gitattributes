@@ -10,3 +10,11 @@ tests/fixtures/fit_evaluation_v1.json text eol=lf
 docs/evaluation/fit_evaluation_report.json text eol=lf
 docs/evaluation/FIT_EVALUATION_REPORT.md text eol=lf
 docs/evaluation/FIT_LABEL_REVIEW.md text eol=lf
+
+# Issue #46.2-C blind round: committed records are bound to each other by
+# SHA-256 (freeze manifest -> seal -> label lock -> result). Force LF so the
+# hash of every checkout matches the Git blob; scripts/c_blind_round.py also
+# hashes committed records LF-canonically as defense in depth.
+docs/evaluation/discovery_46_2c_*.json text eol=lf
+docs/evaluation/DISCOVERY_46_2C_BLIND_PLAN_V3.md text eol=lf
+tests/fixtures/role_understanding_eval_profile_v1.json text eol=lf

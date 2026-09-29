@@ -313,7 +313,7 @@ def _dev_tree(tmp_path, items_extra=(), label_extra=None, understand_extra=None,
     snaps.mkdir(exist_ok=True)
     (snaps / 'X01.txt').write_text(x01_text, encoding='utf-8')
     (snaps / 'Y01.txt').write_text('SECRET HOLDOUT BODY ' * 20, encoding='utf-8')
-    x01 = {'item_id': 'X01', 'split': 'development', 'title': 'IT Support', 'employer': 'Fictional Co',
+    x01 = {'item_id': 'X01', 'split': 'development', 'title': 'Service Desk Zetaworks', 'employer': 'Fictional Co',
            'official_url': 'https://example.invalid/x01', 'platform': 'fixture', 'location_stated': 'Dubai',
            'desc_sha256': hashlib.sha256(X01_TEXT.encode('utf-8')).hexdigest(), 'desc_chars': len(X01_TEXT)}
     x01.update(item_patch or {})
@@ -400,17 +400,37 @@ def test_eval_script_excludes_unsure_and_unreadable_without_crashing(tmp_path):
     assert out['items_scored'] == 1 and 'X02' not in out['boundary']['snapshots_opened_by_this_process']
 
 
-def test_network_guard_blocks_ip_literal_connections():
+def test_network_guard_blocks_resolution_connect_send_and_bind():
     import subprocess
     import sys
     scripts = str(Path(__file__).resolve().parents[1] / 'scripts')
-    code = ('import sys, socket; sys.path.insert(0, %r); import c_eval_common as c; c.disable_network()\n'
-            'for call in (lambda: socket.create_connection(("127.0.0.1", 9)), lambda: socket.getaddrinfo("example.invalid", 443),\n'
-            '             lambda: socket.socket().connect(("10.0.0.1", 80))):\n'
-            '    try:\n        call(); print("CONNECTED")\n    except OSError as e:\n        print("blocked", e)\n') % scripts
+    code = ('import sys, socket, _socket; sys.path.insert(0, %r); import c_eval_common as c; c.disable_network()\n'
+            'calls = [lambda: socket.create_connection(("127.0.0.1", 9)), lambda: socket.getaddrinfo("example.invalid", 443),\n'
+            '         lambda: socket.gethostbyname("localhost"), lambda: socket.socket().connect(("10.0.0.1", 80)),\n'
+            '         lambda: socket.socket(socket.AF_INET, socket.SOCK_DGRAM).sendto(b"x", ("127.0.0.1", 9)),\n'
+            '         lambda: _socket.socket().connect(("127.0.0.1", 9)), lambda: socket.socket().bind(("127.0.0.1", 0))]\n'
+            'for call in calls:\n'
+            '    try:\n        call(); print("ALLOWED")\n    except OSError as e:\n        print("blocked", e)\n') % scripts
     done = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, timeout=60)
     assert done.returncode == 0, done.stderr
-    assert done.stdout.count('network disabled') == 3 and 'CONNECTED' not in done.stdout
+    assert done.stdout.count('network disabled') == 7 and 'ALLOWED' not in done.stdout
+
+
+def test_dev_report_carries_no_titles_quotes_or_label_free_text(tmp_path):
+    import hashlib
+    text = X01_TEXT + '\nPreference will be given to UAE nationals.'
+    args = _dev_tree(tmp_path, x01_text=text,
+                     item_patch={'desc_sha256': hashlib.sha256(text.encode()).hexdigest(), 'desc_chars': len(text)},
+                     understand_extra={'X01': _answer('IT_SUPPORT', 0.9, ['Resolve desktop tickets for office users'],
+                                                      wording=[{'kind': 'NATIONALS_PREFERENCE',
+                                                                'text': 'Preference will be given to UAE nationals'}])},
+                     label_extra={'X01': {'first_saved_choice': 'show_lower', 'use_for_fit_scoring': True,
+                                          'reason': 'PRIVATE OWNER REASON'}})
+    done = _run_dev(args)
+    assert done.returncode == 0, done.stderr
+    report = (tmp_path / 'out.json').read_text(encoding='utf-8')
+    assert 'Zetaworks' not in report and 'Preference will be given' not in report
+    assert '[employer wording]' in report and 'PRIVATE OWNER REASON' not in report
 
 
 # --- v3 candidate: preferred versus required, ranges, adjacent roles, band ---
@@ -561,3 +581,66 @@ def test_random_malformed_answers_never_raise():
         out = ru.verify(raw, posting)
         assert out['primary_function'] in ru.FUNCTIONS
         ru.place(out, {'bucket': 'LOW', 'score': 40}, CFG, OWNER_LIKE)
+
+
+# --- independent review round 1 (2026-09-29): compound headings, clauses, ranges ---
+
+@pytest.mark.parametrize('tail,span,expected', [
+    ('Required Qualifications:\n- Degree in IT\nPreferred Qualifications and Experience:\n- 7 years in a SOC', '7 years in a SOC', None),
+    ('Required Qualifications:\n- Degree\nPreferred Skills & Experience:\n- 7 years in a SOC', '7 years in a SOC', None),
+    ('Required Qualifications:\n- Degree\nPreferred qualifications include:\n- 7 years in a SOC', '7 years in a SOC', None),
+    ('Requirements:\n- Degree\nNice to have:\n- Key skills: Splunk\n- 7 years in a SOC', '7 years in a SOC', None),
+    ('Requirements: Degree in IT Preferred Qualifications: 7 years in a SOC', '7 years in a SOC', None),
+    ('Requirements:\n- Degree\nNice to haves:\n- 7 years in a SOC', '7 years in a SOC', None),
+    ('Requirements:\n- Degree\nDesirable criteria:\n- 7 years in a SOC', '7 years in a SOC', None),
+    ('Requirements:\n- Degree\nPreferred:\n- Qualifications: CISSP\n- 7 years in a SOC', '7 years in a SOC', None),
+    ('Requirements:\n- Degree\nPreferred/Desired Qualifications:\n- 7 years in a SOC', '7 years in a SOC', None),
+    ('Required/Preferred Qualifications:\n- 7 years in a SOC', '7 years in a SOC', None),
+    ('Preferred Qualifications: CISSP Requirements: 7 years in a SOC', '7 years in a SOC', 7),
+    ('Requirements:\n Arabic speakers preferred\n 7 years in a SOC', '7 years in a SOC', 7),
+    ('Tools: Splunk and QRadar. 7 years in a SOC', '7 years in a SOC', 7),
+])
+def test_compound_and_flattened_headings(tail, span, expected):
+    posting = {'title': 'SOC Analyst', 'description': SOC_DUTY + '.\n' + tail}
+    assert ru.verify(_answer('SECURITY_OPERATIONS', 0.9, [SOC_DUTY], 7, span), posting)['required_years_min'] == expected
+
+
+@pytest.mark.parametrize('tail,claimed,span,expected', [
+    ('8+ years of experience in security operations, CISSP is an advantage.', 8,
+     '8+ years of experience in security operations', 8),
+    ('3+ years in a SOC, CCNA a plus.', 3, '3+ years in a SOC, CCNA a plus', 3),
+    ('5 years of experience, preferably in banking.', 5, '5 years of experience', 5),
+    ('5 years of experience, preferred.', 5, '5 years of experience', None),
+    ('Minimum 3 years (5 years preferred).', 3, 'Minimum 3 years', 3),
+    ('5+ years in data engineering (desirable).', 5, '5+ years in data engineering', None),
+    ('Preferably 5 years in data roles.', 5, 'Preferably 5 years in data roles', None),
+    ('Hybrid 2-3 days per week; 3 years in a SOC.', 3, 'Hybrid 2-3 days per week; 3 years in a SOC', 3),
+    ('Grade 3-6; 6 years in a SOC.', 6, 'Grade 3-6; 6 years in a SOC', 6),
+    ('Between 3 and 7 years in a SOC.', 7, 'Between 3 and 7 years in a SOC', 3),
+    ('3-to-7 years in a SOC.', 7, '3-to-7 years in a SOC', 3),
+    ('15 years in a SOC.', 5, '5 years in a SOC', None),               # a figure inside a larger number is not found
+])
+def test_preference_must_govern_the_years_clause_and_ranges_must_be_years(tail, claimed, span, expected):
+    posting = {'title': 'SOC Analyst', 'description': SOC_DUTY + '.\n' + tail}
+    assert ru.verify(_answer('SECURITY_OPERATIONS', 0.9, [SOC_DUTY], claimed, span), posting)['required_years_min'] == expected
+
+
+@pytest.mark.parametrize('text,kept,uae', [
+    ('Cyber Analyst (UAE National)', True, True), ('Emirati Talent programme', True, True),
+    ('Saudi nationals only', True, False), ('Open to all nationals', False, None),
+    ('Candidates of all nationalities are welcome', False, None),
+])
+def test_designated_wording_is_specific_and_its_warning_says_what_it_is(text, kept, uae):
+    posting = {'title': 'Cyber Analyst (UAE National)', 'location': 'Abu Dhabi, United Arab Emirates',
+               'description': f'{SOC_DUTY}. {text}.'}
+    answer = _answer('SECURITY_OPERATIONS', 0.9, [SOC_DUTY], wording=[{'kind': 'DESIGNATED_NATIONALS', 'text': text}])
+    _, placed = _placed(posting, answer, OWNER_V3)
+    assert bool(placed['warnings']) is kept and placed['tier'] != ru.SUGGESTED_HIDDEN
+    if kept:
+        assert ('targets UAE nationals' in placed['warnings'][0]) is uae
+        assert 'does not know or assume' in placed['warnings'][0]
+
+
+def test_low_confidence_adjacent_reading_leaves_the_engine_placement():
+    fa, placed = _placed(ADJ_JOB, _answer('ICT_ADJACENT', 0.65, [ADJ_SPAN]), OWNER_V3)
+    assert not placed['understanding_used'] and 'below the 0.7 confidence' in placed['reasons'][0]

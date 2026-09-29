@@ -69,8 +69,10 @@ was recomputed on 2026-09-29 from `master` `902c80b` with the private inputs
   it: `stretch_max_years` = 5. Preferred years never count.
 - **OD-C3-2 adjacent technical roles.** Add an `ICT_ADJACENT` reading (IT
   business analysis, ERP/PLM/CRM functional coordination, technical
-  documentation, IT project coordination). It is always shown lower: never
-  hidden for its domain and never prominent. The D05 development reading is
+  documentation, IT project coordination). A confident, evidenced adjacent
+  reading (confidence ≥ 0.7 with a duty span) is always shown lower: never
+  hidden for its domain and never prominent. A weaker reading leaves the
+  current placement, as for every function. The D05 development reading is
   **not** rewritten, so D05 remains an in-sample miss; only the blind round
   tests the change.
 - **OD-C3-3 reader.** A fresh Claude reader subagent writes the holdout role
@@ -121,14 +123,26 @@ Evaluation script (`scripts/shadow_role_eval.py`):
 - **F-E9.** There is no blind mode: no freeze check, sealed predictions, label
   lock or run-once record.
 
-**What code can and cannot prove.** Hash checks can prove that the frozen
-code, preferences, readings and predictions were fixed, and committed publicly,
-before the label file's hash was recorded. They can prove that the labeling
-page was generated from posting text only, and that the comparison used
-exactly those inputs. Code cannot prove that the Owner labelled alone or never
-saw candidate output elsewhere. It cannot prove that no person read holdout
-text, or that a run was not repeated privately before the committed one.
-Editable author fields prove nothing.
+**What code can and cannot prove** (as amended in §11):
+
+- Hash checks and Git ancestry can prove the following.
+  - The frozen code, preferences, readings and predictions are exactly those
+    in a seal commit.
+  - That commit precedes the lock commit, and each record was committed once.
+  - The labeling page derives from posting text only.
+  - The comparison used exactly the sealed and locked inputs.
+- Code cannot prove when the Owner actually labelled relative to the seal. The
+  label times and commit times come from local clocks. The only independent
+  ordering evidence is the host's record of the pushed seal commit, before the
+  Owner reports the label hash.
+- Code also cannot prove:
+  - that the Owner labelled alone or never saw candidate output;
+  - that no person read holdout text;
+  - that a comparison was not run privately before the committed one;
+  - that the plan was written before the candidate change. Local commit order
+    and committer dates are editable, and the plan and code were pushed together.
+- Editable author fields, and declarations the implementing session writes into
+  the records, prove nothing.
 
 **Known prior exposure.** On 2026-09-22 the session that froze the item
 manifest printed each holdout item's employer and its title's first 48
@@ -210,10 +224,18 @@ Every figure is reported as count / denominator with per-item rows.
 
 ## 8. Success criteria (fixed before any holdout label exists)
 
-- **INCONCLUSIVE** if N < 8, |S| < 2, |Hd| < 2, or any integrity check fails.
-  Integrity checks cover the freeze hashes, the seal hashes, the label-lock
-  hash, the sealed predictions reproducing from the sealed readings, and a
-  first compare run.
+- **INCONCLUSIVE** if N < 8, |S| < 2 or |Hd| < 2, or if the sealed predictions
+  do not reproduce from the sealed readings. In the last case every reported
+  verdict, including the one based on final labels, is INCONCLUSIVE.
+- Any other integrity failure refuses the compare, and no result is written.
+  Integrity failures include:
+  - freeze, seal or lock hashes that do not match;
+  - a record not committed exactly once;
+  - a seal commit that does not precede the lock commit;
+  - a result already present in the working tree or in history.
+
+  If such a failure cannot be resolved without changing sealed or locked
+  inputs, the round is recorded INCONCLUSIVE.
 - **PASS** requires all of the following:
   - **C1** candidate M2 = 0.
   - **C2** candidate M3 ≤ current M3, and candidate M3 ≤ 1.
@@ -255,11 +277,19 @@ of general improvement, and no statistical significance is claimed.
 6. **Owner labels.** The Owner labels in the page (fit tier plus
    nationality-wording question), exports the JSON, and reports the SHA-256
    the page shows.
-7. **Lock.** The label file's hash is checked against the Owner-reported hash
-   and a lock record is committed.
-8. **Compare once.** The compare refuses if a result exists or any hash
-   differs. It writes a public result (IDs, tiers, booleans, no Owner reasons)
-   and a private detailed result.
+7. **Lock.** The label file must match the Owner-reported hash, cover exactly
+   the readable holdout items, and carry only save times later than the seal
+   commit. The seal must be committed exactly once. A lock record is then
+   committed.
+8. **Compare once.** The public records have fixed paths and are written
+   once. The compare refuses if:
+   - a result exists in the working tree or in history;
+   - any hash differs;
+   - the seal commit does not precede the lock commit.
+
+   It writes a public result (IDs, tiers, booleans, no Owner reasons) and a
+   private detailed result. The C branch is not rebased or squashed between
+   seal and compare.
 9. **Review, PR and merge.** Final exact-SHA review, then the PR and the merge
    gate.
 
@@ -296,3 +326,65 @@ with universal newlines; hashes are over LF text).
   - readings sealed before labels;
   - at least 30 scored items;
   - a second labeller where the Owner agrees.
+
+## 11. Amendments before the seal (2026-09-29, after independent review round 1)
+
+The first freeze (`4eb8529`, frozen at `aa8155b`) was reviewed read-only by an
+agent that did not author C. Its verdict was REQUEST CHANGES. The findings
+were fixed before any holdout reading, seal or label existed. The hypotheses,
+metrics, denominators, exclusion rules and success thresholds are unchanged.
+Changes:
+
+**Candidate.**
+
+- *Headings.* Headings are read line by line from the raw text. A preferred
+  word within the first or last four words of a heading makes it preferred;
+  this covers "Preferred Qualifications and Experience:", "Preferred Skills &
+  Experience:", "Preferred qualifications include:", "Nice to haves:",
+  "Desirable criteria:", slash compounds and headings run into flattened text.
+  Only a short heading that is not a bullet can be required, so a bullet label
+  such as "- Key skills:" or "- Qualifications:" never resets a preferred
+  section. When a heading is ambiguous, the reading falls toward "not
+  required". The first freeze had regressed on some of these forms.
+- *Preference words.* A preference word must be in the same clause as the
+  years figure, or in a following clause that is only a preference phrase
+  ("…, preferred" or "(desirable)", but not "…, preferably in banking").
+  "8+ years …, CISSP is an advantage" therefore keeps its 8 required years.
+- *Ranges.* Only ranges directly followed by "years" count; "between 3 and 7
+  years" and "3-to-7 years" floor to 3, while "2-3 days" and "Grade 3-6" are
+  ignored. A years figure found only inside a larger number ("5" in "15 years")
+  is rejected.
+- *Nationality wording.* Wording that opens a role to all nationalities is not a
+  restriction. The warning says "targets UAE nationals" only when the wording
+  names UAE nationals or Emirati applicants, and otherwise says "restricts
+  applicants by nationality". It still never hides a job or asserts
+  eligibility.
+- *Instructions.* The assessor is asked for 1–4 duty spans, matching the schema.
+
+**Custody.**
+
+- *Records.* The seal, lock and result records have fixed paths. Each is
+  written once, and refused if it already exists in the working tree or
+  anywhere in the Git history.
+  - The lock requires the seal committed exactly once, labels for exactly the
+    readable items, and save times later than the seal commit.
+  - The compare requires the seal commit to be an ancestor of the lock commit,
+    and the lock commit of HEAD.
+  - The review showed that, without these checks, a re-seal after labels could
+    turn a FAIL into a PASS with every hash check true. These checks rest on
+    Git history and local clocks; the host's push record is the independent
+    evidence.
+- *Hashes.* Committed records are hashed LF-canonically, and `.gitattributes`
+  pins them to LF, so a CRLF checkout cannot break the chain.
+- *Inputs.* The frozen items file (`1116ec11…`) and the twelve holdout ids are
+  frozen constants; any other items file is refused.
+- *Git failures.* When Git cannot answer, the freeze and the record steps
+  refuse instead of proceeding.
+- *Network.* The guard is a Python audit hook on socket connect, send-to, bind
+  and name resolution. Native code that bypasses Python's socket module is not
+  covered.
+- *Declarations.* Statements about ordering in the records are worded as the
+  implementing session's declarations, not as proof.
+- *Development report.* It no longer copies posting titles, quoted employer
+  wording or label free text.
+- *INCONCLUSIVE.* The handling is aligned between this plan and the code (§8).

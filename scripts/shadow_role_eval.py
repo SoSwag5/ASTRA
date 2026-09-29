@@ -19,7 +19,10 @@ Holdout boundary, precisely (see scripts/c_eval_common.py):
 
 Exclusions: a description under 200 characters (SOURCE_UNREADABLE), a label
 marked not for fit scoring, an 'unsure' label, or no label. First-saved labels
-are scored; later label changes are listed separately.
+are scored; later label changes are listed separately. The report carries item
+ids, tiers and reasons -- no posting titles, quoted employer wording or label
+free text. Input hashes are LF-canonical for repository files and exact bytes
+for private files.
 
 Usage:
   python scripts/shadow_role_eval.py --items FROZEN.json --snapshots DIR \
@@ -28,6 +31,7 @@ Usage:
 """
 import argparse
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -40,6 +44,7 @@ from backend.models import DEFAULTS  # noqa: E402
 
 CLOCK = datetime(2026, 9, 22, tzinfo=timezone.utc)
 CODE_PATHS = ['backend/role_understanding.py', 'scripts/c_eval_common.py', 'scripts/shadow_role_eval.py']
+QUOTE = re.compile(r'“[^”]*”')   # employer wording quoted from a posting stays out of the report
 STATUS = ('IN-SAMPLE DIAGNOSTIC on development labels the Owner saved after seeing Codex suggestions; the role '
           'readings were written after those labels were read. Not blind accuracy and not proof of improvement.')
 
@@ -76,7 +81,7 @@ def main(argv=None):
             reasons.append('no Owner label')
         else:
             if label.get('use_for_fit_scoring', True) is False:
-                reasons.append(label.get('exclusion_reason') or 'Owner label marked not for fit scoring')
+                reasons.append('Owner label marked not for fit scoring')   # its private free text is not copied
             if label['first_saved_choice'] == 'unsure':
                 reasons.append('Owner chose unsure')
         if reasons:
@@ -84,7 +89,8 @@ def main(argv=None):
             continue
         result = common.assess(row, snapshots.read(k), understandings.get(k), cfg, fixture['profile'], prefs, CLOCK)
         result['candidate']['warnings'] = bool(result['candidate']['warnings'])
-        scored.append({'item_id': k, 'title': row.get('title'), 'owner_choice': label['first_saved_choice'],
+        result['candidate']['notes'] = [QUOTE.sub('“[employer wording]”', n) for n in result['candidate']['notes']]
+        scored.append({'item_id': k, 'owner_choice': label['first_saved_choice'],
                        'owner_tier': common.LABEL_TIER[label['first_saved_choice']], **result})
 
     later_changes = [{'item_id': k, 'first_saved_choice': v['first_saved_choice'], 'current_choice': v.get('current_choice')}
@@ -110,7 +116,7 @@ def main(argv=None):
                         'snapshots_opened_by_this_process': sorted(snapshots.opened),
                         'other_split_snapshots_opened_by_this_process': len(set(snapshots.opened) & other_ids),
                         'scope': 'what this process did; it cannot show what any person or other process read'},
-           'inputs_sha256': {name: common.file_sha256(getattr(a, name))
+           'inputs_sha256': {name: common.record_sha256(getattr(a, name))
                              for name in ('items', 'understandings', 'labels', 'profile', 'preferences')},
            'code': common.code_identity(CODE_PATHS),
            'metrics': metrics, 'rows': scored}
