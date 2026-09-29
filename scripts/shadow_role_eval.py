@@ -40,6 +40,8 @@ from backend.models import DEFAULTS  # noqa: E402
 
 CLOCK = datetime(2026, 9, 22, tzinfo=timezone.utc)
 CODE_PATHS = ['backend/role_understanding.py', 'scripts/c_eval_common.py', 'scripts/shadow_role_eval.py']
+STATUS = ('IN-SAMPLE DIAGNOSTIC on development labels the Owner saved after seeing Codex suggestions; the role '
+          'readings were written after those labels were read. Not blind accuracy and not proof of improvement.')
 
 
 def main(argv=None):
@@ -97,7 +99,8 @@ def main(argv=None):
                    'owner_shown_excluded': {'count': sum(r['legacy']['excluded'] for r in scored
                                                          if r['owner_tier'] != ru.SUGGESTED_HIDDEN),
                                             'of': sum(r['owner_tier'] != ru.SUGGESTED_HIDDEN for r in scored)}}}
-    out = {'artifact': 'discovery_46_2c_shadow_eval', 'split': 'development', 'policy_version': ru.POLICY_VERSION,
+    out = {'artifact': 'discovery_46_2c_shadow_eval', 'split': 'development', 'status': STATUS,
+           'policy_version': ru.POLICY_VERSION,
            'schema_version': ru.SCHEMA_VERSION, 'clock': CLOCK.isoformat(), 'preferences': prefs,
            'profile_fixture': fixture.get('source'), 'items_scored': len(scored), 'excluded': excluded,
            'label_basis': 'first_saved_choice', 'later_label_changes': later_changes,
