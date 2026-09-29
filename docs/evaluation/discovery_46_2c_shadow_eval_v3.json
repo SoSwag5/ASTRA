@@ -57,10 +57,10 @@
  },
  "code": {
   "git_ok": true,
-  "git_head": "8954291ac593517a813dda208172cbb38c01e9f6",
+  "git_head": "5b8f1733485f2fa10a0fbfc5ba3786c685d14445",
   "paths_differing_from_head": [],
   "sha256_lf": {
-   "backend/role_understanding.py": "7e10dd69ffc934abc196a4c03d99c8cab0f8fa32479c90bcfd9bfd54877db730",
+   "backend/role_understanding.py": "78acec6af34cab76d66cc0c1ddddab9c10c4154d58546ee8213677759b63f3d1",
    "scripts/c_eval_common.py": "c27ad737a08c32e95334bddb22d53487a349063aa409b4c59516b5db9e089af0",
    "scripts/shadow_role_eval.py": "6bc9bcada5fac4cb9622c7f901c38e4635004dd50e3e6a74bfd0e8a4c3ff8ef3"
   }
