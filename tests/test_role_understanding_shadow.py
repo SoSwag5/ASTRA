@@ -301,46 +301,229 @@ def test_malformed_answers_are_rejected_whole_and_never_raise(raw):
     assert placed['tier'] == ru.LOWER and not placed['understanding_used']
 
 
-def test_eval_script_never_opens_or_accepts_holdout_items(tmp_path):
+X01_TEXT = ('Resolve desktop tickets for office users and keep the asset register current. Install and patch '
+            'laptops, reset accounts, and escalate network faults to the infrastructure team. 1 year of '
+            'experience in a service desk role is required.\nPreferred qualifications:\n 3 years preferred.')
+
+
+def _dev_tree(tmp_path, items_extra=(), label_extra=None, understand_extra=None, x01_text=X01_TEXT, item_patch=None):
+    """A fictional private tree: one development item X01, one holdout Y01."""
+    import hashlib
+    snaps = tmp_path / 'snaps'
+    snaps.mkdir(exist_ok=True)
+    (snaps / 'X01.txt').write_text(x01_text, encoding='utf-8')
+    (snaps / 'Y01.txt').write_text('SECRET HOLDOUT BODY ' * 20, encoding='utf-8')
+    x01 = {'item_id': 'X01', 'split': 'development', 'title': 'IT Support', 'employer': 'Fictional Co',
+           'official_url': 'https://example.invalid/x01', 'platform': 'fixture', 'location_stated': 'Dubai',
+           'desc_sha256': hashlib.sha256(X01_TEXT.encode('utf-8')).hexdigest(), 'desc_chars': len(X01_TEXT)}
+    x01.update(item_patch or {})
+    items = {'items': [x01, {'item_id': 'Y01', 'split': 'holdout', 'title': 'SECRET HOLDOUT TITLE',
+                             'employer': 'Other Co', 'official_url': 'https://example.invalid/y01',
+                             'platform': 'fixture', 'location_stated': 'Dubai', 'desc_sha256': '0' * 64,
+                             'desc_chars': 400}, *items_extra]}
+    understandings = {'items': {'X01': _answer('IT_SUPPORT', 0.9, ['Resolve desktop tickets for office users']),
+                                **(understand_extra or {})}}
+    labels = {'labels': {'X01': {'first_saved_choice': 'show_lower', 'current_choice': 'show_lower'},
+                         **(label_extra or {})}}
+    profile = {'source': 'fictional', 'career_config': {'career_tracks': TRACKS}, 'profile': {}}
+    args = ['--snapshots', str(snaps), '--out', str(tmp_path / 'out.json')]
+    for name, obj in (('items', items), ('understandings', understandings), ('labels', labels),
+                      ('profile', profile), ('preferences', {'preferences': OWNER_LIKE})):
+        path = tmp_path / f'{name}.json'
+        path.write_text(json.dumps(obj), encoding='utf-8')
+        args += ['--' + name, str(path)]
+    return args
+
+
+def _run_dev(args):
     import subprocess
     import sys
-    snaps = tmp_path / 'snaps'
-    snaps.mkdir()
-    (snaps / 'X01.txt').write_text('Resolve desktop tickets for office users. 1 year of experience.', encoding='utf-8')
-    items = {'items': [
-        {'item_id': 'X01', 'split': 'development', 'title': 'IT Support', 'employer': 'Fictional Co',
-         'official_url': 'https://example.invalid/x01', 'platform': 'fixture', 'location_stated': 'Dubai'},
-        {'item_id': 'Y01', 'split': 'holdout', 'title': 'SECRET HOLDOUT TITLE', 'employer': 'Other Co',
-         'official_url': 'https://example.invalid/y01', 'platform': 'fixture', 'location_stated': 'Dubai'}]}
-    understandings = {'items': {'X01': _answer('IT_SUPPORT', 0.9, ['Resolve desktop tickets for office users'])}}
-    labels = {'labels': {'X01': {'first_saved_choice': 'show_lower'}}}
-    profile = {'source': 'fictional', 'career_config': {'career_tracks': TRACKS}, 'profile': {}}
-    paths = {}
-    for name, obj in (('items', items), ('understandings', understandings), ('labels', labels),
-                      ('profile', profile), ('preferences', OWNER_LIKE)):
-        paths[name] = tmp_path / f'{name}.json'
-        paths[name].write_text(json.dumps(obj), encoding='utf-8')
     script = str(Path(__file__).resolve().parents[1] / 'scripts' / 'shadow_role_eval.py')
+    return subprocess.run([sys.executable, script, *args], capture_output=True, text=True, timeout=120)
 
-    def run(labels_path):
-        args = [sys.executable, script, '--snapshots', str(snaps), '--out', str(tmp_path / 'out.json'),
-                '--labels', str(labels_path)]
-        for name in ('items', 'understandings', 'profile', 'preferences'):
-            args += ['--' + name, str(paths[name])]
-        return subprocess.run(args, capture_output=True, text=True, timeout=120)
 
-    ok = run(paths['labels'])
+def test_eval_script_never_opens_or_accepts_holdout_items(tmp_path):
+    ok = _run_dev(_dev_tree(tmp_path))
     assert ok.returncode == 0, ok.stderr
     out = json.loads((tmp_path / 'out.json').read_text(encoding='utf-8'))
-    assert out['holdout_boundary']['holdout_items_seen'] == 1
-    assert out['holdout_boundary']['holdout_snapshots_opened'] == 0
-    assert out['holdout_boundary']['snapshots_opened'] == ['X01']
-    assert 'SECRET HOLDOUT TITLE' not in json.dumps(out) and 'Y01' not in json.dumps(out['rows'])
+    boundary = out['boundary']
+    assert boundary['other_split_rows_parsed'] == 1 and boundary['other_split_snapshots_opened_by_this_process'] == 0
+    assert boundary['snapshots_opened_by_this_process'] == ['X01']
+    assert 'cannot show what any person' in boundary['scope']
+    text = json.dumps(out)
+    assert 'SECRET HOLDOUT' not in text and 'Y01' not in json.dumps(out['rows'])
+    assert out['network_attempts'] == [] and set(out['inputs_sha256']) == {'items', 'understandings', 'labels',
+                                                                             'profile', 'preferences'}
+    # the X01 years span sits under a preferred heading only for the 3 years; 1 year is required
+    assert out['rows'][0]['candidate']['tier'] == ru.PROMINENT
 
-    bad = tmp_path / 'bad_labels.json'
-    bad.write_text(json.dumps({'labels': {**labels['labels'], 'Y01': {'first_saved_choice': 'hide'}}}), encoding='utf-8')
-    refused = run(bad)
-    assert refused.returncode != 0 and 'holdout' in (refused.stderr + refused.stdout).lower()
+
+@pytest.mark.parametrize('extra,needle', [
+    ({'label_extra': {'Y01': {'first_saved_choice': 'hide'}}}, 'outside the selected split'),
+    ({'understand_extra': {'Y01': _answer('IT_SUPPORT', 0.9, ['Resolve desktop tickets for office users'])}},
+     'outside the selected split'),
+    ({'items_extra': [{'item_id': 'X01', 'split': 'holdout', 'desc_sha256': '0' * 64, 'desc_chars': 1}]},
+     'duplicate item id'),
+    ({'items_extra': [{'item_id': 'Z01', 'split': 'holdot', 'desc_sha256': '0' * 64, 'desc_chars': 1}]},
+     'unknown split'),
+    ({'items_extra': [{'item_id': '../Y01', 'split': 'development', 'desc_sha256': '0' * 64, 'desc_chars': 1}]},
+     'malformed'),
+    ({'x01_text': X01_TEXT + ' tampered'}, 'does not match its frozen sha256'),
+    ({'item_patch': {'desc_sha256': 'not-a-hash'}}, 'no frozen description sha256'),
+])
+def test_eval_script_fails_closed(tmp_path, extra, needle):
+    refused = _run_dev(_dev_tree(tmp_path, **extra))
+    assert refused.returncode != 0
+    assert needle in refused.stderr and 'refusing to run' in refused.stderr
+    assert 'SECRET HOLDOUT' not in refused.stderr + refused.stdout
+    assert not (tmp_path / 'out.json').exists()
+
+
+def test_eval_script_excludes_unsure_and_unreadable_without_crashing(tmp_path):
+    import hashlib
+    short = 'Too short.'
+    extra = [{'item_id': 'X02', 'split': 'development', 'title': 'Short', 'employer': 'Fictional Co',
+              'desc_sha256': hashlib.sha256(short.encode()).hexdigest(), 'desc_chars': len(short)},
+             {'item_id': 'X03', 'split': 'development', 'title': 'Unsure', 'employer': 'Fictional Co',
+              'desc_sha256': hashlib.sha256(X01_TEXT.encode()).hexdigest(), 'desc_chars': len(X01_TEXT)}]
+    args = _dev_tree(tmp_path, items_extra=extra,
+                     label_extra={'X02': {'first_saved_choice': 'show_lower'},
+                                  'X03': {'first_saved_choice': 'unsure', 'current_choice': 'hide'}})
+    (tmp_path / 'snaps' / 'X02.txt').write_text(short, encoding='utf-8')
+    (tmp_path / 'snaps' / 'X03.txt').write_text(X01_TEXT, encoding='utf-8')
+    done = _run_dev(args)
+    assert done.returncode == 0, done.stderr
+    out = json.loads((tmp_path / 'out.json').read_text(encoding='utf-8'))
+    reasons = {e['item_id']: ' '.join(e['reasons']) for e in out['excluded']}
+    assert 'SOURCE_UNREADABLE' in reasons['X02'] and 'unsure' in reasons['X03']
+    assert out['later_label_changes'] == [{'item_id': 'X03', 'first_saved_choice': 'unsure', 'current_choice': 'hide'}]
+    assert out['items_scored'] == 1 and 'X02' not in out['boundary']['snapshots_opened_by_this_process']
+
+
+def test_network_guard_blocks_ip_literal_connections():
+    import subprocess
+    import sys
+    scripts = str(Path(__file__).resolve().parents[1] / 'scripts')
+    code = ('import sys, socket; sys.path.insert(0, %r); import c_eval_common as c; c.disable_network()\n'
+            'for call in (lambda: socket.create_connection(("127.0.0.1", 9)), lambda: socket.getaddrinfo("example.invalid", 443),\n'
+            '             lambda: socket.socket().connect(("10.0.0.1", 80))):\n'
+            '    try:\n        call(); print("CONNECTED")\n    except OSError as e:\n        print("blocked", e)\n') % scripts
+    done = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, timeout=60)
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.count('network disabled') == 3 and 'CONNECTED' not in done.stdout
+
+
+# --- v3 candidate: preferred versus required, ranges, adjacent roles, band ---
+
+OWNER_V3 = FIXTURE['owner_like_preferences']
+SOC_DUTY = 'Triage SIEM alerts and escalate incidents to the IR team'
+
+
+@pytest.mark.parametrize('tail,span,expected', [
+    ('Requirements: degree in IT. Preferred qualifications: certifications that meet the requirements of the '
+     'SOC. 5 years in a SOC.', '5 years in a SOC', None),                       # body word does not reset
+    ('Good to have: 5 years in a SOC.', '5 years in a SOC', None),
+    ('Preferred:\n 5 years in a SOC.', '5 years in a SOC', None),
+    ('Preferred qualifications: ' + 'Familiarity with many security tools and frameworks. ' * 14
+     + '5 years in a SOC.', '5 years in a SOC', None),                          # heading far above
+    ('Preferred qualifications:\n You meet the following requirements: 5 years in a SOC.', '5 years in a SOC', None),
+    ('Preferred qualifications: CISSP.\nRequirements:\n 5 years in a SOC.', '5 years in a SOC', 5),
+    ('\n BASIC QUALIFICATIONS \n 2 years in a SOC.\n PREFERRED QUALIFICATIONS \n Internship', '2 years in a SOC', 2),
+    ('Minimum Work Experience : - \n 5+ years in a SOC.', '5+ years in a SOC', 5),
+    ('5 years in a SOC.', '5 years in a SOC', 5),
+])
+def test_preferred_headings_are_read_from_line_structure(tail, span, expected):
+    posting = {'title': 'SOC Analyst', 'description': SOC_DUTY + '. ' + tail}
+    years = int(re.search(r'\d+', span).group())
+    assert ru.verify(_answer('SECURITY_OPERATIONS', 0.9, [SOC_DUTY], years, span), posting)['required_years_min'] == expected
+
+
+@pytest.mark.parametrize('span,claimed,expected', [
+    ('3-5 years in a SOC', 5, 3), ('2 to 4 years of SOC experience', 4, 2), ('3 – 6 years in a SOC', 6, 3),
+    ('0 - 1 years in a SOC', 0, 0), ('3-5 years in a SOC', 3, 3),
+    ('Minimum 2 years in a SOC (2019-2021 programme)', 2, 2), ('24-7 rota; 2 years in a SOC', 2, 2),
+])
+def test_a_range_upper_bound_is_never_the_required_minimum(span, claimed, expected):
+    posting = {'title': 'SOC Analyst', 'description': f'{SOC_DUTY}. Requirements: {span}.'}
+    out = ru.verify(_answer('SECURITY_OPERATIONS', 0.9, [SOC_DUTY], claimed, span), posting)
+    assert out['required_years_min'] == expected
+    assert any('upper part of a quoted range' in d for d in out['discarded']) is (claimed != expected)
+
+
+ADJ_JOB = {'title': 'Junior Systems Coordinator', 'location': 'Abu Dhabi, United Arab Emirates',
+           'description': 'Maintain release trackers for the enterprise resource planning system and prepare '
+                          'status reports for the application team. Minimum 7 years of experience.'}
+ADJ_SPAN = 'Maintain release trackers for the enterprise resource planning system'
+
+
+@pytest.mark.parametrize('years,span,wording,expected', [
+    (None, None, (), ru.LOWER),
+    (None, None, [{'kind': 'DESIGNATED_NATIONALS', 'text': 'Junior Systems Coordinator'}], ru.LOWER),
+    (7, 'Minimum 7 years of experience', (), ru.SUGGESTED_HIDDEN),
+])
+def test_adjacent_role_is_lower_never_prominent(years, span, wording, expected):
+    fa, placed = _placed(ADJ_JOB, _answer('ICT_ADJACENT', 0.85, [ADJ_SPAN], years, span, wording), OWNER_V3)
+    assert placed['tier'] == expected and placed['understanding_used']
+    assert any('adjacent technical role' in r for r in placed['reasons'])
+    assert ru.verify(_answer('ICT_ADJACENT', 0.85, [ADJ_SPAN]), ADJ_JOB)['primary_function'] == 'ICT_ADJACENT'
+
+
+def test_adjacent_reading_supersedes_keyword_domain_rejection_but_only_to_lower():
+    keyword_rejection = {'hard_reject': {'code': 'DOMAIN_INCOMPATIBLE'}, 'bucket': 'REJECTED', 'score': None}
+    placed = ru.place(ru.verify(_answer('ICT_ADJACENT', 0.85, [ADJ_SPAN]), ADJ_JOB), keyword_rejection, CFG, OWNER_V3)
+    assert placed['tier'] == ru.LOWER
+    weak = ru.place(ru.verify(_answer('ICT_ADJACENT', 0.5, [ADJ_SPAN]), ADJ_JOB), keyword_rejection, CFG, OWNER_V3)
+    assert weak['tier'] == ru.SUGGESTED_HIDDEN and not weak['understanding_used']
+
+
+@pytest.mark.parametrize('years,expected,reason', [
+    (2, ru.PROMINENT, 'enabled field'), (3, ru.LOWER, 'comfortable limit'), (5, ru.LOWER, 'comfortable limit'),
+    (6, ru.SUGGESTED_HIDDEN, 'stretch limit'), (14, ru.SUGGESTED_HIDDEN, 'stretch limit'),
+])
+def test_owner_band_hides_only_at_six_or_more_required_years(years, expected, reason):
+    posting = {'title': 'Security Engineer', 'location': 'Abu Dhabi, United Arab Emirates',
+               'description': f'{SOC_DUTY}. Minimum {years} years in security operations.'}
+    _, placed = _placed(posting, _answer('SECURITY_OPERATIONS', 0.9, [SOC_DUTY], years,
+                                         f'Minimum {years} years in security operations'), OWNER_V3)
+    assert placed['tier'] == expected and any(reason in r for r in placed['reasons'])
+    assert OWNER_V3['stretch_max_years'] == 5
+
+
+def test_preferred_years_never_move_a_relevant_role_under_the_owner_band():
+    posting = {'title': 'Security Engineer', 'location': 'Abu Dhabi, United Arab Emirates',
+               'description': f'{SOC_DUTY}.\nPreferred qualifications:\n 8 years in security operations.'}
+    _, placed = _placed(posting, _answer('SECURITY_OPERATIONS', 0.9, [SOC_DUTY], 8,
+                                         '8 years in security operations'), OWNER_V3)
+    assert placed['tier'] == ru.PROMINENT and any('no seniority adjustment' in n for n in placed['notes'])
+
+
+@pytest.mark.parametrize('kind,prefs,expected_tier,warned', [
+    ('DESIGNATED_NATIONALS', 'owner', ru.LOWER, True),
+    ('DESIGNATED_NATIONALS', 'default', ru.PROMINENT, True),
+    ('NATIONALS_PREFERENCE', 'owner', ru.PROMINENT, False),
+])
+def test_eligibility_wording_is_a_warning_never_a_decision(kind, prefs, expected_tier, warned):
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+    import c_eval_common
+    text = 'Cyber Analyst (UAE National)' if kind == 'DESIGNATED_NATIONALS' else 'Preference will be given to UAE nationals'
+    posting = {'title': 'Cyber Analyst (UAE National)', 'location': 'Abu Dhabi, United Arab Emirates',
+               'description': f'{SOC_DUTY}. Preference will be given to UAE nationals.'}
+    _, placed = _placed(posting, _answer('SECURITY_OPERATIONS', 0.9, [SOC_DUTY], wording=[{'kind': kind, 'text': text}]),
+                        OWNER_V3 if prefs == 'owner' else {})
+    assert placed['tier'] == expected_tier and bool(placed['warnings']) is warned
+    assert not c_eval_common.asserts_eligibility(placed['reasons'] + placed['warnings'] + placed['notes'])
+    assert c_eval_common.asserts_eligibility(['You are not eligible for this role'])
+
+
+def test_assessor_request_explains_every_function_and_the_range_rule():
+    request = ru.assessor_request({'title': 'x', 'description': 'y'})
+    assert set(request['schema']['properties']['primary_function']['enum']) == ru.FUNCTIONS
+    assert set(ru.FUNCTION_GUIDE) == ru.FUNCTIONS and 'ICT_ADJACENT' in ru.FUNCTIONS
+    for name in ru.FUNCTIONS:
+        assert f'{name} = ' in request['instructions']
+    assert 'lower bound' in request['instructions'] and 'never infer nationality' in request['instructions']
+    assert (ru.SCHEMA_VERSION, ru.POLICY_VERSION) == ('role-understanding-2', 'shadow-placement-2')
 
 
 UNHASHABLE_KINDS = [['DESIGNATED_NATIONALS'], {'k': 'DESIGNATED_NATIONALS'}, {'DESIGNATED_NATIONALS'}, None, 3]

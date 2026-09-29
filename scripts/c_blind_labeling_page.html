@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; form-action 'none'">
+<title>ASTRA blind labels</title>
+<style>
+:root { --bg: #f7f7f5; --card: #ffffff; --ink: #1d1d1b; --muted: #5f5f5a; --line: #deded8; --accent: #1f5f8b; --ok: #2f7d32; --warn: #9a5b00; }
+@media (prefers-color-scheme: dark) { :root { --bg: #161615; --card: #20201e; --ink: #ecece8; --muted: #a8a8a0; --line: #3a3a36; --accent: #7fb6de; --ok: #81c784; --warn: #f0b35a; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 96px; }
+h1 { font-size: 1.5rem; margin: 0 0 8px; }
+.intro, .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 16px 0; }
+.intro p { margin: 6px 0; }
+.card h2 { font-size: 1.15rem; margin: 0 0 4px; }
+.meta { color: var(--muted); font-size: .92rem; margin-bottom: 10px; }
+pre.desc { white-space: pre-wrap; word-wrap: break-word; font: inherit; font-size: .95rem; max-height: 420px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 0 0 12px; }
+fieldset { border: none; padding: 0; margin: 10px 0; }
+legend { font-weight: 600; margin-bottom: 6px; }
+.choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.choices label { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+.choices input { margin-right: 6px; }
+textarea { width: 100%; min-height: 56px; font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+button[disabled] { opacity: .45; cursor: not-allowed; }
+.status { margin-left: 10px; font-size: .92rem; color: var(--muted); }
+.status.saved { color: var(--ok); }
+.status.changed { color: var(--warn); }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--card); border-top: 1px solid var(--line); padding: 10px 16px; }
+.bar div { max-width: 860px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.hash { font-family: ui-monospace, Consolas, monospace; word-break: break-all; font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>ASTRA #46.2-C blind labels</h1>
+<div class="intro">
+<p>This page shows only the posting text ASTRA captured on 2026-09-22. It contains <strong>no</strong> ASTRA recommendation, score, reading or suggestion. Judge each posting from the text shown here.</p>
+<p><strong>Fit:</strong> assuming this vacancy is open, how well does it fit your search? Availability is not part of the label.</p>
+<p><strong>Nationality wording:</strong> this asks only what the <em>employer's words</em> say, not anything about you.</p>
+<p>Press <em>Save label</em> on each posting. Your first save is kept as the label of record; any later save is recorded as a change. When every posting is saved, press <em>Export labels</em>, keep the downloaded file, and send the SHA-256 shown at the bottom. Work is kept in this browser if you close the page.</p>
+</div>
+<div id="cards"></div>
+</main>
+<div class="bar"><div>
+<span id="progress"></span>
+<button id="export" type="button">Export labels</button>
+<span>SHA-256 of the exported file: <span id="hash" class="hash">not exported yet</span></span>
+</div></div>
+<script type="application/json" id="data">/*__DATA__*/</script>
+<script>
+'use strict';
+const DATA = JSON.parse(document.getElementById('data').textContent);
+const STORE = 'astra-c-blind-v3:' + DATA.items_digest;
+const FIT = [['show_prominently', 'Show prominently'], ['show_lower', 'Show lower'], ['hide', 'Hide'], ['unsure', 'Unsure']];
+const NAT = [['targets', 'Targets UAE nationals (e.g. "UAE National", "Emirati Talent", nationals only)'],
+             ['prefers', 'Prefers UAE nationals (others may apply)'], ['none', 'No such wording'], ['not_sure', 'Not sure']];
+let state = {};
+try { state = JSON.parse(localStorage.getItem(STORE) || '{}') || {}; } catch (e) { state = {}; }
+function persist() { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) { /* storage unavailable: state stays in memory */ } }
+function el(tag, attrs, text) { const n = document.createElement(tag); for (const k in (attrs || {})) n.setAttribute(k, attrs[k]); if (text !== undefined) n.textContent = text; return n; }
+function radios(name, options, current) {
+  const box = el('div', {class: 'choices'});
+  for (const [value, label] of options) {
+    const l = el('label'); const i = el('input', {type: 'radio', name: name, value: value});
+    if (current === value) i.checked = true;
+    l.appendChild(i); l.appendChild(document.createTextNode(label)); box.appendChild(l);
+  }
+  return box;
+}
+function picked(card, name) { const i = card.querySelector('input[name="' + name + '"]:checked'); return i ? i.value : null; }
+const readable = DATA.items.filter(it => it.description !== null);
+function render() {
+  const root = document.getElementById('cards');
+  DATA.items.forEach((it, index) => {
+    const card = el('section', {class: 'card', id: 'card-' + it.id});
+    card.appendChild(el('h2', null, (index + 1) + '. ' + (it.title || '(no title)')));
+    card.appendChild(el('div', {class: 'meta'}, [it.employer, it.location].filter(Boolean).join(' · ') + ' · item ' + it.id));
+    if (it.description === null) {
+      card.appendChild(el('p', null, 'ASTRA could not read this posting\'s description (' + it.chars + ' characters). No label is needed.'));
+      root.appendChild(card); return;
+    }
+    card.appendChild(el('pre', {class: 'desc'}, it.description));
+    const saved = state[it.id] ? state[it.id].final : null;
+    const f1 = el('fieldset'); f1.appendChild(el('legend', null, 'Assuming this vacancy is open, how well does it fit your search?'));
+    f1.appendChild(radios('fit-' + it.id, FIT, saved && saved.fit)); card.appendChild(f1);
+    const f2 = el('fieldset'); f2.appendChild(el('legend', null, 'Employer\'s nationality wording (about the employer\'s words only, not about you)'));
+    f2.appendChild(radios('nat-' + it.id, NAT, saved && saved.nationality)); card.appendChild(f2);
+    const tp = el('label'); const cb = el('input', {type: 'checkbox', id: 'tp-' + it.id}); if (saved && saved.text_problem) cb.checked = true;
+    tp.appendChild(cb); tp.appendChild(document.createTextNode(' The text shown is unreadable or is not a job posting')); card.appendChild(tp);
+    const note = el('textarea', {id: 'note-' + it.id, placeholder: 'Optional private note (stays in your file)'}); note.value = saved ? (saved.reason || '') : '';
+    card.appendChild(el('div')).appendChild(note);
+    const button = el('button', {type: 'button'}, 'Save label'); const status = el('span', {class: 'status'});
+    button.addEventListener('click', () => save(it.id, card, status));
+    const row = el('div'); row.appendChild(button); row.appendChild(status); card.appendChild(row);
+    showStatus(it.id, status);
+    root.appendChild(card);
+  });
+  progress();
+}
+function showStatus(id, status) {
+  const s = state[id];
+  if (!s) { status.textContent = 'not saved'; status.className = 'status'; return; }
+  status.textContent = s.changes.length ? 'saved; changed ' + s.changes.length + ' time(s) after the first save' : 'saved';
+  status.className = 'status ' + (s.changes.length ? 'changed' : 'saved');
+}
+function save(id, card, status) {
+  const answer = {fit: picked(card, 'fit-' + id), nationality: picked(card, 'nat-' + id),
+                  text_problem: card.querySelector('#tp-' + id).checked, reason: card.querySelector('#note-' + id).value.trim(),
+                  at: new Date().toISOString()};
+  if (!answer.text_problem && (!answer.fit || !answer.nationality)) { status.textContent = 'answer both questions (or tick the unreadable box) first'; status.className = 'status changed'; return; }
+  if (!state[id]) state[id] = {first_saved: answer, final: answer, changes: []};
+  else { state[id].changes.push(answer); state[id].final = answer; }
+  persist(); showStatus(id, status); progress();
+}
+function progress() {
+  const done = readable.filter(it => state[it.id]).length;
+  document.getElementById('progress').textContent = done + ' of ' + readable.length + ' saved';
+  document.getElementById('export').disabled = done < readable.length;
+}
+document.getElementById('export').addEventListener('click', () => {
+  const labels = {};
+  for (const it of readable) labels[it.id] = state[it.id];
+  const out = {artifact: 'discovery_46_2c_blind_labels', version: 'v3', items_digest: DATA.items_digest,
+               exported_at: new Date().toISOString(), labels: labels,
+               unreadable_not_labelled: DATA.items.filter(it => it.description === null).map(it => it.id)};
+  const text = JSON.stringify(out, null, 1) + '\n';
+  const bytes = new TextEncoder().encode(text);
+  const hex = sha256Hex(bytes);
+  const a = el('a', {href: URL.createObjectURL(new Blob([bytes], {type: 'application/json'})), download: 'c_blind_labels_v3.json'});
+  document.body.appendChild(a); a.click(); a.remove();
+  document.getElementById('hash').textContent = hex;
+});
+// SHA-256 (FIPS 180-4), in page so no network or secure-context API is needed.
+const K = new Uint32Array([0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]);
+function ror(x, n) { return (x >>> n) | (x << (32 - n)); }
+function sha256Hex(bytes) {
+  const H = new Uint32Array([0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19]);
+  const length = bytes.length, padded = ((length + 9 + 63) >> 6) << 6;
+  const buffer = new Uint8Array(padded); buffer.set(bytes); buffer[length] = 0x80;
+  const view = new DataView(buffer.buffer);
+  view.setUint32(padded - 8, Math.floor(length / 0x20000000)); view.setUint32(padded - 4, (length << 3) >>> 0);
+  const W = new Uint32Array(64);
+  for (let offset = 0; offset < padded; offset += 64) {
+    for (let i = 0; i < 16; i++) W[i] = view.getUint32(offset + 4 * i);
+    for (let i = 16; i < 64; i++) {
+      const s0 = ror(W[i - 15], 7) ^ ror(W[i - 15], 18) ^ (W[i - 15] >>> 3);
+      const s1 = ror(W[i - 2], 17) ^ ror(W[i - 2], 19) ^ (W[i - 2] >>> 10);
+      W[i] = (W[i - 16] + s0 + W[i - 7] + s1) >>> 0;
+    }
+    let a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+    for (let i = 0; i < 64; i++) {
+      const t1 = (h + (ror(e, 6) ^ ror(e, 11) ^ ror(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + W[i]) >>> 0;
+      const t2 = ((ror(a, 2) ^ ror(a, 13) ^ ror(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) >>> 0;
+      h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    H[0] += a; H[1] += b; H[2] += c; H[3] += d; H[4] += e; H[5] += f; H[6] += g; H[7] += h;
+  }
+  return Array.from(H, x => x.toString(16).padStart(8, '0')).join('');
+}
+// END SHA-256
+render();
+</script>
+</body>
+</html>

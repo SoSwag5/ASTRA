@@ -1,0 +1,16 @@
+{
+ "artifact": "discovery_46_2c_owner_preferences",
+ "version": "v3",
+ "decided_by": "Owner",
+ "decided_on": "2026-09-29",
+ "scope": "This Owner's per-user settings for the #46.2-C shadow candidate. They are not defaults for other users; the default designated-nationals setting is annotate-only and the default seniority band is none.",
+ "preferences": {
+  "comfortable_max_years": 2,
+  "stretch_max_years": 5,
+  "designated_nationals_wording": "lower_with_warning"
+ },
+ "changes": [
+  "v2 (provisional, proposed by Claude after reading the development labels): comfortable 2, stretch 4.",
+  "v3 (Owner decision 2026-09-29): stretch 5, so a relevant role requiring 3-5 years is shown lower and 6+ years is suggested hidden. Preferred years never count."
+ ]
+}

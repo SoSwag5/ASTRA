@@ -1,0 +1,68 @@
+{
+ "artifact": "role_understanding_eval_profile",
+ "version": "v1",
+ "source": "tests/fixtures/discovery_relevance_46_2_v2.json case[0] at commit 66a1eca (fictional early-career fixture, unchanged)",
+ "provenance": "FICTIONAL. Constructed early-career candidate; no CV, database row or real person. Copied unchanged from the #46.2 relevance benchmark fixture so the C evaluations use a committed profile.",
+ "career_config": {
+  "career_tracks": [
+   "CYBERSECURITY",
+   "IT_CLOUD",
+   "SOFTWARE_ENGINEERING",
+   "DATA_ANALYTICS",
+   "AI_ML",
+   "QA_TESTING"
+  ],
+  "custom_target_roles": []
+ },
+ "profile": {
+  "declarations": {},
+  "raw_text": "Computer Science graduate (2024). BSc Computer Science, 2024 Monitored alerts in a lab SIEM and triaged 40+ simulated incidents Authored Sigma-style detection rules for the lab SIEM 6-month IT service desk internship; tier-1 ticket triage Administered Windows Server and Ubuntu VMs in coursework Completed networking coursework; configured routers and VLANs in lab Built Python scripts to parse logs and automate report generation Designed and queried a normalized SQLite database for a capstone Wrote test cases and logged defects for a team project Used Git and pull-request review on all team projects Arabic (native), English (professional working proficiency) Deployed a two-tier app to a public cloud free tier Containerized a Flask service with Docker Trained and evaluated classification models in a coursework project",
+  "skills": [
+   {
+    "text": "SIEM"
+   },
+   {
+    "text": "Incident Response"
+   },
+   {
+    "text": "Detection Engineering"
+   },
+   {
+    "text": "Linux"
+   },
+   {
+    "text": "Windows Server"
+   },
+   {
+    "text": "TCP/IP"
+   },
+   {
+    "text": "Networking"
+   },
+   {
+    "text": "Python"
+   },
+   {
+    "text": "SQL"
+   },
+   {
+    "text": "Cloud Fundamentals"
+   },
+   {
+    "text": "Docker"
+   },
+   {
+    "text": "Manual Testing"
+   },
+   {
+    "text": "Git"
+   },
+   {
+    "text": "Arabic"
+   },
+   {
+    "text": "English"
+   }
+  ]
+ }
+}

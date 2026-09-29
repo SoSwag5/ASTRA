@@ -1,10 +1,10 @@
 {
  "artifact": "role_understanding_shadow_regression",
- "version": "v1.1",
+ "version": "v1.2",
  "provenance": "Fictional postings written for #46.2. Each 'understanding' is a recorded assessor answer, written by Claude, of the kind an AI assessor should return. No real employer, person or posting.",
  "owner_like_preferences": {
   "comfortable_max_years": 2,
-  "stretch_max_years": 4,
+  "stretch_max_years": 5,
   "designated_nationals_wording": "lower_with_warning"
  },
  "cases": [
@@ -55,7 +55,7 @@
   },
   {
    "id": "dfir-lab-five-years",
-   "rationale": "Relevant security domain but five required years, above the user's stretch limit.",
+   "rationale": "Relevant security domain with five required years: inside the Owner's 3-5 band (decision 2026-09-29), so shown lower, not hidden.",
    "posting": {
     "title": "Security Engineer (Forensics Lab)",
     "location": "Abu Dhabi, United Arab Emirates",
@@ -72,8 +72,8 @@
     "eligibility_wording": []
    },
    "preferences": "owner_like",
-   "expected_tier": "SUGGESTED_HIDDEN",
-   "expected_reason": "stretch limit"
+   "expected_tier": "LOWER",
+   "expected_reason": "comfortable limit"
   },
   {
    "id": "data-engineer-three-years",
@@ -335,9 +335,76 @@
    "preferences": "owner_like",
    "expected_reason": "below the 0.7 confidence",
    "expected_tier_from_engine": true
+  },
+  {
+   "id": "dfir-lab-six-years",
+   "rationale": "Relevant security domain but six required years, above the stretch limit of 5: suggested hidden.",
+   "posting": {
+    "title": "Security Engineer (Forensics Lab)",
+    "location": "Abu Dhabi, United Arab Emirates",
+    "description": "Maintain forensic workstations and incident response tooling for the lab. 6+ years working in digital forensics or incident response."
+   },
+   "understanding": {
+    "primary_function": "SECURITY_ENGINEERING",
+    "function_confidence": 0.85,
+    "function_evidence": [
+     "Maintain forensic workstations and incident response tooling for the lab"
+    ],
+    "required_years_min": 6,
+    "years_evidence": "6+ years working in digital forensics or incident response",
+    "eligibility_wording": []
+   },
+   "preferences": "owner_like",
+   "expected_tier": "SUGGESTED_HIDDEN",
+   "expected_reason": "stretch limit"
+  },
+  {
+   "id": "plm-coordination-adjacent",
+   "rationale": "Junior technology-adjacent coordination (PLM trackers, process documentation, UAT support): visible, shown lower, never prominent.",
+   "posting": {
+    "title": "Junior Enterprise Systems Coordinator",
+    "location": "Abu Dhabi, United Arab Emirates",
+    "description": "Maintain change and release trackers for the product lifecycle management system and prepare meeting notes. Document process steps and support user acceptance testing with the application team. 0-1 years of experience."
+   },
+   "understanding": {
+    "primary_function": "ICT_ADJACENT",
+    "function_confidence": 0.85,
+    "function_evidence": [
+     "Maintain change and release trackers for the product lifecycle management system"
+    ],
+    "required_years_min": 0,
+    "years_evidence": "0-1 years of experience",
+    "eligibility_wording": []
+   },
+   "preferences": "owner_like",
+   "expected_tier": "LOWER",
+   "expected_reason": "adjacent technical role"
+  },
+  {
+   "id": "good-to-have-years-not-required",
+   "rationale": "Years listed under a \"Good to have\" heading are preferred, never required: no seniority move.",
+   "posting": {
+    "title": "Network Support Engineer",
+    "location": "Dubai, United Arab Emirates",
+    "description": "Configure switches and firewalls and resolve network incidents for branch offices.\nRequirements:\n Degree in computer engineering.\nGood to have:\n 7 years in enterprise networking."
+   },
+   "understanding": {
+    "primary_function": "INFRASTRUCTURE_CLOUD_NETWORK",
+    "function_confidence": 0.9,
+    "function_evidence": [
+     "Configure switches and firewalls and resolve network incidents for branch offices"
+    ],
+    "required_years_min": 7,
+    "years_evidence": "7 years in enterprise networking",
+    "eligibility_wording": []
+   },
+   "preferences": "owner_like",
+   "expected_tier": "PROMINENT",
+   "expected_note": "no seniority adjustment"
   }
  ],
  "changes": [
-  "v1.1: low-confidence-non-ict now expects the engine placement (confidence gate for any domain move)."
+  "v1.1: low-confidence-non-ict now expects the engine placement (confidence gate for any domain move).",
+  "v1.2: owner-like preferences follow the Owner decision of 2026-09-29 (stretch 5); dfir-lab-five-years now expects LOWER; added dfir-lab-six-years, plm-coordination-adjacent and good-to-have-years-not-required."
  ]
 }
