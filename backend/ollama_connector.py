@@ -86,6 +86,12 @@ MAX_EMBED_BATCH = 16         # the batch size the #46.2 benchmark measured
 MAX_EMBED_CHARS = 8_000      # well inside the candidate embedding model's 32K context
 MAX_OUTPUT_TOKENS = 512      # the C answer is small; this caps runaway generation
 NUM_CTX = 2_048              # benchmark §7: 2K matched 4K on quality with less VRAM
+# Ollama silently truncates a prompt that overflows num_ctx, and the answer's evidence would still
+# verify against the full text. So the prompt must fit with room for the answer: a pre-dispatch
+# character bound (3 chars/token is a heuristic, not a tokenizer) and a check of the server's own
+# prompt_eval_count afterwards. Longer postings are refused, not shortened.
+PROMPT_TOKEN_BUDGET = NUM_CTX - MAX_OUTPUT_TOKENS
+MAX_PROMPT_CHARS = 3 * PROMPT_TOKEN_BUDGET
 KEEP_ALIVE = '30s'           # per request: release VRAM soon after a harness run
 
 # A local safety floor for the offline harness, not an approved gate. #46.2
@@ -114,11 +120,12 @@ REDIRECT_REFUSED = 'REDIRECT_REFUSED'
 INPUT_REFUSED = 'INPUT_REFUSED'              # bounds or delimiter collision, before sending
 MODEL_UNVERIFIED = 'MODEL_UNVERIFIED'        # tag absent, or digest mismatch
 RESOURCE_REFUSED = 'RESOURCE_REFUSED'
+CONTEXT_EXCEEDED = 'CONTEXT_EXCEEDED'        # the server reports a prompt that may not have fit the context window
 
 FAILURE_REASONS = frozenset({
     SCHEMA_REJECTED, EVIDENCE_REJECTED, MALFORMED_RESPONSE, OVERSIZE_RESPONSE, UNAVAILABLE, TIMEOUT,
     CANCELLED, HTTP_ERROR, HTTP_RETRYABLE, TRANSPORT_ERROR, REDIRECT_REFUSED, INPUT_REFUSED, MODEL_UNVERIFIED,
-    RESOURCE_REFUSED,
+    RESOURCE_REFUSED, CONTEXT_EXCEEDED,
 })
 # Only a failure an identical second attempt could plausibly survive. A
 # malformed or ungrounded answer is never retried -- at temperature 0 a retry
@@ -197,6 +204,7 @@ class Outcome:
             EVIDENCE_REJECTED: 'answer contained unsupported evidence',
             MALFORMED_RESPONSE: 'response could not be parsed or verified',
             OVERSIZE_RESPONSE: 'response exceeded the byte limit',
+            CONTEXT_EXCEEDED: 'prompt may not have fit the model context window',
             UNAVAILABLE: 'local service unavailable',
             TIMEOUT: 'call timed out',
             CANCELLED: 'call cancelled',
@@ -218,11 +226,6 @@ class Outcome:
 
 def _fail(reason, detail='', **extra):
     return Outcome(reason=reason, detail=str(detail)[:500], **extra)
-
-
-def _scrub(detail):
-    """Drop anything quoted from a detail string before it leaves in a report."""
-    return re.sub(r"'[^']*'|\"[^\"]*\"", '<quoted>', str(detail))[:200]
 
 
 # --- Endpoint ---------------------------------------------------------------
@@ -652,6 +655,9 @@ def build_messages(posting):
             'DESCRIPTION:\n'
             f"{job['description']}\n"
             + DATA_CLOSE)
+    if len(system) + len(user) > MAX_PROMPT_CHARS:
+        return None, _fail(INPUT_REFUSED, f'prompt is over {MAX_PROMPT_CHARS} chars and could overflow the '
+                                          f'{NUM_CTX}-token context window; refused rather than truncated')
     return [{'role': 'system', 'content': system}, {'role': 'user', 'content': user}], None
 
 
@@ -704,6 +710,10 @@ def verified_answer(body, posting, expected_tag):
     timings = _timings(body) if isinstance(body, dict) else {}
     if not isinstance(body, dict) or body.get('model') != expected_tag or body.get('done') is not True:
         return _fail(MALFORMED_RESPONSE, 'response model or completion marker does not match the request',
+                     server_timings=timings)
+    evaluated = body.get('prompt_eval_count')
+    if isinstance(evaluated, int) and not isinstance(evaluated, bool) and evaluated > PROMPT_TOKEN_BUDGET:
+        return _fail(CONTEXT_EXCEEDED, 'server evaluated more prompt tokens than the context budget allows',
                      server_timings=timings)
     message = body.get('message') if isinstance(body, dict) else None
     if not isinstance(message, dict) or message.get('role') != 'assistant' \

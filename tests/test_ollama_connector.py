@@ -544,6 +544,11 @@ def test_an_over_long_posting_is_refused_before_any_model_lookup(field, limit):
                                          ('description', ru.MAX_INPUT_CHARS)])
 def test_exact_posting_bounds_are_not_silently_shortened(field, limit):
     messages, refusal = oc.build_messages(dict(CYBER, **{field: 'X' * limit}))
+    if field == 'description':
+        # The per-field bound is 40,000 chars but the 2K-token context cannot hold that: refused whole.
+        assert messages is None and refusal.reason == oc.INPUT_REFUSED
+        limit = 1000
+        messages, refusal = oc.build_messages(dict(CYBER, **{field: 'X' * limit}))
     assert refusal is None and 'X' * limit in messages[1]['content']
 
 
@@ -973,3 +978,18 @@ def test_nothing_imports_the_harness_either():
                  if p.resolve() not in allowed and _imports_harness(p)]
     assert offenders == []
     assert _imports_harness(Path(__file__))
+
+
+def test_a_prompt_that_could_overflow_the_context_is_refused_not_truncated():
+    seen = []
+    long_posting = {**CYBER, 'description': 'x ' * (oc.MAX_PROMPT_CHARS // 2)}
+    outcome = understand(long_posting, chat=chat_body(valid_answer()), record=seen)
+    assert outcome.reason == oc.INPUT_REFUSED and seen == []
+
+
+def test_a_server_reported_context_overflow_is_not_accepted():
+    body = {**chat_body(valid_answer()), 'prompt_eval_count': oc.NUM_CTX}
+    outcome = understand(chat=body)
+    assert outcome.reason == oc.CONTEXT_EXCEEDED and outcome.dispatched and not outcome.accepted
+    fits = {**chat_body(valid_answer()), 'prompt_eval_count': oc.PROMPT_TOKEN_BUDGET}
+    assert understand(chat=fits).accepted
