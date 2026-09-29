@@ -34,8 +34,8 @@ from . import career_tracks
 SCHEMA_VERSION = 'role-understanding-2'
 POLICY_VERSION = 'shadow-placement-2'
 # How verify() reads evidence: 1 = v1/v2 candidate, 2 = first v3 freeze,
-# 3 = after independent review round 1, 4 = after round 2.
-VERIFIER_VERSION = 'verifier-4'
+# 3 = after independent review round 1, 4 = after round 2, 5 = after round 3.
+VERIFIER_VERSION = 'verifier-5'
 
 PROMINENT, LOWER, SUGGESTED_HIDDEN, UNPLACED = 'PROMINENT', 'LOWER', 'SUGGESTED_HIDDEN', 'UNPLACED'
 TIER_RANK = {PROMINENT: 0, LOWER: 1, SUGGESTED_HIDDEN: 2, UNPLACED: 3}
@@ -136,10 +136,14 @@ _PREFERENCE_WORDS = re.compile(r'\b(?:prefer(?:red|ably|ence)?|desir(?:ed|able)|
 # "Basic Python scripting" or "Qualifications: CISSP". Any leading glyph or
 # number is a bullet, and a bulleted item with content is never a heading.
 _PREFERRED_HEAD = re.compile(r'\b(?:prefer(?:red|ably)?|desir(?:ed|able)|advantage(?:ous|s)?|nice[\s-]to[\s-]haves?|'
-                             r'good[\s-]to[\s-]haves?|bonus|optional|a plus|ideally)\b', re.I)
+                             r'good[\s-]to[\s-]haves?|bonus|optional|a plus|ideally|an asset|stand out)\b', re.I)
 _PREFERRED_START = re.compile(r'^(?:(?:additional|other)\s+)?(?:preferred|desired|desirable|optional|bonus|advantageous|'
-                              r'nice[\s-]to[\s-]haves?|good[\s-]to[\s-]haves?)\b', re.I)
-_REQUIRED_MARKERS = {'required', 'requirement', 'requirements', 'mandatory', 'essential', 'must', 'minimum', 'basic'}
+                              r'assets?|nice[\s-]to[\s-]haves?|good[\s-]to[\s-]haves?)\b', re.I)
+# Strong markers name a requirement outright; weak ones ("basic", "minimum",
+# "essential") also start ordinary items ("Basic knowledge: Python"). Below a
+# preferred heading, only a stand-alone heading or a strong marker resets.
+_STRONG_REQUIRED = {'required', 'requirement', 'requirements', 'mandatory', 'must'}
+_REQUIRED_MARKERS = _STRONG_REQUIRED | {'essential', 'minimum', 'basic'}
 _HEADING_WORDS = {'qualification', 'qualifications', 'requirement', 'requirements', 'experience', 'experiences',
                   'skill', 'skills', 'criteria', 'education', 'attributes', 'competency', 'competencies', 'knowledge',
                   'certification', 'certifications', 'and', '&', '/', 'work', 'job', 'key', 'candidate', 'role',
@@ -147,7 +151,7 @@ _HEADING_WORDS = {'qualification', 'qualifications', 'requirement', 'requirement
 _BULLET = re.compile(r'^\s*(?:[^\w\s]+|\d{1,2}[.)])\s*')
 _SENTENCE_END = re.compile(r'(?<=[.;!?])\s+')
 # A figure continued from a larger number or a range: "15", "1.5", "4-7", "4 to 7".
-_NUMBER_BEFORE = re.compile(r'(?:\d|\d[.,]|\d\s*(?:-|–|—|to|and)\s*)$')
+_NUMBER_BEFORE = re.compile(r'(?:\d|\d[.,]|\d\s*(?:-|–|—|to)\s*|\bbetween\s+\d{1,2}\s+and\s*)$', re.I)
 _YEARS_AFTER = re.compile(r'\s*\+?\s*(?:years?|yrs?)\b', re.I)
 # A clause is cut at punctuation, brackets and line breaks.
 _CLAUSE_BREAK = re.compile(r'[.;:•,()\[\]\n]')
@@ -160,10 +164,11 @@ _PREFERENCE_CLAUSE = re.compile(r'^\s*(?:(?:is|are|would be|will be|being)\s+)?(
 # "3-5 years", "between 3 and 7 years", "3-to-7 yrs": the required minimum is
 # the lower bound. Only ranges directly followed by years count ("2-3 days"
 # and "Grade 3-6" are not experience).
-_YEAR_RANGE = re.compile(r'(?<![\d.])(\d{1,2})\s*(?:-to-|–|—|-|to|and)\s*(\d{1,2})\s*\+?\s*(?:years?|yrs?)\b', re.I)
+_YEAR_RANGE = re.compile(r'(?<![\d.])(?:(\d{1,2})\s*(?:-to-|–|—|-|to)\s*(\d{1,2})|between\s+(\d{1,2})\s+and\s+(\d{1,2}))'
+                         r'\s*\+?\s*(?:years?|yrs?)\b', re.I)
 # Employer eligibility wording must actually be about nationality, and wording
 # that opens a role to everyone is not a restriction.
-_NATIONALITY_WORDS = re.compile(r'emirati|emiratis[ai]tion|emiratiz|\bnationals?\b|citizens?|\buae national', re.I)
+_NATIONALITY_WORDS = re.compile(r'emirati|emiratis[ai]tion|emiratiz|\bnationals?\b|citizens?|passports?|\buae national', re.I)
 _UAE = r'(?:\bu\.?a\.?e\b\.?|\bunited arab emirates\b)'
 _CITIZEN = r'(?:\bnationals?\b|\bcitizens?(?:hip)?\b|\bpassports?\b)'
 _UAE_NATIONALS = re.compile(r'emirati|emiratis[ai]tion|emiratiz|' + _UAE + r'[^.;\n]{0,30}' + _CITIZEN + '|'
@@ -305,70 +310,120 @@ def _required_heading(text):
             and all(w in _HEADING_WORDS for w in words) and not _PREFERRED_HEAD.search(text))
 
 
+_PREF_TOKENS = {'preferred', 'desired', 'desirable', 'optional', 'advantageous', 'bonus', 'nice', 'good', 'to',
+                'asset', 'assets', 'additional', 'other', 'plus', 'a'}
+
+
+def _tokens(text):
+    return [t for t in (_bare(x) for x in re.split(r'[\s/&,]+', text)) if t]
+
+
+def _heading_tokens(tokens):
+    return all(t in _HEADING_WORDS or t in _PREF_TOKENS for t in tokens)
+
+
+def _pure_preferred(text):
+    """A preference phrase at the start, then only heading words: "Preferred
+    Qualifications", "Preferred/Desired Qualifications", "Nice to have" -- not
+    "Preferred nationality" or "Preferred language"."""
+    match = _PREFERRED_START.match(text)
+    return bool(match) and _heading_tokens(_tokens(text[match.end():]))
+
+
+def _preferred_phrase(text):
+    """Only heading words, with a preference anywhere: "Required/Preferred
+    Qualifications", "Qualifications (preferred)"."""
+    tokens = _tokens(text)
+    return 0 < len(tokens) <= 6 and _heading_tokens(tokens) and bool(_PREFERRED_HEAD.search(text))
+
+
+def _required_kind(text):
+    """'required' for a strong marker, 'required_weak' for a weak one, else None."""
+    if not _required_heading(text):
+        return None
+    return 'required' if any(_bare(w) in _STRONG_REQUIRED for w in text.split()) else 'required_weak'
+
+
 def _preferred_tail(text):
     """A preferred heading run into flattened text: "... IT Preferred Qualifications"."""
     words = text.split()
-    for i in range(max(0, len(words) - 4), len(words)):
-        tail = ' '.join(words[i:])
-        match = _PREFERRED_START.match(tail)
-        if match and all(_bare(w) in _HEADING_WORDS for w in tail[match.end():].split()):
-            return True
-    return False
+    return any(_pure_preferred(' '.join(words[i:])) for i in range(max(0, len(words) - 4), len(words)))
 
 
 def _required_tail(text):
     words = text.split()
-    return any(_required_heading(' '.join(words[i:])) for i in range(max(0, len(words) - 4), len(words)))
+    for i in range(max(0, len(words) - 4), len(words)):
+        kind = _required_kind(' '.join(words[i:]))
+        if kind:
+            return kind
+    return None
 
 
-def _segment_heading(segment):
-    """'preferred', 'required' or None for one sentence-sized piece of a line;
-    within the piece, the last heading wins."""
+def _segment_heading(segment, partial=False):
+    """The headings in one sentence-sized piece of a line, in order: each is
+    'preferred', 'required' or 'required_weak' (a weak marker in a heading
+    with content after its colon, which cannot reset a preferred section).
+    `partial` marks the piece the span itself continues, so whatever follows
+    its last ':' is content, not the end of a stand-alone heading."""
     text = segment.strip()
     bulleted = bool(_BULLET.match(text))
     text = _BULLET.sub('', text).strip()
     if not text:
-        return None
+        return []
     pieces = text.split(':')
     heads, rest = pieces[:-1], pieces[-1]
-    standalone = not re.sub(r'[\W_]+', '', rest)          # nothing but punctuation after the last ':'
-    if not heads:                                          # a line of its own, no colon
-        words = text.split()
-        if bulleted or len(words) > 6 or text[-1] in '.;!?,':
-            return None
-        if _PREFERRED_START.match(text):
-            return 'preferred'
-        return 'required' if _required_heading(text) else None
-    kind = None
+    standalone = not partial and not re.sub(r'[\W_]+', '', rest)   # nothing but punctuation after the last ':'
+    if not heads:                                                  # a line of its own, no colon
+        if partial:
+            return []                                              # the span's own line: its clause decides
+        clean = text.strip('*_#` ').rstrip('.;!?,*_ ').strip()
+        words = clean.split()
+        if not words or len(words) > 6:
+            return []
+        sentence = text[-1] in '.;!?,'
+        if _pure_preferred(clean) or (not bulleted and not sentence and
+                                      (_preferred_phrase(clean) or _PREFERRED_START.match(clean))):
+            return ['preferred']                                   # "- Preferred Qualifications", "**Nice to have**"
+        return ['required'] if not bulleted and not sentence and _required_heading(clean) else []
+    kinds = []
     for index, head in enumerate(heads):
-        head = head.strip()
-        last = index == len(heads) - 1
-        if not head:
+        head = head.strip().strip('*_#` ')
+        words = head.split()
+        if not words:
             continue
-        if last and standalone and len(head.split()) <= 12 and _PREFERRED_HEAD.search(head):
-            kind = 'preferred'                             # a lead-in line: "The following would be nice to have:"
-        elif last and standalone and _required_heading(head):
-            kind = 'required'
-        elif bulleted and index == 0:
-            continue                                       # a bulleted item with content is not a heading
-        elif index == 0 and len(head.split()) <= 5:
-            if _PREFERRED_START.match(head):
-                kind = 'preferred'
+        if index == len(heads) - 1 and standalone:
+            if _pure_preferred(head) or _preferred_phrase(head) or (4 <= len(words) <= 12 and _PREFERRED_HEAD.search(head)):
+                kinds.append('preferred')                          # a heading or lead-in: "It would be an asset to have:"
             elif _required_heading(head):
-                kind = 'required'
-        elif _preferred_tail(head):                        # flattened: after another heading, or long
-            kind = 'preferred'
+                kinds.append('required')
+        elif bulleted and index == 0:
+            continue                                               # a bulleted item with content is not a heading
+        elif index == 0 and len(words) <= 5:
+            if _pure_preferred(head):
+                kinds.append('preferred')
+            elif _required_kind(head):
+                kinds.append(_required_kind(head))
+        elif _preferred_tail(head):                                # flattened: after another heading, or long
+            kinds.append('preferred')
         elif _required_tail(head):
-            kind = 'required'
-    return kind
+            kinds.append(_required_tail(head))
+    return kinds
 
 
 def _heading_above(text):
-    """The kind of the nearest heading in `text` (everything above the span)."""
+    """The kind of the nearest heading in `text` (everything above the span).
+    Below a preferred heading a weak inline marker does not reset to required."""
     last = None
-    for line in text.split('\n'):
-        for segment in _SENTENCE_END.split(line):
-            last = _segment_heading(segment) or last
+    lines = text.split('\n')
+    for number, line in enumerate(lines):
+        segments = _SENTENCE_END.split(line)
+        for index, segment in enumerate(segments):
+            partial = number == len(lines) - 1 and index == len(segments) - 1
+            for kind in _segment_heading(segment, partial):
+                if kind == 'required_weak':
+                    last = last if last == 'preferred' else 'required'
+                else:
+                    last = kind
     return last
 
 
@@ -411,8 +466,8 @@ def _years_preferred(span, years, raw, description):
 def _range_floor(years, span):
     """The lower bound when the claimed years are the upper part of a quoted
     range of years ("3-5 years" claimed as 5 means 3)."""
-    for low, high in _YEAR_RANGE.findall(span):
-        low, high = int(low), int(high)
+    for match in _YEAR_RANGE.finditer(span):
+        low, high = (int(g) for g in (match.group(1, 2) if match.group(1) else match.group(3, 4)))
         if low < high and low < years <= high:
             return low
     return years

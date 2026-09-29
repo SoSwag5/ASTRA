@@ -26,8 +26,8 @@ cannot show: when the Owner actually labelled relative to the seal (label
 timestamps and commit times come from local clocks; only the host's push record
 is independent), that the Owner labelled alone or never saw candidate output,
 that no person read the holdout, or that no comparison was run privately before
-the committed one. Do not rebase or squash the branch between seal and compare:
-the history checks would then refuse.
+the committed one. Do not rebase, squash or amend between seal and compare: the
+history checks (which include the reflog) would then refuse.
 """
 import argparse
 import hashlib

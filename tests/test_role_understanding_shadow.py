@@ -544,7 +544,7 @@ def test_assessor_request_explains_every_function_and_the_range_rule():
         assert f'{name} = ' in request['instructions']
     assert 'lower bound' in request['instructions'] and 'never infer nationality' in request['instructions']
     assert (ru.SCHEMA_VERSION, ru.POLICY_VERSION, ru.VERIFIER_VERSION) == (
-        'role-understanding-2', 'shadow-placement-2', 'verifier-4')
+        'role-understanding-2', 'shadow-placement-2', 'verifier-5')
 
 
 UNHASHABLE_KINDS = [['DESIGNATED_NATIONALS'], {'k': 'DESIGNATED_NATIONALS'}, {'DESIGNATED_NATIONALS'}, None, 3]
@@ -690,3 +690,36 @@ def test_a_negated_all_nationalities_is_still_a_restriction(text, kept, uae):
     _, placed = _placed(posting, answer, OWNER_V3)
     assert bool(placed['warnings']) is kept and placed['tier'] == ru.LOWER
     assert ('targets UAE nationals' in placed['warnings'][0]) is uae
+
+
+# --- independent review round 3 (2026-09-29) ---
+
+@pytest.mark.parametrize('tail,claimed,span,expected', [
+    ('Requirements:\nDegree in IT\n• Preferred Qualifications\n• ' + CLOUD, 7, CLOUD, None),
+    ('Requirements:\nDegree in IT\n**Preferred Qualifications**\n' + CLOUD, 7, CLOUD, None),
+    ('Requirements:\nDegree in IT\nPreferred qualifications.\n' + CLOUD, 7, CLOUD, None),
+    ('Requirements:\nDegree\nNice to have:\nBasic knowledge: Python scripting\n' + CLOUD, 7, CLOUD, None),
+    ('Requirements:\nDegree\nNice to have:\nBasic skills: Python\n' + CLOUD, 7, CLOUD, None),
+    ('Requirements:\nDegree\nNice to have:\nEssential skills: Python\n' + CLOUD, 7, CLOUD, None),
+    ('Requirements:\nDegree\nNice to have:\nMinimum Work Experience: 5 years in a SOC', 5, '5 years in a SOC', None),
+    ('Requirements:\nDegree in IT\nPreferred nationality: UAE National\n' + CLOUD, 7, CLOUD, 7),
+    ('Requirements:\nDegree in IT\nPreferred gender: Male\n' + CLOUD, 7, CLOUD, 7),
+    ('Requirements:\nDegree in IT\nPreferred language: Arabic\n' + CLOUD, 7, CLOUD, 7),
+    ('Certified in ISO 27001 and 7 years of experience in cloud security.', 7, CLOUD, 7),
+    ('ITIL 4 and 7 years of experience in cloud security.', 7, 'ITIL 4 and 7 years of experience in cloud security', 7),
+    ('Requirements:\nDegree\nAssets:\n' + CLOUD, 7, CLOUD, None),
+    ('Requirements:\nDegree\nIt would be an asset to have:\n' + CLOUD, 7, CLOUD, None),
+    ('Requirements:\nDegree\nWhat would make you stand out:\n' + CLOUD, 7, CLOUD, None),
+    ('Requirements:\n- Asset management: CMDB\n- ' + CLOUD, 7, CLOUD, 7),
+])
+def test_round_three_heading_forms(tail, claimed, span, expected):
+    posting = {'title': 'SOC Analyst', 'description': SOC_DUTY + '.\n' + tail}
+    assert ru.verify(_answer('SECURITY_OPERATIONS', 0.9, [SOC_DUTY], claimed, span), posting)['required_years_min'] == expected
+
+
+def test_uae_passport_wording_is_a_uae_restriction():
+    text = 'UAE passport holders only'
+    posting = {'title': 'Cyber Analyst', 'location': 'Abu Dhabi, United Arab Emirates', 'description': f'{SOC_DUTY}. {text}.'}
+    _, placed = _placed(posting, _answer('SECURITY_OPERATIONS', 0.9, [SOC_DUTY],
+                                         wording=[{'kind': 'DESIGNATED_NATIONALS', 'text': text}]), OWNER_V3)
+    assert placed['warnings'] and 'targets UAE nationals' in placed['warnings'][0] and placed['tier'] == ru.LOWER

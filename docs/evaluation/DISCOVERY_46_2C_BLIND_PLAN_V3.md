@@ -423,3 +423,32 @@ unchanged. Changes:
   was reset away before a push is still seen. A test now runs the real Git
   helpers against a temporary repository.
 - `VERIFIER_VERSION` is `verifier-4` and is part of the frozen constants.
+
+### Round 3 (same day, before any seal)
+
+The third freeze (`d441083`, frozen at `a8f477f`) was re-reviewed read-only.
+The verdict was **APPROVE**: no blocker or major finding, and the round-2
+findings were fixed. Its remaining minor findings were fixed as well, because
+the holdout can be run only once. The hypotheses, metrics and thresholds are
+still unchanged.
+
+- A preferred heading written as a bullet, in markdown or with a full stop
+  ("• Preferred Qualifications", "**Preferred Qualifications**", "Preferred
+  qualifications.") is recognised. "Required/Preferred Qualifications:" and
+  "Preferred/Desired Qualifications:" are read as preferred.
+- Below a preferred heading, only a stand-alone heading or a strong marker
+  (required, requirement(s), mandatory, must) resets to required. An item such
+  as "Basic knowledge: Python" or "Minimum Work Experience: 5 years" does not.
+  The line the span itself sits on is treated as content, never as a
+  stand-alone heading.
+- "Preferred nationality:", "Preferred language:" and "Preferred gender:" are
+  fields, not preferred headings. A preferred inline heading must be a
+  preference phrase followed only by heading words.
+- "and" joins a range only after "between": "ISO 27001 and 7 years" keeps its
+  7.
+- "Assets:", "It would be an asset to have:" and "What would make you stand
+  out:" are preferred lead-ins.
+- "UAE passport holders only" is a UAE restriction.
+- The custody docstring warns against amending, as well as rebasing or
+  squashing, between seal and compare.
+- `VERIFIER_VERSION` is `verifier-5`.
