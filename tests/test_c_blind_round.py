@@ -310,6 +310,42 @@ def test_page_sha256_matches_hashlib():
     assert json.loads(done.stdout) == [hashlib.sha256(s.encode('utf-8')).hexdigest() for s in samples]
 
 
+def test_owner_procedure_in_a_real_browser(tree):
+    """The Owner's exact steps on fictional postings: answer, save (one item
+    changed after its first save), export; the shown hash must lock."""
+    from playwright.sync_api import sync_playwright
+    t = tree
+    base = _through_seal(t)
+    requests_seen = []
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        context = browser.new_context(accept_downloads=True)
+        page = context.new_page()
+        page.on('request', lambda r: requests_seen.append(r.url))
+        page.goto((t / 'page.html').as_uri())
+        assert page.is_disabled('#export')
+        assert 'No label is needed' in page.text_content('#card-Y11')
+        for item_id, (fit, nationality) in OWNER.items():
+            page.check(f'input[name="fit-{item_id}"][value="{fit}"]')
+            page.check(f'input[name="nat-{item_id}"][value="{nationality}"]')
+            page.click(f'#card-{item_id} button')
+        page.check('input[name="fit-Y10"][value="hide"]')
+        page.click('#card-Y10 button')
+        assert 'changed 1 time' in page.text_content('#card-Y10 .status')
+        with page.expect_download() as download:
+            page.click('#export')
+        exported = t / 'owner_export.json'
+        download.value.save_as(str(exported))
+        shown = page.text_content('#hash').strip()
+        browser.close()
+    assert [u for u in requests_seen if not u.startswith(('file:', 'blob:', 'data:'))] == []
+    assert shown == common.file_sha256(exported)
+    _lock(t, base, exported, owner_hex=shown)
+    labels = json.loads(exported.read_text(encoding='utf-8'))['labels']
+    assert labels['Y10']['first_saved']['fit'] == 'show_lower' and labels['Y10']['final']['fit'] == 'hide'
+    assert set(labels) == set(OWNER)
+
+
 def test_cli_blocks_network_and_refuses_existing_outputs(tree):
     t = tree
     (t / 'exists.json').write_text('{}', encoding='utf-8')

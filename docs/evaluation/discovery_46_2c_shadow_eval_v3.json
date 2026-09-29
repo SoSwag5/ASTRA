@@ -1,0 +1,729 @@
+{
+ "artifact": "discovery_46_2c_shadow_eval",
+ "split": "development",
+ "status": "IN-SAMPLE DIAGNOSTIC on development labels the Owner saved after seeing Codex suggestions; the role readings were written after those labels were read. Not blind accuracy and not proof of improvement.",
+ "policy_version": "shadow-placement-2",
+ "schema_version": "role-understanding-2",
+ "clock": "2026-09-22T00:00:00+00:00",
+ "preferences": {
+  "comfortable_max_years": 2,
+  "stretch_max_years": 5,
+  "designated_nationals_wording": "lower_with_warning"
+ },
+ "profile_fixture": "tests/fixtures/discovery_relevance_46_2_v2.json case[0] at commit 66a1eca (fictional early-career fixture, unchanged)",
+ "items_scored": 15,
+ "excluded": [
+  {
+   "item_id": "D09",
+   "reasons": [
+    "SOURCE_UNREADABLE: description has 0 characters (< 200)",
+    "ASTRA’s client has no readable description (engine did not score it); the Owner read it on the official page and asked that it not be saved as a fit label if it is not readable to Claude. Label kept, excluded from engine comparison.",
+    "Owner chose unsure"
+   ]
+  }
+ ],
+ "label_basis": "first_saved_choice",
+ "later_label_changes": [],
+ "network_attempts": [],
+ "boundary": {
+  "other_split_rows_parsed": 12,
+  "other_split_fields_retained": "item_id only, after validation",
+  "snapshots_opened_by_this_process": [
+   "D01",
+   "D02",
+   "D03",
+   "D04",
+   "D05",
+   "D06",
+   "D07",
+   "D08",
+   "D10",
+   "D11",
+   "D12",
+   "D13",
+   "D14",
+   "D15",
+   "D16"
+  ],
+  "other_split_snapshots_opened_by_this_process": 0,
+  "scope": "what this process did; it cannot show what any person or other process read"
+ },
+ "inputs_sha256": {
+  "items": "1116ec119f863c4420f422fa1d06ad66b985bd7c933bd130a4303b69b1847248",
+  "understandings": "e6ce864526b7ebe4701b189aab1358e129187b79f489b67be61eadbc2b5d39a1",
+  "labels": "c589113ed00641fb4ef3696f3adca10d131145b8b3f81800bcaf48d698ffd48a",
+  "profile": "cf5f0fc8568fa3a31c8fd73f3e223433e85445257ec49177dab6047f507a6a0c",
+  "preferences": "4b1e39d000e3806a097d1ba102c14f95ec99b7c3593ef40fedbbc58af393f257"
+ },
+ "code": {
+  "git_head": "48272484aaa196777718d080b06aaa92dbdf0a71",
+  "paths_differing_from_head": [],
+  "sha256_lf": {
+   "backend/role_understanding.py": "88e9f892e551e945117ca8f9396010223b8e6c0b7a26c84bc3efc3c6c2cf34cf",
+   "scripts/c_eval_common.py": "f54021e3f1b5b721ec230289cdbfac5f7e789b10d0b119e253410183b92223b0",
+   "scripts/shadow_role_eval.py": "1e9be7148a53d9073cc8ecbeee9b40a34de65b78fb71a9518e4b8c91a112504d"
+  }
+ },
+ "metrics": {
+  "current_engine": {
+   "M1_tier_agreement": {
+    "agree": 2,
+    "of": 15
+   },
+   "M2_relevant_hidden": {
+    "count": 0,
+    "of": 6
+   },
+   "M3_irrelevant_promoted": {
+    "count": 3,
+    "of": 9
+   },
+   "M4_irrelevant_visible": {
+    "count": 9,
+    "of": 9
+   },
+   "M5_shown_above_hidden": {
+    "correct": 37,
+    "ties": 0,
+    "pairs": 54
+   },
+   "M7_prominent_above_lower": {
+    "correct": 0,
+    "ties": 0,
+    "pairs": 0
+   }
+  },
+  "candidate": {
+   "M1_tier_agreement": {
+    "agree": 11,
+    "of": 15
+   },
+   "M2_relevant_hidden": {
+    "count": 0,
+    "of": 6
+   },
+   "M3_irrelevant_promoted": {
+    "count": 0,
+    "of": 9
+   },
+   "M4_irrelevant_visible": {
+    "count": 3,
+    "of": 9
+   },
+   "M5_shown_above_hidden": {
+    "correct": 52,
+    "ties": 0,
+    "pairs": 54
+   },
+   "M7_prominent_above_lower": {
+    "correct": 0,
+    "ties": 0,
+    "pairs": 0
+   }
+  },
+  "legacy_engine_shown_vs_hidden": {
+   "owner_hidden_excluded": {
+    "count": 7,
+    "of": 9
+   },
+   "owner_shown_excluded": {
+    "count": 2,
+    "of": 6
+   }
+  }
+ },
+ "rows": [
+  {
+   "item_id": "D01",
+   "title": "IT Support Specialist - Emirati",
+   "owner_choice": "show_lower",
+   "owner_tier": "LOWER",
+   "current": {
+    "bucket": "STRONG",
+    "score": 87,
+    "tier": "PROMINENT",
+    "hard_reject": null,
+    "match_type": "CORE",
+    "role_family": "IT Support",
+    "required_years_parsed": 1.0,
+    "geography": "COMPATIBLE",
+    "eligibility_state": "UNKNOWN"
+   },
+   "legacy": {
+    "excluded": false,
+    "priority": 56.0
+   },
+   "understanding": {
+    "primary_function": "IT_SUPPORT",
+    "function_confidence": 0.95,
+    "required_years_min": 1,
+    "discarded": [],
+    "eligibility_kinds": [
+     "DESIGNATED_NATIONALS",
+     "NATIONALS_PREFERENCE"
+    ]
+   },
+   "candidate": {
+    "tier": "LOWER",
+    "reasons": [
+     "duties match an enabled field (IT_CLOUD)",
+     "designated-nationals wording; your preference is to show these lower"
+    ],
+    "warnings": true,
+    "notes": [
+     "The employer’s wording mentions a preference for UAE nationals (“preference will be given to the designated groups in accordance with the United Arab Emirates Emiratization Program”). This is the employer’s wording only; ASTRA does not assess your eligibility."
+    ],
+    "understanding_used": true
+   }
+  },
+  {
+   "item_id": "D02",
+   "title": "Systems Analyst",
+   "owner_choice": "hide",
+   "owner_tier": "SUGGESTED_HIDDEN",
+   "current": {
+    "bucket": "STRETCH",
+    "score": 47,
+    "tier": "LOWER",
+    "hard_reject": null,
+    "match_type": "OUTSIDE",
+    "role_family": "Other",
+    "required_years_parsed": 7.0,
+    "geography": "COMPATIBLE",
+    "eligibility_state": "ELIGIBLE"
+   },
+   "legacy": {
+    "excluded": true,
+    "priority": 42
+   },
+   "understanding": {
+    "primary_function": "APPLICATION_SUPPORT",
+    "function_confidence": 0.9,
+    "required_years_min": 5,
+    "discarded": [],
+    "eligibility_kinds": [
+     "NATIONALS_PREFERENCE"
+    ]
+   },
+   "candidate": {
+    "tier": "LOWER",
+    "reasons": [
+     "duties match an enabled field (IT_CLOUD)",
+     "requires 5+ years; above your comfortable limit of 2"
+    ],
+    "warnings": false,
+    "notes": [
+     "The employer’s wording mentions a preference for UAE nationals (“preference will be given to the designated groups in accordance with the United Arab Emirates Emiratization Program”). This is the employer’s wording only; ASTRA does not assess your eligibility."
+    ],
+    "understanding_used": true
+   }
+  },
+  {
+   "item_id": "D03",
+   "title": "Data Governance Developer (ME1255)",
+   "owner_choice": "hide",
+   "owner_tier": "SUGGESTED_HIDDEN",
+   "current": {
+    "bucket": "LOW",
+    "score": 43,
+    "tier": "LOWER",
+    "hard_reject": null,
+    "match_type": "AMBIGUOUS",
+    "role_family": "Other",
+    "required_years_parsed": 5.0,
+    "geography": "COMPATIBLE",
+    "eligibility_state": "ELIGIBLE"
+   },
+   "legacy": {
+    "excluded": true,
+    "priority": 42
+   },
+   "understanding": {
+    "primary_function": "DATA_ENGINEERING",
+    "function_confidence": 0.85,
+    "required_years_min": 5,
+    "discarded": [],
+    "eligibility_kinds": [
+     "NATIONALS_PREFERENCE"
+    ]
+   },
+   "candidate": {
+    "tier": "LOWER",
+    "reasons": [
+     "duties match an enabled field (DATA_ANALYTICS)",
+     "requires 5+ years; above your comfortable limit of 2"
+    ],
+    "warnings": false,
+    "notes": [
+     "The employer’s wording mentions a preference for UAE nationals (“preference will be given to the designated groups in accordance with the United Arab Emirates Emiratization Program”). This is the employer’s wording only; ASTRA does not assess your eligibility."
+    ],
+    "understanding_used": true
+   }
+  },
+  {
+   "item_id": "D04",
+   "title": "Biomedical Technician",
+   "owner_choice": "hide",
+   "owner_tier": "SUGGESTED_HIDDEN",
+   "current": {
+    "bucket": "STRETCH",
+    "score": 47,
+    "tier": "LOWER",
+    "hard_reject": null,
+    "match_type": "OUTSIDE",
+    "role_family": "Other",
+    "required_years_parsed": 2.0,
+    "geography": "COMPATIBLE",
+    "eligibility_state": "ELIGIBLE"
+   },
+   "legacy": {
+    "excluded": true,
+    "priority": 52.0
+   },
+   "understanding": {
+    "primary_function": "BIOMEDICAL_EQUIPMENT",
+    "function_confidence": 0.95,
+    "required_years_min": 2,
+    "discarded": [],
+    "eligibility_kinds": [
+     "NATIONALS_PREFERENCE"
+    ]
+   },
+   "candidate": {
+    "tier": "SUGGESTED_HIDDEN",
+    "reasons": [
+     "duties describe biomedical equipment, outside your enabled fields"
+    ],
+    "warnings": false,
+    "notes": [
+     "The employer’s wording mentions a preference for UAE nationals (“preference will be given to the designated groups in accordance with the United Arab Emirates Emiratization Program”). This is the employer’s wording only; ASTRA does not assess your eligibility."
+    ],
+    "understanding_used": true
+   }
+  },
+  {
+   "item_id": "D05",
+   "title": "Junior PLM Software Analyst - Contractual",
+   "owner_choice": "show_lower",
+   "owner_tier": "LOWER",
+   "current": {
+    "bucket": "LOW",
+    "score": 40,
+    "tier": "LOWER",
+    "hard_reject": null,
+    "match_type": "AMBIGUOUS",
+    "role_family": "Other",
+    "required_years_parsed": 0.0,
+    "geography": "UNKNOWN",
+    "eligibility_state": "ELIGIBLE"
+   },
+   "legacy": {
+    "excluded": true,
+    "priority": 60
+   },
+   "understanding": {
+    "primary_function": "APPLICATION_SUPPORT",
+    "function_confidence": 0.75,
+    "required_years_min": 0,
+    "discarded": [],
+    "eligibility_kinds": []
+   },
+   "candidate": {
+    "tier": "PROMINENT",
+    "reasons": [
+     "duties match an enabled field (IT_CLOUD)"
+    ],
+    "warnings": false,
+    "notes": [],
+    "understanding_used": true
+   }
+  },
+  {
+   "item_id": "D06",
+   "title": "Specialist Cybersecurity Analyst (Emirati Talent)",
+   "owner_choice": "show_lower",
+   "owner_tier": "LOWER",
+   "current": {
+    "bucket": "STRONG",
+    "score": 81,
+    "tier": "PROMINENT",
+    "hard_reject": null,
+    "match_type": "CORE",
+    "role_family": "Information / IT Security",
+    "required_years_parsed": 3.0,
+    "geography": "UNKNOWN",
+    "eligibility_state": "UNKNOWN"
+   },
+   "legacy": {
+    "excluded": false,
+    "priority": 54.0
+   },
+   "understanding": {
+    "primary_function": "SECURITY_OPERATIONS",
+    "function_confidence": 0.95,
+    "required_years_min": 3,
+    "discarded": [],
+    "eligibility_kinds": [
+     "DESIGNATED_NATIONALS"
+    ]
+   },
+   "candidate": {
+    "tier": "LOWER",
+    "reasons": [
+     "duties match an enabled field (CYBERSECURITY)",
+     "requires 3+ years; above your comfortable limit of 2"
+    ],
+    "warnings": true,
+    "notes": [],
+    "understanding_used": true
+   }
+  },
+  {
+   "item_id": "D07",
+   "title": "Data Analyst",
+   "owner_choice": "hide",
+   "owner_tier": "SUGGESTED_HIDDEN",
+   "current": {
+    "bucket": "STRONG",
+    "score": 84,
+    "tier": "PROMINENT",
+    "hard_reject": null,
+    "match_type": "CORE",
+    "role_family": "Data Analysis",
+    "required_years_parsed": null,
+    "geography": "UNKNOWN",
+    "eligibility_state": "ELIGIBLE"
+   },
+   "legacy": {
+    "excluded": false,
+    "priority": 55
+   },
+   "understanding": {
+    "primary_function": "SUPPLY_CHAIN_MATERIALS",
+    "function_confidence": 0.9,
+    "required_years_min": null,
+    "discarded": [],
+    "eligibility_kinds": []
+   },
+   "candidate": {
+    "tier": "SUGGESTED_HIDDEN",
+    "reasons": [
+     "duties describe supply chain materials, outside your enabled fields"
+    ],
+    "warnings": false,
+    "notes": [
+     "required experience not stated, only preferred, or not verifiable; no seniority adjustment"
+    ],
+    "understanding_used": true
+   }
+  },
+  {
+   "item_id": "D08",
+   "title": "Product Quality Engineer I",
+   "owner_choice": "hide",
+   "owner_tier": "SUGGESTED_HIDDEN",
+   "current": {
+    "bucket": "LOW",
+    "score": 43,
+    "tier": "LOWER",
+    "hard_reject": null,
+    "match_type": "OUTSIDE",
+    "role_family": "Other",
+    "required_years_parsed": 0.0,
+    "geography": "UNKNOWN",
+    "eligibility_state": "ELIGIBLE"
+   },
+   "legacy": {
+    "excluded": true,
+    "priority": 55
+   },
+   "understanding": {
+    "primary_function": "MANUFACTURING_PRODUCT_QUALITY",
+    "function_confidence": 0.95,
+    "required_years_min": 0,
+    "discarded": [],
+    "eligibility_kinds": []
+   },
+   "candidate": {
+    "tier": "SUGGESTED_HIDDEN",
+    "reasons": [
+     "duties describe manufacturing product quality, outside your enabled fields"
+    ],
+    "warnings": false,
+    "notes": [],
+    "understanding_used": true
+   }
+  },
+  {
+   "item_id": "D10",
+   "title": "Software Engineer (Emirati Talent)",
+   "owner_choice": "show_lower",
+   "owner_tier": "LOWER",
+   "current": {
+    "bucket": "STRONG",
+    "score": 90,
+    "tier": "PROMINENT",
+    "hard_reject": null,
+    "match_type": "CORE",
+    "role_family": "Software Engineering",
+    "required_years_parsed": null,
+    "geography": "UNKNOWN",
+    "eligibility_state": "UNKNOWN"
+   },
+   "legacy": {
+    "excluded": false,
+    "priority": 71
+   },
+   "understanding": {
+    "primary_function": "SOFTWARE_ENGINEERING",
+    "function_confidence": 0.9,
+    "required_years_min": null,
+    "discarded": [],
+    "eligibility_kinds": [
+     "DESIGNATED_NATIONALS"
+    ]
+   },
+   "candidate": {
+    "tier": "LOWER",
+    "reasons": [
+     "duties match an enabled field (SOFTWARE_ENGINEERING)",
+     "designated-nationals wording; your preference is to show these lower"
+    ],
+    "warnings": true,
+    "notes": [
+     "required experience not stated, only preferred, or not verifiable; no seniority adjustment"
+    ],
+    "understanding_used": true
+   }
+  },
+  {
+   "item_id": "D11",
+   "title": "Applied Behavioral Analyst (Sakina)",
+   "owner_choice": "hide",
+   "owner_tier": "SUGGESTED_HIDDEN",
+   "current": {
+    "bucket": "STRETCH",
+    "score": 45,
+    "tier": "LOWER",
+    "hard_reject": null,
+    "match_type": "OUTSIDE",
+    "role_family": "Other",
+    "required_years_parsed": 2.0,
+    "geography": "COMPATIBLE",
+    "eligibility_state": "ELIGIBLE"
+   },
+   "legacy": {
+    "excluded": true,
+    "priority": 47.0
+   },
+   "understanding": {
+    "primary_function": "CLINICAL_OR_THERAPY",
+    "function_confidence": 0.95,
+    "required_years_min": 2,
+    "discarded": [],
+    "eligibility_kinds": []
+   },
+   "candidate": {
+    "tier": "SUGGESTED_HIDDEN",
+    "reasons": [
+     "duties describe clinical or therapy, outside your enabled fields"
+    ],
+    "warnings": false,
+    "notes": [],
+    "understanding_used": true
+   }
+  },
+  {
+   "item_id": "D12",
+   "title": "Associate Technical Support Engineer",
+   "owner_choice": "show_lower",
+   "owner_tier": "LOWER",
+   "current": {
+    "bucket": "STRONG",
+    "score": 93,
+    "tier": "PROMINENT",
+    "hard_reject": null,
+    "match_type": "CORE",
+    "role_family": "IT Support",
+    "required_years_parsed": 0.0,
+    "geography": "COMPATIBLE",
+    "eligibility_state": "UNKNOWN"
+   },
+   "legacy": {
+    "excluded": false,
+    "priority": 73
+   },
+   "understanding": {
+    "primary_function": "APPLICATION_SUPPORT",
+    "function_confidence": 0.9,
+    "required_years_min": 0,
+    "discarded": [],
+    "eligibility_kinds": [
+     "DESIGNATED_NATIONALS"
+    ]
+   },
+   "candidate": {
+    "tier": "LOWER",
+    "reasons": [
+     "duties match an enabled field (IT_CLOUD)",
+     "designated-nationals wording; your preference is to show these lower"
+    ],
+    "warnings": true,
+    "notes": [],
+    "understanding_used": true
+   }
+  },
+  {
+   "item_id": "D13",
+   "title": "Security Operations Coordinator",
+   "owner_choice": "hide",
+   "owner_tier": "SUGGESTED_HIDDEN",
+   "current": {
+    "bucket": "STRONG",
+    "score": 91,
+    "tier": "PROMINENT",
+    "hard_reject": null,
+    "match_type": "CORE",
+    "role_family": "SOC / Detection",
+    "required_years_parsed": 3.0,
+    "geography": "COMPATIBLE",
+    "eligibility_state": "ELIGIBLE"
+   },
+   "legacy": {
+    "excluded": false,
+    "priority": 56.0
+   },
+   "understanding": {
+    "primary_function": "PHYSICAL_SECURITY",
+    "function_confidence": 0.95,
+    "required_years_min": 3,
+    "discarded": [],
+    "eligibility_kinds": []
+   },
+   "candidate": {
+    "tier": "SUGGESTED_HIDDEN",
+    "reasons": [
+     "duties describe physical security, outside your enabled fields",
+     "requires 3+ years; above your comfortable limit of 2"
+    ],
+    "warnings": false,
+    "notes": [],
+    "understanding_used": true
+   }
+  },
+  {
+   "item_id": "D14",
+   "title": "Senior Engineer, QA Automation",
+   "owner_choice": "hide",
+   "owner_tier": "SUGGESTED_HIDDEN",
+   "current": {
+    "bucket": "STRETCH",
+    "score": 45,
+    "tier": "LOWER",
+    "hard_reject": null,
+    "match_type": "AMBIGUOUS",
+    "role_family": "Other",
+    "required_years_parsed": 14.0,
+    "geography": "COMPATIBLE",
+    "eligibility_state": "ELIGIBLE"
+   },
+   "legacy": {
+    "excluded": true,
+    "priority": 55
+   },
+   "understanding": {
+    "primary_function": "QA_TESTING",
+    "function_confidence": 0.85,
+    "required_years_min": 14,
+    "discarded": [],
+    "eligibility_kinds": []
+   },
+   "candidate": {
+    "tier": "SUGGESTED_HIDDEN",
+    "reasons": [
+     "duties match an enabled field (QA_TESTING)",
+     "requires 14+ years; above your stretch limit of 5"
+    ],
+    "warnings": false,
+    "notes": [],
+    "understanding_used": true
+   }
+  },
+  {
+   "item_id": "D15",
+   "title": "Security Engineer (DFIR Lab)",
+   "owner_choice": "hide",
+   "owner_tier": "SUGGESTED_HIDDEN",
+   "current": {
+    "bucket": "STRONG",
+    "score": 86,
+    "tier": "PROMINENT",
+    "hard_reject": null,
+    "match_type": "CORE",
+    "role_family": "Threat / Incident Response",
+    "required_years_parsed": 5.0,
+    "geography": "COMPATIBLE",
+    "eligibility_state": "ELIGIBLE"
+   },
+   "legacy": {
+    "excluded": true,
+    "priority": 61
+   },
+   "understanding": {
+    "primary_function": "SECURITY_ENGINEERING",
+    "function_confidence": 0.85,
+    "required_years_min": 5,
+    "discarded": [],
+    "eligibility_kinds": []
+   },
+   "candidate": {
+    "tier": "LOWER",
+    "reasons": [
+     "duties match an enabled field (CYBERSECURITY)",
+     "requires 5+ years; above your comfortable limit of 2"
+    ],
+    "warnings": false,
+    "notes": [],
+    "understanding_used": true
+   }
+  },
+  {
+   "item_id": "D16",
+   "title": "Data Engineer",
+   "owner_choice": "show_lower",
+   "owner_tier": "LOWER",
+   "current": {
+    "bucket": "STRETCH",
+    "score": 51,
+    "tier": "LOWER",
+    "hard_reject": null,
+    "match_type": "AMBIGUOUS",
+    "role_family": "Other",
+    "required_years_parsed": 3.0,
+    "geography": "COMPATIBLE",
+    "eligibility_state": "ELIGIBLE"
+   },
+   "legacy": {
+    "excluded": true,
+    "priority": 64.0
+   },
+   "understanding": {
+    "primary_function": "DATA_ENGINEERING",
+    "function_confidence": 0.85,
+    "required_years_min": 3,
+    "discarded": [],
+    "eligibility_kinds": []
+   },
+   "candidate": {
+    "tier": "LOWER",
+    "reasons": [
+     "duties match an enabled field (DATA_ANALYTICS)",
+     "requires 3+ years; above your comfortable limit of 2"
+    ],
+    "warnings": false,
+    "notes": [],
+    "understanding_used": true
+   }
+  }
+ ]
+}
