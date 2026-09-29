@@ -17,7 +17,7 @@
    "item_id": "D09",
    "reasons": [
     "SOURCE_UNREADABLE: description has 0 characters (< 200)",
-    "ASTRA’s client has no readable description (engine did not score it); the Owner read it on the official page and asked that it not be saved as a fit label if it is not readable to Claude. Label kept, excluded from engine comparison.",
+    "Owner label marked not for fit scoring",
     "Owner chose unsure"
    ]
   }
@@ -56,12 +56,13 @@
   "preferences": "4b1e39d000e3806a097d1ba102c14f95ec99b7c3593ef40fedbbc58af393f257"
  },
  "code": {
-  "git_head": "48272484aaa196777718d080b06aaa92dbdf0a71",
+  "git_ok": true,
+  "git_head": "ecc266f637fb71b03b81a39da523a73f1ad6121d",
   "paths_differing_from_head": [],
   "sha256_lf": {
-   "backend/role_understanding.py": "88e9f892e551e945117ca8f9396010223b8e6c0b7a26c84bc3efc3c6c2cf34cf",
-   "scripts/c_eval_common.py": "f54021e3f1b5b721ec230289cdbfac5f7e789b10d0b119e253410183b92223b0",
-   "scripts/shadow_role_eval.py": "1e9be7148a53d9073cc8ecbeee9b40a34de65b78fb71a9518e4b8c91a112504d"
+   "backend/role_understanding.py": "9dde8fe508acc016d9bf8cd4577f40beb5b501358893c7ee6bba2dda2aa0aa4f",
+   "scripts/c_eval_common.py": "c27ad737a08c32e95334bddb22d53487a349063aa409b4c59516b5db9e089af0",
+   "scripts/shadow_role_eval.py": "6bc9bcada5fac4cb9622c7f901c38e4635004dd50e3e6a74bfd0e8a4c3ff8ef3"
   }
  },
  "metrics": {
@@ -135,7 +136,6 @@
  "rows": [
   {
    "item_id": "D01",
-   "title": "IT Support Specialist - Emirati",
    "owner_choice": "show_lower",
    "owner_tier": "LOWER",
    "current": {
@@ -171,14 +171,13 @@
     ],
     "warnings": true,
     "notes": [
-     "The employer’s wording mentions a preference for UAE nationals (“preference will be given to the designated groups in accordance with the United Arab Emirates Emiratization Program”). This is the employer’s wording only; ASTRA does not assess your eligibility."
+     "The employer’s wording mentions a preference for UAE nationals (“[employer wording]”). This is the employer’s wording only; ASTRA does not assess your eligibility."
     ],
     "understanding_used": true
    }
   },
   {
    "item_id": "D02",
-   "title": "Systems Analyst",
    "owner_choice": "hide",
    "owner_tier": "SUGGESTED_HIDDEN",
    "current": {
@@ -213,14 +212,13 @@
     ],
     "warnings": false,
     "notes": [
-     "The employer’s wording mentions a preference for UAE nationals (“preference will be given to the designated groups in accordance with the United Arab Emirates Emiratization Program”). This is the employer’s wording only; ASTRA does not assess your eligibility."
+     "The employer’s wording mentions a preference for UAE nationals (“[employer wording]”). This is the employer’s wording only; ASTRA does not assess your eligibility."
     ],
     "understanding_used": true
    }
   },
   {
    "item_id": "D03",
-   "title": "Data Governance Developer (ME1255)",
    "owner_choice": "hide",
    "owner_tier": "SUGGESTED_HIDDEN",
    "current": {
@@ -255,14 +253,13 @@
     ],
     "warnings": false,
     "notes": [
-     "The employer’s wording mentions a preference for UAE nationals (“preference will be given to the designated groups in accordance with the United Arab Emirates Emiratization Program”). This is the employer’s wording only; ASTRA does not assess your eligibility."
+     "The employer’s wording mentions a preference for UAE nationals (“[employer wording]”). This is the employer’s wording only; ASTRA does not assess your eligibility."
     ],
     "understanding_used": true
    }
   },
   {
    "item_id": "D04",
-   "title": "Biomedical Technician",
    "owner_choice": "hide",
    "owner_tier": "SUGGESTED_HIDDEN",
    "current": {
@@ -296,14 +293,13 @@
     ],
     "warnings": false,
     "notes": [
-     "The employer’s wording mentions a preference for UAE nationals (“preference will be given to the designated groups in accordance with the United Arab Emirates Emiratization Program”). This is the employer’s wording only; ASTRA does not assess your eligibility."
+     "The employer’s wording mentions a preference for UAE nationals (“[employer wording]”). This is the employer’s wording only; ASTRA does not assess your eligibility."
     ],
     "understanding_used": true
    }
   },
   {
    "item_id": "D05",
-   "title": "Junior PLM Software Analyst - Contractual",
    "owner_choice": "show_lower",
    "owner_tier": "LOWER",
    "current": {
@@ -340,7 +336,6 @@
   },
   {
    "item_id": "D06",
-   "title": "Specialist Cybersecurity Analyst (Emirati Talent)",
    "owner_choice": "show_lower",
    "owner_tier": "LOWER",
    "current": {
@@ -380,7 +375,6 @@
   },
   {
    "item_id": "D07",
-   "title": "Data Analyst",
    "owner_choice": "hide",
    "owner_tier": "SUGGESTED_HIDDEN",
    "current": {
@@ -419,7 +413,6 @@
   },
   {
    "item_id": "D08",
-   "title": "Product Quality Engineer I",
    "owner_choice": "hide",
    "owner_tier": "SUGGESTED_HIDDEN",
    "current": {
@@ -456,7 +449,6 @@
   },
   {
    "item_id": "D10",
-   "title": "Software Engineer (Emirati Talent)",
    "owner_choice": "show_lower",
    "owner_tier": "LOWER",
    "current": {
@@ -498,7 +490,6 @@
   },
   {
    "item_id": "D11",
-   "title": "Applied Behavioral Analyst (Sakina)",
    "owner_choice": "hide",
    "owner_tier": "SUGGESTED_HIDDEN",
    "current": {
@@ -535,7 +526,6 @@
   },
   {
    "item_id": "D12",
-   "title": "Associate Technical Support Engineer",
    "owner_choice": "show_lower",
    "owner_tier": "LOWER",
    "current": {
@@ -575,7 +565,6 @@
   },
   {
    "item_id": "D13",
-   "title": "Security Operations Coordinator",
    "owner_choice": "hide",
    "owner_tier": "SUGGESTED_HIDDEN",
    "current": {
@@ -613,7 +602,6 @@
   },
   {
    "item_id": "D14",
-   "title": "Senior Engineer, QA Automation",
    "owner_choice": "hide",
    "owner_tier": "SUGGESTED_HIDDEN",
    "current": {
@@ -651,7 +639,6 @@
   },
   {
    "item_id": "D15",
-   "title": "Security Engineer (DFIR Lab)",
    "owner_choice": "hide",
    "owner_tier": "SUGGESTED_HIDDEN",
    "current": {
@@ -689,7 +676,6 @@
   },
   {
    "item_id": "D16",
-   "title": "Data Engineer",
    "owner_choice": "show_lower",
    "owner_tier": "LOWER",
    "current": {
