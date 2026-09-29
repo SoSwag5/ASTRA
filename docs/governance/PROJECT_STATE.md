@@ -1,8 +1,8 @@
 # ASTRA project state
 
-**Snapshot date:** 2026-09-27 (Asia/Dubai), refreshed for the PR #74 merge and
-the #46.2-B v7 source-map closeout. The #46 closeout below remains historical
-evidence.
+**Snapshot date:** 2026-09-29 (Asia/Dubai), refreshed for the PR #75 merge
+(#46.2-B v7 source-map closeout) and the #46.2-C v3 blind FAIL. The #46
+closeout below remains historical evidence.
 **Rule:** This is a handoff snapshot, not a substitute for live verification.
 Refresh it at session end when repository or release state changes.
 
@@ -270,11 +270,11 @@ or merged.
   PR #68. Its #46 integration base was
   `11a69b0921d55072aa4f552a0319320ab73d6741`
   (tree `e0b8648f8dab8172c59de3c8df84d631263eb1d8`), the #45 squash merge.
-- `master` head at this refresh: `89d2f907caa49487d585f4268339cd4092c1a267`,
-  the PR #74 merge of 2026-09-27. Its parents are
-  `a4983d455d2dde5a20c1ea7303e3fae2d8dc145d` (the PR #71 merge) and the
-  reviewed head `9906c782f4c6b3e0bca28ec88551c7212b6d1fc0`. Its tree,
-  `c557e396f28247cb3e34e0a8c82e44f5fecaa313`, equals the reviewed head's. The #46
+- `master` head when this snapshot was refreshed:
+  `902c80b30db6d4a73f95a0c56b567a0683a2ad09`, the PR #75 squash merge of
+  2026-09-28. Its single parent is `89d2f907caa49487d585f4268339cd4092c1a267`
+  (the PR #74 merge). Its tree, `1e34cd7689b6053e67ff37ba5b167c7862a35b55`,
+  equals the merged PR head's, `58bc50f2c8b2e9da4854f9eaa8831e60f5bde827`. The #46
   entries in this section are historical.
 - At the #46 closeout no implementation branch was active. `feature/46-application-reconciliation-state-model`
   is merged; #45 was merged without independent review, while #46's final head
@@ -374,6 +374,19 @@ parents are `2d40c8067996f9f919bda63b716507d371bc8daa` (A) and the PR head
   and Scorecard ([run 36327990625](https://github.com/SoSwag5/ASTRA/actions/runs/36327990625))
   passed on `89d2f90`. `dependency-review` was skipped on push, as designed.
 
+**#46.2-B v7 closeout is merged.**
+[PR #75](https://github.com/SoSwag5/ASTRA/pull/75) merged into `master` on
+2026-09-28 as the squash commit `902c80b30db6d4a73f95a0c56b567a0683a2ad09`,
+from head `58bc50f2c8b2e9da4854f9eaa8831e60f5bde827`. The squash commit's
+tree is identical to that head's.
+
+- *Review.* GitHub records no review decision on PR #75. This snapshot does not
+  restate a review outcome.
+- *Post-merge CI* ([run 36459740757](https://github.com/SoSwag5/ASTRA/actions/runs/36459740757))
+  and Scorecard ([run 36459740472](https://github.com/SoSwag5/ASTRA/actions/runs/36459740472))
+  passed on `902c80b`. `dependency-review` was skipped on push, as designed.
+- *Source map.* It stands at 0 / 49 / 6.
+
 Three kinds of #46.2-B/C evidence stay separate. None stands in for another.
 
 1. **Source coverage (B research).**
@@ -381,11 +394,10 @@ Three kinds of #46.2-B/C evidence stay separate. None stands in for another.
      and 7 unresolved, out of 55 employers.
    - PR #74 carried v6: 0 / 50 / 5. PureHealth and ADPHC became
      `MANUAL_LINK`.
-   - The **v7 closeout** on `fix/46.2-b-final-closeout` is this change
-     ([PR #75](https://github.com/SoSwag5/ASTRA/pull/75)); check that pull
-     request for its current review and merge status. It rechecked the
-     five v6-unresolved employers and PureHealth once from the Owner's
-     machine on 2026-09-27. The committed tool `scripts/source_route_check.py`
+   - The **v7 closeout** from `fix/46.2-b-final-closeout` is merged
+     ([PR #75](https://github.com/SoSwag5/ASTRA/pull/75), `902c80b`). It
+     rechecked the five v6-unresolved employers and PureHealth once from the
+     Owner's machine on 2026-09-27. The committed tool `scripts/source_route_check.py`
      did the checks with enforced, logged pacing: every same-host interval was
      at least 2.000 s. The v6 log still does not establish its own pacing.
      **Result: 0 / 49 / 6.**
@@ -414,14 +426,38 @@ Three kinds of #46.2-B/C evidence stay separate. None stands in for another.
      board, so no controlled scan was prepared and run 107 was not repeated.
      A `MANUAL_LINK` is never coverage or an open posting. See the
      [source map](../planning/AI_NATIVE_DISCOVERY_46_2B_SOURCE_MAP.md).
-2. **Semantic quality (C).**
+2. **Semantic quality (C). NOT VALIDATED; the v3 blind round FAILED.**
    - The role-understanding candidate is offline and shadow-only.
      Production discovery and ranking do not import it, and no AI model is
-     connected.
-   - On 15 assisted, in-sample development items it agreed with 14 Owner
-     tiers. That shows no improvement on unseen jobs.
-   - The 12-job blind holdout stays **sealed**. See the
-     [C status](../evaluation/DISCOVERY_46_2C_PUBLIC_STATUS.md).
+     connected. No candidate is adopted and production is unchanged.
+   - Historical v2 evidence, preserved: on 15 assisted, in-sample development
+     items the v2 candidate agreed with 14 Owner tiers. That shows no
+     improvement on unseen jobs.
+   - The v3 blind round ran once and failed criterion C3. On 11 scored
+     postings (2 Owner-shown, 9 Owner-hidden) the candidate agreed with 5
+     Owner tiers against the current path's 1. The pre-registered bar was 7
+     of 11. C0, C1, C2, C4 and C5 passed. The missed-warning check was
+     untested, because no posting was labelled as targeting UAE nationals. See
+     the [aggregate outcome](../evaluation/DISCOVERY_46_2C_V3_BLIND_OUTCOME.md)
+     and the [C status](../evaluation/DISCOVERY_46_2C_PUBLIC_STATUS.md).
+   - The 12-job holdout is **revealed and consumed**. It must never be reused
+     as blind or used to tune the candidate.
+   - [PR #76](https://github.com/SoSwag5/ASTRA/pull/76) is **CLOSED and NOT
+     MERGED** (closed 2026-09-29, no merge commit), and its candidate is
+     rejected after the blind FAIL. No Owner decision remains about its fate.
+     It was renamed "#46.2-C v3 blind evaluation failed C3 (closed; candidate
+     not merged)". Its earlier "awaiting Owner labels" title and description are
+     historical only. Its pushed head
+     `66c33268e4012ca2d4a192aadc663a0f1e2f23ff` is the sealed, pre-result
+     state.
+   - The full fixed comparison output is retained privately and is not
+     published. The public summary is a redacted derivative, so individual
+     rows cannot be reproduced from this repository. The local branch
+     `research/46.2-c-blind-eval` (head `c0b71c3bb650f3131b493ad8581eb762bf903630`)
+     holds the private output and is preserved as audit evidence. It must not
+     be pushed or merged, and neither may any commit descended from
+     `5e9b47342f0ccd3aa0fb26e650bd9b5809455cc8`.
+   - A v4 plan with a fresh evaluation set is proposed and not started.
 3. **Controlled scan (run 107, 2026-09-27).**
    - The scan fetched nine configured Ashby, Lever and Greenhouse sources
      through the merged A build's in-app preview and confirmation. The Owner
@@ -470,10 +506,16 @@ challenge. G and H are not started.
 
 **Next actions:**
 
-- Independent review of the B v7 closeout at its exact final SHA, then its
-  pull request, required checks and merge. Codex then verifies the merged B
-  before C starts.
+- Independent review of the #46.2-C v3 closeout documentation at its exact
+  final SHA, before any push, pull request or merge. Nothing from it has been
+  pushed.
+- Never push or merge `research/46.2-c-blind-eval` from the local checkout, or
+  any commit descended from `5e9b473`. Do not use a push that includes all
+  local branches. Keep that branch and its worktree as private audit evidence.
 - Owner decisions:
+  - decide whether to commission the C v4 plan and fresh evaluation set, and
+    name a second labeller (see the
+    [aggregate outcome](../evaluation/DISCOVERY_46_2C_V3_BLIND_OUTCOME.md));
   - do the Owner-browser checks for the six unresolved employers (the source
     map gives each exact action);
   - decide whether HCT's robots redirect loop may be read as RFC 9309
@@ -487,3 +529,69 @@ challenge. G and H are not started.
 - Do not tag, publish a release, or modify v1.0.0.
 - Preserve the parked `hardening/l2-r13-r14` branch and all concurrent
   worktrees.
+
+## Session handoff: #46.2-C v3 closeout documentation
+
+- **Session date/time and timezone:** 2026-09-29, Asia/Dubai; time of day not
+  recorded.
+- **Implementation owner:** Claude Code. Codex reviews independently; the Owner
+  controls publication.
+- **Branch and worktree:** `docs/46.2-c-v3-blind-fail-closeout`, in the fresh
+  worktree `astra-46-2-c-v3-closeout`. Local only; nothing was pushed.
+- **Starting SHA / ending SHA:** `902c80b30db6d4a73f95a0c56b567a0683a2ad09`
+  (equal to `origin/master` when checked; no drift) / the commit that contains
+  this record, whose SHA is reported in the review handoff.
+- **Task and release classification:** documentation-only closeout of the
+  #46.2-C v3 blind FAIL. No code, release or version impact.
+- **Work completed:**
+  - Added the aggregate-only
+    [v3 blind outcome](../evaluation/DISCOVERY_46_2C_V3_BLIND_OUTCOME.md).
+  - Updated the [C status](../evaluation/DISCOVERY_46_2C_PUBLIC_STATUS.md),
+    keeping the v2 assisted-evidence paragraph unchanged.
+  - Refreshed this file for the PR #75 merge and the C FAIL.
+- **Files changed:** those three files only.
+- **Tests and checks executed:** on a single-branch clone of the committed
+  branch, whose HEAD and tree matched the worktree's.
+  - Relative-link and anchor check of the three files: 19 links, 0 broken.
+    External URLs were not fetched. The pull requests, workflow runs, commits
+    and permalinks that this change adds were checked against the host with
+    read-only `gh` queries, which also showed that the lock, comparison and
+    local head commits are not on the host.
+  - Publication gate (`scripts/publication_gate.py`): **PASS**, 0 findings.
+  - `tests/security/test_publication_scope.py` and
+    `tests/security/test_assurance_gate.py`: 56 passed, 0 failed, 0 skipped.
+  - A scan of the added lines for item identifiers, machine paths, personal
+    emails and per-posting field names found none, and the full diff was read.
+    The repository has no automated check for per-posting Owner data, so this
+    is a manual review.
+- **Checks not run and why:**
+  - Full test suite and hosted CI: no code changed, and nothing was pushed.
+  - The repository-wide publication gate: it scans every local ref, including
+    the preserved private branch, and this change does not depend on it.
+  - Recomputation of the aggregate counts: the private inputs and results were
+    not opened, by design.
+- **Security findings opened/changed/closed:** none recorded. Codex review
+  found, before any push, that the local C result file carried individual Owner
+  answers and per-posting predictions. It was contained by not publishing it.
+- **ADRs, threat deltas, risk records, and framework deltas:** none.
+- **Owner decisions still required:** whether to commission the C v4 plan and
+  fresh set; and the items under *Next actions*. None remains about PR #76.
+- **Commit(s) and pull request:** two local commits: the closeout and a
+  documentation follow-up that records PR #76 as closed. No pull request was
+  created by this session. PR #76 was not touched by this session; it was
+  closed without merging afterwards (2026-09-29).
+- **Known conflicts, blockers, or branch drift:**
+  - PR #76's branch edits the same C status page and this file with the
+    pre-result "awaiting Owner labels" text. It is closed and not merged, so
+    that text is historical and does not reach `master`.
+  - The E v3 decision review still says the C holdout stays sealed. That was
+    true when it was written (2026-09-27) and it is a dated record, so it is
+    unedited.
+  - The C status page keeps its earlier v2 paragraph unchanged, including one
+    development item identifier and its choices, which were already published.
+    Redacting them now would not unpublish them.
+  - The pushed head of `research/46.2-c-blind-eval` (`66c3326`) is three
+    commits behind the local branch, which was not pushed.
+- **Exact next action:** independent Codex review of this branch at its exact
+  SHA. Publication and a pull request wait for that review and the Owner's
+  decision.
