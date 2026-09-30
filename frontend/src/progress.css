@@ -347,9 +347,9 @@
 .step-copy { display: grid; gap: var(--space-1); }
 .step-copy strong { color: var(--ink-1); font-size: var(--text-md); }
 .step-copy span { color: var(--ink-3); font-size: var(--text-md); }
-.op-outcome ul { margin: var(--space-2) 0 0; padding-inline-start: var(--space-5); display: grid; gap: var(--space-1); }
+.op-outcome ul { margin: var(--space-2) 0 0; padding-inline-start: var(--space-5); list-style: disc; display: grid; gap: var(--space-1); }
 .op-outcome .textbtn { margin-top: var(--space-2); color: inherit; font-weight: var(--weight-semibold); }
-.gmail-ops-limits ul { margin: var(--space-2) 0 0; padding-inline-start: var(--space-5); display: grid; gap: var(--space-1); color: var(--ink-2); font-size: var(--text-md); }
+.gmail-ops-limits ul { margin: var(--space-2) 0 0; padding-inline-start: var(--space-5); list-style: disc; display: grid; gap: var(--space-1); color: var(--ink-2); font-size: var(--text-md); }
 .gmail-ops > .textbtn, #gmail-ops-body > .textbtn { justify-self: start; }
 .gmail-ops, .gmail-ops > *, #gmail-ops-body > * { min-width: 0; }
 @media (max-width: 560px) {
