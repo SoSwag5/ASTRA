@@ -323,3 +323,36 @@
   .review-item { padding: var(--space-3); }
   .choice { padding: var(--space-3); }
 }
+
+/* Gmail check and match (#47 follow-up B). */
+.gmail-ops { display: grid; gap: var(--space-4); }
+.gmail-ops-head { display: flex; gap: var(--space-3); align-items: flex-start; }
+.gmail-ops-head > svg { flex: none; margin-top: 2px; color: var(--accent); }
+.gmail-ops-head > div { flex: 1; display: grid; gap: var(--space-2); min-width: 0; }
+.gmail-ops-head h3 { font-size: var(--text-lg) !important; }
+.gmail-ops-head p { color: var(--ink-3); font-size: var(--text-md); margin: 0; }
+.gmail-ops-head .status-badge { margin-inline-end: var(--space-1); vertical-align: middle; }
+.gmail-ops-toggle svg { transition: transform var(--motion-base) var(--ease-standard); }
+.gmail-ops-toggle[aria-expanded=true] svg { transform: rotate(180deg); }
+#gmail-ops-body { display: grid; gap: var(--space-4); }
+#gmail-ops-body[hidden] { display: none; }
+.gmail-ops-counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: var(--space-3); margin: 0; }
+.gmail-ops-counts > div { padding: var(--space-3) var(--space-4); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-2); }
+.gmail-ops-counts dt { color: var(--ink-3); font-size: var(--text-sm); }
+.gmail-ops-counts dd { margin: var(--space-1) 0 0; color: var(--ink-1); font-size: var(--text-xl); font-weight: var(--weight-semibold); }
+.gmail-ops-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-4); }
+.gmail-ops-steps > li { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--border-strong); border-radius: var(--radius-md); }
+.gmail-ops-steps > li > button { justify-self: start; }
+.gmail-ops-steps small { margin: 0; color: var(--ink-3); font-size: var(--text-sm); }
+.step-copy { display: grid; gap: var(--space-1); }
+.step-copy strong { color: var(--ink-1); font-size: var(--text-md); }
+.step-copy span { color: var(--ink-3); font-size: var(--text-md); }
+.op-outcome ul { margin: var(--space-2) 0 0; padding-inline-start: var(--space-5); display: grid; gap: var(--space-1); }
+.op-outcome .textbtn { margin-top: var(--space-2); color: inherit; font-weight: var(--weight-semibold); }
+.gmail-ops-limits ul { margin: var(--space-2) 0 0; padding-inline-start: var(--space-5); display: grid; gap: var(--space-1); color: var(--ink-2); font-size: var(--text-md); }
+.gmail-ops > .textbtn, #gmail-ops-body > .textbtn { justify-self: start; }
+.gmail-ops, .gmail-ops > *, #gmail-ops-body > * { min-width: 0; }
+@media (max-width: 560px) {
+  .gmail-ops :is(.primary, .secondary) { white-space: normal; text-align: center; }
+  .gmail-ops-steps > li > button { justify-self: stretch; }
+}

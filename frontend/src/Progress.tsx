@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {AlertTriangle, ArrowRight, CheckCircle2, CircleDashed, Clock3, ExternalLink, Info, MailCheck, RefreshCw, Search, Send, XCircle} from 'lucide-react';
 import * as M from './progressModel';
+import {GmailOperations} from './GmailOperations';
 import './tokens.css';
 import './progress.css';
 
@@ -82,6 +83,8 @@ export function Progress({api, openJob, goTo}: Props) {
     {error && <div className="errorbar" role="alert"><span>Could not refresh. Showing the figures loaded at {M.formatDateTime(data.generated_at)}. {error}</span><button className="secondary" onClick={() => load(period)}>Retry</button></div>}
     <div className={'progress-body' + (loading ? ' is-refreshing' : '')} aria-busy={loading}>
       <NextAction data={data} goTo={goTo}/>
+      <GmailOperations api={api} compact onChanged={refresh} onConnect={() => goTo('Settings/permissions')}
+        onReview={() => { const heading = document.getElementById('needs-review-title'); heading?.scrollIntoView({block: 'start'}); heading?.focus({preventScroll: true}); }}/>
       <ReviewQueue api={api} openJob={openJob} data={data} refreshToken={refreshToken} onChanged={() => load(period)}/>
       <PeriodFigures data={data} openJob={openJob}/>
       <Journey data={data} goTo={goTo}/>

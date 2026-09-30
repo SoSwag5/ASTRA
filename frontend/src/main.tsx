@@ -60,8 +60,10 @@ function App(){
  const onDirtyChange=useCallback((labels:Row)=>{unsaved.current=labels as Record<string,string>},[]);
  useEffect(()=>{const guard=(e:BeforeUnloadEvent)=>{if(Object.keys(unsaved.current).length){e.preventDefault();e.returnValue=''}};window.addEventListener('beforeunload',guard);return()=>window.removeEventListener('beforeunload',guard)},[]);
  function navigate(label:string){
-  const target=label==='Privacy & Local Data'?'Settings':label;
-  const go=()=>{unsaved.current={};if(label==='Privacy & Local Data')setSettingsSection('privacy');setPage(target);setSelected(null);window.scrollTo(0,0)};
+  // 'Settings/<section>' opens a specific Settings section.
+  const [base,section]=label.split('/');
+  const target=base==='Privacy & Local Data'?'Settings':base;
+  const go=()=>{unsaved.current={};if(base==='Privacy & Local Data')setSettingsSection('privacy');else if(section)setSettingsSection(section);setPage(target);setSelected(null);window.scrollTo(0,0)};
   const labels=Object.values(unsaved.current);
   if(page==='Settings'&&target!=='Settings'&&labels.length){const warning=SM.leaveWarning(labels);confirm({title:warning.title,body:<p>{warning.body}</p>,confirmLabel:'Discard changes',cancelLabel:'Keep editing',tone:'danger',onConfirm:go});return}
   go();

@@ -479,6 +479,50 @@ def review_counts(db=None):
             'excluded_other_confidence': _count(db, False)}
 
 
+def gmail_operations():
+    """What the Gmail check-and-match controls need to be truthful (#47 B).
+
+    Connection and last *completed* check come from `gmail_coverage()`; the
+    counts are exact over the whole evidence table; the limits are the fixed
+    constants the sync and reconciliation code enforce. No address, token,
+    message identifier or evidence content is returned.
+    """
+    from . import gmail_messages as messages
+    from . import gmail_oauth as oauth
+    coverage = gmail_coverage()
+    # The same fail-closed status /api/gmail/status reports: a record that
+    # says CONNECTED without its credential is DISCONNECTED_INCONSISTENT.
+    # Only the bounded status token leaves this function.
+    connection = accounts.DISCONNECTED
+    if accounts.schema_ready():
+        with Session() as db:
+            row = db.scalar(select(accounts.GmailAccount).where(accounts.GmailAccount.slot == 'PRIMARY'))
+        connection = accounts._account_status(row)['status']
+    result = {'schema': SCHEMA_VERSION, 'coverage': coverage, 'connection': connection,
+              'secondary_enabled': 'SECONDARY' in oauth.ENABLED_SLOTS,
+              'limits': {'first_check_days': gmail_sync.DEFAULT_LOOKBACK_DAYS,
+                         'max_window_days': gmail_sync.MAX_LOOKBACK_DAYS,
+                         'overlap_days': gmail_sync.CURSOR_OVERLAP_DAYS,
+                         'max_messages_per_check': messages.MAX_MESSAGES_PER_SYNC,
+                         'max_seconds_per_check': int(gmail_sync.MAX_SYNC_SECONDS),
+                         'max_matched_per_run': reconciliation.MAX_RUN_EVIDENCE}}
+    if not _gmail_ready():
+        return {**result, 'status': STATUS_UNAVAILABLE, 'unmatched_total': None,
+                'unmatched_reviewable': None, 'review': review_counts()}
+    with Session() as db:
+        unmatched = select(func.count()).select_from(gmail_sync.GmailConfirmation).outerjoin(
+            reconciliation.GmailApplicationLink,
+            reconciliation.GmailApplicationLink.gmail_confirmation_id
+            == gmail_sync.GmailConfirmation.id).where(
+            reconciliation.GmailApplicationLink.id.is_(None))
+        total = db.scalar(unmatched) or 0
+        reviewable = db.scalar(unmatched.where(
+            gmail_sync.GmailConfirmation.confidence.in_(REVIEWABLE_CONFIDENCE))) or 0
+        review = review_counts(db)
+    return {**result, 'status': STATUS_OK, 'unmatched_total': total,
+            'unmatched_reviewable': reviewable, 'review': review}
+
+
 # ---------------------------------------------------------------------------
 # Period figures: discovery
 # ---------------------------------------------------------------------------
@@ -852,3 +896,9 @@ def needs_review(limit: int = Query(default=10, ge=1, le=MAX_REVIEW_PAGE),
 def applications():
     """Canonical current state per application, bounded."""
     return pipeline()
+
+
+@router.get('/gmail')
+def gmail():
+    """Connection, last completed check, unmatched and review counts, limits."""
+    return gmail_operations()

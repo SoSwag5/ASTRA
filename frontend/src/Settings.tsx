@@ -10,6 +10,7 @@ import * as S from './settingsModel';
 import {ActionStatus, DirtyRegistry, SaveBar, useAction, useConfirm, useDraft} from './ui';
 import {AiAssistance, ApplicationAnswers, CareerFacts, DeleteLocalData, GmailPermissions, LocalDataCard, PlatformCapabilities, SecurityCheck} from './PrivacyPanel';
 import {Reliability} from './Campaign';
+import {GmailOperations} from './GmailOperations';
 import './settings.css';
 
 type Row = S.Row;
@@ -296,9 +297,10 @@ function SourcesSection({api, goTo}: Props) {
 // ---------------------------------------------------------------------------
 // Gmail & permissions
 // ---------------------------------------------------------------------------
-function PermissionsSection({api, cfg, reload, editRecord}: Props) {
+function PermissionsSection({api, cfg, reload, editRecord, goTo}: Props) {
   return <>
     <GmailPermissions api={api}/>
+    <GmailOperations api={api} onReview={() => goTo('Progress')}/>
     <AiAssistance api={api} cfg={cfg} reload={reload}/>
     <PreparationCard api={api} cfg={cfg} reload={reload}/>
     <DomainPermissions api={api} editRecord={editRecord}/>

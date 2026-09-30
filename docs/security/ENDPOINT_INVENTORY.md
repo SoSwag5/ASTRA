@@ -137,3 +137,17 @@ never subject, sender, message/account identifiers, evidence URL or a snippet.
 | progress.py | GET | /api/progress | progress |
 | progress.py | GET | /api/progress/needs-review | needs_review |
 | progress.py | GET | /api/progress/applications | applications |
+
+## #47 follow-up B: Gmail check-and-match status
+
+Read-only; inherits the private API guard and no-store policy. Returns the
+fail-closed connection status token, the last completed check, exact
+unmatched/review counts and fixed limits; no address, token, identifier or
+evidence content. The controls it serves call the existing
+`POST /api/gmail/accounts/primary/sync` and
+`POST /api/applications/state/reconcile` routes. See
+`docs/architecture/GMAIL_IN_APP_OPERATIONS.md`.
+
+| Module | Method | Route | Handler |
+|---|---|---|---|
+| progress.py | GET | /api/progress/gmail | gmail |

@@ -100,3 +100,4 @@
 .settings-card .formgrid > *, .settings-card form > * { min-width: 0; }
 .settings-card select, .settings-card input:not([type=checkbox]):not([type=radio]):not([type=file]), .settings-card textarea { width: 100%; max-width: 100%; min-width: 0; }
 .settings-card .narrow-field input { max-width: 22rem; }
+.settings-body > * { min-width: 0; }

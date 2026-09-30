@@ -771,3 +771,66 @@ def test_frontend_vocabulary_matches_backend_codes():
               reconciliation.REASON_URL_CONFLICT, reconciliation.REASON_SINGLE_FIELD_ONLY,
               reconciliation.REASON_NO_STRONG_MATCH, reconciliation.REASON_NO_CANDIDATES}
     assert queued <= _ts_keys(source, 'REVIEW_REASONS')
+
+
+# ---------------------------------------------------------------------------
+# #47 follow-up B: Gmail check-and-match status
+# ---------------------------------------------------------------------------
+def test_gmail_operations_status_counts_exactly_and_hides_identity():
+    from backend import gmail_messages as messages
+    empty = progress.gmail_operations()
+    assert empty['coverage']['status'] == progress.STATUS_NOT_CONNECTED
+    assert (empty['unmatched_total'], empty['unmatched_reviewable'], empty['review']['total']) == (0, 0, 0)
+    assert empty['secondary_enabled'] is False
+    assert empty['limits'] == {'first_check_days': sync.DEFAULT_LOOKBACK_DAYS,
+                               'max_window_days': sync.MAX_LOOKBACK_DAYS,
+                               'overlap_days': sync.CURSOR_OVERLAP_DAYS,
+                               'max_messages_per_check': messages.MAX_MESSAGES_PER_SYNC,
+                               'max_seconds_per_check': int(sync.MAX_SYNC_SECONDS),
+                               'max_matched_per_run': reconciliation.MAX_RUN_EVIDENCE}
+
+    make_application()
+    with Session.begin() as db:
+        db.add(accounts.GmailAccount(slot='PRIMARY', status=accounts.CONNECTED,
+                                     authorized_email='fictional.owner@example.test',
+                                     sync_state={'version': sync.SYNC_STATE_VERSION,
+                                                 'completed_through': int(CLOCK.timestamp())}))
+    reconcile(make_evidence(message_id='fictional-queued'))           # -> needs review
+    make_evidence(message_id='fictional-waiting', company='Contoso Security')  # unmatched MEDIUM
+    make_evidence(confidence='LOW', message_id='fictional-low')        # unmatched LOW
+
+    status = progress.gmail_operations()
+    # The record says CONNECTED but no credential exists (fail-closed keyring
+    # in tests), so the controls must treat Gmail as disconnected.
+    assert status['connection'] == 'DISCONNECTED_INCONSISTENT'
+    assert status['coverage']['sync_state'] == 'COMPLETE'
+    assert status['unmatched_total'] == 2
+    assert status['unmatched_reviewable'] == 1
+    assert status['review']['total'] == 1
+    body = json.dumps(status)
+    for forbidden in ('fictional.owner@example.test', 'fictional-queued', 'fictional-waiting',
+                      'FICTIONAL-SUBJECT-SENTINEL', '"authorized_email"', '"subject"', '"sender"'):
+        assert forbidden not in body, forbidden
+
+
+def test_gmail_operations_reports_connected_only_with_a_credential(monkeypatch):
+    class Present:
+        def clear(self):
+            pass
+    with Session.begin() as db:
+        db.add(accounts.GmailAccount(slot='PRIMARY', status=accounts.CONNECTED, credential_key='fictional-handle'))
+    monkeypatch.setattr(accounts, 'read_credential', lambda key: Present())
+    assert progress.gmail_operations()['connection'] == accounts.CONNECTED
+
+
+def test_gmail_operations_route_is_read_only():
+    from fastapi.testclient import TestClient
+    from backend.main import app
+    make_application()
+    make_evidence(message_id='fictional-unmatched')
+    with TestClient(app) as client:
+        before = snapshot()  # after the app's own startup work
+        response = client.get('/api/progress/gmail')
+        after = snapshot()
+    assert response.status_code == 200 and response.json()['unmatched_total'] == 1
+    assert after == before
