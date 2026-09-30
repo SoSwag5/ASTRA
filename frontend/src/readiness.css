@@ -30,3 +30,8 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;unicode-bidi:plaintext}
 @media(max-width:850px){.app>main{margin-inline-start:68px}.demo-grid{grid-template-columns:1fr}.demo-main{padding-inline:16px}.demo-header .brand{width:auto}.demo-job{flex-wrap:wrap}.demo-job-open{flex-basis:75%}.formgrid{grid-template-columns:1fr}.privacy-panel{min-width:0}}
 @media(max-width:520px){.demo-intro h1{font-size:38px}.demo-header{flex-wrap:wrap;gap:12px}.demo-intro{padding-block:32px}.content{padding-inline:14px}.pagetitle .actions{flex-wrap:wrap}.privacy-panel .panel{padding:16px}.dialog,.detail{max-width:100vw}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0.01ms!important;transition-duration:0.01ms!important;scroll-behavior:auto!important}}
+
+/* #47: the workspace header wraps instead of forcing horizontal scrolling on narrow screens. */
+@media(max-width:600px){header{height:auto;min-height:64px;flex-wrap:wrap;gap:8px;padding-block:10px}
+header>div{flex-wrap:wrap;gap:8px}
+}

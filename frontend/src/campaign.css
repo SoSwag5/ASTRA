@@ -4,3 +4,17 @@
 
 .portal-row{display:grid;min-width:0;grid-template-columns:minmax(0,1fr) auto auto auto}.portal-row select{max-width:150px;min-width:0;width:100%}
 @media(max-width:600px){.portal-row{grid-template-columns:minmax(0,1fr) auto auto}.portal-row>div{grid-column:1/-1}.portal-row select{max-width:100%}}
+
+/* #47: Today and Applications refinements, on the shared tokens. */
+.campaign-note{color:var(--ink-3);font-size:var(--text-sm);line-height:var(--leading-normal);margin:calc(var(--space-2) * -1) 0 var(--space-2)}
+.pipeline .campaign-note{margin:0 0 var(--space-4)}
+.scan-line{align-items:center;flex-wrap:wrap;padding-top:0}
+.scan-line .status-badge{vertical-align:middle;margin-inline:var(--space-1)}
+.today-review{margin-bottom:var(--space-6)}
+.campaign-foot .textbtn{display:inline-flex;align-items:center;gap:var(--space-1);min-height:var(--target-min)}
+.campaign-job{min-height:var(--target-min)}
+/* #47: use theme tokens so labels keep >= 4.5:1 contrast in the light theme too. */
+.fit-band{color:var(--accent)}
+.campaign-tabs button[aria-selected=true]{border-color:var(--accent);color:var(--accent)}
+.due-date{color:var(--status-warn-fg)!important}
+.campaign button:focus-visible,.campaign a:focus-visible{outline:var(--focus-width) solid var(--focus-ring);outline-offset:var(--focus-offset)}

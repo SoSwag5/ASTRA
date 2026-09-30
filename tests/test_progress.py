@@ -739,3 +739,35 @@ def test_routes_validate_input_and_inherit_the_private_api_guard():
         navigation = client.get('/api/progress', headers={'Sec-Fetch-Dest': 'document'})
         assert navigation.status_code == 403
         assert client.get('/api/progress').headers['cache-control'] == 'no-store'
+
+
+# ---------------------------------------------------------------------------
+# The frontend's words for bounded codes must name codes that really exist
+# ---------------------------------------------------------------------------
+def _ts_keys(source, constant):
+    """Top-level keys of one `export const NAME: Record<...> = {...}` map."""
+    import re
+    block = re.search(r'export const ' + constant + r'\b[^=]*=\s*\{(.*?)\n\};', source, re.S)
+    assert block, constant
+    return set(re.findall(r'^\s*([A-Z_]+):', block.group(1), re.M)) | set(
+        re.findall(r'[{,]\s*([A-Z_]+):', block.group(1)))
+
+
+def test_frontend_vocabulary_matches_backend_codes():
+    from pathlib import Path
+    source = (Path(__file__).resolve().parents[1] / 'frontend' / 'src' / 'progressModel.ts'
+              ).read_text(encoding='utf-8')
+    assert _ts_keys(source, 'REVIEW_REASONS') <= set(reconciliation.REASON_CODES)
+    assert _ts_keys(source, 'STATE_LABELS') == set(states.STATES)
+    assert _ts_keys(source, 'SOURCE_LABELS') == set(states.SOURCE_CATEGORIES)
+    assert _ts_keys(source, 'FIELD_LABELS') == set(states.AGREEMENT_FIELDS)
+    assert _ts_keys(source, 'PLATFORM_LABELS') == set(reconciliation.PLATFORM_FAMILIES)
+    assert _ts_keys(source, 'STAGE_LABELS') == set(telemetry.FUNNEL_STAGES)
+    # Refusal codes the review outcome text switches on.
+    for code in (reconciliation.REASON_LINK_NOT_REVIEWABLE, reconciliation.REASON_NO_STRONG_MATCH):
+        assert f"case '{code}':" in source, code
+    # Every queue reason #46 can leave on a NEEDS_REVIEW item has words.
+    queued = {reconciliation.REASON_MEDIUM_NEEDS_REVIEW, reconciliation.REASON_AMBIGUOUS,
+              reconciliation.REASON_URL_CONFLICT, reconciliation.REASON_SINGLE_FIELD_ONLY,
+              reconciliation.REASON_NO_STRONG_MATCH, reconciliation.REASON_NO_CANDIDATES}
+    assert queued <= _ts_keys(source, 'REVIEW_REASONS')
