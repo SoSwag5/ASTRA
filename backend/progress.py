@@ -595,19 +595,113 @@ def _discovery_figures(db, window):
 
 
 # ---------------------------------------------------------------------------
+# No reply for 90 days (#47 follow-up C)
+# ---------------------------------------------------------------------------
+#: An inference, never employer evidence: it is shown as a cue for the user to
+#: decide on, never asserted as a state, and never counted as a rejection.
+NO_REPLY_DAYS = 90
+#: The campaign stage the user's own "close as No response" decision uses.
+#: `application_state.canonical_for_legacy('NO_RESPONSE')` is None, so it asserts
+#: nothing canonical: the application stays at its recorded state and a later
+#: reply or stage can still move it forward.
+NO_RESPONSE_STAGE = 'NO_RESPONSE'
+NO_REPLY_CUE = 'NO_REPLY_90_DAYS'
+NO_REPLY_CLOSED = 'CLOSED_NO_RESPONSE'
+NO_REPLY_REPLY_AFTER_CLOSE = 'REPLY_AFTER_CLOSE'
+
+
+def _events_by_application(db, ids, event_type):
+    """`{application_id: [occurred_at, ...]}` for one recorded event type."""
+    if not ids:
+        return {}
+    found = defaultdict(list)
+    for application_id, occurred_at in db.execute(
+            select(ApplicationEvent.application_id, ApplicationEvent.occurred_at)
+            .where(ApplicationEvent.event_type == event_type,
+                   ApplicationEvent.application_id.in_(list(ids)))):
+        found[application_id].append(_parse(occurred_at))
+    return found
+
+
+def _legacy_stage(application):
+    tracking = application.tracking if isinstance(application.tracking, dict) else {}
+    return str(tracking.get('stage') or application.status or '')
+
+
+def no_reply_status(submission, current_state, legacy_stage, replies, closures, today):
+    """Whether the "No reply for 90 days" cue applies to one application.
+
+    The cue applies only when all of these hold:
+
+    * a submission is recorded **with a date** (`submission_of`): an imported
+      application counts only if its record carries an applied date;
+    * the canonical state is still `APPLIED`: any later recorded stage means
+      the employer did something;
+    * no employer reply is recorded (`MEANINGFUL_RESPONSE`, any date).
+      Automated receipts and Gmail confirmations are not replies;
+    * at least 90 Asia/Dubai calendar days have passed since the submission
+      day: submitted on day D, the cue appears on day D + 90.
+
+    The user's own decision to close it as "No response" is reported as such,
+    and a reply recorded after that decision is reported too.
+    """
+    submitted_day = _local_day(submission['occurred_at']) if submission and submission['kind'] == SUBMISSION_DATED else None
+    result = {'status': None, 'reason': None,
+              'submitted_on': submitted_day.isoformat() if submitted_day else None,
+              'cue_from': (submitted_day + timedelta(days=NO_REPLY_DAYS)).isoformat() if submitted_day else None,
+              'days_since_submission': (today - submitted_day).days if submitted_day else None,
+              'closed_on': None}
+    if legacy_stage == NO_RESPONSE_STAGE:
+        closed_at = max((moment for moment in closures if moment), default=None)
+        result['closed_on'] = _local_day(closed_at).isoformat() if closed_at else None
+        later = [moment for moment in replies if moment and (closed_at is None or moment >= closed_at)]
+        result['status'] = NO_REPLY_REPLY_AFTER_CLOSE if later else NO_REPLY_CLOSED
+        return result
+    if submission is None:
+        result['reason'] = 'NOT_SUBMITTED'
+    elif submitted_day is None:
+        result['reason'] = 'SUBMISSION_DATE_NOT_RECORDED'
+    elif current_state != states.APPLIED:
+        result['reason'] = 'LATER_STAGE_RECORDED'
+    elif replies:
+        result['reason'] = 'REPLY_RECORDED'
+    elif today < submitted_day + timedelta(days=NO_REPLY_DAYS):
+        result['reason'] = 'TOO_RECENT'
+    else:
+        result['status'] = NO_REPLY_CUE
+    return result
+
+
+def _no_reply_by_application(db, histories, pairs, records, today):
+    ids = set(pairs)
+    replies = _events_by_application(db, ids, 'MEANINGFUL_RESPONSE')
+    closures = _events_by_application(db, ids, NO_RESPONSE_STAGE)
+    return {application_id: no_reply_status(
+                submission_of(histories.get(application_id, [])),
+                records[application_id].current_state if application_id in records else None,
+                _legacy_stage(application), replies.get(application_id, []),
+                closures.get(application_id, []), today)
+            for application_id, (application, _) in pairs.items()}
+
+
+# ---------------------------------------------------------------------------
 # Current state: follow-ups and next actions
 # ---------------------------------------------------------------------------
-def _action_figures(db, clock=None):
+def _action_figures(db, clock=None, histories=None):
     today = _now(clock).astimezone(TIMEZONE).date()
     horizon = today + timedelta(days=FOLLOWUP_HORIZON_DAYS)
     records = _current_states(db)
     followups, undated = [], 0
     pairs = _applications(db)
+    no_reply = _no_reply_by_application(db, histories or {}, pairs, records, today)
+    # The user closed these as "No response": following up is no longer an action.
+    closed_by_user = {application_id for application_id, status in no_reply.items()
+                      if status['status'] in (NO_REPLY_CLOSED, NO_REPLY_REPLY_AFTER_CLOSE)}
     for follow in db.scalars(select(FollowUp).where(FollowUp.done.is_(False))):
         pair = pairs.get(follow.application_id)
         record = records.get(follow.application_id)
-        if pair is None or (record is not None
-                            and record.current_state in FOLLOWUP_CLOSED_STATES):
+        if pair is None or follow.application_id in closed_by_user or (
+                record is not None and record.current_state in FOLLOWUP_CLOSED_STATES):
             continue
         due = _local_day(_parse(follow.due_date))
         if due is None:
@@ -622,7 +716,8 @@ def _action_figures(db, clock=None):
         tracking = application.tracking if isinstance(application.tracking, dict) else {}
         label = tracking.get('next_action')
         record = records.get(application_id)
-        if not label or (record is not None and record.current_state in FOLLOWUP_CLOSED_STATES):
+        if not label or application_id in closed_by_user or (
+                record is not None and record.current_state in FOLLOWUP_CLOSED_STATES):
             continue
         due = _local_day(_parse(tracking.get('next_action_date')))
         if due is None or due > horizon:
@@ -648,7 +743,21 @@ def _action_figures(db, clock=None):
             'next_actions': {'next_7_days': len(actions),
                              'items': [{**_item(due, application_id), 'action': label}
                                        for due, application_id, label in actions[:MAX_LISTED]],
-                             'truncated': len(actions) > MAX_LISTED}}
+                             'truncated': len(actions) > MAX_LISTED},
+            'no_reply': _no_reply_summary(no_reply, pairs)}
+
+
+def _no_reply_summary(no_reply, pairs):
+    cues = sorted((status['submitted_on'], application_id) for application_id, status in no_reply.items()
+                  if status['status'] == NO_REPLY_CUE)
+    return {'days': NO_REPLY_DAYS,
+            'cue': len(cues),
+            'closed_by_you': sum(status['status'] in (NO_REPLY_CLOSED, NO_REPLY_REPLY_AFTER_CLOSE)
+                                 for status in no_reply.values()),
+            'reply_after_close': sum(status['status'] == NO_REPLY_REPLY_AFTER_CLOSE for status in no_reply.values()),
+            'items': [{'application_id': application_id, **_job_label(pairs.get(application_id)),
+                       **no_reply[application_id]} for _, application_id in cues[:MAX_LISTED]],
+            'truncated': len(cues) > MAX_LISTED}
 
 
 # ---------------------------------------------------------------------------
@@ -748,7 +857,7 @@ def progress_report(period=THIS_WEEK, *, clock=None):
             },
             'gmail': _gmail_figures(db, window),
             'review': review_counts(db),
-            'actions': _action_figures(db, clock),
+            'actions': _action_figures(db, clock, histories),
             'discovery': _discovery_figures(db, window),
             'outcomes': _outcome_figures(db, histories, clock),
         }
@@ -845,6 +954,10 @@ def pipeline(*, clock=None):
         listed = [application.id for _, application, _ in rows]
         follow = {row.application_id: row for row in db.scalars(
             select(FollowUp).where(FollowUp.application_id.in_(listed)))} if listed else {}
+        today = _now(clock).astimezone(TIMEZONE).date()
+        no_reply = _no_reply_by_application(
+            db, histories, {application.id: (application, job) for _, application, job in rows},
+            {record.application_id: record for record, _, _ in rows}, today)
         items = []
         for record, application, job in rows:
             tracking = application.tracking if isinstance(application.tracking, dict) else {}
@@ -865,10 +978,11 @@ def pipeline(*, clock=None):
                 'cv_version': str(tracking.get('cv_version') or '')[:300] or None,
                 'followup_due_on': _iso_day(follow_up) if follow_up and not follow_up.done
                 else None,
+                'no_reply': no_reply[application.id],
             })
     return {'schema': SCHEMA_VERSION, 'total': total, 'listed': len(items),
             'truncated': total > len(items), 'history_truncated': history_truncated,
-            'states': list(states.STATES), 'items': items}
+            'states': list(states.STATES), 'no_reply_days': NO_REPLY_DAYS, 'items': items}
 
 
 def _iso_day(follow_up):

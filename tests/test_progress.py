@@ -834,3 +834,151 @@ def test_gmail_operations_route_is_read_only():
         after = snapshot()
     assert response.status_code == 200 and response.json()['unmatched_total'] == 1
     assert after == before
+
+
+# ---------------------------------------------------------------------------
+# #47 follow-up C: "No reply for 90 days"
+# ---------------------------------------------------------------------------
+TODAY = CLOCK.astimezone(DUBAI).date()
+
+
+def dubai_day(days_before_today, hour=10, minute=0):
+    """A UTC ISO timestamp on the Dubai day `days_before_today` before TODAY."""
+    moment = datetime.combine(TODAY - timedelta(days=days_before_today), time(hour, minute), tzinfo=DUBAI)
+    return moment.astimezone(UTC).isoformat()
+
+
+def history_rows(application_id):
+    with Session() as db:
+        return db.scalars(select(states.ApplicationStateTransition).where(
+            states.ApplicationStateTransition.application_id == application_id)).all()
+
+
+def no_reply(application_id):
+    rows = {item['application_id']: item for item in progress.pipeline(clock=CLOCK)['items']}
+    return rows[application_id]['no_reply']
+
+
+def test_no_reply_cue_starts_on_the_ninetieth_dubai_calendar_day():
+    exactly = make_application(company='Contoso Security', url='')
+    assert_user(exactly, states.APPLIED, dubai_day(90))
+    too_recent = make_application(company='Fabrikam Cyber', url='')
+    assert_user(too_recent, states.APPLIED, dubai_day(89))
+    # 23:30 Dubai on day -90 is 19:30 UTC: still day -90 in Dubai.
+    late_evening = make_application(company='Litware Defence', url='')
+    assert_user(late_evening, states.APPLIED, dubai_day(90, 23, 30))
+    # 00:30 Dubai on day -89 is 20:30 UTC on day -90: a UTC-date rule would
+    # wrongly show the cue a day early.
+    after_midnight = make_application(company='Tailspin Security', url='')
+    assert_user(after_midnight, states.APPLIED, dubai_day(89, 0, 30))
+    assert dubai_day(89, 0, 30)[:10] == dubai_day(90, 12)[:10]
+
+    assert no_reply(exactly)['status'] == progress.NO_REPLY_CUE
+    assert no_reply(exactly)['days_since_submission'] == 90
+    assert no_reply(late_evening)['status'] == progress.NO_REPLY_CUE
+    for application in (too_recent, after_midnight):
+        status = no_reply(application)
+        assert status['status'] is None and status['reason'] == 'TOO_RECENT'
+        assert status['cue_from'] == (TODAY + timedelta(days=1)).isoformat()
+
+    summary = report()['actions']['no_reply']
+    assert summary['cue'] == 2 and summary['days'] == 90
+    assert {item['application_id'] for item in summary['items']} == {exactly, late_evening}
+
+
+def test_replies_later_stages_and_undated_imports_suppress_the_cue():
+    replied = make_application(company='Contoso Security', url='')
+    assert_user(replied, states.APPLIED, dubai_day(120))
+    receipt_only = make_application(company='Fabrikam Cyber', url='')
+    assert_user(receipt_only, states.APPLIED, dubai_day(120))
+    interviewed = make_application(company='Litware Defence', url='')
+    assert_user(interviewed, states.APPLIED, dubai_day(120))
+    assert_user(interviewed, states.VIEWED, dubai_day(100))
+    with Session.begin() as db:
+        db.add(ApplicationEvent(application_id=replied, event_type='MEANINGFUL_RESPONSE',
+                                occurred_at=dubai_day(5), message='Fictional reply'))
+        db.add(ApplicationEvent(application_id=receipt_only, event_type='AUTOMATED_CONFIRMATION',
+                                occurred_at=dubai_day(119), message='Fictional receipt'))
+    imported_dated = make_application(company='Tailspin Security', url='', status='APPLIED',
+                                      applied_date=dubai_day(100))
+    imported_undated = make_application(company='Adatum Labs', url='', status='APPLIED')
+    states.state_summary()
+
+    assert no_reply(replied)['reason'] == 'REPLY_RECORDED'
+    assert no_reply(receipt_only)['status'] == progress.NO_REPLY_CUE  # a receipt is not a reply
+    assert no_reply(interviewed)['reason'] == 'LATER_STAGE_RECORDED'
+    assert no_reply(imported_dated)['status'] == progress.NO_REPLY_CUE
+    assert no_reply(imported_undated)['reason'] == 'SUBMISSION_DATE_NOT_RECORDED'
+
+
+def test_closing_as_no_response_is_the_users_decision_not_a_rejection():
+    from fastapi.testclient import TestClient
+    from backend.main import app
+    application = make_application(url='')
+    assert_user(application, states.APPLIED, dubai_day(95))
+    with Session() as db:
+        job_id = db.get(Application, application).job_id
+    with Session.begin() as db:
+        db.add(FollowUp(application_id=application, due_date=dubai_day(-1), done=False))
+    transitions = len(history_rows(application))
+    assert no_reply(application)['status'] == progress.NO_REPLY_CUE
+
+    with TestClient(app) as client:
+        closed = client.post(f'/api/campaign/jobs/{job_id}/track',
+                             json={'stage': 'NO_RESPONSE', 'notes': 'Closed as no response (fictional).'})
+        assert closed.status_code == 200
+
+        # Canonical state and history are untouched: absence of a reply is an
+        # inference, not employer evidence.
+        assert current(application) == states.APPLIED
+        assert len(history_rows(application)) == transitions
+        status = no_reply(application)
+        assert status['status'] == progress.NO_REPLY_CLOSED and status['closed_on']
+        figures = report()
+        assert figures['outcomes']['rejected']['count'] == 0
+        assert figures['actions']['no_reply']['closed_by_you'] == 1
+        assert figures['actions']['no_reply']['cue'] == 0
+        assert figures['actions']['followups']['items'] == []
+
+        # A reply recorded after closing is surfaced, not hidden.
+        assert client.post(f'/api/campaign/jobs/{job_id}/track',
+                           json={'event_type': 'MEANINGFUL_RESPONSE', 'notes': 'Fictional reply'}).status_code == 200
+        assert no_reply(application)['status'] == progress.NO_REPLY_REPLY_AFTER_CLOSE
+
+        # Recording a later stage moves the application forward as usual.
+        assert client.post(f'/api/campaign/jobs/{job_id}/track', json={'stage': 'INTERVIEW'}).status_code == 200
+    assert current(application) == states.INTERVIEW
+    assert no_reply(application)['status'] is None
+    assert no_reply(application)['reason'] == 'LATER_STAGE_RECORDED'
+
+
+def test_reopening_and_closing_from_a_later_stage_keep_the_recorded_stage():
+    from fastapi.testclient import TestClient
+    from backend.main import app
+    # Applied through the UI, so the record carries its applied date.
+    reopened = make_application(url='', applied_date=dubai_day(120))
+    assert_user(reopened, states.APPLIED, dubai_day(120))
+    later = make_application(url='')
+    assert_user(later, states.APPLIED, dubai_day(120))
+    assert_user(later, states.INTERVIEW, dubai_day(60))
+    with Session() as db:
+        reopened_job = db.get(Application, reopened).job_id
+        later_job = db.get(Application, later).job_id
+    with TestClient(app) as client:
+        for job_id in (reopened_job, later_job):
+            assert client.post(f'/api/campaign/jobs/{job_id}/track',
+                               json={'stage': 'NO_RESPONSE'}).status_code == 200
+        assert no_reply(reopened)['status'] == progress.NO_REPLY_CLOSED
+        # Closing from a later stage is still only the user's decision: the
+        # recorded stage stays where it was and nothing counts as a rejection.
+        assert no_reply(later)['status'] == progress.NO_REPLY_CLOSED
+        assert current(later) == states.INTERVIEW
+        assert report()['outcomes']['rejected']['count'] == 0
+
+        # Setting the stage back to Applied reopens it; still no reply, so the
+        # cue returns rather than being silently dropped.
+        assert client.post(f'/api/campaign/jobs/{reopened_job}/track',
+                           json={'stage': 'APPLIED'}).status_code == 200
+    assert current(reopened) == states.APPLIED
+    assert no_reply(reopened)['status'] == progress.NO_REPLY_CUE
+    assert no_reply(reopened)['submitted_on'] == dubai_day(120)[:10]

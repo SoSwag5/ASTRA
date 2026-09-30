@@ -129,7 +129,16 @@ the basis. "Event" means something that happened inside the period;
 - Deduplication: one follow-up per application (unique index).
 - A follow-up whose date does not parse is listed as "date not recorded",
   never as due.
+- Applications the user closed as "No response" are excluded (follow-up C).
 - Basis: the listed follow-ups with their application.
+
+**No reply for 90 days** (follow-up C; full rule in
+[NO_REPLY_CUE.md](NO_REPLY_CUE.md))
+- Source: the canonical history's dated submission, canonical `current_state`,
+  user-recorded `MEANINGFUL_RESPONSE` events, and the campaign stage.
+- Current state. A cue for the user's decision, never a state, never a
+  rejection. The user's own "No response" closes are counted separately and
+  never merged into outcomes.
 
 ### 5.2 Period figures (events)
 
@@ -249,6 +258,8 @@ period. Distinct from "currently at Applied" (§5.3).
 - **Reached interview / offer / rejected**: history contains that state.
 - **Replies you recorded**: distinct applications with a user-recorded
   `MEANINGFUL_RESPONSE` `ApplicationEvent` (automated receipts excluded).
+- **Closed by you as no response** (follow-up C): shown as its own note, not a
+  rate and never part of **rejected**.
 - Rates are shown as "n of N"; a percentage is shown only when N ≥ 10,
   otherwise "Not enough data". Never a probability or a benchmark.
 - **Submissions by week** (last 12 Dubai weeks, from §5.2's rule), with direct

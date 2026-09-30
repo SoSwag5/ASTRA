@@ -478,6 +478,7 @@ export function Outcomes({data}: {data: Row}) {
       const text = M.rateText(rate);
       return <div key={label}><dt>{label}</dt><dd><strong>{text.main}</strong><span>{text.detail}</span></dd></div>;
     })}</dl>
+    {(data.actions?.no_reply?.closed_by_you || 0) > 0 && <p className="muted-line">Closed by you as no response: {data.actions.no_reply.closed_by_you}. Their recorded stage is unchanged and they are not counted as rejections{data.actions.no_reply.reply_after_close ? `; ${data.actions.no_reply.reply_after_close} later received a reply` : ''}.</p>}
     <h3 className="subhead">Submissions by week</h3>
     <p className="muted-line">{total ? `${M.plural(total, 'dated submission')} in the last ${weekly.length} weeks; the busiest week began ${M.formatDay(busiest?.week_start)} with ${busiest?.submitted}.` : `No dated submissions in the last ${weekly.length} weeks.`}{o.submission_date_not_recorded ? ` ${M.plural(o.submission_date_not_recorded, 'submission')} without a recorded date ${o.submission_date_not_recorded === 1 ? 'is' : 'are'} not shown.` : ''}</p>
     <div className="columns" aria-hidden>

@@ -118,6 +118,16 @@ function report(overrides = {}) {
     ok(/Jobs shown to you: not recorded/.test(health), 'DISPLAYED is unavailable, not zero');
     const next = html(V.NextAction, {data: report({review: {status: 'OK', total: 3}}), goTo: noop});
     ok(/3 Gmail messages/.test(next) && /Review now/.test(next), 'the next action leads with Needs Review');
+    // #47 follow-up C: the no-reply cue is an inference, never a rejection.
+    const cue = M.noReplyText({status: 'NO_REPLY_90_DAYS', submitted_on: '2026-06-02', days_since_submission: 92});
+    ok(cue && cue.tone === 'warn' && cue.badge === 'No reply for 90 days' && /92 days with no employer reply recorded/.test(cue.line), 'the cue states its date basis');
+    const closed = M.noReplyText({status: 'CLOSED_NO_RESPONSE', closed_on: '2026-09-15'});
+    ok(closed && /Closed by you/.test(closed.badge) && /stage is unchanged/.test(closed.line) && /not counted as a rejection/.test(closed.line) && /reopen/.test(closed.line), 'closing is the user’s decision and reversible');
+    const reply = M.noReplyText({status: 'REPLY_AFTER_CLOSE'});
+    ok(/after you closed it/.test(reply.badge) && /new stage/.test(reply.line), 'a later reply is surfaced and says how to reopen');
+    ok(M.noReplyText({status: null, reason: 'TOO_RECENT'}) === null && M.noReplyText(null) === null, 'no cue means nothing is shown');
+    ok(M.NO_REPLY_RULE.some(line => /never records it as a rejection/.test(line)) && M.NO_REPLY_RULE.some(line => /Automated receipts and Gmail confirmations are not replies/.test(line)), 'the rule explains itself');
+    ok(/no employer reply recorded 92 days after submission on 2026-06-02/.test(M.closeNoReplyNote({days_since_submission: 92, submitted_on: '2026-06-02'})), 'the close note records the basis');
     console.log(`${checks} fictional Progress wording, privacy and rendering checks passed.`);
   } finally {
     await server.close();

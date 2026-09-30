@@ -22,3 +22,13 @@
 .campaign-tabs .campaign-tabs-link{margin-inline-start:auto;display:inline-flex;align-items:center;gap:var(--space-1);color:var(--ink-3);border-bottom-color:transparent!important}
 .campaign-tabs .campaign-tabs-link:hover{color:var(--ink-1)}
 .campaign-tabs button:not([aria-pressed=true]){color:var(--ink-2)}
+/* #47 follow-up C: no reply for 90 days. */
+.pipeline-row{border-bottom:1px solid var(--border-subtle)}
+.pipeline-row:last-child{border-bottom:0}
+.pipeline-row .campaign-job{border-bottom:0}
+.no-reply-bar{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-3);padding:0 0 var(--space-4);color:var(--ink-3);font-size:var(--text-sm)}
+.no-reply-bar>span:not(.status-badge){flex:1 1 16rem;min-width:0}
+.no-reply-callout{margin-bottom:var(--space-4)}
+.no-reply-callout>svg{color:var(--status-warn-fg)!important}
+.rule-note{margin:0 0 var(--space-4)}
+.rule-note ul{margin:var(--space-2) 0 0;padding-inline-start:var(--space-5);display:grid;gap:var(--space-1);color:var(--ink-2);font-size:var(--text-md)}

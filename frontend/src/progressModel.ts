@@ -285,3 +285,34 @@ export function readStored(key: string, fallback: string, allowed: string[]): st
 export function writeStored(key: string, value: string): void {
   try { window.localStorage.setItem(key, value); } catch { /* storage unavailable */ }
 }
+
+// ---------------------------------------------------------------------------
+// "No reply for 90 days" (#47 follow-up C)
+// ---------------------------------------------------------------------------
+export const NO_REPLY_RULE = [
+  'Shown when an application was submitted on a recorded date at least 90 days ago (Asia/Dubai calendar days), its recorded stage is still Applied, and no employer reply has been recorded.',
+  'Automated receipts and Gmail confirmations are not replies. An imported application counts only if its record carries an applied date.',
+  'It is an inference, not something the employer said, so ASTRA never records it as a rejection. Closing it is your decision and is never counted as a rejection either.',
+];
+
+/** What an application row says about a missing reply, if anything. */
+export function noReplyText(status: Row | null | undefined): {badge: string; tone: Tone; line: string} | null {
+  if (!status) return null;
+  if (status.status === 'NO_REPLY_90_DAYS') {
+    return {badge: 'No reply for 90 days', tone: 'warn',
+      line: `Submitted ${formatDay(status.submitted_on)} · ${status.days_since_submission} days with no employer reply recorded.`};
+  }
+  if (status.status === 'CLOSED_NO_RESPONSE') {
+    return {badge: 'Closed by you: no response', tone: 'neutral',
+      line: `${status.closed_on ? 'Closed ' + formatDay(status.closed_on) + '. ' : ''}Its recorded stage is unchanged and it is not counted as a rejection. Set a new stage from the job’s detail view to reopen it.`};
+  }
+  if (status.status === 'REPLY_AFTER_CLOSE') {
+    return {badge: 'Reply recorded after you closed it', tone: 'info',
+      line: 'Set its new stage from the job’s detail view to reopen it.'};
+  }
+  return null;
+}
+
+export function closeNoReplyNote(status: Row): string {
+  return `Closed as No response: no employer reply recorded ${status.days_since_submission} days after submission on ${status.submitted_on}.`;
+}
