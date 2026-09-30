@@ -1,8 +1,9 @@
 # ASTRA project state
 
-**Snapshot date:** 2026-09-29 (Asia/Dubai), refreshed for the PR #75 merge
-(#46.2-B v7 source-map closeout) and the #46.2-C v3 blind FAIL. The #46
-closeout below remains historical evidence.
+**Snapshot date:** 2026-09-30 (Asia/Dubai), refreshed for the #47 draft pull
+request (awaiting independent review). The 2026-09-29 refresh for the PR #75
+merge (#46.2-B v7 source-map closeout) and the #46.2-C v3 blind FAIL, and the
+#46 closeout below, remain historical evidence.
 **Rule:** This is a handoff snapshot, not a substitute for live verification.
 Refresh it at session end when repository or release state changes.
 
@@ -506,6 +507,8 @@ challenge. G and H are not started.
 
 **Next actions:**
 
+- Independent Codex review of the #47 draft pull request at its exact head
+  SHA (see the #47 sections below). Merge waits for that review and the Owner.
 - Independent review of the #46.2-C v3 closeout documentation at its exact
   final SHA, before any push, pull request or merge. Nothing from it has been
   pushed.
@@ -529,6 +532,104 @@ challenge. G and H are not started.
 - Do not tag, publish a release, or modify v1.0.0.
 - Preserve the parked `hardening/l2-r13-r14` branch and all concurrent
   worktrees.
+
+## #47 Progress/dashboard redesign — draft PR, awaiting independent review
+
+Implementation owner: Claude Code, on `feature/47-progress-dashboard` (fresh
+worktree `astra-47-progress`) from `master`
+`22642e88f516f827c1dc4250bc72eb259306fafd`. Codex performs independent
+assurance; nothing is approved, merged or released by this work.
+
+- Plan and metric/source contract:
+  [Progress dashboard](../architecture/PROGRESS_DASHBOARD.md), written before
+  any #47 code (commit `aa38a10`).
+- Read-only projection `backend/progress.py` (`/api/progress`,
+  `/api/progress/needs-review`, `/api/progress/applications`); no schema, state,
+  matching or transition change; no evaluation-provenance-pinned file touched.
+- Progress, Today and Applications redesigned on verified events; the
+  unverified "quality applications" meter and the unreachable legacy
+  `Dashboard` block are removed from the UI.
+- Verification was offline with fictional records only. No live mailbox,
+  job or application data was used; real-world accuracy remains unmeasured.
+  R-16, R-17 and R-18 remain OPEN. No residual-risk acceptance or release
+  approval is implied.
+
+## Session handoff: #47 Progress/dashboard redesign
+
+- **Session date/time and timezone:** 2026-09-30, Asia/Dubai (afternoon).
+- **Implementation owner:** Claude Code. Codex reviews independently; the Owner
+  controls merge and publication.
+- **Branch and worktree:** `feature/47-progress-dashboard`, fresh worktree
+  `astra-47-progress`.
+- **Starting SHA / ending SHA:** `22642e88f516f827c1dc4250bc72eb259306fafd`
+  (equal to `origin/master` when checked) / the commit containing this record,
+  reported in the pull request.
+- **Task and release classification:** `feature/` change within the v1.1
+  milestone (Phase C); minor-release depth when v1.1 is assured under #48. No
+  version, tag or release change.
+- **Work completed:** see the section above and the pull request.
+- **Files changed:** `backend/progress.py`, `backend/main.py` (router mount),
+  `tests/test_progress.py`, `frontend/src/{Progress.tsx,progressModel.ts,
+  progress.css,tokens.css,Campaign.tsx,campaign.css,main.tsx,readiness.css}`,
+  `frontend/check-progress.cjs`, `frontend/package.json` (test script only),
+  `docs/architecture/PROGRESS_DASHBOARD.md`,
+  `docs/security/ENDPOINT_INVENTORY.md`, `CHANGELOG.md`, this file.
+- **Tests executed and exact results** (Python 3.13.2, main checkout's `.venv`;
+  fictional isolated storage only):
+  - `tests/test_progress.py`: 24 passed.
+  - `tests/test_progress.py`, `test_application_state.py`,
+    `test_discovery_telemetry.py`, `test_campaign.py`, `test_api.py`: 348 passed.
+  - Full suite on the tree of `a6639d2`: **2099 passed, 1 skipped, 1
+    deselected, 0 failed** (7 min 22 s). The skip is the existing
+    `test_job_deduplication.py` MN15 case ("covered by
+    test_three_record_transitive_bridge_never_collapses"). The deselected test
+    is the repository-wide gate test, reported under security checks. The later
+    commits change only `frontend/src/Progress.tsx` and this file.
+  - Frontend on `5d4bee1`: `tsc -b` clean; `npm run build` succeeded;
+    `npm test` — all 7 check scripts passed, including 40 new Progress checks.
+  - Manual browser QA against an isolated fictional workspace: Progress, Today
+    and Applications at 1280/768/390/320 px in both themes and at 640 px (200%
+    zoom equivalent) — no page-level horizontal overflow; keyboard-only
+    confirm/reject, focus restoration, live-region text, an "already resolved
+    elsewhere" item, a server error and reduced motion; an empty workspace.
+    Screenshots contain fictional data only and are kept outside Git.
+- **Security checks executed and exact results** (at `5d4bee1`):
+  - Repository-wide `scripts/publication_gate.py`: **BLOCKED**, 1,574 objects,
+    2 findings — both `private_machine_path` in historical versions of
+    `docs/planning/AI_NATIVE_DISCOVERY_46_2_BENCHMARK.md` carried only by
+    preserved local branches (commits `a5c25aa`/`7b4dd07`, neither an ancestor
+    of this branch). Unchanged, and not weakened or suppressed.
+  - Exactly what a push of this branch publishes (`rev-list --objects` beyond
+    `origin`, scanned with the gate's own `scan()`, plus commit metadata):
+    20 blobs, 0 findings.
+  - The gate in a single-branch clone of this branch: **PASS**, 1,099 objects,
+    0 findings. In that clone, `tests/security/test_publication_scope.py` and
+    `tests/security/test_assurance_gate.py`: 56 passed.
+  - Changed files grepped for machine paths and personal email addresses: none.
+- **Checks not run and why:** hosted CI, CodeQL and dependency review (they run
+  on the pull request's head); Python 3.14 locally (hosted CI covers it);
+  SCA/`npm audit` (no dependency or lockfile change); live Gmail or any real
+  data (out of scope by design); a browser-level automated UI test (the
+  repository has no such framework).
+- **Security findings opened/changed/closed:** none.
+- **ADRs, threat deltas, risk records, and framework deltas:** none required —
+  no trust-boundary, persistence, schema or privacy-boundary change; the new
+  local GET routes are recorded in the endpoint inventory and expose a subset of
+  fields the #46 review route already returns. Rationale in §8 of the contract.
+- **Owner decisions still required:** none to proceed with review. Optional
+  follow-ups for the Owner: whether to add an in-app control for Gmail sync and
+  reconciliation (out of #47's scope), and whether to remove the now-unused
+  Recharts dependency in a separate dependency change.
+- **Commit(s) and pull request:** `aa38a10` (plan and contract), `8909f20`
+  (projection and tests), `e19f0dd` (frontend), `a6639d2` (bounds and docs),
+  `5d4bee1` (queue refresh), then this record. A draft pull request targets
+  `master`; its number and exact head are recorded on the pull request.
+- **Known conflicts, blockers, or branch drift:** the repository-wide
+  publication gate stays BLOCKED by known historical findings on preserved
+  local branches (unchanged, not weakened); the branch-scope results are
+  recorded above. The main checkout's untracked `n.json` was preserved.
+- **Exact next action:** independent Codex review of the pull request at its
+  exact head SHA. Merge and any release wait for that review and the Owner.
 
 ## Session handoff: #46.2-C v3 closeout documentation
 
