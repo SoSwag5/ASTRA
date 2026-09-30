@@ -93,3 +93,10 @@
 }
 .settings-card details > p { color: var(--ink-3); font-size: var(--text-md); margin: var(--space-2) 0; }
 .settings-card details[open] > summary { margin-bottom: var(--space-2); }
+/* Long tokens (scope URLs, storage paths) wrap instead of widening a card. */
+.settings-card > * { min-width: 0; }
+.settings-card { overflow-wrap: break-word; }
+.settings-card code, .settings-card .notice { overflow-wrap: anywhere; }
+.settings-card .formgrid > *, .settings-card form > * { min-width: 0; }
+.settings-card select, .settings-card input:not([type=checkbox]):not([type=radio]):not([type=file]), .settings-card textarea { width: 100%; max-width: 100%; min-width: 0; }
+.settings-card .narrow-field input { max-width: 22rem; }

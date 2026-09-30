@@ -35,3 +35,13 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;unicode-bidi:plaintext}
 @media(max-width:600px){header{height:auto;min-height:64px;flex-wrap:wrap;gap:8px;padding-block:10px}
 header>div{flex-wrap:wrap;gap:8px}
 }
+
+/* #47 follow-up A: Discovery and Jobs reflow at 320 px without horizontal scrolling. */
+.search{min-width:min(250px,100%)}
+.sectiontitle{flex-wrap:wrap}
+.sectiontitle label,.panel label:has(>select){max-width:100%}
+.panel label>select{max-width:100%;min-width:0}
+.toolbar>*{min-width:0;max-width:100%}
+.opportunity{flex-wrap:wrap}
+.opportunity>div{min-width:0;flex-basis:12rem}
+.toolbar input[type=url]{min-width:min(260px,100%)}

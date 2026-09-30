@@ -166,8 +166,10 @@ html[data-motion=reduced] {
 /* Shared primitives used by Progress, Today and Applications. */
 .visually-hidden {
   position: absolute !important;
-  width: 1px;
-  height: 1px;
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
   margin: -1px;
   padding: 0;
   overflow: hidden;
