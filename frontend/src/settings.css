@@ -1,0 +1,95 @@
+/* Settings (#47 follow-up A): section navigation, cards and choices. */
+.settings { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: var(--space-8); align-items: start; min-width: 0; }
+.settings-nav { position: sticky; top: var(--space-4); }
+.settings-nav ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.settings-nav li button {
+  display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: 2.5rem;
+  padding: var(--space-2) var(--space-3); border: 0; border-radius: var(--radius-md);
+  background: transparent; color: var(--ink-2); font-size: var(--text-md); text-align: start;
+}
+.settings-nav li button:hover { background-color: var(--state-hover); color: var(--ink-1); }
+.settings-nav li button[aria-current=page] { background-color: var(--accent-soft); color: var(--ink-1); font-weight: var(--weight-semibold); box-shadow: inset 3px 0 0 var(--accent); }
+.settings-nav li button[aria-current=page] svg { color: var(--accent); }
+.settings-nav li button:active { transform: translateY(1px); }
+.settings-select { display: none; }
+
+.settings-body { display: grid; gap: var(--space-5); min-width: 0; }
+.settings-head h2 { font-size: var(--text-2xl); line-height: var(--leading-tight); }
+.settings-head p { margin-top: var(--space-2); color: var(--ink-3); font-size: var(--text-md); }
+.settings-head h2:focus { outline: none; }
+
+.settings-card { display: grid; gap: var(--space-3); min-width: 0; margin: 0; }
+.settings-card > h3, .card-head h3 { font-size: var(--text-lg); line-height: var(--leading-tight); }
+.settings-card > p, .card-head p { color: var(--ink-3); font-size: var(--text-md); line-height: var(--leading-normal); max-width: 70ch; }
+.settings-card label { display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--text-md); color: var(--ink-2); text-transform: none; }
+.settings-card label small { margin: 0; color: var(--ink-3); font-size: var(--text-sm); }
+.settings-card label.check { flex-direction: row; align-items: center; gap: var(--space-3); color: var(--ink-1); }
+.settings-card .formgrid { margin: var(--space-2) 0; gap: var(--space-4); }
+.settings-card fieldset { border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-4); margin: 0; min-inline-size: 0; }
+.settings-card legend { padding: 0 var(--space-2); color: var(--ink-1); font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.settings-card details { margin: 0; }
+.settings-card > button, .settings-card > .actions { justify-self: start; }
+.settings-card .textbtn { justify-self: start; display: inline-flex; align-items: center; gap: var(--space-1); min-height: var(--target-min); font-size: var(--text-md); }
+.card-head { display: flex; gap: var(--space-3); align-items: flex-start; }
+.card-head > svg { flex: none; margin-top: 2px; color: var(--accent); }
+.card-head > div { display: grid; gap: var(--space-2); }
+.narrow-field { max-width: 22rem; }
+.muted-line { color: var(--ink-3); font-size: var(--text-md); }
+
+/* Choice cards (radio) and career tracks (checkbox). */
+.radio-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: var(--space-3); border: 0 !important; padding: 0 !important; }
+.radio-cards.three { grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); }
+.radio-card, .track-option {
+  flex-direction: row !important; align-items: flex-start; gap: var(--space-3) !important;
+  padding: var(--space-3) var(--space-4); border: 1px solid var(--border-strong); border-radius: var(--radius-md);
+  background: var(--surface-2); cursor: pointer; color: var(--ink-1) !important;
+  transition: border-color var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard);
+}
+.radio-card:hover, .track-option:hover { border-color: var(--control-border); }
+.radio-card.selected, .track-option.selected { border-color: var(--accent); background: var(--accent-soft); }
+.radio-card input, .track-option input { width: 1.1rem; height: 1.1rem; margin-top: 2px; flex: none; accent-color: var(--accent); min-height: 0; }
+.radio-card > span:last-child, .track-option > span { display: grid; gap: 2px; min-width: 0; }
+.radio-card strong, .track-option strong { font-size: var(--text-md); }
+.radio-card small, .track-option small { color: var(--ink-3) !important; }
+.radio-card:has(input:focus-visible), .track-option:has(input:focus-visible) { outline: var(--focus-width) solid var(--focus-ring); outline-offset: var(--focus-offset); }
+.track-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: var(--space-3); }
+.track-option em { justify-self: start; font-style: normal; }
+.theme-swatch { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; flex: none; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); }
+.theme-swatch.dark { background: #101319; color: #92e5c1; }
+.theme-swatch.light { background: #f3f5f8; color: #1e7856; }
+.theme-swatch.system { background: linear-gradient(135deg, #101319 50%, #f3f5f8 50%); color: #92e5c1; }
+
+/* Lists of configured items. */
+.source-rows { list-style: none; margin: 0; padding: 0; display: grid; }
+.source-rows li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); padding: var(--space-3) 0; border-bottom: 1px solid var(--border-subtle); }
+.source-rows li:last-child { border-bottom: 0; }
+.source-rows li > div { display: grid; gap: 2px; min-width: 0; }
+.source-rows strong { font-size: var(--text-md); color: var(--ink-1); overflow-wrap: anywhere; }
+.source-rows small { margin: 0; color: var(--ink-3); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.add-source { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; gap: var(--space-3); align-items: end; }
+.key-form { display: grid; gap: var(--space-3); padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
+.key-form > button { justify-self: start; }
+.key-form > small { margin: 0; color: var(--ink-3); font-size: var(--text-sm); }
+.check-list { margin: 0; padding-inline-start: var(--space-5); display: grid; gap: var(--space-2); color: var(--ink-2); font-size: var(--text-md); }
+.check-overall { color: var(--ink-1); }
+.fact { display: grid; gap: var(--space-2); padding: var(--space-3) 0; border-bottom: 1px solid var(--border-subtle); }
+.fact > button { justify-self: start; }
+.danger-zone { border-color: var(--danger-border); }
+.danger-zone .card-head > svg { color: var(--status-bad-fg); }
+.danger-zone form { display: grid; gap: var(--space-3); }
+.danger-zone form > button { justify-self: start; }
+.danger-zone form > small { margin: 0; color: var(--ink-3); font-size: var(--text-sm); }
+.settings-card .callout { margin: 0; }
+
+@media (max-width: 1000px) {
+  .settings { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
+  .settings-nav { position: static; }
+  .settings-nav ul { display: none; }
+  .settings-select { display: flex; flex-direction: column; gap: var(--space-2); color: var(--ink-2); font-size: var(--text-md); max-width: 24rem; }
+}
+@media (max-width: 700px) {
+  .add-source { grid-template-columns: minmax(0, 1fr); }
+  .add-source > button { justify-self: start; }
+}
+.settings-card details > p { color: var(--ink-3); font-size: var(--text-md); margin: var(--space-2) 0; }
+.settings-card details[open] > summary { margin-bottom: var(--space-2); }

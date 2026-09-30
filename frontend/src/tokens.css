@@ -88,10 +88,24 @@
   --target-min: 24px;
   --control-height: 2.5rem;
 
-  /* Motion: brief, and only to show a state change. */
+  /* Motion: brief, and only to show a state change (NN/g 100-500 ms band;
+     Material 3 curves). See docs/architecture/INTERACTION_SYSTEM.md. */
+  --motion-instant: 80ms;
   --motion-fast: 120ms;
   --motion-base: 180ms;
+  --motion-slow: 240ms;
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-exit: cubic-bezier(0.3, 0, 1, 1);
+
+  /* Interaction layers. */
+  --state-hover: rgba(233, 237, 244, 0.06);
+  --state-press: rgba(233, 237, 244, 0.12);
+  --control-border: #66738c;
+  --danger-fg: #ffd2da;
+  --danger-bg: #8a2b3d;
+  --danger-bg-hover: #a0344a;
+  --danger-border: #b04a5f;
 }
 
 [data-theme=light] {
@@ -123,13 +137,30 @@
   --status-neutral-border: #d3dae3;
 
   --focus-ring: #0d7f55;
+
+  --state-hover: rgba(23, 34, 53, 0.05);
+  --state-press: rgba(23, 34, 53, 0.10);
+  --control-border: #7b8799;
+  --danger-fg: #ffffff;
+  --danger-bg: #b3263e;
+  --danger-bg-hover: #971f34;
+  --danger-border: #971f34;
 }
 
+/* The OS setting and ASTRA's own "Reduce motion" choice are equivalent. */
 @media (prefers-reduced-motion: reduce) {
   :root {
+    --motion-instant: 0ms;
     --motion-fast: 0ms;
     --motion-base: 0ms;
+    --motion-slow: 0ms;
   }
+}
+html[data-motion=reduced] {
+  --motion-instant: 0ms;
+  --motion-fast: 0ms;
+  --motion-base: 0ms;
+  --motion-slow: 0ms;
 }
 
 /* Shared primitives used by Progress, Today and Applications. */

@@ -18,3 +18,7 @@
 .campaign-tabs button[aria-selected=true]{border-color:var(--accent);color:var(--accent)}
 .due-date{color:var(--status-warn-fg)!important}
 .campaign button:focus-visible,.campaign a:focus-visible{outline:var(--focus-width) solid var(--focus-ring);outline-offset:var(--focus-offset)}
+.campaign-tabs button[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
+.campaign-tabs .campaign-tabs-link{margin-inline-start:auto;display:inline-flex;align-items:center;gap:var(--space-1);color:var(--ink-3);border-bottom-color:transparent!important}
+.campaign-tabs .campaign-tabs-link:hover{color:var(--ink-1)}
+.campaign-tabs button:not([aria-pressed=true]){color:var(--ink-2)}
