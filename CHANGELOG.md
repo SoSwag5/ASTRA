@@ -8,6 +8,16 @@ when a release is approved; this file does not establish that a release exists.
 
 ### Added
 
+- A Progress page built on verified events: the Gmail Needs Review queue with
+  confirm/reject through the existing #46 rules and a read-only candidate list
+  for ambiguous items, period figures from canonical transition history, Gmail
+  evidence and discovery telemetry (Asia/Dubai windows, cross-source
+  deduplication, partial and unavailable data written out rather than shown as
+  zero), the canonical application journey and discovery health. Every figure
+  shows how it is counted. Today drops the unverified "quality applications"
+  meter and Applications shows canonical state. Awaiting independent review
+  (#47).
+
 - One authoritative application-state model with an explicit permitted-transition
   table, an append-only transition history carrying manual/automated provenance,
   and conservative deterministic multi-field reconciliation of Gmail

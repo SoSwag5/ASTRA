@@ -263,12 +263,15 @@ def _stage_events(history):
 # Shared lookups
 # ---------------------------------------------------------------------------
 def _applications(db, ids=None):
-    """`{application_id: (Application, Job)}` for the given ids (or all)."""
+    """`{application_id: (Application, Job)}` for the given ids, or the most
+    recent `MAX_TRANSITIONS` applications when no ids are given."""
     query = select(Application, Job).join(Job, Application.job_id == Job.id)
     if ids is not None:
         if not ids:
             return {}
         query = query.where(Application.id.in_(list(ids)))
+    else:
+        query = query.order_by(Application.id.desc()).limit(MAX_TRANSITIONS)
     return {application.id: (application, job)
             for application, job in db.execute(query).all()}
 
@@ -590,6 +593,7 @@ def _action_figures(db, clock=None):
                 if application_id in records else None}
 
     return {'today': today.isoformat(),
+            'applications_truncated': len(pairs) >= MAX_TRANSITIONS,
             'followups': {'due_now': sum(due <= today for due, _ in followups),
                           'overdue': sum(due < today for due, _ in followups),
                           'next_7_days': len(followups),
@@ -794,7 +798,9 @@ def pipeline(*, clock=None):
             .order_by(states.ApplicationStateRecord.entered_at.desc(),
                       Application.id.desc())
             .limit(MAX_PIPELINE_ROWS)).all()
-        follow = {row.application_id: row for row in db.scalars(select(FollowUp))}
+        listed = [application.id for _, application, _ in rows]
+        follow = {row.application_id: row for row in db.scalars(
+            select(FollowUp).where(FollowUp.application_id.in_(listed)))} if listed else {}
         items = []
         for record, application, job in rows:
             tracking = application.tracking if isinstance(application.tracking, dict) else {}

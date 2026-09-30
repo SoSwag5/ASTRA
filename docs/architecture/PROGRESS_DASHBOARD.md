@@ -24,7 +24,7 @@ through the existing #46 endpoints.
 | Surface | Finding | Decision |
 |---|---|---|
 | Legacy `Dashboard` block in `main.tsx` | Unreachable: no navigation item sets `page === 'Dashboard'`. It still costs a `/api/dashboard` request on every reload. Its figures read `Application.status` (legacy), average a heuristic score, and chart raw job counts by location/source. | Remove the block and stop requesting `/api/dashboard` from the UI. The backend route stays for existing clients and tools. |
-| Today goal: "N / 5 quality applications this week" | Numerator counts `tracking.fit_at_application in (EXCELLENT, STRONG)`, a ranking snapshot. #46.2-C failed its relevance criterion, so a ranking band is not a validated quality measure. It is a progress meter without an event-traceable numerator. | Remove from Today. The stored `weekly_target` preference is preserved, not deleted, and is no longer shown as a meter. |
+| Today goal: "N / 5 quality applications this week" | Numerator counts `tracking.fit_at_application in (EXCELLENT, STRONG)`, a ranking snapshot. #46.2-C failed its relevance criterion, so a ranking band is not a validated quality measure. It is a progress meter without an event-traceable numerator. | Remove from Today. The `weekly_target` preference stays editable in Campaign preferences as a recorded plan (that form already says such preferences only record a plan); nothing measures progress against it. |
 | Today "Strong new matches" | A ranking suggestion labelled as a validated match. | Rename to "Highest-ranked new jobs" with the index shown as a heuristic priority, not a fit claim. |
 | Today "N/N sources healthy" line | #43 exists precisely because this stays true while a scan finds nothing useful. | Replace with the latest telemetry run's status (complete / incomplete / failed sources / unavailable). |
 | Today footer "submitted · active · reached interview" | Legacy `applied_date` and `tracking.stage`. | Remove; verified figures live on Progress. |
@@ -287,7 +287,7 @@ period. Distinct from "currently at Applied" (§5.3).
   visible, and core tasks reflow at 320 px without horizontal scrolling.
 - Icons: Lucide only. No external assets, fonts or images are imported.
 
-## 7. Known limits (planned)
+## 7. Known limits
 
 - No in-app control runs Gmail sync or reconciliation (unchanged from
   #45/#46); Progress reports evidence as of the last completed sync and counts
@@ -299,3 +299,55 @@ period. Distinct from "currently at Applied" (§5.3).
   per request.
 - The bootstrap cannot date history that was never recorded, so an imported
   application without an applied date has no submission date.
+- The review candidate projection is strictly read-only, so an application no
+  read has initialized yet shows "Not recorded" as its current stage. Progress
+  loads `/api/progress` (which runs the #46 read-repair) before the queue, so
+  this is only visible when the queue is read on its own.
+- A network-level failure while confirming or rejecting closes the workspace:
+  that is the existing fail-closed behaviour of `privateFetch` for every
+  request, not something #47 adds. An HTTP error keeps the item in place with
+  "the result is unknown", refreshes the queue and never claims success.
+- Recharts is no longer imported by any page. The dependency stays in
+  `package.json` so this change does not churn the lockfile, notices or SBOM;
+  removing it is a separate dependency change.
+- `/api/campaign` still computes its legacy metrics; the UI no longer shows
+  them. `/api/dashboard` is unchanged and unused by the UI.
+- Frontend verification is SSR rendering plus pure-function checks
+  (`frontend/check-progress.cjs`) and a manual browser pass; the repository has
+  no browser-level UI test framework, and none was added.
+- The collapsed navigation rail still takes 68 px at narrow widths, leaving
+  about 224 px of content at 320 px. Core tasks reflow without horizontal
+  scrolling; the two breakdown tables scroll inside their own focusable region.
+
+## 8. Implementation notes
+
+- **Change assessment.** No ADR trigger applies: no trust boundary, identity,
+  persistence, schema, privacy boundary or deployment change. Three read-only
+  local GET routes were added behind the existing guard and recorded in
+  `docs/security/ENDPOINT_INVENTORY.md`. The review projection returns a strict
+  subset of the Gmail fields the existing #46 `needs-review` route already
+  returns, so no new data flow leaves the boundary. No risk record changes;
+  R-16, R-17 and R-18 remain OPEN. No evaluation-provenance-pinned file was
+  modified.
+- **Found in browser QA and fixed:** the global `header {…}` rule in
+  `style.css` styled the review card's `<header>` (now a `div`); the UI matched
+  the constant *name* `LINK_NOT_REVIEWABLE` instead of #46's value
+  `LINK_NOT_IN_REVIEW_STATE`, so a message resolved in another window was shown
+  as an unknown refusal (fixed, and `test_frontend_vocabulary_matches_backend_codes`
+  now ties every frontend code map to the backend vocabulary); hard-coded mint
+  and orange text in `campaign.css` fell to 1.6–1.9:1 on the light theme
+  (now theme tokens, 5.4:1 and 7.8:1); the workspace header forced horizontal
+  scrolling below 600 px (it now wraps).
+- **Charts.** One series hue per chart, validated with the dataviz palette
+  checker (`#28a878` on the ink surface, `#138a5e` on white: lightness band,
+  chroma floor and ≥3:1 contrast pass). The journey and funnel are tables with
+  inline bars, so the table is its own text alternative; the weekly chart is
+  `aria-hidden` with a written summary and a data table. Every value is
+  directly labelled, so no tooltip gates a value.
+- **Motion.** 120–180 ms state transitions only (hover/focus, disclosure,
+  resolved receipt); `prefers-reduced-motion` sets the motion tokens to 0 and
+  the existing global rule reduces any remaining animation to 0.01 ms. Controls
+  are never delayed.
+- **Assets.** No image, font or icon asset was imported; Lucide remains the only
+  icon family. The reference boards supplied for #47 informed the type scale,
+  spacing and consistency rules only.
