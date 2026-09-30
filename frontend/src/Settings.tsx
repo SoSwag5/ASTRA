@@ -11,6 +11,7 @@ import {ActionStatus, DirtyRegistry, SaveBar, useAction, useConfirm, useDraft} f
 import {AiAssistance, ApplicationAnswers, CareerFacts, DeleteLocalData, GmailPermissions, LocalDataCard, PlatformCapabilities, SecurityCheck} from './PrivacyPanel';
 import {Reliability} from './Campaign';
 import {GmailOperations} from './GmailOperations';
+import {directionBetween, transition} from './motion';
 import './settings.css';
 
 type Row = S.Row;
@@ -36,7 +37,8 @@ export function SettingsPage(props: Props) {
 
   const choose = (id: string) => {
     if (id === current.id) return;
-    const go = () => { onSection(id); requestAnimationFrame(() => heading.current?.focus()); };
+    const go = () => transition('section', () => onSection(id), directionBetween(S.SECTIONS.map(item => item.id), current.id, id),
+      () => heading.current?.focus());
     const labels = Object.values(dirty) as string[];
     if (!labels.length) { go(); return; }
     const warning = S.leaveWarning(labels);
@@ -53,7 +55,7 @@ export function SettingsPage(props: Props) {
       <ul>{S.SECTIONS.map(item => {
         const Icon = ICONS[item.id];
         return <li key={item.id}><button aria-current={item.id === current.id ? 'page' : undefined} onClick={() => choose(item.id)}>
-          <Icon size={18} aria-hidden/><span>{item.label}</span></button></li>;
+          {item.id === current.id && <i className="nav-indicator" aria-hidden/>}<Icon size={18} aria-hidden/><span>{item.label}</span></button></li>;
       })}</ul>
     </nav>
     <section className="settings-body page-enter" key={current.id} aria-labelledby="settings-section-title">
@@ -343,7 +345,7 @@ function DomainPermissions({api, editRecord}: {api: Api; editRecord: (kind: stri
 // ---------------------------------------------------------------------------
 function AppearanceSection({appearance}: Props) {
   const themes: [S.ThemePreference, string, string, React.ComponentType<{size?: number; 'aria-hidden'?: boolean}>][] = [
-    ['dark', 'Ink', 'ASTRA’s dark theme.', Moon], ['light', 'Light', 'A light theme for bright rooms.', Sun], ['system', 'Match system', 'Follows your operating system.', Monitor]];
+    ['light', 'Porcelain', 'Warm light surfaces. The default.', Sun], ['dark', 'Midnight', 'Deep blue surfaces for low light.', Moon], ['system', 'Match system', 'Follows your operating system.', Monitor]];
   const motions: [S.MotionPreference, string, string][] = [
     ['system', 'Match system', 'Brief transitions, unless your operating system asks for reduced motion.'],
     ['reduced', 'Reduce motion', 'No transitions or animated feedback in ASTRA. Every state still shows in colour, icon and text.']];

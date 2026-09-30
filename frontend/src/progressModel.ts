@@ -316,3 +316,146 @@ export function noReplyText(status: Row | null | undefined): {badge: string; ton
 export function closeNoReplyNote(status: Row): string {
   return `Closed as No response: no employer reply recorded ${status.days_since_submission} days after submission on ${status.submitted_on}.`;
 }
+
+// ---------------------------------------------------------------------------
+// Progress rails (#47 visual revision)
+// ---------------------------------------------------------------------------
+/**
+ * A rail is drawn only from a recorded numerator and a recorded or saved
+ * denominator. When either is missing the rail is unavailable and says why;
+ * it never shows an estimated or partial fill.
+ */
+export type RailTone = 'series' | 'series-2' | 'series-3' | 'good' | 'warn' | 'bad' | 'neutral' | 'muted';
+export type RailSegment = {key: string; label: string; count: number; tone: RailTone};
+export type Rail = {
+  available: boolean;
+  /** Recorded numerator and denominator; null when unavailable. */
+  value: number | null;
+  max: number | null;
+  /** Filled parts in order; together they never exceed `max`. */
+  segments: RailSegment[];
+  headline: string;
+  /** Visible copy saying what the bar measures. */
+  meaning: string;
+  note: string;
+  /** Text for assistive technology, stating the numbers. */
+  valueText: string;
+  tone: Tone;
+  live?: boolean;
+};
+
+const whole = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0;
+
+function unavailable(headline: string, meaning: string, note = ''): Rail {
+  return {available: false, value: null, max: null, segments: [], headline, meaning, note, valueText: headline, tone: 'neutral'};
+}
+
+/**
+ * This week's submissions against the weekly target saved in the Campaign
+ * plan. `savedCampaign` must be the stored plan (`/api/settings` → campaign),
+ * which exists only once the person has saved it, never the defaults: null
+ * means no plan is saved, undefined means the settings could not be read.
+ */
+export function weeklyTargetRail(outcomes: Row | null | undefined, savedCampaign: Row | null | undefined): Rail {
+  const meaning = 'Applications recorded as submitted this week (Monday to Sunday, Asia/Dubai), against the weekly target saved in your Campaign plan.';
+  if (savedCampaign === undefined) return unavailable('Unavailable', meaning, 'Your Campaign plan could not be read.');
+  const target = savedCampaign?.weekly_target;
+  if (!whole(target) || target === 0) {
+    return unavailable('No weekly target saved', meaning,
+      'Save a weekly target in Settings › Career focus › Campaign plan to measure this week against it.');
+  }
+  const weeks: Row[] = Array.isArray(outcomes?.weekly) ? outcomes!.weekly : [];
+  const week = weeks[weeks.length - 1];
+  if (!week || !whole(week.submitted)) return unavailable('Not recorded', meaning, 'This week’s submissions could not be read.');
+  const done = week.submitted;
+  const undated = whole(outcomes?.submission_date_not_recorded) ? outcomes!.submission_date_not_recorded : 0;
+  const status = done > target ? `${done - target} more than your target` : done === target ? 'Target reached' : `${target - done} to reach your target`;
+  return {
+    available: true, value: done, max: target,
+    segments: done ? [{key: 'submitted', label: 'Submitted this week', count: Math.min(done, target), tone: 'series'}] : [],
+    headline: `${done} of ${target}`, meaning,
+    note: status + '.' + (undated ? ` ${plural(undated, 'submission')} without a recorded date ${undated === 1 ? 'is' : 'are'} not counted.` : ''),
+    valueText: `${plural(done, 'application')} submitted this week, of a target of ${target}`,
+    tone: done >= target ? 'good' : 'neutral',
+  };
+}
+
+const STAGE_TONES: Record<string, RailTone> = {
+  DISCOVERED: 'muted', SAVED: 'neutral', APPLIED: 'series', VIEWED: 'series', ASSESSMENT: 'series-2',
+  INTERVIEW: 'series-2', OFFER: 'good', REJECTED: 'series-3', CLOSED: 'series-3',
+};
+
+/** Tracked applications by their recorded current stage. Segments add up to the total. */
+export function stageRail(current: Row | null | undefined): Rail {
+  const meaning = 'Each part is the number of tracked applications at that recorded stage now. Together the parts make up every tracked application.';
+  if (!current || !whole(current.total)) return unavailable('Unavailable', meaning, 'Application stages could not be read.');
+  if (current.complete === false || (whole(current.pending_initialization) && current.pending_initialization > 0)) {
+    return unavailable('Unavailable', meaning, 'Some application stages have not been read yet. Refresh to retry; a partial total is not shown as the whole.');
+  }
+  if (current.total === 0) return unavailable('No applications tracked', meaning, 'Track a job from its detail view and it will appear here with its stage.');
+  const states: Row = current.states || {};
+  const segments: RailSegment[] = STATES.filter(state => whole(states[state]) && states[state] > 0)
+    .map(state => ({key: state, label: STATE_LABELS[state], count: states[state], tone: STAGE_TONES[state] || 'neutral'}));
+  const counted = segments.reduce((sum, s) => sum + s.count, 0);
+  if (counted !== current.total || (whole(current.applications_total) && current.applications_total !== current.total)) return unavailable('Unavailable', meaning, 'The recorded stage counts do not match the total, so none are drawn.');
+  const summary = joinList(segments.map(s => `${s.count} ${s.label.toLowerCase()}`));
+  return {
+    available: true, value: current.total, max: current.total, segments,
+    headline: plural(current.total, 'application'), meaning,
+    note: '',
+    valueText: `${plural(current.total, 'tracked application')}: ${summary}`,
+    tone: 'neutral',
+  };
+}
+
+/**
+ * Sources finished by the running scan (from /api/scan/status), or how each
+ * source in the latest finished scan ended (from its telemetry).
+ */
+export function scanRail(status: Row | null | undefined, latest: Row | null | undefined): Rail {
+  if (!status) return unavailable('Unavailable', 'Sources finished by the running or latest scan.', 'Current scan status could not be read. Refresh to retry.');
+  const active = status?.active;
+  const progress = active?.progress;
+  if (active && progress && whole(progress.sources_total) && progress.sources_total > 0 && whole(progress.sources_done)) {
+    if (progress.sources_done > progress.sources_total) return unavailable('Unavailable', 'Sources finished by the running scan.', 'Recorded source counts are inconsistent.');
+    const done = progress.sources_done, total = progress.sources_total;
+    return {
+      available: true, live: true, value: done, max: total,
+      segments: done ? [{key: 'done', label: 'Finished', count: done, tone: 'series'}] : [],
+      headline: `${done} of ${plural(total, 'source')}`,
+      meaning: 'Sources the running scan has finished, out of the sources it confirmed when it started.',
+      note: active.cancel_requested_at ? 'Stopping: no new source will start.'
+        : progress.current_source ? `Now checking ${progress.current_source}.` : 'Running.',
+      valueText: `Scan running: ${done} of ${plural(total, 'source')} finished`, tone: 'info',
+    };
+  }
+  if (active) return {...unavailable('Scan starting', 'Sources the running scan has finished.', 'Source counts are not recorded yet.'), live: true, tone: 'info'};
+  const meaning = 'How each source in the latest finished scan ended, out of the sources it tried.';
+  if (!latest) return unavailable('Unavailable', meaning, 'Discovery telemetry could not be read.');
+  if (latest.status === 'NO_DATA') return unavailable('No scans yet', meaning, 'No discovery scan is recorded in the last 90 days.');
+  const t = latest.run?.telemetry;
+  if (!t || !t.funnel || !whole(t.sources_attempted)) return unavailable('Not recorded', meaning, 'The latest scan has no source telemetry.');
+  const attempted = t.sources_attempted;
+  if (attempted === 0) return unavailable('No sources tried', meaning, 'The latest scan did not try any source.');
+  if (![t.sources_succeeded, t.sources_partial, t.sources_failed].every(whole)) {
+    return unavailable('Unavailable', meaning, 'The latest scan has incomplete source outcome counts.');
+  }
+  const count = (value: unknown) => whole(value) ? value : 0;
+  const ok = count(t.sources_succeeded), partial = count(t.sources_partial), failed = count(t.sources_failed);
+  if (ok + partial + failed > attempted) return unavailable('Not recorded', meaning, 'The recorded source outcomes do not add up, so none are drawn.');
+  const segments: RailSegment[] = ([
+    {key: 'ok', label: 'Complete', count: ok, tone: 'series'},
+    {key: 'partial', label: 'Partial', count: partial, tone: 'warn'},
+    {key: 'failed', label: 'Failed', count: failed, tone: 'bad'},
+  ] as RailSegment[]).filter(s => s.count > 0);
+  const other = attempted - ok - partial - failed;
+  if (other > 0) segments.push({key: 'other', label: 'Outcome not recorded', count: other, tone: 'muted'});
+  const skipped = count(t.sources_skipped);
+  return {
+    available: true, value: ok, max: attempted, segments,
+    headline: `${ok} of ${plural(attempted, 'source')} complete`, meaning,
+    note: `Started ${formatDateTime(latest.run?.run_created_at)}.` + (skipped ? ` ${plural(skipped, 'source')} not tried in this scan.` : ''),
+    valueText: `Latest scan: ${ok} of ${plural(attempted, 'source')} complete` + (partial ? `, ${partial} partial` : '') + (failed ? `, ${failed} failed` : ''),
+    tone: failed ? 'bad' : partial || other ? 'warn' : 'good',
+  };
+}

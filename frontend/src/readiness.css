@@ -1,12 +1,12 @@
 /* Keep the established interface; repair focus, direction, reflow and demo semantics. */
-.skip-link{position:fixed;inset-block-start:8px;inset-inline-start:8px;z-index:10000;padding:12px;background:#fff;color:#102019;transform:translateY(-180%)}
+.skip-link{position:fixed;inset-block-start:8px;inset-inline-start:8px;z-index:10000;padding:12px;background:var(--surface-raised);color:var(--ink-1);box-shadow:var(--shadow-2);border-radius:var(--radius-sm);transform:translateY(-180%)}
 .skip-link:focus{transform:none}
-:focus-visible{outline:3px solid #3ca980;outline-offset:3px}
+:focus-visible{outline:var(--focus-width) solid var(--focus-ring);outline-offset:var(--focus-offset)}
 button,input,select{min-height:32px}
 .privacy-panel{max-width:1000px}
 .privacy-panel .panel{margin-block-end:20px}
 .privacy-panel label{display:flex;flex-direction:column;gap:8px;margin-block:12px}
-.privacy-panel fieldset{border:1px solid #737d8d;border-radius:10px;margin-block:20px;padding:16px}
+.privacy-panel fieldset{border:1px solid var(--border-strong);border-radius:10px;margin-block:20px;padding:16px}
 .privacy-panel .check{flex-direction:row;align-items:center}
 .privacy-panel input,.privacy-panel select{max-width:100%}
 .privacy-panel code{overflow-wrap:anywhere}

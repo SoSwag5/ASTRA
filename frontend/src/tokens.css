@@ -1,16 +1,21 @@
 /*
- * ASTRA design tokens (#47).
+ * ASTRA design tokens (#47 visual and motion revision).
  *
- * The existing theme variables (--bg, --panel, --line, --text, --muted,
- * --accent, --input) remain the colour source of truth for the whole app.
- * These tokens add the missing shared vocabulary -- type scale, spacing,
- * radii, surfaces, status, focus and motion -- so new and refined surfaces
- * are built from one system instead of one-off values. Text/background pairs
- * below were checked at >= 4.5:1 and focus/series colours at >= 3:1 against
- * the surfaces they sit on, in both themes.
+ * The one place colour is defined. Light ("porcelain") is the default for a
+ * new browser; dark ("midnight") is its counterpart, tuned separately rather
+ * than inverted. Components use the semantic tokens below; the short legacy
+ * names (--bg, --panel, --line, --text, --muted, --accent, --input) are kept
+ * as aliases so older rules follow the same palette.
+ *
+ * Every text/background pair and every boundary/focus colour listed in
+ * frontend/check-contrast.cjs is verified there (text >= 4.5:1, large text,
+ * control boundaries, focus and data marks >= 3:1) as part of `npm test`.
+ * See docs/architecture/VISUAL_MOTION_SYSTEM.md.
  */
 :root {
-  --font-sans: Inter, "Segoe UI", system-ui, Arial, sans-serif;
+  color-scheme: light;
+  --font-sans: Inter, "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", Inter, system-ui, -apple-system, Arial, sans-serif;
 
   /* Type scale (rem, so 200% zoom and text resizing scale everything). */
   --text-xs: 0.75rem;
@@ -38,113 +43,178 @@
   --space-10: 2.5rem;
   --space-12: 3rem;
 
-  --radius-sm: 6px;
+  --radius-sm: 8px;
   --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-lg: 16px;
   --radius-pill: 999px;
 
-  /* Surfaces and ink (ink theme is the default). */
-  --surface-page: var(--bg);
-  --surface-1: var(--panel);
-  --surface-2: #1f2530;
-  --surface-sunken: var(--input);
-  --border-subtle: var(--line);
-  --border-strong: #3b4557;
-  --border: var(--line);
-  --ink-1: var(--text);
-  --ink-2: #b4bdcc;
-  --ink-3: #98a3b6;
-  --accent-soft: #233a33;
-  --accent-ink: #16372a;
+  /* --- Porcelain (light) palette ----------------------------------------- */
+  --surface-page: #f6f3ee;
+  --surface-sidebar: #efebe4;
+  --surface-1: #fffefc;
+  --surface-2: #faf8f4;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f1ede6;
+  --surface-input: #ffffff;
+  --surface-inverse: #1b2233;
+  --border-subtle: #e6e0d6;
+  --border-strong: #d2cabd;
+  --control-border: #847d70;
 
-  /* Data visualization: one series hue (validated) and recessive chrome. */
-  --viz-series: #28a878;
-  --viz-track: #232a35;
-  --viz-grid: #2b3341;
+  --ink-1: #1b2233;
+  --ink-2: #414859;
+  --ink-3: #5c6272;
+  --ink-inverse: #f6f3ee;
+
+  /* Primary action: rich indigo. Warm accent: used sparingly for emphasis. */
+  --action: #3a46c2;
+  --action-hover: #2f3aa8;
+  --action-press: #283291;
+  --on-action: #ffffff;
+  --action-text: #3440b5;
+  --action-soft: #eceefc;
+  --action-soft-border: #c9cef5;
+  --warm: #a44a16;
+  --warm-soft: #fbeee3;
+
+  /* Data visualization: one series hue plus recessive chrome. */
+  --viz-series: #4552cc;
+  --viz-series-2: #717cc2;
+  --viz-series-3: #a9693d;
+  --viz-muted: #76756e;
+  --viz-track: #ebe6dd;
+  --viz-grid: #ddd6ca;
 
   /* Status: always paired with an icon and a text label. */
-  --status-good-fg: #8fe0b8;
-  --status-good-bg: #1f3a30;
-  --status-good-border: #2f5a47;
-  --status-warn-fg: #f3d596;
-  --status-warn-bg: #3a3222;
-  --status-warn-border: #5e4f2d;
-  --status-bad-fg: #f4b3c0;
-  --status-bad-bg: #3d2530;
-  --status-bad-border: #6b3a48;
-  --status-info-fg: #a9c8f5;
-  --status-info-bg: #1f2b3d;
-  --status-info-border: #34496a;
-  --status-neutral-fg: #c3cad6;
-  --status-neutral-bg: #252c38;
-  --status-neutral-border: #384253;
+  --status-good-fg: #1e6743;
+  --status-good-bg: #e7f2ea;
+  --status-good-border: #b9d9c4;
+  --status-warn-fg: #7a4f00;
+  --status-warn-bg: #fbf1dc;
+  --status-warn-border: #e8cf98;
+  --status-bad-fg: #a0253b;
+  --status-bad-bg: #fbe9ec;
+  --status-bad-border: #edbcc5;
+  --status-info-fg: #2d4899;
+  --status-info-bg: #eaeefb;
+  --status-info-border: #c4cdef;
+  --status-neutral-fg: #414859;
+  --status-neutral-bg: #f0ece5;
+  --status-neutral-border: #dcd5c9;
 
-  /* Focus. */
-  --focus-ring: #7fd8b0;
+  --focus-ring: #3a46c2;
   --focus-width: 3px;
   --focus-offset: 2px;
+
+  --state-hover: rgba(27, 34, 51, 0.045);
+  --state-press: rgba(27, 34, 51, 0.09);
+  --state-selected: var(--action-soft);
+  --danger-fg: #ffffff;
+  --danger-bg: #b0263d;
+  --danger-bg-hover: #952034;
+  --danger-border: #952034;
+
+  --shadow-1: 0 1px 2px rgba(35, 30, 20, 0.05), 0 1px 1px rgba(35, 30, 20, 0.03);
+  --shadow-2: 0 2px 6px rgba(35, 30, 20, 0.06), 0 10px 24px -8px rgba(35, 30, 20, 0.12);
+  --shadow-3: 0 24px 64px -12px rgba(20, 22, 40, 0.28), 0 4px 12px rgba(20, 22, 40, 0.08);
+  --scrim: rgba(27, 30, 42, 0.38);
 
   /* Targets (WCAG 2.2 2.5.8 minimum is 24px; controls use 40px). */
   --target-min: 24px;
   --control-height: 2.5rem;
 
-  /* Motion: brief, and only to show a state change (NN/g 100-500 ms band;
-     Material 3 curves). See docs/architecture/INTERACTION_SYSTEM.md. */
+  /* Motion: brief, and only to explain a change (NN/g 100-500 ms band;
+     Material 3 curves). All durations become 0 under reduced motion. */
   --motion-instant: 80ms;
-  --motion-fast: 120ms;
-  --motion-base: 180ms;
-  --motion-slow: 240ms;
+  --motion-fast: 140ms;
+  --motion-base: 200ms;
+  --motion-slow: 280ms;
+  --motion-page: 260ms;
+  --motion-fill: 420ms;
+  --motion-distance: 10px;
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
   --ease-exit: cubic-bezier(0.3, 0, 1, 1);
 
-  /* Interaction layers. */
-  --state-hover: rgba(233, 237, 244, 0.06);
-  --state-press: rgba(233, 237, 244, 0.12);
-  --control-border: #66738c;
-  --danger-fg: #ffd2da;
-  --danger-bg: #8a2b3d;
-  --danger-bg-hover: #a0344a;
-  --danger-border: #b04a5f;
+  /* Legacy aliases used by the original stylesheet. */
+  --bg: var(--surface-page);
+  --panel: var(--surface-1);
+  --line: var(--border-subtle);
+  --border: var(--border-subtle);
+  --text: var(--ink-1);
+  --muted: var(--ink-3);
+  --accent: var(--action-text);
+  --accent-soft: var(--action-soft);
+  --accent-ink: var(--on-action);
+  --input: var(--surface-input);
 }
 
-[data-theme=light] {
-  --surface-2: #f6f8fb;
-  --border-strong: #c3ccd8;
-  --ink-2: #3d4a5c;
-  --ink-3: #566477;
-  --accent-soft: #e2f2e9;
-  --accent-ink: #ffffff;
+/* --- Midnight (dark) palette --------------------------------------------- */
+[data-theme=dark] {
+  color-scheme: dark;
+  --surface-page: #0d1220;
+  --surface-sidebar: #0a0e1a;
+  --surface-1: #141a2a;
+  --surface-2: #192033;
+  --surface-raised: #1d2539;
+  --surface-sunken: #0f1523;
+  --surface-input: #0f1524;
+  --surface-inverse: #e9ecf5;
+  --border-subtle: #242c42;
+  --border-strong: #34405c;
+  --control-border: #6c7896;
 
-  --viz-series: #138a5e;
-  --viz-track: #eef1f5;
-  --viz-grid: #dde3ea;
+  --ink-1: #e9ecf5;
+  --ink-2: #bec5d7;
+  --ink-3: #9ba4ba;
+  --ink-inverse: #121829;
 
-  --status-good-fg: #135c3f;
-  --status-good-bg: #e3f3ea;
-  --status-good-border: #b5dcc6;
-  --status-warn-fg: #6b4d00;
-  --status-warn-bg: #fbf0d4;
-  --status-warn-border: #ead08b;
-  --status-bad-fg: #8c2438;
-  --status-bad-bg: #fbe5ea;
-  --status-bad-border: #efb3c0;
-  --status-info-fg: #1f4f8f;
-  --status-info-bg: #e5eefb;
-  --status-info-border: #b8cdee;
-  --status-neutral-fg: #3d4a5c;
-  --status-neutral-bg: #eef1f5;
-  --status-neutral-border: #d3dae3;
+  --action: #8f9cff;
+  --action-hover: #a5afff;
+  --action-press: #7b89f5;
+  --on-action: #0c1133;
+  --action-text: #a9b3ff;
+  --action-soft: #1e2650;
+  --action-soft-border: #3b4686;
+  --warm: #f1b47c;
+  --warm-soft: #2d2218;
 
-  --focus-ring: #0d7f55;
+  --viz-series: #8f9cff;
+  --viz-series-2: #6876d5;
+  --viz-series-3: #d69a69;
+  --viz-muted: #8792ad;
+  --viz-track: #222a40;
+  --viz-grid: #2c3550;
 
-  --state-hover: rgba(23, 34, 53, 0.05);
-  --state-press: rgba(23, 34, 53, 0.10);
-  --control-border: #7b8799;
-  --danger-fg: #ffffff;
-  --danger-bg: #b3263e;
-  --danger-bg-hover: #971f34;
-  --danger-border: #971f34;
+  --status-good-fg: #8fd6ae;
+  --status-good-bg: #13291f;
+  --status-good-border: #285440;
+  --status-warn-fg: #f0cc86;
+  --status-warn-bg: #2d2414;
+  --status-warn-border: #5a4726;
+  --status-bad-fg: #f5a9b7;
+  --status-bad-bg: #331a24;
+  --status-bad-border: #683246;
+  --status-info-fg: #b0c0ff;
+  --status-info-bg: #19213f;
+  --status-info-border: #33427a;
+  --status-neutral-fg: #c3c9d8;
+  --status-neutral-bg: #1a2133;
+  --status-neutral-border: #313b55;
+
+  --focus-ring: #a9b3ff;
+
+  --state-hover: rgba(233, 236, 245, 0.055);
+  --state-press: rgba(233, 236, 245, 0.11);
+  --danger-fg: #ffe3e8;
+  --danger-bg: #8d2c40;
+  --danger-bg-hover: #a2354b;
+  --danger-border: #b24b61;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.3), 0 12px 28px -10px rgba(0, 0, 0, 0.5);
+  --shadow-3: 0 28px 70px -12px rgba(0, 0, 0, 0.7), 0 4px 14px rgba(0, 0, 0, 0.35);
+  --scrim: rgba(4, 7, 16, 0.62);
 }
 
 /* The OS setting and ASTRA's own "Reduce motion" choice are equivalent. */
@@ -154,6 +224,9 @@
     --motion-fast: 0ms;
     --motion-base: 0ms;
     --motion-slow: 0ms;
+    --motion-page: 0ms;
+    --motion-fill: 0ms;
+    --motion-distance: 0px;
   }
 }
 html[data-motion=reduced] {
@@ -161,6 +234,9 @@ html[data-motion=reduced] {
   --motion-fast: 0ms;
   --motion-base: 0ms;
   --motion-slow: 0ms;
+  --motion-page: 0ms;
+  --motion-fill: 0ms;
+  --motion-distance: 0px;
 }
 
 /* Shared primitives used by Progress, Today and Applications. */

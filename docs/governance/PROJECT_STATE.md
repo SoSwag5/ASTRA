@@ -1,5 +1,23 @@
 # ASTRA project state
 
+## Local visual candidate update (2026-09-30, Asia/Dubai)
+
+The Owner explicitly assigned Codex sole implementation ownership of
+`feature/47-visual-motion` in the existing `astra-47d-visual-motion` worktree,
+continuing the uncommitted visual work above base
+`fe8e8a85728f06b302aaacd713fe6e9e01cf7d6a`. This frontend-only #47 follow-up
+includes the earlier local A/B/C follow-ups. Other worktrees remain protected.
+It is a compatible visual/interaction revision within the planned v1.1 minor
+release; no release version or security boundary changed.
+
+Live GitHub verification still found draft PR #78 OPEN at
+`4a13fc83bee7bd594b61f2ad1b830594a523f742`; its checks cover that older head.
+This visual branch is local only. No push, merge, tag, release or publication
+is authorized. The historical #47 evidence below is not evidence for this
+candidate. See [the visual system](../architecture/VISUAL_MOTION_SYSTEM.md)
+and [the validation record](../architecture/VISUAL_MOTION_VALIDATION.md).
+Independent review of the exact visual commit remains pending at this record.
+
 **Snapshot date:** 2026-09-30 (Asia/Dubai), refreshed for the #47 draft pull
 request (awaiting independent review). The 2026-09-29 refresh for the PR #75
 merge (#46.2-B v7 source-map closeout) and the #46.2-C v3 blind FAIL, and the

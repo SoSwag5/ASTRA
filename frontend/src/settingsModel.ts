@@ -78,6 +78,24 @@ export function resolveTheme(preference: ThemePreference, prefersLight: boolean)
   return preference;
 }
 
+/** Where an explicit theme choice is stored (#47 visual revision). */
+export const THEME_CHOICE_KEY = 'themeChoice';
+
+/**
+ * Preserve valid legacy preferences too: an automatically stored dark value
+ * cannot be distinguished from a deliberate choice. Only a new browser with
+ * no valid preference defaults to light. theme-boot.js mirrors this rule.
+ */
+export function initialTheme(storage: Pick<Storage, 'getItem'> | null | undefined): ThemePreference {
+  try {
+    const chosen = storage?.getItem(THEME_CHOICE_KEY);
+    if (chosen === 'dark' || chosen === 'light' || chosen === 'system') return chosen;
+    const legacy = storage?.getItem('theme');
+    if (legacy === 'dark' || legacy === 'light' || legacy === 'system') return legacy;
+  } catch { /* storage unavailable */ }
+  return 'light';
+}
+
 export function readPreference<T extends string>(key: string, fallback: T, allowed: readonly T[]): T {
   try {
     const value = window.localStorage.getItem(key) as T | null;

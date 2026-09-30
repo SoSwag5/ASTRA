@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {AlertTriangle, ArrowRight, CheckCircle2, CircleDashed, Clock3, ExternalLink, Info, MailCheck, RefreshCw, Search, Send, XCircle} from 'lucide-react';
+import {AlertTriangle, ArrowRight, CalendarCheck, CheckCircle2, CircleDashed, Clock3, ExternalLink, Info, Layers, MailCheck, Radar, RefreshCw, Search, Send, XCircle} from 'lucide-react';
 import * as M from './progressModel';
 import {GmailOperations} from './GmailOperations';
 import './tokens.css';
@@ -40,6 +40,9 @@ export function Progress({api, openJob, goTo}: Props) {
   const [loading, setLoading] = useState(true);
   const [latest, setLatest] = useState<Row | null>(null);
   const [latestFailed, setLatestFailed] = useState(false);
+  // The saved Campaign plan: null when none is saved, undefined when unread.
+  const [savedCampaign, setSavedCampaign] = useState<Row | null | undefined>(undefined);
+  const [scanStatus, setScanStatus] = useState<Row | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const request = useRef(0);
   const refresh = () => { setRefreshToken(t => t + 1); load(period); };
@@ -56,25 +59,40 @@ export function Progress({api, openJob, goTo}: Props) {
       setError('');
     } catch (e: any) {
       if (ticket === request.current) setError(e.message);
-    } finally {
-      if (ticket === request.current) setLoading(false);
     }
-    try {
-      setLatest(await api('/search/telemetry'));
-      setLatestFailed(false);
-    } catch {
-      setLatestFailed(true);
-    }
+    const [telemetry, settings, status] = await Promise.allSettled([api('/search/telemetry'), api('/settings'), api('/scan/status')]);
+    if (ticket !== request.current) return;
+    setLatest(telemetry.status === 'fulfilled' ? telemetry.value : null);
+    setLatestFailed(telemetry.status === 'rejected');
+    setSavedCampaign(settings.status === 'fulfilled' ? settings.value?.campaign ?? null : undefined);
+    setScanStatus(status.status === 'fulfilled' ? status.value : null);
+    setLoading(false);
   }, [api]);
 
   useEffect(() => { load(period); M.writeStored('progressPeriod', period); }, [period, load]);
+
+  // While a scan runs, follow its recorded source progress (a read-only
+  // status poll); when it ends, reload so the latest run's outcome shows.
+  const scanning = Boolean(scanStatus?.active);
+  useEffect(() => {
+    if (!scanning) return;
+    let live = true;
+    const timer = window.setInterval(() => {
+      api('/scan/status').then(next => {
+        if (!live) return;
+        setScanStatus(next);
+        if (!next?.active) load(period);
+      }).catch(() => { if (live) setScanStatus(null); });
+    }, 4000);
+    return () => { live = false; window.clearInterval(timer); };
+  }, [scanning, api, load, period]);
 
   if (!data) {
     return <div className="progress">
       <PeriodPicker period={period} onChange={setPeriod} data={null} loading={loading} onRefresh={() => load(period)}/>
       {error
         ? <div className="errorbar" role="alert"><span>Progress could not load. {error}</span><button className="secondary" onClick={() => load(period)}>Retry</button></div>
-        : <section className="panel progress-loading" role="status">Loading verified progress…</section>}
+        : <ProgressSkeleton/>}
     </div>;
   }
 
@@ -82,6 +100,7 @@ export function Progress({api, openJob, goTo}: Props) {
     <PeriodPicker period={period} onChange={setPeriod} data={data} loading={loading} onRefresh={refresh}/>
     {error && <div className="errorbar" role="alert"><span>Could not refresh. Showing the figures loaded at {M.formatDateTime(data.generated_at)}. {error}</span><button className="secondary" onClick={() => load(period)}>Retry</button></div>}
     <div className={'progress-body' + (loading ? ' is-refreshing' : '')} aria-busy={loading}>
+      <Glance data={data} savedCampaign={savedCampaign} scanStatus={scanStatus} latest={latestFailed ? null : latest} goTo={goTo}/>
       <NextAction data={data} goTo={goTo}/>
       <GmailOperations api={api} compact onChanged={refresh} onConnect={() => goTo('Settings/permissions')}
         onReview={() => { const heading = document.getElementById('needs-review-title'); heading?.scrollIntoView({block: 'start'}); heading?.focus({preventScroll: true}); }}/>
@@ -106,8 +125,65 @@ function PeriodPicker({period, onChange, data, loading, onRefresh}: {period: str
     <p className="progress-range">{data ? <>{M.periodRange(data.period)} <span>· Asia/Dubai</span></> : ' '}</p>
     <div className="progress-refresh">
       {data && <span className="progress-updated">Updated {M.formatDateTime(data.generated_at)}</span>}
-      <button className="secondary compact" onClick={onRefresh} disabled={loading} aria-label="Refresh progress"><RefreshCw size={16} aria-hidden/><span>{loading ? 'Refreshing…' : 'Refresh'}</span></button>
+      <button className="secondary compact" onClick={onRefresh} disabled={loading} aria-busy={loading} aria-label="Refresh progress"><RefreshCw size={16} className={loading ? 'spin' : ''} aria-hidden/><span>{loading ? 'Refreshing…' : 'Refresh'}</span></button>
     </div>
+  </div>;
+}
+
+// ---------------------------------------------------------------------------
+// At a glance: three rails, each from recorded numbers only
+// ---------------------------------------------------------------------------
+export function Glance({data, savedCampaign, scanStatus, latest, goTo}: {data: Row; savedCampaign: Row | null | undefined; scanStatus: Row | null; latest: Row | null; goTo: (page: string) => void}) {
+  const weekly = M.weeklyTargetRail(data.outcomes, savedCampaign);
+  const stages = M.stageRail(data.applications?.current);
+  const scan = M.scanRail(scanStatus, latest);
+  return <section className="glance" aria-labelledby="glance-title">
+    <h2 id="glance-title" className="visually-hidden">Progress at a glance</h2>
+    <RailCard id="rail-stages" icon={<Layers size={18} aria-hidden/>} title="Where tracked applications stand" rail={stages} kind="composition"/>
+    <RailCard id="rail-week" icon={<CalendarCheck size={18} aria-hidden/>} title="This week’s applications" rail={weekly} kind="progress"
+      action={!weekly.available && savedCampaign !== undefined ? <button className="textbtn" onClick={() => goTo('Settings/focus')}>Open Campaign plan<ArrowRight size={15} aria-hidden/></button> : null}/>
+    <RailCard id="rail-scan" icon={<Radar size={18} aria-hidden/>} title={scan.live ? 'Scan in progress' : 'Latest discovery scan'} rail={scan} kind={scan.live ? 'progress' : 'composition'}/>
+  </section>;
+}
+
+function RailCard({id, icon, title, rail, kind, action}: {id: string; icon: React.ReactNode; title: string; rail: M.Rail; kind: 'progress' | 'composition'; action?: React.ReactNode}) {
+  return <section className={'rail-card tone-' + rail.tone + (rail.available ? '' : ' is-unavailable')} aria-labelledby={id}>
+    <div className="rail-top">{icon}<h3 id={id}>{title}</h3>{rail.live && <span className="live-chip"><i aria-hidden/>Live</span>}</div>
+    <p className={'rail-headline' + (rail.available ? '' : ' is-words')}>{rail.headline}</p>
+    <RailBar rail={rail} kind={kind} labelledBy={id}/>
+    {rail.available && rail.segments.length > 1 && <ul className="rail-legend">{rail.segments.map(segment =>
+      <li key={segment.key}><i className={'swatch ' + segment.tone} aria-hidden/>{segment.label}<strong>{segment.count}</strong></li>)}</ul>}
+    <p className="rail-meaning">{rail.meaning}</p>
+    {rail.note && <p className="rail-note">{rail.note}</p>}
+    {action}
+  </section>;
+}
+
+/**
+ * The bar itself. Lengths are proportional to the recorded counts (each part
+ * grows by its count, the unfilled rest by max minus the filled total); only
+ * its appearance is animated, never the numbers.
+ */
+export function RailBar({rail, kind, labelledBy}: {rail: M.Rail; kind: 'progress' | 'composition'; labelledBy: string}) {
+  if (!rail.available || !rail.max) return <div className="rail is-empty" aria-hidden/>;
+  const filled = rail.segments.reduce((sum, s) => sum + s.count, 0);
+  const rest = Math.max(0, rail.max - filled);
+  const a11y = kind === 'progress'
+    ? {role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': rail.max, 'aria-valuenow': Math.min(rail.value ?? 0, rail.max), 'aria-valuetext': rail.valueText, 'aria-labelledby': labelledBy}
+    : {role: 'img', 'aria-label': rail.valueText};
+  return <div className={'rail' + (rail.live ? ' is-live' : '')} {...a11y}>
+    <span className="rail-fill">
+      {rail.segments.map(segment => <span key={segment.key} className={'rail-seg ' + segment.tone} style={{flexGrow: segment.count}}/>)}
+      {rest > 0 && <span className="rail-rest" style={{flexGrow: rest}}/>}
+    </span>
+  </div>;
+}
+
+function ProgressSkeleton() {
+  return <div className="progress-skeleton" role="status" aria-live="polite">
+    <span className="visually-hidden">Loading verified progress…</span>
+    <div className="glance" aria-hidden>{[0, 1, 2].map(i => <div key={i} className="rail-card skeleton-card"><span className="skeleton-line short"/><span className="skeleton-line tall"/><span className="skeleton-line bar"/><span className="skeleton-line"/></div>)}</div>
+    <div className="skeleton-card wide" aria-hidden><span className="skeleton-line short"/><span className="skeleton-line"/><span className="skeleton-line"/></div>
   </div>;
 }
 

@@ -356,3 +356,75 @@
   .gmail-ops :is(.primary, .secondary) { white-space: normal; text-align: center; }
   .gmail-ops-steps > li > button { justify-self: stretch; }
 }
+
+/* --- At a glance: data-backed rails (#47 visual revision) ------------------ */
+.glance { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); gap: var(--space-4); }
+.rail-card {
+  position: relative; display: flex; flex-direction: column; gap: var(--space-3); min-width: 0;
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+  background: var(--surface-1); box-shadow: var(--shadow-1);
+  animation: rise-in var(--motion-slow) var(--ease-enter) both;
+}
+.glance > .rail-card:nth-child(3) { animation-delay: calc(var(--motion-fast) * 0.4); }
+.glance > .rail-card:nth-child(4) { animation-delay: calc(var(--motion-fast) * 0.8); }
+.rail-top { display: flex; align-items: center; gap: var(--space-2); color: var(--action-text); }
+.rail-top h3 { flex: 1; color: var(--ink-2); font-size: var(--text-md) !important; font-weight: var(--weight-semibold); }
+.rail-headline {
+  color: var(--ink-1) !important; font-family: var(--font-display); font-size: var(--text-3xl); font-weight: var(--weight-semibold);
+  letter-spacing: -0.025em; line-height: 1.1 !important; font-variant-numeric: tabular-nums;
+}
+.rail-headline.is-words { font-size: var(--text-xl); letter-spacing: -0.01em; color: var(--ink-2) !important; }
+.rail-meaning { color: var(--ink-3); font-size: var(--text-sm); }
+.rail-note { color: var(--ink-2); font-size: var(--text-sm); margin-top: calc(var(--space-2) * -1); }
+.rail-card .textbtn { align-self: flex-start; display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-sm); min-height: var(--target-min); }
+.rail-card.tone-good .rail-top { color: var(--status-good-fg); }
+.rail-card.tone-warn .rail-top { color: var(--status-warn-fg); }
+.rail-card.tone-bad .rail-top { color: var(--status-bad-fg); }
+
+.rail { position: relative; height: 14px; border-radius: var(--radius-pill); background: var(--viz-track); overflow: hidden; }
+.rail.is-empty { background: repeating-linear-gradient(135deg, transparent 0 6px, var(--viz-grid) 6px 7px); border: 1px dashed var(--border-strong); }
+.rail-fill {
+  position: absolute; inset: 0; display: flex; gap: 2px;
+  transform-origin: left;
+  animation: rail-reveal var(--motion-fill) var(--ease-standard) both;
+}
+[dir=rtl] .rail-fill { transform-origin: right; }
+.rail-seg, .rail-rest { flex: 0 0 0; min-width: 0; }
+.rail-seg { background: var(--viz-series); }
+.rail-seg:first-child { border-start-start-radius: var(--radius-pill); border-end-start-radius: var(--radius-pill); }
+.rail-seg:last-child { border-start-end-radius: var(--radius-pill); border-end-end-radius: var(--radius-pill); }
+.rail-rest { background: transparent; }
+.rail.is-live .rail-seg:last-of-type { background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent); background-size: 200% 100%; animation: rail-live 1.6s linear infinite; }
+@keyframes rail-reveal { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes rail-live { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+.rail-seg.series, .swatch.series { background-color: var(--viz-series); }
+.rail-seg.series-2, .swatch.series-2 { background-color: var(--viz-series-2); }
+.rail-seg.series-3, .swatch.series-3 { background-color: var(--viz-series-3); }
+.rail-seg.good, .swatch.good { background-color: var(--status-good-fg); }
+.rail-seg.warn, .swatch.warn { background-color: var(--status-warn-fg); }
+.rail-seg.bad, .swatch.bad { background-color: var(--status-bad-fg); }
+.rail-seg.neutral, .swatch.neutral { background-color: var(--control-border); }
+.rail-seg.muted, .swatch.muted { background-color: var(--viz-muted); }
+
+.rail-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); color: var(--ink-2); font-size: var(--text-sm); }
+.rail-legend li { display: inline-flex; align-items: center; gap: var(--space-2); }
+.rail-legend strong { color: var(--ink-1); font-variant-numeric: tabular-nums; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex: none; }
+
+.live-chip {
+  display: inline-flex; align-items: center; gap: var(--space-1); padding: 2px var(--space-2); border-radius: var(--radius-pill);
+  background: var(--status-info-bg); color: var(--status-info-fg); border: 1px solid var(--status-info-border);
+  font-size: var(--text-xs); font-weight: var(--weight-semibold);
+}
+.live-chip i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: scanpulse 1.4s infinite; }
+
+/* Loading: shapes that match the loaded layout, so nothing jumps. */
+.progress-skeleton { display: grid; gap: var(--space-6); }
+.skeleton-card { display: grid; gap: var(--space-3); padding: var(--space-5); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-1); animation: none; }
+.skeleton-card.wide { min-height: 10rem; }
+@media (prefers-reduced-motion: reduce) {
+  .rail.is-live .rail-seg:last-of-type, .live-chip i { animation: none; }
+}
+html[data-motion=reduced] .rail.is-live .rail-seg:last-of-type, html[data-motion=reduced] .live-chip i { animation: none; }
