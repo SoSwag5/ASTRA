@@ -611,15 +611,20 @@ NO_REPLY_REPLY_AFTER_CLOSE = 'REPLY_AFTER_CLOSE'
 
 
 def _events_by_application(db, ids, event_type):
-    """`{application_id: [occurred_at, ...]}` for one recorded event type."""
+    """`{application_id: [(recorded_order, occurred_at), ...]}` for one event type.
+
+    `recorded_order` is the event id: the order ASTRA recorded the events in,
+    which is not the date the user gave them (a reply entered today may be
+    dated earlier, or at midnight).
+    """
     if not ids:
         return {}
     found = defaultdict(list)
-    for application_id, occurred_at in db.execute(
-            select(ApplicationEvent.application_id, ApplicationEvent.occurred_at)
+    for event_id, application_id, occurred_at in db.execute(
+            select(ApplicationEvent.id, ApplicationEvent.application_id, ApplicationEvent.occurred_at)
             .where(ApplicationEvent.event_type == event_type,
                    ApplicationEvent.application_id.in_(list(ids)))):
-        found[application_id].append(_parse(occurred_at))
+        found[application_id].append((event_id, _parse(occurred_at)))
     return found
 
 
@@ -643,7 +648,10 @@ def no_reply_status(submission, current_state, legacy_stage, replies, closures, 
       day: submitted on day D, the cue appears on day D + 90.
 
     The user's own decision to close it as "No response" is reported as such,
-    and a reply recorded after that decision is reported too.
+    and a reply recorded after that decision is reported too, whatever date
+    the reply was given: it contradicts the premise of the close.
+
+    `replies` and `closures` are `(recorded_order, occurred_at)` pairs.
     """
     submitted_day = _local_day(submission['occurred_at']) if submission and submission['kind'] == SUBMISSION_DATED else None
     result = {'status': None, 'reason': None,
@@ -652,9 +660,12 @@ def no_reply_status(submission, current_state, legacy_stage, replies, closures, 
               'days_since_submission': (today - submitted_day).days if submitted_day else None,
               'closed_on': None}
     if legacy_stage == NO_RESPONSE_STAGE:
-        closed_at = max((moment for moment in closures if moment), default=None)
-        result['closed_on'] = _local_day(closed_at).isoformat() if closed_at else None
-        later = [moment for moment in replies if moment and (closed_at is None or moment >= closed_at)]
+        latest = max(closures, default=None, key=lambda event: event[0])
+        if latest and latest[1]:
+            result['closed_on'] = _local_day(latest[1]).isoformat()
+        # Without a recorded close event, every reply is treated as later: the
+        # cue is never hidden behind a close ASTRA cannot place.
+        later = [order for order, _ in replies if latest is None or order > latest[0]]
         result['status'] = NO_REPLY_REPLY_AFTER_CLOSE if later else NO_REPLY_CLOSED
         return result
     if submission is None:

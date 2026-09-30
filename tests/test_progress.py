@@ -982,3 +982,34 @@ def test_reopening_and_closing_from_a_later_stage_keep_the_recorded_stage():
     assert current(reopened) == states.APPLIED
     assert no_reply(reopened)['status'] == progress.NO_REPLY_CUE
     assert no_reply(reopened)['submitted_on'] == dubai_day(120)[:10]
+
+
+def test_a_reply_recorded_after_closing_is_surfaced_whatever_its_date():
+    from fastapi.testclient import TestClient
+    from backend.main import app
+    earlier_reply = make_application(url='', applied_date=dubai_day(120))
+    assert_user(earlier_reply, states.APPLIED, dubai_day(120))
+    late_entry = make_application(url='', applied_date=dubai_day(120))
+    assert_user(late_entry, states.APPLIED, dubai_day(120))
+    with Session() as db:
+        earlier_job = db.get(Application, earlier_reply).job_id
+        late_job = db.get(Application, late_entry).job_id
+    yesterday = (TODAY - timedelta(days=1)).isoformat()
+    with TestClient(app) as client:
+        # A reply recorded before the close does not contradict it.
+        assert client.post(f'/api/campaign/jobs/{earlier_job}/track',
+                           json={'event_type': 'MEANINGFUL_RESPONSE', 'date': dubai_day(30)[:10]}).status_code == 200
+        assert client.post(f'/api/campaign/jobs/{earlier_job}/track',
+                           json={'stage': 'NO_RESPONSE'}).status_code == 200
+        assert no_reply(earlier_reply)['status'] == progress.NO_REPLY_CLOSED
+
+        # Closed today, then a reply entered that the user dates yesterday:
+        # recorded after the close, so it is surfaced.
+        assert client.post(f'/api/campaign/jobs/{late_job}/track',
+                           json={'stage': 'NO_RESPONSE'}).status_code == 200
+        assert no_reply(late_entry)['status'] == progress.NO_REPLY_CLOSED
+        assert client.post(f'/api/campaign/jobs/{late_job}/track',
+                           json={'event_type': 'MEANINGFUL_RESPONSE', 'date': yesterday}).status_code == 200
+    assert no_reply(late_entry)['status'] == progress.NO_REPLY_REPLY_AFTER_CLOSE
+    assert current(late_entry) == states.APPLIED
+    assert report()['actions']['no_reply']['reply_after_close'] == 1
