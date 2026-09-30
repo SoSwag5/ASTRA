@@ -984,6 +984,8 @@ from .gmail_api import router as gmail_router
 app.include_router(gmail_router)
 from .application_state_api import router as application_state_router
 app.include_router(application_state_router)
+from .progress import router as progress_router
+app.include_router(progress_router)
 dist=Path(__file__).resolve().parents[1]/'frontend'/'dist'
 @app.get('/demo',include_in_schema=False)
 def demo_page():
