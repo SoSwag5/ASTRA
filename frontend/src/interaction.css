@@ -134,7 +134,7 @@ html[data-motion=reduced] *, html[data-motion=reduced] *::before, html[data-moti
 .confirm-head h2 { font-size: var(--text-lg); }
 .confirm-body { margin: var(--space-3) 0 var(--space-6); color: var(--ink-2); font-size: var(--text-md); line-height: var(--leading-normal); }
 .confirm-body p { color: inherit; }
-.confirm-body ul { margin: var(--space-2) 0 0; padding-inline-start: var(--space-5); }
+.confirm-body ul { margin: var(--space-2) 0 0; padding-inline-start: var(--space-5); list-style: disc; }
 .confirm-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-3); }
 
 /* --- Save bar and action status ------------------------------------------ */
