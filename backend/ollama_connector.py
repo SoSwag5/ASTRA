@@ -431,7 +431,13 @@ def _request(method, endpoint, path, payload, deadline, transport=None, cancel=N
 
     def work():
         try:
-            box['result'] = _exchange(client, method, endpoint.url(path), payload, deadline, cancel)
+            # A stop set between the checks above and this thread running must still prevent the send.
+            if cancel is not None and cancel.is_set():
+                box['result'] = _fail(CANCELLED, 'cancelled before the exchange began')
+            elif time.monotonic() >= deadline:
+                box['result'] = _fail(TIMEOUT, 'call budget elapsed before the exchange began')
+            else:
+                box['result'] = _exchange(client, method, endpoint.url(path), payload, deadline, cancel)
         finally:
             done.set()
 

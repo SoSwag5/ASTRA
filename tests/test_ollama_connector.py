@@ -1077,3 +1077,49 @@ def test_an_uneventful_client_build_still_sends_the_request(monkeypatch, kind):
     outcome = _run(kind, seen, cancel)
     assert outcome.accepted and outcome.model_calls == 1
     assert [r.url.path for r in seen if r.method == 'POST'] == ['/api/chat' if kind == 'understand' else '/api/embed']
+
+
+# --- Cancellation or deadline between Thread.start() and the exchange -------
+def _hook_worker_start(monkeypatch, target_start, on_start):
+    """Run `on_start()` just before the `target_start`-th exchange worker runs (1 = the /api/tags
+    lookup, 2 = the model POST): after every check in the calling thread, before `_exchange`."""
+    real, count = threading.Thread.start, [0]
+
+    def start(self):
+        if self.name == 'astra-ollama-exchange':
+            count[0] += 1
+            if count[0] == target_start:
+                on_start()
+        return real(self)
+    monkeypatch.setattr(threading.Thread, 'start', start)
+
+
+@pytest.mark.parametrize('kind', ['understand', 'embed'])
+@pytest.mark.parametrize('start', [1, 2])
+def test_cancellation_before_the_worker_runs_sends_no_model_request(monkeypatch, kind, start):
+    cancel, seen = threading.Event(), []
+    _hook_worker_start(monkeypatch, start, cancel.set)
+    outcome = _run(kind, seen, cancel)
+    assert outcome.reason == oc.CANCELLED and outcome.model_calls == 0 and not outcome.dispatched
+    assert not [r for r in seen if r.url.path in ('/api/chat', '/api/embed')]
+    if start == 2:
+        assert [r.url.path for r in seen] == ['/api/tags'], 'the cancelled exchange sent nothing'
+
+
+@pytest.mark.parametrize('kind', ['understand', 'embed'])
+@pytest.mark.parametrize('start', [1, 2])
+def test_deadline_expiry_before_the_worker_runs_sends_no_model_request(monkeypatch, kind, start):
+    clock, seen = _Shifted(), []
+    monkeypatch.setattr(oc, 'time', clock)
+    _hook_worker_start(monkeypatch, start, lambda: setattr(clock, 'offset', 10_000.0))
+    outcome = _run(kind, seen, None)
+    assert outcome.reason == oc.TIMEOUT and outcome.model_calls == 0 and not outcome.dispatched
+    assert not [r for r in seen if r.url.path in ('/api/chat', '/api/embed')]
+
+
+@pytest.mark.parametrize('kind', ['understand', 'embed'])
+def test_an_uneventful_worker_start_still_sends_the_request(monkeypatch, kind):
+    seen, cancel = [], threading.Event()
+    _hook_worker_start(monkeypatch, 2, lambda: None)
+    outcome = _run(kind, seen, cancel)
+    assert outcome.accepted and outcome.model_calls == 1

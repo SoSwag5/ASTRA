@@ -93,6 +93,14 @@ tests:
   at both the identity lookup and the model request; they fail on the previous
   code and pass now. A cancel arriving after the exchange has started is still
   handled by the existing socket-close path.
+- A second, adjacent gap: a stop set after that recheck but before the worker
+  thread entered the exchange (at `Thread.start()`) still sent the request. The
+  worker now checks cancellation and the absolute deadline immediately before
+  the exchange and returns `CANCELLED` or `TIMEOUT` with nothing dispatched.
+  Deterministic tests intercept worker start for `understand()` and `embed()`;
+  they fail on `04c0293` and pass now. A stop arriving after the exchange has
+  begun is a different boundary and remains covered only by the socket-close
+  path.
 
 Rerun at the reconciled tree: focused D and C-shadow tests, the mocked harness
 (same counts as below; the committed mocked JSON was not regenerated), the full
