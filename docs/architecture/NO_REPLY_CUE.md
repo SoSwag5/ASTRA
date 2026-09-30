@@ -77,7 +77,10 @@ After closing:
 - Its row shows "Closed by you: no response" with the close date.
 - A `MEANINGFUL_RESPONSE` recorded after the close changes the badge to
   "Reply recorded after you closed it" and asks the user to set the new stage.
-  Nothing moves on its own.
+  "After" is the order ASTRA recorded the two events in, not the date the
+  user gave the reply: a reply entered on the day of the close is dated
+  midnight, and one logged late may carry an earlier date, yet both
+  contradict the close. Nothing moves on its own.
 - Setting any stage reopens it. A later stage moves the canonical state
   forward as usual; setting it back to Applied brings the cue back if there
   is still no reply (tested).
@@ -100,11 +103,16 @@ the row's canonical state is shown beside it.
   late-evening submission; suppression by reply, later state, undated import
   and too-recent submission; closing through the real route leaves canonical
   state and history untouched, counts no rejection, drops the follow-up and
-  surfaces a later reply; closing from a later stage and reopening to Applied.
+  surfaces a later reply; a reply recorded before the close does not reopen
+  it, and one recorded after it but dated earlier is surfaced; closing from a
+  later stage and reopening to Applied.
 - `frontend/check-progress.cjs`: badge, line, rule and close-note wording.
-- Browser QA on an isolated fictional workspace, desktop and mobile: the
-  callout, filter, rule, confirm dialog (keyboard and focus), the close, and
-  Today's pointer.
+- Browser QA on an isolated fictional workspace at 1280 px (ink and light),
+  390 px and 320 px: Today's pointer, the callout, filter and rule, the
+  confirm dialog (safe default focus, Tab containment, Escape changes nothing
+  and restores focus), the close and its counts, the Progress note, a reply
+  recorded afterwards through the job's detail view, reopening with a new
+  stage, text contrast, target size, reflow and reduced motion.
 
 ## Architecture decision for the Owner (not implemented)
 
