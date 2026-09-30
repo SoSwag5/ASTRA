@@ -39,7 +39,9 @@ export function Progress({api, openJob, goTo}: Props) {
   const [loading, setLoading] = useState(true);
   const [latest, setLatest] = useState<Row | null>(null);
   const [latestFailed, setLatestFailed] = useState(false);
+  const [refreshToken, setRefreshToken] = useState(0);
   const request = useRef(0);
+  const refresh = () => { setRefreshToken(t => t + 1); load(period); };
 
   const load = useCallback(async (which: string) => {
     const ticket = ++request.current;
@@ -76,11 +78,11 @@ export function Progress({api, openJob, goTo}: Props) {
   }
 
   return <div className="progress">
-    <PeriodPicker period={period} onChange={setPeriod} data={data} loading={loading} onRefresh={() => load(period)}/>
+    <PeriodPicker period={period} onChange={setPeriod} data={data} loading={loading} onRefresh={refresh}/>
     {error && <div className="errorbar" role="alert"><span>Could not refresh. Showing the figures loaded at {M.formatDateTime(data.generated_at)}. {error}</span><button className="secondary" onClick={() => load(period)}>Retry</button></div>}
     <div className={'progress-body' + (loading ? ' is-refreshing' : '')} aria-busy={loading}>
       <NextAction data={data} goTo={goTo}/>
-      <ReviewQueue api={api} openJob={openJob} data={data} onChanged={() => load(period)}/>
+      <ReviewQueue api={api} openJob={openJob} data={data} refreshToken={refreshToken} onChanged={() => load(period)}/>
       <PeriodFigures data={data} openJob={openJob}/>
       <Journey data={data} goTo={goTo}/>
       <DiscoveryHealth data={data} latest={latest} latestFailed={latestFailed} goTo={goTo}/>
@@ -133,7 +135,7 @@ export function NextAction({data, goTo}: {data: Row; goTo: (page: string) => voi
 type Entry = {item: Row; outcome?: M.ReviewOutcome & {label: string; badge: string}};
 const PAGE = 3;
 
-function ReviewQueue({api, openJob, data, onChanged}: {api: Api; openJob: (job: Row) => void; data: Row; onChanged: () => void}) {
+function ReviewQueue({api, openJob, data, refreshToken, onChanged}: {api: Api; openJob: (job: Row) => void; data: Row; refreshToken: number; onChanged: () => void}) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [total, setTotal] = useState<number | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'unavailable' | 'error'>('loading');
@@ -164,7 +166,8 @@ function ReviewQueue({api, openJob, data, onChanged}: {api: Api; openJob: (job: 
     }
   }, [entries, fetchPage]);
 
-  useEffect(() => { reload(false); }, []);
+  // First load, and a fresh queue (without this session's receipts) on Refresh.
+  useEffect(() => { reload(false); }, [refreshToken]);
 
   const unresolved = entries.filter(e => !e.outcome);
   const remaining = total === null ? 0 : Math.max(0, total - unresolved.length);
