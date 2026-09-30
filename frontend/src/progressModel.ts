@@ -300,7 +300,7 @@ export function noReplyText(status: Row | null | undefined): {badge: string; ton
   if (!status) return null;
   if (status.status === 'NO_REPLY_90_DAYS') {
     return {badge: 'No reply for 90 days', tone: 'warn',
-      line: `Submitted ${formatDay(status.submitted_on)} · ${status.days_since_submission} days with no employer reply recorded.`};
+      line: `${status.days_since_submission} days since you applied, with no employer reply recorded.`};
   }
   if (status.status === 'CLOSED_NO_RESPONSE') {
     return {badge: 'Closed by you: no response', tone: 'neutral',

@@ -120,7 +120,7 @@ function report(overrides = {}) {
     ok(/3 Gmail messages/.test(next) && /Review now/.test(next), 'the next action leads with Needs Review');
     // #47 follow-up C: the no-reply cue is an inference, never a rejection.
     const cue = M.noReplyText({status: 'NO_REPLY_90_DAYS', submitted_on: '2026-06-02', days_since_submission: 92});
-    ok(cue && cue.tone === 'warn' && cue.badge === 'No reply for 90 days' && /92 days with no employer reply recorded/.test(cue.line), 'the cue states its date basis');
+    ok(cue && cue.tone === 'warn' && cue.badge === 'No reply for 90 days' && /92 days since you applied, with no employer reply recorded/.test(cue.line), 'the cue states its elapsed days');
     const closed = M.noReplyText({status: 'CLOSED_NO_RESPONSE', closed_on: '2026-09-15'});
     ok(closed && /Closed by you/.test(closed.badge) && /stage is unchanged/.test(closed.line) && /not counted as a rejection/.test(closed.line) && /reopen/.test(closed.line), 'closing is the user’s decision and reversible');
     const reply = M.noReplyText({status: 'REPLY_AFTER_CLOSE'});
