@@ -230,3 +230,23 @@ secondary sync or live mailbox validation are included.
 Evidence is **self-verification**, not independent acceptance. R-17 remains
 OPEN; no risk residual is accepted here. The older authorization-only evidence
 above describes the #44 scope at that time and is not a current surface inventory.
+
+## Issue #48 evidence update (2026-10-01)
+
+The "not applicable yet" items in *Evidence and validation* now exist on
+`master`. Requirements A8-READ-ONLY through A8-MAILBOX-TRANSPORT in
+`tests/security/v1_1_assurance_inventory.py` trace them to named tests:
+
+- no body or HTML in the database, its sidecars, any cache, export, backup
+  or API;
+- no single signal reaching HIGH;
+- missing or contradictory authentication evidence capping a message at
+  MEDIUM.
+
+#48 added two tests. One pins that cap to *exactly* MEDIUM, so such a
+message reaches Needs Review rather than dropping to LOW. The other proves
+the frontend has no raw-HTML sink. Both pass on `22642e8`.
+
+Unchanged: #45 had no independent review and no live mailbox validation, and
+real-world parser accuracy is unmeasured. Only the primary account is
+enabled. R-17 stays OPEN until the Owner decides it.

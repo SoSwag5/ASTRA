@@ -3,6 +3,9 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts.release_version import VERSION
 
 
 def job_results(run,jobs,source,repository):
@@ -28,7 +31,7 @@ def main():
     jobs=[job for page in pages for job in page['jobs']]
     results=job_results(run,jobs,os.environ['GITHUB_SHA'],os.environ['GITHUB_REPOSITORY'])
     install=json.loads((root/'clean-install.json').read_text())
-    digest=hashlib.sha256((root/'astra-1.0.0-rc.1.zip').read_bytes()).hexdigest()
+    digest=hashlib.sha256((root/('astra-'+VERSION+'.zip')).read_bytes()).hexdigest()
     if install.get('status')!='PASS' or install.get('artifact_sha256')!=digest:
         raise ValueError('Clean-install evidence is not bound to this candidate')
     with open(os.environ['GITHUB_ENV'],'a') as output:

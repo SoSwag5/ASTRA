@@ -46,6 +46,23 @@ def no_unexpected_network():
     finally:
         socket.getaddrinfo = real
 
+def pytest_configure(config):
+    config.addinivalue_line(
+        'markers', 'v1_1_assurance: the issue #48 consolidated v1.1 security '
+        'regression suite (see tests/security/v1_1_assurance_inventory.py)')
+
+
+def pytest_collection_modifyitems(config, items):
+    """Mark the issue #48 suite so `pytest -m v1_1_assurance` runs it."""
+    from tests.security.v1_1_assurance_inventory import ASSURANCE, selected
+    wanted = selected()
+    for item in items:
+        path = item.nodeid.split('::', 1)[0]
+        name = getattr(item, 'originalname', None) or item.name
+        if path == ASSURANCE or (path, name) in wanted:
+            item.add_marker('v1_1_assurance')
+
+
 def pytest_sessionfinish(session, exitstatus):
     import sys
     models=sys.modules.get('backend.models')

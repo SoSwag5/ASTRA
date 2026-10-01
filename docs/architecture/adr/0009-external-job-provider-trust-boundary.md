@@ -207,3 +207,22 @@ newly-applicable ASVS input-validation/SSRF-prevention requirements
 for this new external-data surface, alongside R-01's existing DNS/
 redirect controls it reuses. See the v1.1 threat-model delta for the
 specific mapping.
+
+## Issue #48 evidence update (2026-10-01)
+
+*Evidence and validation* above still reads "Pending"; that is historical.
+#38 and #39 built the controls (PRs #53 and #55, each independently
+reviewed), and #48 checked the four required tests against `master` at
+`22642e8`:
+
+| Required test | Before #48 | Now |
+|---|---|---|
+| SSRF policy rejects loopback and private-range provider or job URLs | Existed: pinned-dial transport, mixed-DNS, redirect and `policy.py` tests | Traced (A9-SSRF) |
+| An oversized response is capped and does not block other providers | Half existed: the cap was tested alone, and isolation only with a generic error | Added: `test_an_oversized_provider_response_fails_only_that_source` sends one byte over the real cap through the real reader, provider and Start Scan for each provider in turn |
+| Provider HTML is sanitized before any display path renders it | Partly: Greenhouse HTML-to-text only | Added: `test_frontend_has_no_raw_html_sink`. Greenhouse and Lever descriptions are reduced to text server-side, but Ashby's `descriptionPlain` is stored as given, so the control relied on for every provider is React text rendering plus that test |
+| Provider content sent to the AI path cannot call a tool, act or change state | Partly: rules provider only | Added three tests: the OpenAI and Ollama requests offer no tools and carry provider text as JSON data; hostile replies are refused; and an end-to-end advice call leaves job status, application, state, history and links unchanged |
+
+All four pass with no product code changed. Not covered: the legacy
+SmartRecruiters and generic-source fetch path still validates and connects
+separately (R-01), as the threat-model delta records. R-17 stays OPEN until
+the Owner decides it.

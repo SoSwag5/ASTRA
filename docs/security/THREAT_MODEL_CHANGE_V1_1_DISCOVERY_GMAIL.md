@@ -300,3 +300,67 @@ boundaries are exercised by the #46 suites; no clause or level claim is newly
 asserted. SAMM/SLSA claims are unchanged. No dependency, lockfile, SBOM input
 or release artifact changed, and no evaluation-provenance-pinned file was
 modified.
+
+## Issue #48 as-built reconciliation (2026-10-01)
+
+This section closes the gap between the planned delta above and the code on
+`master` at `22642e88f516f827c1dc4250bc72eb259306fafd`. Claude Code wrote it
+for issue #48. It is not yet independently reviewed or Owner-approved. The
+earlier sections are dated records. Statements in them that a control is
+"pending", that #44 or #46 is "not merged", or that a dependency would be
+added are historical, and this section supersedes them.
+
+### Abuse cases against the as-built controls
+
+Each requirement ID points to an entry in
+`tests/security/v1_1_assurance_inventory.py`, which names the exact tests.
+The consolidated suite runs with `python -m pytest -m v1_1_assurance`.
+
+| Abuse case | As-built control | Evidence (requirement IDs) | Status | Residual |
+|---|---|---|---|---|
+| TM-1 Token exfiltration via logs, exports or diagnostics | A secret wrapper redacts every representation. Tokens and the client secret never reach logs, events, SQLite bytes, export, backup, diagnostics, API bodies or exception text. The credential store is outside every export and backup path. | A7-NEVER-LOGGED, A7-EXCLUSION, A7-CLIENT-SECRET, TM-PRIVACY-PATHS, TM-AUDIT-EVENTS | Implemented and tested | A future code path could still log a value; the sentinel tests cover the paths that exist |
+| TM-2 Token theft by a local or shared-host actor | Native Windows credential store (DPAPI, CurrentUser) only, with no plaintext fallback. Per-account opaque keys. Access tokens and attempts are memory-only. Disconnect removes local access even when Google fails. | A7-STORAGE, A7-ISOLATION, A7-REVOCATION | Implemented, tested, live-validated in #44 | Unchanged: an actor running as the same OS user can read the store (an R-15 instance). R-16 stays 2/3 |
+| TM-3 Callback interception, CSRF, code substitution or account mix-up | PKCE S256, a 256-bit single-use state compared in constant time, a numeric-loopback ephemeral listener, five-minute attempts, fixed host-pinned Google endpoints, an exact scope check, and binding to the identity Google returns. | A7-SCOPE, A7-PKCE, A7-STATE, A7-LOOPBACK, A7-IDENTITY, A7-TRANSPORT, A7-API-BOUNDARY, A7-SECONDARY-GATE | Implemented, tested, live-validated in #44 | An actor with loopback access during the five-minute window. Identity binding uses the authenticated address, which is authoritative but not immutable |
+| TM-4 Spoofed confirmation reaching HIGH | Deterministic Greenhouse, Lever and Workday templates. HIGH needs sender, structure, body and field consistency plus receiver authentication from the header Google adds. Missing, failed, foreign, misaligned or contradictory authentication caps the result at exactly MEDIUM, which goes to Needs Review. | A8-MULTI-SIGNAL, A8-AUTH-CAP | Implemented and tested with fictional fixtures | A genuinely authenticated, compromised sender using an exact template still reaches HIGH. Real-world parser accuracy is unmeasured; there was no live mailbox validation |
+| TM-5 Malicious HTML or links rendered or followed | Email HTML becomes bounded plain text in memory and is never stored. Unsafe URLs are dropped and no link is fetched. Provider HTML is reduced to text. The UI renders all of it through React text expressions, and a test rejects any raw-HTML sink. | A8-HOSTILE-CONTENT, A8-NON-RETENTION, A9-UI-SANITIZATION | Implemented and tested | `adapters.clean` unescapes provider HTML twice (ASVS 1.1.1, an existing Level 2 FAIL). Display stays safe because React escapes text |
+| TM-6 Parser or resource exhaustion | Provider responses are capped encoded and decoded, with deadline-bounded streaming and bounded redirects, retries and pagination. Gmail messages are capped by size, MIME parts and depth. Failures are isolated per source and per message. All of it is on `master`; the parked R-13 branch was not used. | A9-RESPONSE-CAPS, A9-OVERSIZED-ISOLATION, A9-STRICT-PARSING, A9-FAILURE-ISOLATION, A8-PARSER-BOUNDS, A8-BOUNDED-SYNC | Implemented and tested | A parser bug under the caps could still be slow; the caps bound the cost |
+| TM-7 SSRF | Greenhouse, Lever and Ashby fetches go through `job_providers/transport.py`, which resolves once, refuses any private, loopback or link-local address, dials the validated address and revalidates every redirect. OAuth and Gmail calls go only to pinned Google hosts. Email links are never fetched. | A9-SSRF, A8-HOSTILE-CONTENT | Implemented and tested for the v1.1 paths | SmartRecruiters and generic `parse_url` sources still use the legacy `adapters.fetch`, which validates with `policy.py` and connects separately: the existing R-01 DNS race, unchanged by v1.1. Arbitrary URL import is disabled |
+| TM-8 Reconciliation or duplicate manipulation | A merge needs the employer plus two further independent fields. A contradictory requisition URL blocks linking. Ambiguity creates a review item, never a merge. Evidence never creates a job or application. Fingerprint-only dedupe evidence never merges. | TM-RECONCILE, A9-PROVENANCE | Implemented and tested; #46 independently approved | Unchanged: an attacker who knows the real employer, role, date and requisition URL can still force a false link. Real-world accuracy is unmeasured |
+| TM-9 Status-evidence spoofing | Automated evidence can set only APPLIED, only at HIGH, only on a unique strong match. Later states are unreachable from any automated path at any confidence. Manual states cannot be overridden or re-asserted, and no route accepts a target state. This is stricter than planned. | TM-STATUS-SPOOF | Implemented and tested; #46 independently approved | Inherits the TM-4 residual: a HIGH spoof can set APPLIED and nothing later |
+| TM-10 AI email classification | Not built in the inspected implementation. The dependency guard checks declared known AI imports at every nesting level, supported positional literal import calls and modules loaded at import time. It does not prove complete runtime reachability or cover computed imports, keyword/indirect loader forms and transitive lazy dependencies; those require review. Provider text in the separate advice path travels as JSON data, with no tools, a strict output schema and tested absence of application-state mutation. | TM-AI-EMAIL-GUARD, A9-AI-FRAMING | Not applicable to mailbox classification; bounded dependency guard | An AI mailbox feature needs its own threat-model delta and runtime abuse tests. A passing dependency guard cannot replace that review |
+
+### Surfaces added since the planning delta
+
+- **#43 telemetry and #46.2-A Start Scan** add the read-only
+  `/api/search/telemetry*` routes and the `/api/scan/*` preview, start and
+  cancel routes. Neither changes a trust boundary. A new #48 test walks the
+  live route table and proves that every private route, these included,
+  keeps the Origin, cross-site, access-key and demo-mode guards.
+- **No new dependency.** No product lockfile changed between `v1.0.0` and
+  `22642e8`. The Gmail client library this delta anticipated was never
+  added.
+- **Second Gmail account.** The two-account design exists, but the secondary
+  slot is disabled in code: it cannot start OAuth or sync. OD-012 allows it
+  to be enabled only after the primary account's sync, parsing and
+  reconciliation are validated, and that has not happened (#45 and #46 had
+  no live mailbox validation). This delta therefore covers one-account
+  operation. Enabling the second account is a recheck trigger.
+
+### Gaps found by #48
+
+| Gap | Disposition |
+|---|---|
+| The ASVS mapping still said ASTRA had no OAuth client | Corrected in this branch (documentation only) |
+| R-16 and R-18 still described #44 and #46 as not merged | Corrected in this branch (documentation only) |
+| ADR-0009 required four tests, two of which did not exist: an oversized response isolated from other providers, and provider text reaching a model unable to act. The exact MEDIUM cap, the absence of raw-HTML sinks and full route-guard coverage were also untested | Tests added in this branch (`tests/security/test_v1_1_assurance.py`). All pass on `22642e8`; no product code changed |
+| Legacy `adapters.fetch` (SmartRecruiters, generic sources) is not on the pinned transport | Existing R-01 residual, not a v1.1 regression. Proposed as a follow-up for the Owner; not patched here |
+| The secondary account is not enabled, but OD-013 says `v1.1.0` delivers two accounts | Owner decision required (see the v1.1 evidence pack) |
+| #47 (progress dashboard) is not merged | Its routes, and any follow-up that triggers Gmail operations, need a delta check when merged. The route-guard test covers new routes automatically |
+
+### Decision requested
+
+- **Owner:** approve this as-built reconciliation, or ask for changes.
+  Approval would confirm the controls are built as described. It would not
+  accept any residual risk; R-16, R-17 and R-18 are decided separately.
+- **Independent review:** Codex reviews this section and its evidence at the
+  exact commit before the Owner decides.
