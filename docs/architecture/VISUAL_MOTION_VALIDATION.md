@@ -124,3 +124,25 @@ is made. Backend and hosted security checks were not rerun for frontend-only
 changes. Exact commit, scoped privacy scan, independent review and served-asset
 verification are recorded in the final task handoff. Nothing was pushed,
 merged, tagged or published.
+
+### Independent P2 correction: native hit testing
+
+Independent review of `911151050095a141530434caa562dcee38d75f34` passed the
+frontend tests/build but found that the second pointer click during a page
+transition could target HTML instead of the navigation button. A third click
+masked that loss in the initial three-click probe. The reviewer reproduced
+the failure at 25, 80, 120 and 200ms intervals. The initial candidate was not
+approved.
+
+The correction removes the implicit root and all interactive surfaces from
+named snapshots. Headings and decorative navigation markers retain native
+motion, while content entrances, palette changes and sidebar resizing animate
+on the live DOM. This keeps controls available to hit testing. Departing
+overlays retain their exit animation.
+
+`scripts/check_motion_browser.py --url <loopback-fictional-preview>` is a
+committed native-browser regression (requires installed Python Playwright and
+Chromium). It passed **16 two-click scenarios / 48 assertions** at the four
+intervals, desktop/mobile, light/dark: latest destination, focus and cleanup.
+The 32 motion/reflow checks also passed again. The broader matrix and final
+asset/re-review results for the corrected exact SHA are in the task handoff.

@@ -38,7 +38,7 @@ Rendering cost matters as much as duration. web.dev recommends transform and
 opacity, measuring slow frames, and avoiding speculative layer promotion.
 The new surfaces and progress fill use transforms; loading sheen moves a
 pseudo-element instead of repainting its background position. The existing
-small navigation disclosure remains a bounded layout animation, an explicit
+small navigation disclosure and sidebar resize remain bounded layout animations, an explicit
 exception. [web.dev: animation performance](https://web.dev/articles/animations-guide).
 
 Native view transitions are progressive enhancement: the DOM change must
@@ -67,10 +67,10 @@ constraints. [Vercel: interface guidelines](https://vercel.com/design/guidelines
 | 4 | Arbitrary spacing and cramped copy | Use the existing 4px spacing scale and readable text widths. Test narrow layouts and long content rather than shrinking all text to fit. |
 | 5 | Treating dark mode as inversion | Retain separately tuned midnight tokens, browser chrome and form colors. Run the existing 156 contrast-pair checks on both palettes. |
 | 6 | Styling everything as clickable | Elevation belongs to action buttons. Informational cards enter but do not bounce on hover. Links, press states and row affordances retain their existing semantics. |
-| 7 | Abrupt page and sidebar changes | Preserve directional page/Settings transitions; add the same snapshot vocabulary to expanding and collapsing desktop navigation. |
+| 7 | Abrupt page and sidebar changes | Directional live content entrances, heading exits and a gliding selected marker; desktop navigation resizes over a bounded 260ms. Interactive surfaces are not captured. |
 | 8 | Animating a shell while fetched content pops in | Give newly mounted panels and rails a short entrance. Today and Applications receive structured loading placeholders; loaded Progress cards arrive in reading order. |
 | 9 | A long cascading entrance on every item | Animate groups and cap the stagger at 96ms. Do not gate content on scrolling, replay on polling, or animate every table row. |
-| 10 | Animation blocking the next action | Snapshot overlays allow pointer input. Click, keyboard and wheel input end the active snapshot; regression checks cover overlapping callbacks and live reduced-motion changes. |
+| 10 | Animation blocking the next action | Keep controls and the implicit document root outside named snapshots. Click, keyboard and wheel input interrupt motion; native-browser regressions cover two rapid clicks at four intervals, as well as ordered callbacks. |
 | 11 | View tabs changing content without feedback | Today views have distinct keys. Recall groups and Discovery shortlist views get a keyed entrance; controls remain mounted and keep focus. |
 | 12 | Layout jumping while the app changes state | Reserve loading structure and stable scrollbar space. Keep existing fixed-width busy labels. Verify the narrow header and Settings cards after adding mobile input sizing. Content length can still change page height. |
 | 13 | Fake completion or animated invented numbers | Keep actual values and labels immediate. Determinate rails interpolate their visual scale between recorded values; composition and unavailable states retain their honest meanings. |
@@ -92,3 +92,12 @@ frame rate on every device. Hash routing, backend behavior, product policy and
 third-party submission flows are outside this visual revision.
 
 See `VISUAL_MOTION_VALIDATION.md` for the executed checks and their limits.
+
+Independent review caught a limitation of the initial implementation: disabling
+pointer events on the transition overlay does not restore hit testing for
+captured elements. The correction removes interactive participants and the
+implicit root snapshot; only headings, decorative indicators and departing
+overlays are captured. This follows the platform's hit-testing model, documented
+by the [view-transition tooling authors](https://vtbag.dev/tips/interactivity/).
+Two-click tests replace the inadequate assumption that a passing three-click
+sequence proves every intermediate click was delivered.

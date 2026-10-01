@@ -75,11 +75,15 @@ certification of the entire application.
 The [research and 20-point audit](UI_UX_RESEARCH_AUDIT.md) explains the product
 decisions and sources. Content surfaces enter in 320ms with at most 96ms of
 stagger, including content mounted after a request. They do not replay when
-existing data refreshes or when a user types. The sidebar uses native layout
-snapshots; tabs retain their controls while the chosen content enters.
+existing data refreshes or when a user types. The sidebar uses a bounded 260ms
+resize; tabs retain their controls while the chosen content enters.
 
 New input interrupts snapshots, and superseded update callbacks cannot undo
-newer navigation or focus. Snapshot overlays do not consume pointer input.
+newer navigation or focus. The document root and interactive surfaces are not
+captured, since named participants are excluded from native hit testing.
+Heading exits and indicator movement use snapshots; live content supplies the
+directional entrance. Theme colors transition on live surfaces. Only the
+bounded sidebar/disclosure animations change layout rather than transforms.
 Loading sheen uses a moving pseudo-element for three cycles before settling.
 Determinate progress fills interpolate their transform between actual recorded
 fractions; the text and accessible value update immediately. Browsers without

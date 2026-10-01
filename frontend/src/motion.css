@@ -6,7 +6,7 @@
  * tools disclosure, which animates its row height so the list below moves
  * with it. See docs/architecture/VISUAL_MOTION_SYSTEM.md.
  */
-html { --vt-y: 1; --vt-x: 1; }
+html { --vt-y: 1; --vt-x: 1; view-transition-name: none; }
 html[data-vt-direction=back] { --vt-y: -1; --vt-x: -1; }
 html[dir=rtl] { --vt-x: -1; }
 html[dir=rtl][data-vt-direction=back] { --vt-x: 1; }
@@ -33,24 +33,20 @@ aside .nav-indicator { view-transition-name: nav-indicator; }
   animation-duration: var(--motion-page); animation-timing-function: var(--ease-enter);
 }
 
-/* Page: the sidebar and the top bar stay put; the page leaves upward and the
-   next one rises into place (downward when moving back up the list). The
-   root is the viewport, so scroll position never adds movement. */
-html[data-vt=page] .app > aside { view-transition-name: sidebar; }
-html[data-vt=page] .app > main > header { view-transition-name: topbar; }
-html[data-vt=layout] .app > aside { view-transition-name: sidebar; }
-html[data-vt=layout] .app > main > header { view-transition-name: topbar; }
-html[data-vt=layout]::view-transition-old(root) { animation: vt-fade-out var(--motion-fast) var(--ease-exit) both; }
-html[data-vt=layout]::view-transition-new(root) { animation: vt-fade-in var(--motion-page) var(--ease-enter) both; }
-::view-transition-group(sidebar), ::view-transition-group(topbar) { animation-duration: var(--motion-fast); }
-html[data-vt=page]::view-transition-old(root) { animation: vt-leave-y var(--motion-fast) var(--ease-exit) both; }
-html[data-vt=page]::view-transition-new(root) { animation: vt-enter-y var(--motion-page) var(--ease-enter) 40ms both; }
+/* Named snapshot participants are excluded from browser hit testing, even
+   when the snapshot overlay has pointer-events:none. Keep interactive chrome
+   and content unnamed, including the implicit root: live content supplies
+   movement. Only headings, indicators and departing overlays are captured. */
+html[data-vt=layout] .app > aside { transition: width var(--motion-page) var(--ease-enter); }
+html[data-vt=layout] .app > main { transition: margin-inline-start var(--motion-page) var(--ease-enter), width var(--motion-page) var(--ease-enter); }
+html[data-vt=page] .pagetitle h1 { view-transition-name: page-title; }
+html[data-vt=page] .campaign-heading h2 { view-transition-name: campaign-title; }
+::view-transition-old(page-title), ::view-transition-old(campaign-title) { animation: vt-leave-y var(--motion-fast) var(--ease-exit) both; }
+::view-transition-new(page-title), ::view-transition-new(campaign-title) { animation: vt-enter-y var(--motion-page) var(--ease-enter) both; }
+.content.page-enter { animation: vt-enter-y var(--motion-page) var(--ease-enter) backwards; }
 
 /* Settings section: the panel slides across in the direction of travel. */
-html[data-vt=section] .settings-body { view-transition-name: settings-panel; }
-::view-transition-group(settings-panel) { animation: none; }
-::view-transition-old(settings-panel) { animation: vt-leave-x var(--motion-fast) var(--ease-exit) both; }
-::view-transition-new(settings-panel) { animation: vt-enter-x var(--motion-page) var(--ease-enter) 40ms both; }
+.settings-body.page-enter { animation: vt-enter-x var(--motion-page) var(--ease-enter) backwards; }
 
 /* Closing: a drawer slides back out, a dialog sinks and fades, the scrim
    fades with the root. */
@@ -59,12 +55,11 @@ html[data-vt=dismiss] .overlay > .dialog { view-transition-name: dialog; }
 html[data-vt=dismiss] .confirm-dialog { view-transition-name: confirm; }
 ::view-transition-old(drawer) { animation: vt-drawer-leave var(--motion-base) var(--ease-exit) both; }
 ::view-transition-old(dialog), ::view-transition-old(confirm) { animation: vt-dialog-leave var(--motion-base) var(--ease-exit) both; }
-html[data-vt=dismiss]::view-transition-old(root) { animation: vt-fade-out var(--motion-base) var(--ease-exit) both; }
-html[data-vt=dismiss]::view-transition-new(root) { animation: none; }
 
-/* Theme: a soft cross-fade between palettes. */
-html[data-vt=theme]::view-transition-old(root) { animation: vt-fade-out var(--motion-slow) var(--ease-standard) both; }
-html[data-vt=theme]::view-transition-new(root) { animation: vt-fade-in var(--motion-slow) var(--ease-standard) both; }
+/* Theme changes colour on live surfaces, retaining working controls. */
+html[data-vt=theme] :is(body, .app > aside, .app > main > header, .panel, .rail-card, .settings-card) {
+  transition: background-color var(--motion-slow) var(--ease-standard), color var(--motion-slow) var(--ease-standard), border-color var(--motion-slow) var(--ease-standard);
+}
 
 /* Without View Transitions the new page and section still ease in. */
 html.no-vt .page-enter { animation: rise-in var(--motion-page) var(--ease-enter) both; }
