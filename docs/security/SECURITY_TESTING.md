@@ -5,6 +5,7 @@ Run only in disposable storage. tests/conftest.py overrides DATABASE_URL, HUNTER
 |---|---|---|
 | Python suite | LOCAL/BOTH | pytest JUnit results on Python 3.13; 3.14 hosted matrix remains a target until executed |
 | Security regression | BOTH | tests/security: SSRF/private redirects, CSRF/Host/Origin, injection, traversal, parser bounds, demo API denial, AI limits/concurrency, telemetry |
+| v1.1 security regression | BOTH | `python -m pytest -m v1_1_assurance`: every negative test required by ADR-0007/0008/0009 and the v1.1 threat-model delta, traced in tests/security/v1_1_assurance_inventory.py; the full suite also runs it |
 | Frontend | BOTH | npm test (locale/order checks), npm run build; not a full frontend security test suite |
 | SAST | REMOTE | Existing CodeQL python, JavaScript/TypeScript and Actions jobs; remote results unavailable |
 | SCA | BOTH | pip-audit authoritative hash lock, npm audit; failures/outages block |

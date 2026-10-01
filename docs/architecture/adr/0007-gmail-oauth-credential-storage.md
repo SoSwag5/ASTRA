@@ -350,3 +350,21 @@ and session-adjacent secret handling that were previously N/A under
 the local-only, no-external-credential model (see the v1.1 threat-model
 delta for the specific mapping). No SLSA/CycloneDX impact. SSDF
 evidence expands to cover this new external-credential handling path.
+
+## Issue #48 evidence update (2026-10-01)
+
+The statements above that #44 is "not merged" and that #45 is "unstarted"
+are historical. #44 merged via PR #66 (`c53eb4e`), and #45 and #46 followed.
+#48 traced every control in this ADR to named tests. They are requirements
+A7-SCOPE through A7-API-BOUNDARY in
+`tests/security/v1_1_assurance_inventory.py`, and they pass in the
+consolidated suite (`python -m pytest -m v1_1_assurance`) on `22642e8`. #48
+added one test for this ADR: every private route, Gmail routes included,
+keeps the demo, access-key and cross-site guards. The ASVS OAuth client
+rows 10.1.1, 10.1.2, 10.2.1 and 10.2.3 are now assessed as applicable and
+PASS.
+
+Unchanged: the implementation was self-verified, and the Owner waived
+independent review for #44. The second account is still disabled, as this
+ADR requires until the primary account's sync, parsing and reconciliation
+are validated. R-16 stays OPEN until the Owner decides it.
