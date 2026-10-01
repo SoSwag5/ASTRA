@@ -4206,12 +4206,12 @@
     "section": "Security Architecture and Dependencies",
     "requirement": "Verify that the application only contains components which have not breached the documented update and remediation time frames.",
     "applicability": "APPLICABLE",
-    "rationale": "Runtime and frontend locks were re-audited in this pass with zero reported vulnerabilities. Remediation policy blocks overdue or unresolved advisories, and CI audit failure blocks verification. This is a dated component review, not a claim that advisories cannot appear later. v1.1 (#48): No product dependency or lockfile changed between v1.0.0 and 22642e8. Hosted SCA passed on 22642e8 (CI run 36590869577). It must be re-run at the frozen v1.1.0 candidate.",
+    "rationale": "v1.1 (#48), 2026-10-02: the current strict hash-enforced Python audit at 90e48ea reports six pypdf 6.18.0 advisories; npm audit reports zero. Historical clean scans are dated evidence only. The six dependency findings are TRIAGED; application exploitability and remediation-timeframe disposition are not independently verified. This PARTIAL records incomplete current verification, not a measured overdue deadline. The vulnerability policy blocks release on unresolved SCA findings regardless of timeframe.",
     "control": "docs/security/VULNERABILITY_MANAGEMENT.md; release/closure-python-sca.json; release/closure-npm-sca.json; .github/workflows/ci.yml",
-    "verification_method": "Requirement-specific source review and named local regression/assurance evidence",
-    "evidence": "docs/security/VULNERABILITY_MANAGEMENT.md; release/closure-python-sca.json; release/closure-npm-sca.json; .github/workflows/ci.yml; .github/workflows/ci.yml (sca job, CI run 36590869577)",
-    "result": "PASS",
-    "gap": ""
+    "verification_method": "Strict hash-enforced pip-audit and npm audit; bounded source reachability review; independent remediation verification pending",
+    "evidence": "docs/security/VULNERABILITY_MANAGEMENT.md; docs/security/V1_1_PYPDF_SCA_FINDINGS.md; docs/release/V1_1_0_LOCAL_ASSURANCE_VALIDATION.md; .github/workflows/ci.yml",
+    "result": "PARTIAL",
+    "gap": "Six unresolved advisories on pinned pypdf 6.18.0. Remediate in a separate dependency change, re-audit the exact commit, verify independently and reconcile current component/timeframe evidence. No exception or fixed artifact exists."
   },
   {
     "id": "v5.0.0-15.2.2",

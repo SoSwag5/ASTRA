@@ -10,7 +10,9 @@ Windows local-release scope. N/A always has an individual architectural reason.
 The release gate rejects altered IDs/levels/text, blank evidence, inconsistent
 applicability and any L1 FAIL/PARTIAL. No ASVS level or certification is claimed.
 
-**Applicable L1 baseline met, with an accepted architectural residual risk.**
+**Current L1 verification is BLOCKED: 15.2.1 is PARTIAL after the 2026-10-02 dependency audit.**
+The earlier closure baseline was met within its dated scope; it is not a current
+clean dependency result. See [the six pypdf findings](V1_1_PYPDF_SCA_FINDINGS.md).
 ASTRA is a single-user local application with no multiple application identities,
 roles, tenants, or user-scoped objects (`backend/models.py` defines no
 User/Role/Permission/Tenant model and no `user_id`/`owner_id`), so the
@@ -27,9 +29,9 @@ Counts by level:
 ```json
 {
   "1": {
-    "PASS": 40,
+    "PASS": 39,
     "N/A": 30,
-    "PARTIAL": 0
+    "PARTIAL": 1
   },
   "2": {
     "FAIL": 4,
@@ -61,7 +63,7 @@ code as built; every change is marked `v1.1 (#48):` in the row's rationale.
   server, so no mix-up), 10.3.x (ASTRA is not a resource server), 10.4.x and
   10.7.x (Google is the authorization server and runs consent) and 10.5.x (no
   `openid` scope or ID token).
-- **Level 1 re-reviewed, results unchanged (40 PASS, 30 N/A):** 1.2.1, 1.2.2,
+- **Initial Level 1 re-review (40 PASS, 30 N/A), superseded for 15.2.1 below:** 1.2.1, 1.2.2,
   1.3.1, 2.2.1, 2.3.1, 3.5.3, 4.1.1, 8.3.1, 9.x, 10.4.x, 11.3.x, 11.4.1,
   12.1.1, 12.2.1, 14.2.1, 14.3.1, 15.2.1 and 15.3.1 gained v1.1 evidence. The
   one judgement worth reading is 14.2.1. The OAuth authorization code arrives
@@ -75,3 +77,13 @@ code as built; every change is marked `v1.1 (#48):` in the row's rationale.
 The `tests/security/test_v1_1_assurance.py` checks keep the JSON, CSV and
 this summary in agreement. They also fail if any row again denies the OAuth
 client that exists. This delta asserts no ASVS level and no certification.
+
+## Current dependency delta (2026-10-02)
+
+A strict current pip-audit rerun reports six advisories on pypdf 6.18.0. Row
+15.2.1 is now PARTIAL, with fresh scan/triage evidence and an explicit remediation
+gap. Counts are 39 PASS, 30 N/A, 1 PARTIAL at Level 1; all official IDs, levels
+and requirement text are unchanged. The gate must reject this mapping until the
+current component evidence is resolved. This is incomplete verification, not a
+claim that a measured remediation deadline has already expired. See the
+[finding records](V1_1_PYPDF_SCA_FINDINGS.md).

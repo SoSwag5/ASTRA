@@ -7,8 +7,8 @@ establish against `master` and lists exactly what is missing. It follows
 named SHA. NOT RUN and BLOCKED mean what they say, and no result is copied
 from another SHA or from v1.0.0.
 
-- **Prepared by / date:** Claude Code (implementation owner for #48), 2026-10-01
-  (Asia/Dubai).
+- **Prepared by / date:** Claude Code first pass, 2026-10-01; Owner-authorized
+  Codex corrections and current verification, 2026-10-02 (Asia/Dubai).
 - **Evidence base:** `master` at `22642e88f516f827c1dc4250bc72eb259306fafd`,
   the PR #77 merge, plus the #48 branch `governance/48-v1.1-assurance`. The
   branch adds tests and documentation only. Its exact commit is given in
@@ -26,11 +26,11 @@ from another SHA or from v1.0.0.
 |---|---|
 | Version / candidate | v1.1.0. **BLOCKED:** no candidate exists; see section 11 |
 | Release classification | Minor release (`RELEASE_GOVERNANCE.md`): compatible features with new external-credential and external-data surfaces, so a full evidence pack, an architecture review and a threat-model delta are required |
-| Source repository and full SHA | `SoSwag5/ASTRA`; candidate SHA **not frozen**. Evidence below is from `22642e8` |
+| Source repository and full SHA | `SoSwag5/ASTRA`; candidate SHA **not frozen**. Historical hosted evidence is from `22642e8`; corrected local test source is `90e48ea76620ff1d876fb2907bb194b4c219916d` |
 | Source tree status and tag | No `v1.1.0*` tag. `v1.0.0` is untouched |
 | Hosted build workflow and run | **NOT RUN.** `release.yml` (Release Assurance) is manual-dispatch only and has not run since v1.0.0 |
 | Artifact, manifest, SBOM filenames and SHA-256 | **NOT RUN.** No v1.1.0 artifact exists |
-| Evidence collector / independent reviewer / date | Claude Code / not yet assigned / 2026-10-01 |
+| Evidence collector / independent reviewer / date | Claude Code initial pass; Codex corrected local pass / independent re-review pending / 2026-10-02 |
 
 ## 2. Source and scope
 
@@ -91,10 +91,10 @@ from another SHA or from v1.0.0.
 | Check | Environment | Exact result | Evidence |
 |---|---|---|---|
 | Python tests (full) | Hosted CI, Python 3.13 and 3.14, `22642e8` | success | [CI run 36590869577](https://github.com/SoSwag5/ASTRA/actions/runs/36590869577) |
-| Python tests (full, #48 branch) | Local, Windows, Python 3.13.2 | Reported in the review handoff | Session handoff in `docs/governance/PROJECT_STATE.md` |
-| v1.1 consolidated security suite (initial pass) | Claude, local Windows, `a37b4c3` test source | 517 passed, 0 failed, 0 errors, 0 skipped | `python -m pytest -m v1_1_assurance`; corrected-source rerun in the [local validation record](V1_1_0_LOCAL_ASSURANCE_VALIDATION.md) |
+| Python tests (full, corrected #48) | Codex, clean detached clone at `90e48ea`, Windows, Python 3.13.2 | 2,118 passed, one existing intentional skip, no failures/errors/deselection | [Local validation](V1_1_0_LOCAL_ASSURANCE_VALIDATION.md), source-bound XML digests |
+| v1.1 consolidated security suite (corrected pass) | Codex, clean detached clone at `90e48ea` | 532 passed, no failures/errors/skips; all 230 inventoried functions collected | [Local validation](V1_1_0_LOCAL_ASSURANCE_VALIDATION.md); the initial Claude run had 517 at `a37b4c3` |
 | Frontend tests / production build | Hosted CI, `22642e8` | success (inside the test jobs) | CI run 36590869577 |
-| Frontend tests / production build (local #48) | Codex independent clone, `fbbafe4`, Node 24.21.0, lockfile install | All six test scripts and build PASS; existing large-bundle warning | Prior review handoff; current rerun recorded in the local validation record |
+| Frontend tests / production build (corrected #48) | Codex self-verification clone, `90e48ea`, Node 24.21.0, lockfile install | All six test scripts and build PASS; existing large-bundle warning | [Local validation](V1_1_0_LOCAL_ASSURANCE_VALIDATION.md); prior independent `fbbafe4` checks remain separately attributed |
 | Targeted regressions | See section 4 | — | — |
 | Clean install / startup / restart | — | **NOT RUN for v1.1** (needs a built candidate) | — |
 | Upgrade / rollback | Schema-level tests only | pass (in the suites above) | `tests/test_application_state.py` |
@@ -107,19 +107,24 @@ from another SHA or from v1.0.0.
 | Security regression suite | pass | `tests/security/` runs in hosted CI. The v1.1 consolidated suite is listed in `tests/security/v1_1_assurance_inventory.py` |
 | Negative tests required by ADR-0007/0008/0009 and the threat-model delta | Initial suite PASS; corrected-source results in the local validation record | 36 requirements mapped to 230 named test functions, covering all ten abuse cases. The original AI guard's reachability overclaim was corrected; it checks declared known imports and import-time dependencies, with explicit limits. No product code changed. See the [threat-model delta](../security/THREAT_MODEL_CHANGE_V1_1_DISCOVERY_GMAIL.md#issue-48-as-built-reconciliation-2026-10-01) |
 | Input, SSRF, CSRF/Origin/Host, session, logging, parser checks | pass for the v1.1 paths | A new test walks the live route table: every private route keeps the Origin, cross-site, access-key and demo-mode guards. SSRF on the legacy SmartRecruiters and generic fetch path remains R-01 |
-| ASVS applicable Level 1 blockers | none: 40 PASS, 30 N/A, 0 PARTIAL/FAIL | `scripts/release_security_gate.py` `assess_asvs()` returns no blockers on the updated mapping |
+| ASVS applicable Level 1 blockers | **BLOCKED:** 39 PASS, 30 N/A, 1 PARTIAL | 15.2.1 is PARTIAL after the failed current dependency scan; all official requirement IDs/levels/text are preserved |
 | Manual security review | Claude Code self-review; Codex review of `fbbafe4` | R48-1/R48-2 required corrections. Owner-authorized Codex corrections are self-verified; independent re-review is pending |
 
-**Open findings and residuals:** no new security finding. Known residuals are
-R-16, R-17 and R-18 (section 8) and the existing R-01, R-12, R-13, R-14 and
-R-15. The #48 gaps were missing tests and stale documentation, not code
-defects.
+**Open findings and residuals:** [SF-2026-48-01 through -06](../security/V1_1_PYPDF_SCA_FINDINGS.md)
+are TRIAGED after the current Python audit found six advisories in pypdf 6.18.0.
+Text extraction is a relevant operation; application exploitation is not
+confirmed. The scanner failure blocks release. R-16, R-17 and R-18 (section 8)
+and existing R-01/R-12/R-13/R-14/R-15 remain unchanged. Test/documentation
+corrections do not fix the dependency.
 
 ## 5. Composition and dependencies
 
 - **Python and npm SCA:** `sca` job success on `22642e8` (CI run
   36590869577). Local dependency reruns are recorded in the
-  [validation record](V1_1_0_LOCAL_ASSURANCE_VALIDATION.md). Re-run at the
+  [validation record](V1_1_0_LOCAL_ASSURANCE_VALIDATION.md): Python **FAIL**, six
+  advisories in pypdf 6.18.0; npm **PASS**, zero advisories. The earlier hosted
+  success is not a current clean result. Dependency remediation and independent
+  verification are required before release. Re-run at the
   frozen complete release candidate: **NOT RUN**.
 - **Dependency Review:** runs only on pull requests; it passed on the
   approved head of each v1.1 PR. For the candidate: **NOT RUN**.
@@ -165,7 +170,9 @@ evidence. No SLSA claim is made for v1.1.0.
   of the reconciliation: pending.**
 - **Risk register:** stale "not merged" facts corrected for R-16 and R-18.
   All three stay **OPEN**, and none is "Proposed".
-- **Security findings:** none opened or changed.
+- **Security findings:** SF-2026-48-01 through -06 opened and TRIAGED on
+  2026-10-02; none remediated, independently verified or closed. See the
+  [dependency intake](../security/V1_1_PYPDF_SCA_FINDINGS.md).
 
 ### Owner decision required: R-16, R-17, R-18 (OD-019)
 
@@ -207,7 +214,7 @@ Recorded with the fields of
 | Framework | Affected | Previous | New evidence and status | Files | Claim impact |
 |---|---|---|---|---|---|
 | NIST SSDF 1.1 | PW.1.1, PW.1.2, PW.1.3, PW.2.1, PW.4.2, PW.5.1, PW.7.2, PW.8.1, PW.8.2, RV.1.2 | v1.0-era evidence | v1.1 evidence added; **no status changed**. PW.7.2's false "CodeQL never ran" gap corrected. Stale PO.3.2, PO.3.3, PS.1.1 and RV.1.1 wording recorded as a follow-up | `NIST_SSDF_1.1_MAPPING.csv/.md` | None; allowed claim unchanged |
-| OWASP ASVS 5.0.0 | 65 rows (chapter 10 plus Level 1/2 rows touched by v1.1) | OAuth rows said "no OAuth client" (false since #44) | 10.1.1, 10.1.2, 10.2.1 (L2) and 10.2.3 (L3) are now APPLICABLE/PASS. 10.2.2, 10.3.x–10.7.x stay N/A with corrected reasons. Level 1 is still 40 PASS / 30 N/A. Eight L2 PARTIAL rows gained evidence and remain PARTIAL | `OWASP_ASVS_5.0.0_MAPPING.json/.csv/.md` | No level claimed. L2 counts: N/A 79→76, PASS 10→13. L3: N/A 21→20, PASS 0→1 |
+| OWASP ASVS 5.0.0 | 65 rows (chapter 10 plus Level 1/2 rows touched by v1.1) | OAuth rows said "no OAuth client" (false since #44) | 10.1.1, 10.1.2, 10.2.1 (L2) and 10.2.3 (L3) are now APPLICABLE/PASS. 10.2.2, 10.3.x–10.7.x stay N/A with corrected reasons. Initial Level 1 was 40 PASS / 30 N/A; current dependency delta makes 15.2.1 PARTIAL (39 PASS / 30 N/A / 1 PARTIAL). Eight L2 PARTIAL rows gained evidence and remain PARTIAL | `OWASP_ASVS_5.0.0_MAPPING.json/.csv/.md` | No level claimed. L2 counts: N/A 79→76, PASS 10→13. L3: N/A 21→20, PASS 0→1 |
 | OWASP SAMM v2 | none | — | No measured change | — | None |
 | CycloneDX 1.7 | none yet | v1.0.0 SBOM | **NOT RUN** for v1.1 | — | None until a candidate is built |
 | SLSA v1.2 | none yet | v1.0.0 Build L2 assessed | **NOT RUN** for v1.1 | — | No v1.1 claim |
@@ -252,6 +259,9 @@ for v1.1.
   5. No hosted candidate build, SBOM, provenance, attestation verification,
      clean install or release-gate run exists for v1.1.0.
   6. CodeQL alert triage and Dependency Review at the candidate are NOT RUN.
+  7. Current strict Python SCA fails with six advisories in pinned pypdf 6.18.0;
+     ASVS 15.2.1 is PARTIAL. A separately reviewed dependency remediation and
+     clean audit rerun are required. No waiver or fixed artifact exists.
 - **Independent reviewer conclusion:** R48-1/R48-2 found on `fbbafe4`;
   independent re-review of the corrected commit remains pending.
 - **Release notes / changelog:** the [unreleased draft](V1_1_0_RELEASE_NOTES_DRAFT.md)

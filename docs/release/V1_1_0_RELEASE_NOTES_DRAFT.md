@@ -76,6 +76,10 @@ the immutable v1.0.0 package.
 
 ## Compatibility and known limitations
 
+- The 2026-10-02 Python dependency audit found six advisories in pinned pypdf
+  6.18.0. The [finding records](../security/V1_1_PYPDF_SCA_FINDINGS.md) are TRIAGED;
+  remediation and a clean independently reviewed rerun are required before
+  release. Existing PDF-parser containment does not clear this blocker.
 - Changes described above preserve the existing job row and legacy status
   projections. New evidence/state tables are additive; package migration
   acceptance remains pending.
