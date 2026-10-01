@@ -1,7 +1,8 @@
 # ASTRA project state
 
-**Snapshot date:** 2026-10-01 (Asia/Dubai), refreshed for the issue #48
-v1.1 release-assurance pass (local branch, not pushed) and the PR #77 merge.
+**Snapshot date:** 2026-10-02 (Asia/Dubai), refreshed for Owner-authorized
+Codex corrections to issue #48 after Claude Code reached its usage limit.
+The branch is local and unpushed; the release remains BLOCKED.
 The 2026-09-29 refresh (PR #75, #46.2-C v3 blind FAIL) and the #46 closeout
 below remain historical evidence.
 **Rule:** This is a handoff snapshot, not a substitute for live verification.
@@ -517,7 +518,10 @@ the git snapshot above. The C outcome is unchanged: NOT VALIDATED.
 **#47 (progress dashboard) is not merged.** It is draft
 [PR #78](https://github.com/SoSwag5/ASTRA/pull/78) at head
 `4a13fc83bee7bd594b61f2ad1b830594a523f742`, awaiting independent review. Its
-follow-ups A, B and C are local, stacked and unpushed.
+follow-ups A, B and C are local, stacked and unpushed. The latest local
+visual/motion revision is `772fe7e87586720d9db6bed06cb1a12d3af14649`, on
+`feature/47-visual-motion`, with scoped frontend/browser review. It is also
+unmerged; PR #78's older checks do not validate that revision.
 
 **#48 (v1.1 release assurance) has a first pass, local and unpushed.** It is
 on `governance/48-v1.1-assurance` in the worktree
@@ -533,6 +537,12 @@ session, and anything that depends on #47 is marked BLOCKED, not assessed.
 
 **Next actions:**
 
+- Codex now owns the remaining #48 local corrections, explicitly requested
+  by the Owner on 2026-10-02 after Claude stopped at its weekly limit.
+  The separate-clone review of `fbbafe4` found a guard overclaim and unfinished
+  release drafts. Corrections and source-bound results are recorded in the
+  latest session handoff. Do not describe Codex's own corrections as
+  independently approved.
 - Independent Codex review of `governance/48-v1.1-assurance` at its exact
   commit before any push, pull request or merge.
 - Never push or merge `research/46.2-c-blind-eval` from the local checkout, or
@@ -566,6 +576,10 @@ session, and anything that depends on #47 is marked BLOCKED, not assessed.
   worktrees.
 
 ## Session handoff: #48 v1.1 release assurance (first pass)
+
+This is the historical Claude first pass. Its AI-guard claim was challenged
+as R48-1 and corrected by the Owner-authorized Codex continuation below;
+the old counts and verification claims remain tied to the old source.
 
 The previous handoff (#46.2-C v3 closeout documentation) is complete: it
 merged as PR #77 (`22642e8`). Its text remains in the history of this file
@@ -674,3 +688,27 @@ at that commit.
 - **Exact next action:** independent Codex review of
   `governance/48-v1.1-assurance` at its exact commit. Publication, a pull
   request and any merge wait for that review and for the Owner.
+
+## Session handoff: #48 Owner-authorized Codex continuation (2026-10-02)
+
+- **Owner and authority:** Codex is the sole implementation owner for these
+  local corrections after the Owner's "you proceed". Claude stopped at its
+  usage limit. No second process owns this branch.
+- **Branch / base:** `governance/48-v1.1-assurance`, in the existing
+  `astra-48-release-assurance` worktree, starting at
+  `fbbafe433ecbcf4b21f5c494dea285390cd30ad0`. Claude's commits are preserved.
+- **Scope:** assurance test corrections, truthful threat/inventory claims,
+  release-document drafts and evidence recording. Production code, dependencies,
+  schemas, preview, live data, private labels and other worktrees are protected.
+- **Current evidence:** 74 corrected assurance/gate tests pass; the original
+  lazy-import bypass is rejected. Committed-source reruns and final SHA are
+  recorded at completion in the
+  [local validation record](../release/V1_1_0_LOCAL_ASSURANCE_VALIDATION.md).
+- **Owner decisions:** R-16/17/18, two-account scope, threat/framework approval,
+  release approval and publication remain reserved. No acceptance is inferred
+  from authorization to correct tests and documents.
+- **Review:** the prior separate-clone review found R48-1 and R48-2. Verification
+  of Codex's own correction is self-verification; independent re-review of the
+  corrected exact commit remains pending.
+- **Next action:** finish committed-source local verification and hand off the
+  exact SHA and remaining release prerequisites. No push, merge, tag or publish.

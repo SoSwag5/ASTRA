@@ -20,6 +20,7 @@ or Owner data is used.
 import ast
 import csv
 import io
+import importlib.util
 import json
 import os
 import re
@@ -443,15 +444,84 @@ _AI_MODULES = ('backend.providers', 'backend.ai_usage', 'backend.role_understand
                'openai', 'anthropic', 'ollama', 'google.generativeai', 'transformers')
 
 
-def test_mailbox_and_state_modules_cannot_reach_an_ai_provider(tmp_path):
-    """TM-10 (AI email classification) is not applicable only while no
-    mailbox or state module can reach a model. Importing every Gmail,
-    reconciliation and application-state module -- including any added later
-    -- must load none of the AI modules. Adding one needs its own
-    threat-model delta first."""
+def _declared_ai_imports(source, module_name):
+    """Find known AI imports at any nesting level, including literal dynamic
+    imports. This is a source-dependency check, not runtime reachability."""
+    tree = ast.parse(source)
+    importlib_names = {'importlib'}
+    loader_names = {'__import__'}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            importlib_names.update(alias.asname or alias.name for alias in node.names
+                                   if alias.name == 'importlib')
+        elif isinstance(node, ast.ImportFrom) and not node.level and node.module == 'importlib':
+            loader_names.update(alias.asname or alias.name for alias in node.names
+                                if alias.name == 'import_module')
+    candidates = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            candidates.extend((alias.name, node.lineno) for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            base = node.module or ''
+            if node.level:
+                base = importlib.util.resolve_name('.' * node.level + base,
+                                                   module_name.rpartition('.')[0])
+            candidates.append((base, node.lineno))
+            candidates.extend((base + '.' + alias.name, node.lineno) for alias in node.names)
+        elif isinstance(node, ast.Call):
+            loader = (isinstance(node.func, ast.Name) and node.func.id in loader_names)
+            loader |= (isinstance(node.func, ast.Attribute)
+                       and node.func.attr == 'import_module'
+                       and isinstance(node.func.value, ast.Name)
+                       and node.func.value.id in importlib_names)
+            if loader and node.args and isinstance(node.args[0], ast.Constant):
+                name = node.args[0].value
+                if isinstance(name, str):
+                    if name.startswith('.'):
+                        name = importlib.util.resolve_name(name, module_name.rpartition('.')[0])
+                    candidates.append((name, node.lineno))
+    return [(name, line) for name, line in candidates
+            if any(name == banned or name.startswith(banned + '.') for banned in _AI_MODULES)]
+
+
+@pytest.mark.parametrize('source,blocked', [
+    ('def classify():\n    from backend.providers import provider\n', True),
+    ('def classify():\n    from . import providers as model\n', True),
+    ('def classify():\n    from .providers import provider\n', True),
+    ('def classify():\n    import backend.ai_usage as usage\n', True),
+    ('def classify():\n    from openai import OpenAI\n', True),
+    ('def classify():\n    from google import generativeai\n', True),
+    ('class Parser:\n    def classify(self):\n        import ollama\n', True),
+    ('if False:\n    import backend.role_understanding\n', True),
+    ('import importlib\ndef classify():\n    importlib.import_module("backend.providers")\n', True),
+    ('import importlib as loader\ndef classify():\n    loader.import_module("openai")\n', True),
+    ('from importlib import import_module as load\ndef classify():\n    load("ollama")\n', True),
+    ('def classify():\n    __import__("backend.providers")\n', True),
+    ('import json\ndef parse():\n    from . import gmail_content\n', False),
+    ('message = "import openai"\n# from backend.providers import provider\n', False),
+    ('import openair\n', False),
+])
+def test_ai_dependency_guard_detects_nested_and_literal_dynamic_imports(source, blocked):
+    """The original guard missed the lazy import reproduced by R48-1.
+    Check that such a source change is rejected without executing it, while
+    email strings, comments and unrelated imports remain allowed."""
+    assert bool(_declared_ai_imports(source, 'backend.gmail_fictional_probe')) is blocked
+
+
+def test_mailbox_and_state_sources_have_no_declared_ai_imports_or_import_time_ai_dependencies(tmp_path):
+    """TM-10: check declared known AI imports (including inside functions)
+    and import-time dependencies. Computed dynamic imports, transitive lazy
+    dependencies and complete runtime reachability require separate review;
+    this guard does not establish that all possible paths are AI-free."""
     modules = sorted('backend.' + p.stem for pattern in ('gmail_*.py', 'application_*.py')
                      for p in (ROOT / 'backend').glob(pattern))
     assert 'backend.gmail_sync' in modules and 'backend.application_reconciliation' in modules
+    violations = []
+    for module in modules:
+        path = ROOT / 'backend' / (module.rsplit('.', 1)[1] + '.py')
+        violations.extend((module, name, line) for name, line in
+                          _declared_ai_imports(path.read_text(encoding='utf-8'), module))
+    assert not violations, violations
     script = ('import importlib, sys\n'
               f'for name in {modules!r}: importlib.import_module(name)\n'
               f'loaded = [m for m in {_AI_MODULES!r} if m in sys.modules or '

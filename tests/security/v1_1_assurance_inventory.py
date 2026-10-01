@@ -395,8 +395,9 @@ REQUIREMENTS = [
               + _t(OAUTH_SECRETS, 'test_full_local_deletion_removes_gmail_credential_access')},
     {'id': 'TM-AI-EMAIL-GUARD', 'source': 'Threat delta TM-10 (not yet applicable)', 'risks': ['R-17'],
      'abuse_cases': ['TM-10'],
-     'requirement': 'No Gmail, reconciliation or application-state module can reach an AI provider until a threat-model delta approves one.',
-     'tests': _t(ASSURANCE, 'test_mailbox_and_state_modules_cannot_reach_an_ai_provider')},
+     'requirement': 'Current mailbox/state sources declare no known AI imports, including inside functions, and load no AI module at import time. This dependency guard does not prove complete runtime reachability; introducing AI classification still requires a threat-model delta.',
+     'tests': _t(ASSURANCE, 'test_mailbox_and_state_sources_have_no_declared_ai_imports_or_import_time_ai_dependencies',
+                 'test_ai_dependency_guard_detects_nested_and_literal_dynamic_imports')},
 ]
 
 

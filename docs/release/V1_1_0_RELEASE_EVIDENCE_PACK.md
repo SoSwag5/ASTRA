@@ -13,8 +13,12 @@ from another SHA or from v1.0.0.
   the PR #77 merge, plus the #48 branch `governance/48-v1.1-assurance`. The
   branch adds tests and documentation only. Its exact commit is given in
   the review handoff.
-- **Independent reviewer:** not yet assigned. Codex review of the #48 branch
-  at its exact commit is the next step.
+- **Review and ownership:** Codex reviewed `fbbafe433ecbcf4b21f5c494dea285390cd30ad0`
+  in a separate clone and found R48-1 (an import-time guard overstated as
+  runtime reachability) and R48-2 (unfinished draft release documentation).
+  On 2026-10-02 the Owner directed Codex to continue after Claude's usage
+  limit. Codex owns the local corrections. Their verification is
+  self-verification; independent re-review of the corrected commit is pending.
 
 ## 1. Candidate identity
 
@@ -47,7 +51,10 @@ from another SHA or from v1.0.0.
 | — | #46.2-A/B/C (manual Start Scan, responsiveness, source research, C closeout) | #71, #73, #74, #75, #77 | Mixed; see PROJECT_STATE |
 
 - **Not yet included:** #47 progress dashboard (draft PR #78, awaiting
-  review) and its follow-ups A/B/C (local, unpushed). OD-013 requires a
+  review) and its follow-ups A/B/C plus the local visual revision
+  `772fe7e87586720d9db6bed06cb1a12d3af14649` (unmerged and unpushed). The
+  visual revision has scoped UI/browser review evidence; neither that evidence
+  nor PR #78's older CI validates this release source. OD-013 requires a
   basic progress dashboard in v1.1.0, so the candidate cannot freeze without
   #47.
 - **Scope gap, Owner decision required.** OD-013 says the final v1.1.0
@@ -85,8 +92,9 @@ from another SHA or from v1.0.0.
 |---|---|---|---|
 | Python tests (full) | Hosted CI, Python 3.13 and 3.14, `22642e8` | success | [CI run 36590869577](https://github.com/SoSwag5/ASTRA/actions/runs/36590869577) |
 | Python tests (full, #48 branch) | Local, Windows, Python 3.13.2 | Reported in the review handoff | Session handoff in `docs/governance/PROJECT_STATE.md` |
-| v1.1 consolidated security suite | Local, Windows, Python 3.13.2, `22642e8` plus #48 tests | 517 passed, 0 failed, 0 errors, 0 skipped | `python -m pytest -m v1_1_assurance` |
+| v1.1 consolidated security suite (initial pass) | Claude, local Windows, `a37b4c3` test source | 517 passed, 0 failed, 0 errors, 0 skipped | `python -m pytest -m v1_1_assurance`; corrected-source rerun in the [local validation record](V1_1_0_LOCAL_ASSURANCE_VALIDATION.md) |
 | Frontend tests / production build | Hosted CI, `22642e8` | success (inside the test jobs) | CI run 36590869577 |
+| Frontend tests / production build (local #48) | Codex independent clone, `fbbafe4`, Node 24.21.0, lockfile install | All six test scripts and build PASS; existing large-bundle warning | Prior review handoff; current rerun recorded in the local validation record |
 | Targeted regressions | See section 4 | — | — |
 | Clean install / startup / restart | — | **NOT RUN for v1.1** (needs a built candidate) | — |
 | Upgrade / rollback | Schema-level tests only | pass (in the suites above) | `tests/test_application_state.py` |
@@ -97,10 +105,10 @@ from another SHA or from v1.0.0.
 |---|---|---|
 | CodeQL / SAST | success on `22642e8` (python, javascript-typescript, actions) | CI run 36590869577. A successful job is not a zero-findings result. Code-scanning alert triage for the candidate: **NOT RUN** |
 | Security regression suite | pass | `tests/security/` runs in hosted CI. The v1.1 consolidated suite is listed in `tests/security/v1_1_assurance_inventory.py` |
-| Negative tests required by ADR-0007/0008/0009 and the threat-model delta | **All exist and pass** | 36 requirements mapped to 229 named test functions, covering all ten abuse cases. Before #48, four ADR-0009/0008 controls had no direct test; #48 added them with no product code change. See the [threat-model delta](../security/THREAT_MODEL_CHANGE_V1_1_DISCOVERY_GMAIL.md#issue-48-as-built-reconciliation-2026-10-01) |
+| Negative tests required by ADR-0007/0008/0009 and the threat-model delta | Initial suite PASS; corrected-source results in the local validation record | 36 requirements mapped to 230 named test functions, covering all ten abuse cases. The original AI guard's reachability overclaim was corrected; it checks declared known imports and import-time dependencies, with explicit limits. No product code changed. See the [threat-model delta](../security/THREAT_MODEL_CHANGE_V1_1_DISCOVERY_GMAIL.md#issue-48-as-built-reconciliation-2026-10-01) |
 | Input, SSRF, CSRF/Origin/Host, session, logging, parser checks | pass for the v1.1 paths | A new test walks the live route table: every private route keeps the Origin, cross-site, access-key and demo-mode guards. SSRF on the legacy SmartRecruiters and generic fetch path remains R-01 |
 | ASVS applicable Level 1 blockers | none: 40 PASS, 30 N/A, 0 PARTIAL/FAIL | `scripts/release_security_gate.py` `assess_asvs()` returns no blockers on the updated mapping |
-| Manual security review | Claude Code self-review for #48 | Independent review: **pending** |
+| Manual security review | Claude Code self-review; Codex review of `fbbafe4` | R48-1/R48-2 required corrections. Owner-authorized Codex corrections are self-verified; independent re-review is pending |
 
 **Open findings and residuals:** no new security finding. Known residuals are
 R-16, R-17 and R-18 (section 8) and the existing R-01, R-12, R-13, R-14 and
@@ -110,7 +118,9 @@ defects.
 ## 5. Composition and dependencies
 
 - **Python and npm SCA:** `sca` job success on `22642e8` (CI run
-  36590869577). Re-run at the candidate: **NOT RUN**.
+  36590869577). Local dependency reruns are recorded in the
+  [validation record](V1_1_0_LOCAL_ASSURANCE_VALIDATION.md). Re-run at the
+  frozen complete release candidate: **NOT RUN**.
 - **Dependency Review:** runs only on pull requests; it passed on the
   approved head of each v1.1 PR. For the candidate: **NOT RUN**.
 - **Lockfiles:** `requirements.txt`, `requirements.lock.txt`,
@@ -135,7 +145,10 @@ evidence. No SLSA claim is made for v1.1.0.
 - **Publication gate:** run on a single-branch clone of the #48 commit;
   result in the handoff. The repository-wide gate scans every local ref
   and is BLOCKED by known historical private-path findings on unpublished
-  local branches. It is not weakened or bypassed here.
+  local branches. Codex independently ran the unmodified gate and the
+  deferred publication regression on a single-branch clone of `fbbafe4`:
+  PASS, zero findings. This is candidate-branch history evidence; it does
+  not authorize other local branches or replace an archive scan.
 - **Release archive scan:** **NOT RUN** (no archive).
 - **Synthetic data:** every #48 test uses fictional names, hosts and
   sentinels. No Owner data, mailbox content or live credential was used.
@@ -238,12 +251,14 @@ for v1.1.
      independent review and Owner approval.
   5. No hosted candidate build, SBOM, provenance, attestation verification,
      clean install or release-gate run exists for v1.1.0.
-  6. The changelog's `[Unreleased]` section covers only #45, #46 and
-     governance; #37–#44 and #46.2 are missing, and no release notes exist.
-  7. CodeQL alert triage and Dependency Review at the candidate are NOT RUN.
-- **Independent reviewer conclusion:** pending.
-- **Release notes / changelog reviewed:** No (blocking reason 6). One stale
-  changelog statement was corrected: #46 was independently reviewed.
+  6. CodeQL alert triage and Dependency Review at the candidate are NOT RUN.
+- **Independent reviewer conclusion:** R48-1/R48-2 found on `fbbafe4`;
+  independent re-review of the corrected commit remains pending.
+- **Release notes / changelog:** the [unreleased draft](V1_1_0_RELEASE_NOTES_DRAFT.md)
+  and `[Unreleased]` changelog now cover #37–#46 and #46.2's included scope,
+  distinguish unmerged #47/offline-model work and describe package validation
+  as NOT RUN. These drafts require reconciliation with the frozen release
+  and Owner review; they do not establish shipped behavior.
 
 ## 12. Explicit Owner approval
 
