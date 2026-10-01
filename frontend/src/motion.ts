@@ -10,10 +10,11 @@
  */
 import {flushSync} from 'react-dom';
 
-export type TransitionKind = 'page' | 'section' | 'dismiss' | 'theme';
+export type TransitionKind = 'page' | 'section' | 'dismiss' | 'theme' | 'layout';
 export type Direction = 'forward' | 'back';
 
-type TransitionDocument = Document & {startViewTransition?: (update: () => void) => {finished: Promise<void>}};
+type ViewChange = {finished: Promise<void>; ready: Promise<void>; skipTransition: () => void};
+type TransitionDocument = Document & {startViewTransition?: (update: () => void) => ViewChange};
 
 export function motionReduced(): boolean {
   if (typeof document === 'undefined') return true;
@@ -26,6 +27,22 @@ export function supportsViewTransitions(): boolean {
 }
 
 let current = 0;
+let active: {view: ViewChange; apply: () => void} | undefined;
+
+/** The next interaction takes priority over a decorative snapshot. */
+export function installMotionInterrupts(): () => void {
+  const finish = () => active?.view.skipTransition();
+  const events = ['pointerdown', 'keydown', 'wheel'] as const;
+  events.forEach(event => document.addEventListener(event, finish, {capture: true, passive: true}));
+  const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const changed = () => { if (preference.matches) finish(); };
+  preference.addEventListener('change', changed);
+  return () => {
+    events.forEach(event => document.removeEventListener(event, finish, {capture: true}));
+    preference.removeEventListener('change', changed);
+    finish();
+  };
+}
 
 /**
  * Run `update` exactly once, animated when possible, then `after` once the
@@ -34,20 +51,30 @@ let current = 0;
  */
 export function transition(kind: TransitionKind, update: () => void, direction: Direction = 'forward', after?: () => void): void {
   const doc = document as TransitionDocument;
-  if (!supportsViewTransitions() || motionReduced() || document.visibilityState !== 'visible') {
-    update();
-    if (after) requestAnimationFrame(after);
-    return;
-  }
   const root = document.documentElement;
   const ticket = ++current;
+  // A skipped transition still invokes its update callback. Commit it now,
+  // once, so it cannot overwrite a newer synchronous/reduced-motion update.
+  active?.apply();
+  active?.view.skipTransition();
+  active = undefined;
+  delete root.dataset.vt;
+  delete root.dataset.vtDirection;
+  if (!supportsViewTransitions() || motionReduced() || document.visibilityState !== 'visible') {
+    flushSync(update);
+    after?.();
+    return;
+  }
   root.dataset.vt = kind;
   root.dataset.vtDirection = direction;
   let ran = false;
-  const apply = () => { if (!ran) { ran = true; flushSync(update); after?.(); } };
+  const apply = () => { if (!ran) { ran = true; flushSync(update); if (ticket === current) after?.(); } };
   try {
-    doc.startViewTransition!(apply).finished.catch(() => {}).finally(() => {
-      if (ticket === current) { delete root.dataset.vt; delete root.dataset.vtDirection; }
+    const view = doc.startViewTransition!(apply);
+    active = {view, apply};
+    view.ready.catch(() => {}); // Skipping animation is a normal interaction.
+    view.finished.catch(() => {}).finally(() => {
+      if (ticket === current) { active = undefined; delete root.dataset.vt; delete root.dataset.vtDirection; }
     });
   } catch {
     delete root.dataset.vt; delete root.dataset.vtDirection;

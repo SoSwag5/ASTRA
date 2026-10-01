@@ -172,10 +172,11 @@ export function RailBar({rail, kind, labelledBy}: {rail: M.Rail; kind: 'progress
     ? {role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': rail.max, 'aria-valuenow': Math.min(rail.value ?? 0, rail.max), 'aria-valuetext': rail.valueText, 'aria-labelledby': labelledBy}
     : {role: 'img', 'aria-label': rail.valueText};
   return <div className={'rail' + (rail.live ? ' is-live' : '')} {...a11y}>
-    <span className="rail-fill">
+    {kind === 'progress' ? <span className={'rail-progress-fill rail-seg ' + (rail.segments[0]?.tone || 'series')}
+      style={{'--rail-ratio': Math.max(0, Math.min(1, (rail.value ?? 0) / rail.max))} as React.CSSProperties}/> : <span className="rail-fill">
       {rail.segments.map(segment => <span key={segment.key} className={'rail-seg ' + segment.tone} style={{flexGrow: segment.count}}/>)}
       {rest > 0 && <span className="rail-rest" style={{flexGrow: rest}}/>}
-    </span>
+    </span>}
   </div>;
 }
 

@@ -69,3 +69,24 @@ labels, selected weight, borders and colours retain all state information.
 Verification results belong to the session evidence record, not this design
 contract. Token contrast checks cover specified pairs, not an accessibility
 certification of the entire application.
+
+## Research-led refinement (2026-10-01)
+
+The [research and 20-point audit](UI_UX_RESEARCH_AUDIT.md) explains the product
+decisions and sources. Content surfaces enter in 320ms with at most 96ms of
+stagger, including content mounted after a request. They do not replay when
+existing data refreshes or when a user types. The sidebar uses native layout
+snapshots; tabs retain their controls while the chosen content enters.
+
+New input interrupts snapshots, and superseded update callbacks cannot undo
+newer navigation or focus. Snapshot overlays do not consume pointer input.
+Loading sheen uses a moving pseudo-element for three cycles before settling.
+Determinate progress fills interpolate their transform between actual recorded
+fractions; the text and accessible value update immediately. Browsers without
+`@starting-style` still show the correct initial fraction and subsequent updates.
+Reduced motion suppresses the new entrances, rail interpolation and hover lift.
+
+Today and Applications use structured loading placeholders. Scrollbar space is
+reserved, overlays contain overscroll, mobile fields use at least 16px type,
+and browser titles track the current page. These refinements introduce no
+new dependency, remote asset, backend behavior or policy change.

@@ -55,6 +55,57 @@ const vm = require('node:vm');
     }
     ok(S.initialTheme({getItem: () => {throw Error('disabled')}}) === 'light', 'storage failure falls back safely');
     ok(motion.directionBetween(['Today', 'Progress', 'Jobs'], 'Jobs', 'Today') === 'back', 'backward navigation has backward motion');
+    // Reproduce deferred native callbacks, including a change to reduced
+    // motion before an old callback runs. The latest intent must win.
+    const doc = new EventTarget();
+    doc.documentElement = {dataset: {}};
+    doc.visibilityState = 'visible';
+    const preference = new EventTarget();
+    preference.matches = false;
+    global.document = doc;
+    global.window = {matchMedia: () => preference};
+    const pending = [];
+    doc.startViewTransition = apply => {
+      let finish;
+      const item = {apply, skips: 0, resolve: () => finish()};
+      pending.push(item);
+      return {ready: Promise.resolve(), finished: new Promise(resolve => {finish = resolve}), skipTransition: () => {item.skips++;}};
+    };
+    const changes = [], focused = [];
+    motion.transition('page', () => changes.push('first'), 'forward', () => focused.push('first'));
+    motion.transition('page', () => changes.push('second'), 'forward', () => focused.push('second'));
+    pending[1].apply(); pending[0].apply();
+    ok(changes.join() === 'first,second', 'superseded callbacks apply once and cannot overwrite latest intent');
+    ok(focused.join() === 'second', 'superseded navigation does not steal focus');
+    ok(pending[0].skips === 1, 'previous visual is cancelled');
+    pending[0].resolve(); await new Promise(resolve => setImmediate(resolve));
+    ok(doc.documentElement.dataset.vt === 'page', 'old completion cannot clear the new transition');
+    const remove = motion.installMotionInterrupts();
+    for (const event of ['pointerdown', 'keydown', 'wheel']) doc.dispatchEvent(new Event(event));
+    ok(pending[1].skips === 3, 'click keyboard and wheel all interrupt the snapshot');
+    preference.matches = true; preference.dispatchEvent(new Event('change'));
+    ok(pending[1].skips === 4, 'live OS preference cancels motion');
+    remove();
+    const count = pending[1].skips;
+    doc.dispatchEvent(new Event('pointerdown'));
+    ok(pending[1].skips === count, 'interrupt listeners are removed on cleanup');
+    preference.matches = false;
+    motion.transition('page', () => changes.push('third'));
+    doc.documentElement.dataset.motion = 'reduced';
+    motion.transition('page', () => changes.push('reduced'), 'forward', () => focused.push('reduced'));
+    pending[2].apply();
+    ok(changes.slice(-2).join() === 'third,reduced', 'deferred callback cannot roll back reduced-motion navigation');
+    ok(!doc.documentElement.dataset.vt && focused.at(-1) === 'reduced', 'reduced navigation has immediate focus and no transition state');
+    delete doc.documentElement.dataset.motion;
+    doc.startViewTransition = () => {throw Error('unsupported surface')};
+    motion.transition('page', () => changes.push('fallback'));
+    ok(changes.at(-1) === 'fallback' && !doc.documentElement.dataset.vt, 'native API failure preserves the change');
+    delete doc.startViewTransition;
+    motion.transition('page', () => changes.push('unsupported'));
+    ok(changes.at(-1) === 'unsupported', 'unsupported browser updates synchronously');
+    pending.forEach(item => item.resolve());
+    await new Promise(resolve => setImmediate(resolve));
+    delete global.document; delete global.window;
     console.log(`${checks} visual evidence and preference checks passed.`);
   } finally { await server.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

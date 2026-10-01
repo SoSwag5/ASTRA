@@ -392,12 +392,15 @@
 [dir=rtl] .rail-fill { transform-origin: right; }
 .rail-seg, .rail-rest { flex: 0 0 0; min-width: 0; }
 .rail-seg { background: var(--viz-series); }
+.rail-progress-fill { position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--rail-ratio)); transition: transform var(--motion-fill) var(--ease-standard); }
+[dir=rtl] .rail-progress-fill { transform-origin: right; }
+@starting-style { .rail-progress-fill { transform: scaleX(0); } }
 .rail-seg:first-child { border-start-start-radius: var(--radius-pill); border-end-start-radius: var(--radius-pill); }
 .rail-seg:last-child { border-start-end-radius: var(--radius-pill); border-end-end-radius: var(--radius-pill); }
 .rail-rest { background: transparent; }
-.rail.is-live .rail-seg:last-of-type { background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent); background-size: 200% 100%; animation: rail-live 1.6s linear infinite; }
+.rail.is-live::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent); transform: translateX(-100%); animation: rail-live 1.6s linear 3; }
 @keyframes rail-reveal { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-@keyframes rail-live { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@keyframes rail-live { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 
 .rail-seg.series, .swatch.series { background-color: var(--viz-series); }
 .rail-seg.series-2, .swatch.series-2 { background-color: var(--viz-series-2); }

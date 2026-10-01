@@ -130,6 +130,7 @@
   --motion-base: 200ms;
   --motion-slow: 280ms;
   --motion-page: 260ms;
+  --motion-surface: 320ms;
   --motion-fill: 420ms;
   --motion-distance: 10px;
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);

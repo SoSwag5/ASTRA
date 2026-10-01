@@ -113,6 +113,14 @@ html[data-motion=reduced] .app:has(.activity.is-active) > main > header::after {
 .progress-refresh button { min-inline-size: 8.5rem; }
 .save-actions > .primary { min-inline-size: 10rem; }
 button, a, summary, input, select { touch-action: manipulation; }
+html { scrollbar-gutter: stable; }
+.detail, .dialog, .confirm-dialog { overscroll-behavior: contain; }
+.pagetitle h1, .campaign-heading h2 { text-wrap: balance; }
+.panel p, .rail-meaning, .settings-head p { text-wrap: pretty; }
+@media (hover: hover) and (pointer: fine) {
+  .primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--shadow-2); }
+  .primary:active:not(:disabled) { transform: translateY(1px); box-shadow: var(--shadow-1); }
+}
 h1, h2, [id$="-title"] { scroll-margin-top: 5rem; }
 .textbtn { color: var(--action-text); font-weight: var(--weight-medium); }
 input, textarea, select { border-radius: var(--radius-sm); background: var(--surface-input); color: var(--ink-1); }
@@ -217,6 +225,8 @@ summary { color: var(--ink-2); }
   .app > main > header { padding: var(--space-2) var(--space-4); }
   .activity { inset-block-start: auto; inset-block-end: var(--space-4); inset-inline-end: var(--space-4); }
   .toast { inset-inline: var(--space-3); bottom: var(--space-3); max-width: none; }
+  .toast, .activity { margin-bottom: env(safe-area-inset-bottom, 0px); }
+  input:not([type=checkbox]):not([type=radio]), select, textarea { font-size: max(1rem, var(--text-md)); }
 }
 @media (max-width: 600px) {
   .app > main > header { height: auto; min-height: 64px; gap: var(--space-2); }

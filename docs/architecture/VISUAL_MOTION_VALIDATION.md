@@ -78,3 +78,49 @@ P2: a composition with exactly one stage/outcome hid the visible legend.
 The corrected candidate displays its label and count even for one segment,
 with two additional rendering regressions (single rejected stage and all-failed
 scan). Re-review and the corrected exact SHA are recorded in the task handoff.
+
+## Research-led follow-up — 2026-10-01
+
+Starting SHA: `01c92453d4179523805c7b09954a29a013a6dffe` on
+`feature/47-visual-motion`. The Owner requested research into polished AI-built
+interfaces, a 20-mistake audit, and implementation. Sources, application to all
+20 items and deliberate limits are in [the research audit](UI_UX_RESEARCH_AUDIT.md).
+
+Changes: content entrances and capped staggering, keyed tab content, animated
+desktop navigation layout, interruptible native transitions with ordered
+callbacks, structured Today/Applications loading, transform-based rail updates
+and finite sheen, scrollbar reservation, mobile input sizing, safe-area offsets,
+overlay overscroll containment and current browser titles. Existing palette,
+evidence semantics, draft safeguards and reduced-motion choices remain in use.
+No dependencies or backend files changed.
+
+Executed on Node 24.21.0 using the existing installed lockfile dependencies:
+
+- Full frontend test command: all 11 scripts passed, including **56 visual and
+  preference checks** (11 new interruption/callback regressions) and **156
+  contrast pairs**. The other suites passed with the counts recorded above.
+- Production type-check and build: passed, 1,607 modules. The existing mixed
+  static/dynamic import warning for `access.tsx` remains nonblocking.
+- Fresh Chromium matrix: **164 assertions passed**, covering all seven main
+  pages and all seven Settings sections at 1440 light/dark, 390 light/dark
+  and 320 light; loading/retry, dialogs, focus, More tools and reduced motion.
+- Additional motion/reflow run: **32 assertions passed**. Real pointer clicks
+  25ms apart retained the final destination and focus; delayed content exposed
+  actual entrance animations; sidebar and tabs responded; frame samples
+  captured the rail moving between recorded one-quarter and one-half values;
+  live OS reduced motion stopped movement and hover lift. Progress/Appearance
+  also fit 1024, 840, 720, 390 and 320px. Resting Today had no active animation.
+- Action/lifecycle run: **11 assertions passed** on copied fictional data:
+  stable busy button, refused save with draft retained, real local successful
+  save, saved target, mocked scan status progression/end, and fallback focus.
+- No JavaScript page errors or external requests in the main matrix. The
+  additional motion run issued no non-GET requests. Scan status was simulated;
+  no scan, Gmail, CV or AI operation ran. Screenshots, frame samples and video
+  remain outside the repository.
+
+Browser coverage is Chromium on this Windows machine, not Safari/iOS or a
+human screen-reader audit. No universal frame-rate or zero-layout-shift claim
+is made. Backend and hosted security checks were not rerun for frontend-only
+changes. Exact commit, scoped privacy scan, independent review and served-asset
+verification are recorded in the final task handoff. Nothing was pushed,
+merged, tagged or published.

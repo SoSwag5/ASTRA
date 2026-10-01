@@ -1,5 +1,25 @@
 # ASTRA project state
 
+## Research-led motion follow-up (2026-10-01, Asia/Dubai)
+
+Codex continues the Owner-authorized sole implementation of issue #47 on
+`feature/47-visual-motion`, from `01c92453d4179523805c7b09954a29a013a6dffe`.
+The [20-point research audit](../architecture/UI_UX_RESEARCH_AUDIT.md) informed
+new content, sidebar, tab and progress motion, interruption safety and loading
+refinements. This remains a compatible frontend-only v1.1 visual change, with
+no new dependency, backend behavior, security boundary, ADR or release decision.
+
+The frontend suites/build, 164 browser-matrix checks, 32 motion/reflow checks
+and 11 action/lifecycle checks passed on isolated fictional data. See the
+[validation record](../architecture/VISUAL_MOTION_VALIDATION.md) for coverage
+and limits. This candidate still requires its bounded independent review and
+final served-asset verification, recorded in the task handoff after commit.
+
+GitHub rechecked on 2026-10-01: issue #47 is open; PR #78 remains open/draft at
+`4a13fc83bee7bd594b61f2ad1b830594a523f742`. That older hosted state does not
+validate this local candidate. No push, merge, publication or release is
+authorized; other worktrees and private evaluation material remain untouched.
+
 ## Local visual candidate update (2026-09-30, Asia/Dubai)
 
 The Owner explicitly assigned Codex sole implementation ownership of
