@@ -151,7 +151,7 @@ function RailCard({id, icon, title, rail, kind, action}: {id: string; icon: Reac
     <div className="rail-top">{icon}<h3 id={id}>{title}</h3>{rail.live && <span className="live-chip"><i aria-hidden/>Live</span>}</div>
     <p className={'rail-headline' + (rail.available ? '' : ' is-words')}>{rail.headline}</p>
     <RailBar rail={rail} kind={kind} labelledBy={id}/>
-    {rail.available && rail.segments.length > 1 && <ul className="rail-legend">{rail.segments.map(segment =>
+    {rail.available && rail.segments.length > 0 && (kind === 'composition' || rail.segments.length > 1) && <ul className="rail-legend">{rail.segments.map(segment =>
       <li key={segment.key}><i className={'swatch ' + segment.tone} aria-hidden/>{segment.label}<strong>{segment.count}</strong></li>)}</ul>}
     <p className="rail-meaning">{rail.meaning}</p>
     {rail.note && <p className="rail-note">{rail.note}</p>}

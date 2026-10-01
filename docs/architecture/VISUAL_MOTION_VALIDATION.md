@@ -31,7 +31,7 @@ presentation-only revision. Existing risks remain unchanged.
   fallbacks; three sorting modes; 9 safe-link scenarios; 117 Gmail OAuth safety
   checks; 4 Stop states; single-flight polling and 5 estimate texts;
   46 Progress rendering/wording checks; 30 Settings checks; 29 Gmail operations
-  checks. Added **43** visual evidence/preference checks and **156** palette
+  checks. Added **45** visual evidence/preference checks and **156** palette
   contrast pairs across light and dark.
 - `npm run build`: PASS, 1,607 modules. Existing warning: `access.tsx` has both
   static and dynamic imports, so the dynamic import does not split a chunk.
@@ -69,3 +69,12 @@ worktree, bounded remediation if necessary, and final loopback preview/asset
 verification recorded in the task. Publication and release decisions stay
 with the Owner. This implementation report does not independently approve
 its own code.
+
+## Bounded independent-review correction
+
+A separate read-only reviewer independently tested and built initial visual
+SHA `c64a5b9249922592cf531b38a6d8e31c1e593bc2`. Its synthetic render found one
+P2: a composition with exactly one stage/outcome hid the visible legend.
+The corrected candidate displays its label and count even for one segment,
+with two additional rendering regressions (single rejected stage and all-failed
+scan). Re-review and the corrected exact SHA are recorded in the task handoff.

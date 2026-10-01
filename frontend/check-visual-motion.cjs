@@ -42,6 +42,9 @@ const vm = require('node:vm');
     ok(!M.scanRail(null, latest).available, 'failed status read does not silently show stale completion');
     ok(!M.scanRail({}, {run: {telemetry: {funnel: {}, sources_attempted: 4}}}).available, 'missing source outcomes cannot claim zero successes');
     ok(!M.scanRail({}, {status: 'NO_DATA'}).available, 'no scan is not zero completion');
+    const single = renderToStaticMarkup(React.createElement(V.Glance, {data: {applications: {current: {total: 3, states: {REJECTED: 3}, complete: true}}}, savedCampaign: null, scanStatus: {}, latest: {run: {telemetry: {funnel: {}, sources_attempted: 4, sources_succeeded: 0, sources_partial: 0, sources_failed: 4}}}, goTo: () => {}}));
+    ok(/<ul class="rail-legend">[\s\S]*?Rejected<strong>3<\/strong>/.test(single), 'single-stage composition has a visible label and count');
+    ok(/<ul class="rail-legend"><li[^>]*><i[^>]*><\/i>Failed<strong>4<\/strong>/.test(single), 'all-failed scan has a visible outcome and count');
     for (const [values, expected] of [[{}, 'light'], [{theme: 'dark'}, 'dark'], [{theme: 'light'}, 'light'], [{theme: 'system'}, 'system'], [{theme: 'dark', themeChoice: 'light'}, 'light'], [{themeChoice: 'invalid'}, 'light']]) {
       const storage = {getItem: key => values[key] ?? null};
       ok(S.initialTheme(storage) === expected, 'saved preference preserved or new browser light');
