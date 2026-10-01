@@ -146,3 +146,10 @@ Chromium). It passed **16 two-click scenarios / 48 assertions** at the four
 intervals, desktop/mobile, light/dark: latest destination, focus and cleanup.
 The 32 motion/reflow checks also passed again. The broader matrix and final
 asset/re-review results for the corrected exact SHA are in the task handoff.
+
+The broader rerun also exposed delayed controlled-radio acknowledgement when
+theme selection was deferred through a native transition. Theme state now
+updates synchronously; live surface color transitions provide the fade. The
+committed browser regression adds four immediate-theme scenarios, bringing
+its total to **20 scenarios / 60 assertions**, all passed. Full frontend tests
+and build passed again. No backend or data policy changed in either correction.

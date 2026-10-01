@@ -75,7 +75,7 @@ function App(){
  const dark=SM.resolveTheme(theme,prefersLight)==='dark';
  useEffect(()=>{document.documentElement.dataset.theme=dark?'dark':'light';document.querySelector('meta[name="theme-color"]')?.setAttribute('content',dark?'#0d1220':'#f6f3ee')},[dark]);
  // Only a person's own choice is stored; a new browser starts light.
- const chooseTheme=(next:SM.ThemePreference)=>{SM.writePreference(SM.THEME_CHOICE_KEY,next);transition('theme',()=>setTheme(next))};
+ const chooseTheme=(next:SM.ThemePreference)=>{SM.writePreference(SM.THEME_CHOICE_KEY,next);setTheme(next)};
  useEffect(()=>{const query=window.matchMedia?.('(prefers-color-scheme: light)');if(!query)return;const change=()=>setPrefersLight(query.matches);query.addEventListener?.('change',change);return()=>query.removeEventListener?.('change',change)},[]);
  useEffect(()=>{if(motion==='reduced')document.documentElement.dataset.motion='reduced';else delete document.documentElement.dataset.motion;SM.writePreference('motion',motion)},[motion]);
  // Unsaved Settings edits: in-app navigation asks first, and closing the tab

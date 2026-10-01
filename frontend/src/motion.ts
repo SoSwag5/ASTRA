@@ -1,7 +1,7 @@
 /**
  * Transitions between whole views (#47 visual revision).
  *
- * Page changes, Settings section changes, theme changes and closing a drawer
+ * Page changes, Settings section changes, layout changes and closing a drawer
  * or dialog run inside a View Transition, so the old view is a still image
  * that leaves while the new one arrives: nothing old stays mounted, no effect
  * or request runs twice, and focus and scroll are handled by the update
@@ -10,7 +10,7 @@
  */
 import {flushSync} from 'react-dom';
 
-export type TransitionKind = 'page' | 'section' | 'dismiss' | 'theme' | 'layout';
+export type TransitionKind = 'page' | 'section' | 'dismiss' | 'layout';
 export type Direction = 'forward' | 'back';
 
 type ViewChange = {finished: Promise<void>; ready: Promise<void>; skipTransition: () => void};

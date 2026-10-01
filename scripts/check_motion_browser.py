@@ -42,6 +42,20 @@ def main():
                 assert page.locator('#workspace-main h1').evaluate('(el) => el === document.activeElement'), label + ': latest focus lost'
                 assert page.locator('html').get_attribute('data-vt') is None, label + ': stale transition'
                 checks.append(label)
+            page.locator('aside').get_by_title('Settings', exact=True).click()
+            page.wait_for_timeout(500)
+            if width <= 1000:
+                page.locator('.settings-select select').select_option('appearance')
+            else:
+                page.get_by_role('navigation', name='Settings sections').get_by_role('button', name='Appearance', exact=True).click()
+            page.wait_for_timeout(500)
+            choice = 'dark' if theme == 'light' else 'light'
+            radio = page.locator(f'input[name=theme][value={choice}]')
+            radio.check()
+            assert radio.is_checked(), 'theme selection must acknowledge immediately'
+            assert page.locator('html').get_attribute('data-theme') == choice, 'theme applied'
+            assert page.evaluate("localStorage.getItem('themeChoice')") == choice, 'theme preference saved'
+            checks.append(f'{width}/{theme}/immediate-theme')
             context.close()
         browser.close()
     assert not errors, errors

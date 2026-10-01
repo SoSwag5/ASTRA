@@ -57,7 +57,7 @@ html[data-vt=dismiss] .confirm-dialog { view-transition-name: confirm; }
 ::view-transition-old(dialog), ::view-transition-old(confirm) { animation: vt-dialog-leave var(--motion-base) var(--ease-exit) both; }
 
 /* Theme changes colour on live surfaces, retaining working controls. */
-html[data-vt=theme] :is(body, .app > aside, .app > main > header, .panel, .rail-card, .settings-card) {
+:is(body, .app > aside, .app > main > header, .panel, .rail-card, .settings-card) {
   transition: background-color var(--motion-slow) var(--ease-standard), color var(--motion-slow) var(--ease-standard), border-color var(--motion-slow) var(--ease-standard);
 }
 
