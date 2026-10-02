@@ -4,12 +4,12 @@ _Generated from `backend.evaluation`'s canonical machine-readable output -- not 
 
 - Corpus: `2026-09-15.4` (80 cases, 12 query sets, 3 UNCLEAR)
 - Code: assessment schema `fit-assessment-2`, ruleset `fit-rules-2`, taxonomy `career-tracks-1`, experience parser `experience-2`
-- Evaluated commit: `f55f645ae5a7a75220c77e8e1f9732424b456a28`
-- Evaluated tree: `bed12ffc1916c0d4e25fb27cceb5a56743e443cb`
+- Evaluated commit: `89d5e03daacfe494b954c5e2b37d09aece107eee`
+- Evaluated tree: `7f866a980850daa2b9cf685b6d2bc76b41174e49`
 - Report snapshot: evaluated_commit and evaluated_tree_hash are informational Git diagnostics only; the versioned input manifest and report_payload_sha256 are the authoritative, durable provenance contract.
 - Engine/view: `compare` / `BASELINE`
-- Input manifest: `docs/evaluation/fit_evaluation_provenance_v1.json` (`006aa38ce2626006d19b2ad29f421853d4d50e61f1197e37a0682a60001f906d`)
-- Report payload SHA-256: `1068d32f742c3586bdc54f8aff0aa201de54520535dba9f176a4b39b0f5bba58`
+- Input manifest: `docs/evaluation/fit_evaluation_provenance_v1.json` (`cbae5a3352e3ea2d6cb7a79ce2dd97cda47457335c8a235e0765e20bbec78c16`)
+- Report payload SHA-256: `55550f155e314842f25002bc9669840584b082c6b84901cde1a5c1f56ad39954`
 
 > **Reference labels are Owner-adjudicated (reference_status OWNER_ADJUDICATED); this is the repository Owner's individual review and rationale recorded per case (see docs/evaluation/FIT_LABEL_REVIEW.md), not a multi-human consensus or independently human-labelled benchmark.** Score means ranking priority, never a probability or hiring likelihood. These results measure this corpus only -- not global web recall -- and provider coverage in the corpus is metadata, never a quality signal. Bucket thresholds and component weights remain provisional (issue #41); running this harness changes no production default.
 

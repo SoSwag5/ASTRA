@@ -31,6 +31,15 @@ own source commit without changing the candidate.
   actual `query` field. Both failures are retained in Owner-local QA; the corrected
   run uses a dedicated temporary directory: **64 passed in 30.71 seconds**.
   No failed run is relabelled as PASS.
+- The first complete beta-content run returned 2,159 passes, one existing skip,
+  three failures and twelve errors. One failure correctly rejected unpublished
+  personal commit metadata; a separate public candidate now uses no-reply identity.
+  The other failures/errors caught the public fictional #42 evaluation manifest's
+  stale dependency-lock hash after pypdf remediation. Only that lock hash was
+  refreshed; the other 17 inputs, labels, policies and recipe remained unchanged.
+  The report was regenerated and provenance-verified, with all substantive
+  results unchanged. The private #46.2-C evaluation is untouched. A fresh complete
+  run and hosted checks are required for the corrected candidate.
 
 Fresh complete tests, packaged installation, CodeQL triage, dependency review,
 repository controls, SBOM validation and hosted attestation verification are
