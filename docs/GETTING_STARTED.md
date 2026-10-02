@@ -70,7 +70,7 @@ in this beta, and live confirmation accuracy remains unvalidated.
 |---|---|
 | Python is missing | Use the official link above, retain the launcher, then run Install ASTRA again. |
 | Installation/download/hash failure | Keep the error visible. Check internet access and try again; never disable antivirus or remove hash checks. |
-| Port 8787 is already in use | Stop the existing ASTRA using **its own** stop.bat. Do not terminate an unfamiliar process. |
+| Port 8787 is already in use, or a different/older ASTRA is running | http://localhost:8787 shows whichever ASTRA copy is running. Double-click **stop.bat** in that copy's own folder, then open the downloaded version with its Open ASTRA.bat. Do not terminate an unfamiliar process. |
 | Browser did not open | Try http://localhost:8787 after the launcher reports it is running. If it failed, keep the error for a fictional bug report. |
 | CV facts are missing | Use a text PDF, correct extracted facts manually and confirm only accurate information. |
 | No suitable jobs | Check configured boards, career focus and filters. Coverage and ranking are still beta limitations. |

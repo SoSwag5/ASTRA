@@ -1,6 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
 $pidPath = Join-Path $projectRoot '.runtime\server.json'
+$stopped = $false
 if (Test-Path $pidPath) {
     $record = Get-Content -Raw $pidPath | ConvertFrom-Json
     $process = Get-Process -Id $record.pid -ErrorAction SilentlyContinue
@@ -12,7 +13,11 @@ if (Test-Path $pidPath) {
             if ($child.CommandLine -like '*uvicorn*backend.main:app*') { Stop-Process -Id $child.ProcessId }
         }
         Stop-Process -Id $process.Id -ErrorAction SilentlyContinue
+        $stopped = $true
     }
     Remove-Item -LiteralPath $pidPath
 }
-Write-Output 'ASTRA stopped.'
+if ($stopped) { Write-Output 'ASTRA stopped.'; exit 0 }
+# This stop.bat only stops the copy started from its own folder.
+Write-Output 'No ASTRA started from this folder is running. Nothing was stopped.'
+Write-Output 'If http://localhost:8787 still opens, another ASTRA copy is running: double-click stop.bat in that copy''s folder.'
