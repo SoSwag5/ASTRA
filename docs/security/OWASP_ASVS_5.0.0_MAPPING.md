@@ -79,7 +79,7 @@ The `tests/security/test_v1_1_assurance.py` checks keep the JSON, CSV and
 this summary in agreement. They also fail if any row again denies the OAuth
 client that exists. This delta asserts no ASVS level and no certification.
 
-## Current dependency delta (2026-10-02)
+## Historical #48 dependency delta (2026-10-02, before beta remediation)
 
 A strict current pip-audit rerun reports six advisories on pypdf 6.18.0. Row
 15.2.1 is now PARTIAL, with fresh scan/triage evidence and an explicit remediation
@@ -88,3 +88,8 @@ and requirement text are unchanged. The gate must reject this mapping until the
 current component evidence is resolved. This is incomplete verification, not a
 claim that a measured remediation deadline has already expired. See the
 [finding records](V1_1_PYPDF_SCA_FINDINGS.md).
+
+The beta remediation supersedes this historical paragraph: 15.2.1 is PASS on
+current local component evidence, with **40 PASS and 30 N/A** at Level 1.
+All official requirement IDs, levels and text remain unchanged. The finding
+history and beta evidence distinguish remediation from independent closure.
