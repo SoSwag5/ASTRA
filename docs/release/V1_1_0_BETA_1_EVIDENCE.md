@@ -51,7 +51,21 @@ Codex owns this release integration by explicit Owner instruction. Self-verifica
 of new changes is not independent assurance. The post-release cloud review is
 requested separately and remains pending until actually performed.
 
-## Scope that remains open
+## Tooling correction after the first hosted candidate
+
+Candidate `3a9554097626ca04756156ca4e8f2a25d8135e11` passed both hosted Python
+matrices (2,174 passed and one existing skip each), package build, clean Windows
+installation and attestation verification. It was **not published**. Default-branch
+Scorecard and refreshed Dependabot results identified three urllib3 advisories
+in the separate assurance lock. That candidate is superseded.
+
+The narrow tooling change upgrades urllib3 2.7.0 to 2.8.0, hash-installs a fresh
+tools environment, and adds strict assurance-lock SCA to CI alongside product SCA.
+See [the three finding records](../security/BETA_ASSURANCE_TOOLING_FINDINGS.md).
+The application dependency lock and fictional evaluation results are unchanged.
+All final source/artifact checks must execute on a fresh corrected candidate.
+
+## Final v1.1 and product-validation scope that remains open
 
 The beta permission in OD-013 does not make final v1.1 requirements complete.
 Two-account Gmail validation, live matching accuracy, R-16/17/18 Owner decisions,

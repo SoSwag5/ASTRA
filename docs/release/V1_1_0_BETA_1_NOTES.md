@@ -24,6 +24,8 @@ The beta is not a standalone signed Windows installer.
   confirmation parsing and review-first application reconciliation.
 - Release-assurance inventory and guard regressions; updated pypdf 6.19.0 to
   remediate six reported dependency advisories without ignoring them.
+- Audited both Python dependency locks; updated the separate assurance tools to
+  urllib3 2.8.0 after three tooling advisories were found during release review.
 - Ten fictional PDF-upload scenarios across business, AI, international relations,
   finance and cybersecurity, including failed-upload preservation. These test
   import safety and review behaviour, not cross-career ranking quality.

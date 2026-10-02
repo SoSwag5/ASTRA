@@ -8,6 +8,13 @@ unexecuted gates into PASS. The #47 and #48 states below are dated history;
 their source changes are now integrated locally in this preparation branch.
 Original worktrees, private evaluation material and v1.0.0 are preserved.
 
+PR #79 integrated the initial beta source into master as `a193235ef8180466a1580b311bf334bf7521ada5`.
+Its exact-source tests, installation and provenance passed, but default-branch
+Scorecard then found three urllib3 advisories in the separate tooling lock.
+Publication remains BLOCKED while the narrow 2.8.0 tooling correction, expanded
+CI audit and a fresh source-bound candidate are verified. The initial ZIP is
+superseded and must not be published or substituted for the new artifact.
+
 The beta-specific [evidence record](../release/V1_1_0_BETA_1_EVIDENCE.md) and
 [release notes](../release/V1_1_0_BETA_1_NOTES.md) are the current preparation
 context. New pypdf remediation, version plumbing and cross-major import checks

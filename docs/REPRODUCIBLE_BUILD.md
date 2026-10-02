@@ -19,6 +19,10 @@ This audits every explicit pin. Hash verification happens during pip installatio
 `--disable-pip` avoids resolver/environment contamination in the audit. Nonzero results
 must be investigated: findings and tool/network failures are both blocking, never zero findings.
 
+Also run the same strict audit against `requirements-assurance.lock.txt`.
+CI audits both locks: a clean product result cannot hide a vulnerable build or
+verification tool. Keep the two JSON reports separate and review both.
+
 Frontend: `npm ci`, `npm test`, `npm run build`, `npm audit --audit-level=low`.
 SBOM: hash-install `requirements-assurance.lock.txt` into a separate tools
 environment, then run its Python with `scripts/generate_sbom.py --python
