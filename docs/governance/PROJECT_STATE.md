@@ -1,42 +1,38 @@
 # ASTRA project state
 
-## Active beta 2 correction — 2 October 2026 (Asia/Dubai)
+## Published beta 2 — 2 October 2026 (Asia/Dubai)
 
-PR #83 is merged at `396a51588a66d7e468a7957806ff0b13159577b9`.
-Its source tree matches frozen implementation `911e154199b93182281a631bf74c446ce685541a`.
-All 232 focused tests and both hosted complete matrices passed; installation,
-SBOM/provenance and exact-artifact technical review passed without publication.
-Codex now owns `release/1.1.0-beta.2` from that integration commit for a final
-documentation-only correction: matching downloads and conditional availability
-wording prevent shipped beginner instructions from claiming the release is
-still unpublished. App code and public evaluation results are unchanged.
-The earlier ZIP is superseded; regenerate the final source-bound package and
-checks. Exact ending SHA/digest and final outcomes are recorded in the PR and
-Owner evidence pack. Owner publication approval remains pending.
+**v1.1.0-beta.2 is public** after the Owner explicitly approved its exact frozen
+source and ZIP digest. [Download and customer instructions](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.2)
+and the [release record](../release/V1_1_0_BETA_2_RELEASE_RECORD.md) supersede the
+preparation snapshot. Frozen tag: `c1b805241888f4499afab3d30df5d97a0f428f36`.
+ZIP SHA-256: `251386acf6ffdfb9a85466889a7196a411700fe2c8fe998db1fe8e55675e8e62`.
+PRs #83 and #84 merged; integrated master `8cdbb893d9481fd7e4ab16ba5da86c9a15142ae4`
+has the same source tree. An anonymous download and all 20 public asset digests
+match the reviewed files; public provenance and SBOM verification pass.
 
-Owner: Codex, explicitly assigned implementation here by Ayham. Branch:
-`fix/beta-2-remediation`, isolated worktree of the same name. Base:
-`87c2f9260d74a5578021ee767ecdc30d67f66fd8`. Scope: the supplied beta review
-summary, simpler rule-based setup, custom-only career focus, safe PDF import,
-browser-origin correction, novice launch instructions and fictional cross-major
-workflow tests. Change class: compatible early-beta security/functional patch,
-`1.1.0-beta.2`. Other worktrees, Owner data, protected evaluations and published
-beta 1/v1.0 artifacts remain preserved. No AI superiority claim is made. The
-public fictional evaluation provenance needs its changed services-file hash
-refreshed and report regenerated; its labels/policies and private evaluation
-material are preserved.
+Codex owns the explicitly requested implementation and technical self-review.
+This is not independent approval. Both final hosted complete test suites pass
+2,199 tests with one existing skip; the exact candidate's five mandatory jobs
+and final review gate pass. Rule-based is recommended/default, with optional AI
+in advanced Settings. Five-step setup, custom-only roles, CV fact review,
+optional tracker, scan control, PDF/origin corrections and fictional CV workflows
+are implemented and regression-tested. B2-01/B2-02 are not independently CLOSED.
 
-See [candidate evidence](../release/V1_1_0_BETA_2_EVIDENCE.md) and
-[finding/threat/framework delta](../security/BETA_2_REVIEW_REMEDIATION.md).
-Code tests are self-verification, not independent approval. Complete source-bound
-checks, packaged review and exact-source/digest Owner approval remain necessary.
-Beta 2 is not published. Brother-PC/live provider/Gmail validation and final
-issue #48 scope remain open. The published beta download below is still beta 1.
+Codex now owns `docs/beta-2-release-record` from the integrated master above to
+record publication and refresh dated state/checklist/planning copy. Released
+source/assets and beta 1/v1.0 are preserved; runtime, risk acceptance, protected
+evaluations and live Owner data are unchanged. Ending SHA and documentation-PR
+checks are recorded in the PR/task, without changing the frozen release.
 
-Next action: complete browser/full-suite/package checks, freeze the source,
-create the reviewable PR/evidence pack, and obtain the remaining release decision.
+Final v1.1/#48 remains open: R-16/17/18, optional Gmail live/account validation,
+broad matching quality and another-PC novice acceptance are incomplete. There
+is no controlled evidence of AI superiority. The next step is the
+[public ZIP pre-LinkedIn checklist](../release/PRE_LINKEDIN_CHECKLIST.md), then
+the [bounded future-update plan](../planning/BETA_FOLLOWUP_CHECKLIST.md).
 
-## Published beta — 2 October 2026
+## Historical beta 1 publication — 2 October 2026
+
 
 **v1.1.0-beta.1 is public**, under the Owner's explicit push/release instruction.
 [Download and evidence](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.1)

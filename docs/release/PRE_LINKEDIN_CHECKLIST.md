@@ -1,8 +1,9 @@
 # Before you announce ASTRA on LinkedIn
 
-Use the version people can actually download. Beta 2 is a candidate until its
-exact-source/artifact checks and Owner release decision are complete. Do not
-announce its fixes as shipped while the download still serves beta 1.
+Use [v1.1.0-beta.2 from GitHub](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.2).
+Its exact-source/artifact checks and Owner release decision are complete.
+The public download matches the approved ZIP. Automated verification does not
+replace the new-user and another-PC checks below.
 
 ## Test it as a new user
 
