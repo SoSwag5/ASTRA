@@ -6,9 +6,10 @@ access are needed to install it. Git, Node and a paid AI account are not require
 
 ## 1. Download and unpack
 
-**This branch describes the unpublished beta 2 candidate.** Until beta 2 is
-published, use the [published beta 1 release](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.1).
-Its ZIP does not contain the beta 2 setup and review corrections described here.
+**These instructions are for beta 2.** Choose the version shown on your download's
+release page. If beta 2 is not available yet, [beta 1 remains available](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.1);
+use [its matching guide](https://github.com/SoSwag5/ASTRA/blob/v1.1.0-beta.1/docs/GETTING_STARTED.md).
+That ZIP does not contain the beta 2 setup and review corrections described here.
 
 Visit [the beta release](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.2).
 Under **Assets**, select **astra-1.1.0-beta.2.zip**. Do not select **Source code**.

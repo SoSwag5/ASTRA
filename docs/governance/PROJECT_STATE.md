@@ -2,6 +2,18 @@
 
 ## Active beta 2 correction — 2 October 2026 (Asia/Dubai)
 
+PR #83 is merged at `396a51588a66d7e468a7957806ff0b13159577b9`.
+Its source tree matches frozen implementation `911e154199b93182281a631bf74c446ce685541a`.
+All 232 focused tests and both hosted complete matrices passed; installation,
+SBOM/provenance and exact-artifact technical review passed without publication.
+Codex now owns `release/1.1.0-beta.2` from that integration commit for a final
+documentation-only correction: matching downloads and conditional availability
+wording prevent shipped beginner instructions from claiming the release is
+still unpublished. App code and public evaluation results are unchanged.
+The earlier ZIP is superseded; regenerate the final source-bound package and
+checks. Exact ending SHA/digest and final outcomes are recorded in the PR and
+Owner evidence pack. Owner publication approval remains pending.
+
 Owner: Codex, explicitly assigned implementation here by Ayham. Branch:
 `fix/beta-2-remediation`, isolated worktree of the same name. Base:
 `87c2f9260d74a5578021ee767ecdc30d67f66fd8`. Scope: the supplied beta review
