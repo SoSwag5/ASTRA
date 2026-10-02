@@ -1,6 +1,8 @@
 # Beta 2 candidate evidence and publication boundary
 
-**Candidate, not published.** Codex implements and self-verifies the review
+**Preparation snapshot — 2 October 2026.** This record was authored before
+publication; the matching release page is authoritative for the final source,
+artifact identity, executed checks and publication state. Codex implements and self-verifies the review
 corrections at the Owner's instruction. Source begins at
 `87c2f9260d74a5578021ee767ecdc30d67f66fd8` on `fix/beta-2-remediation`.
 The final evidence pack must name the frozen source commit and exact ZIP digest;
@@ -54,6 +56,13 @@ A second focused run retained 231 passes and caught ordering differences caused
 by rendering sorted JSON directly. Rendering from the canonical recipe restored
 the expected document ordering. Both previously failing report/CLI checks then
 passed. No test or integrity guard was relaxed.
+
+The corrected code candidate passed all 232 focused checks and both hosted
+complete suites (2,199 passed, one existing skip per Python version), clean
+Windows installation and exact-artifact technical review. PR #83 merged with an
+unchanged source tree. A final documentation-only correction makes customer
+download instructions work both before and after publication; the final package
+and required source-bound checks are regenerated rather than substituting bytes.
 
 Corrected complete-suite and exact-package results are recorded in the source-
 bound PR/evidence pack after execution. Configured hosted workflows are not

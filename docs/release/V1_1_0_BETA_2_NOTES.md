@@ -1,6 +1,6 @@
 # ASTRA v1.1.0-beta.2 — an easier start, with rule-based matching
 
-**Unpublished early-beta candidate for Windows x64.** ASTRA helps graduates
+**Early beta for Windows x64.** ASTRA helps graduates
 review a CV, find opportunities on configured public company boards, prepare
 application documents and track the next step. You check the facts and apply
 on the employer's website yourself.

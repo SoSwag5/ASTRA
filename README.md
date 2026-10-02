@@ -6,19 +6,20 @@ ASTRA brings job discovery, CV review, application preparation and follow-up
 tracking into one local workspace. Built by Ayham, a cybersecurity graduate,
 as an AI-assisted personal portfolio project with documented security controls.
 
-**Early beta · v1.1.0-beta.2 candidate (not yet published).** Expect rough edges. Features and validation are
+**Early beta · v1.1.0-beta.2.** Expect rough edges. Features and validation are
 still developing; this is not a production assurance or universal matching claim.
 **You review facts and submit applications yourself.**
 
-[**Download the Windows beta ZIP**](https://github.com/SoSwag5/ASTRA/releases/download/v1.1.0-beta.1/astra-1.1.0-beta.1.zip)
+[**Download the Windows beta 2 ZIP**](https://github.com/SoSwag5/ASTRA/releases/download/v1.1.0-beta.2/astra-1.1.0-beta.2.zip)
 · [Installation guide](docs/GETTING_STARTED.md)
-· [Upcoming beta changes](docs/release/V1_1_0_BETA_2_NOTES.md)
+· [Beta 2 changes](docs/release/V1_1_0_BETA_2_NOTES.md)
 · [Roadmap](docs/ROADMAP.md)
 · [Report a bug](https://github.com/SoSwag5/ASTRA/issues/new/choose)
 
-The download above is the published **beta 1**. The beta 2 improvements on this
-branch are not yet in that ZIP. Each release page identifies its shipped source,
-checksum and executed assurance evidence.
+Choose the version available on its release page. The beta 2 download becomes
+available when that release is published. [Beta 1 remains available](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.1),
+but its ZIP does not include the beta 2 corrections. Each release page identifies
+its shipped source, checksum and executed assurance evidence.
 
 ## What you can do
 
@@ -46,7 +47,7 @@ The ZIP includes the built interface. **Release users need no Git, Node, paid
 AI subscription or administrator access for ASTRA.** This beta is a Python-based
 ZIP application, not a standalone signed Windows installer.
 
-1. Download **astra-1.1.0-beta.1.zip** from the beta release's Assets section.
+1. Download **astra-1.1.0-beta.2.zip** from the matching release's Assets section.
    GitHub's automatically generated **Source code** downloads are for developers.
 2. Right-click the ZIP, choose **Extract All**, and open the extracted `astra` folder.
 3. Open **START HERE.html**. If needed, follow its official Python installation link.
