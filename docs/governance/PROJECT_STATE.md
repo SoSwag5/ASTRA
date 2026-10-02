@@ -1,5 +1,27 @@
 # ASTRA project state
 
+## Published beta — 2 October 2026
+
+**v1.1.0-beta.1 is public**, under the Owner's explicit push/release instruction.
+[Download and evidence](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.1)
+and the [immutable release record](../release/V1_1_0_BETA_1_RELEASE_RECORD.md)
+supersede the preparation-state paragraphs below. The tag points to
+`29d70d5ca004d75f0e421aea6174a30b0cd39ce3`; its verified ZIP SHA-256 is
+`baa0bc339f5f575b250ef9147dc9e37cfaa8c352a0ef7184a14b3e23f3ce559f`.
+The final gate passed on that same artifact, and a public re-download matched.
+The tooling correction merged through PR #81; all three Dependabot alerts are
+FIXED. Issue #47 is closed; superseded tooling PR #80 is closed.
+
+Codex implemented the release integration and performed technical self-review;
+this is not independent approval or a human evidence sign-off. The Claude cloud
+review prompt, LinkedIn draft/captions, dated source comparison, cross-major
+import tests and another-PC checklist are prepared. The actual cloud review,
+brother-PC acceptance and final CV AWS/photo edits remain pending. Issue #48
+stays open: final v1.1's second-account/live validation and R-16/17/18 decisions
+are not completed by publishing this early beta. v1.0.0 is unchanged.
+
+## Historical beta preparation
+
 **Active release preparation: v1.1.0-beta.1, Owner-authorized on 2026-10-02.**
 Codex owns the isolated release branch. The Owner requested push/public beta
 publication, easier installation, a cloud review prompt and career-facing drafts.

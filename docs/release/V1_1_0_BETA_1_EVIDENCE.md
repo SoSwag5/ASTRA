@@ -1,5 +1,10 @@
 # Beta 1 evidence and publication boundary
 
+**Post-publication update, 2026-10-02:** the corrected beta is public. The
+[release record](V1_1_0_BETA_1_RELEASE_RECORD.md) binds the published tag, ZIP,
+executed checks and final gate. Preparation and failed-run history below remains
+intact; it must not be mistaken for the final published outcome.
+
 This source record accompanies release preparation on 2026-10-02. It does not
 claim that a workflow has executed merely because it is configured. The release
 page and its attached reports are authoritative for the final source SHA, artifact
