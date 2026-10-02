@@ -4,6 +4,12 @@ The roadmap communicates direction rather than a release promise. Scope and
 timing remain Owner decisions. Open 8-15 meaningful issues when a milestone
 starts; do not pre-create a large speculative backlog.
 
+**Current beta snapshot (2 October 2026):** beta 1 is public; beta 2 is an
+unpublished correction candidate, and final v1.1 assurance remains incomplete.
+Use the [detailed next-update checklist](planning/BETA_FOLLOWUP_CHECKLIST.md)
+for current A–H status and proposed patches. The milestone snapshots below are
+historical direction; their NOT STARTED wording is not current beta status.
+
 ## Reprioritization (2026-09-13)
 
 The Owner reprioritized this roadmap after real-world use of `v1.0.0`. The

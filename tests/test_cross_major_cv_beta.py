@@ -50,12 +50,7 @@ with TestClient(app) as client:
     assert profile['name'] == 'Fictional Graduate' and profile['confirmed'] is False
     assert profile['declarations']['extraction_state'] == 'EXTRACTED — NEEDS CONFIRMATION'
     assert profile['email'] == 'UNKNOWN' and profile['phone'] == 'UNKNOWN'
-    if case['heading'] == 'TECHNICAL SKILLS':
-        assert {s['text'] for s in profile['skills']} == set(case['skills'].split(', '))
-    else:
-        # The current parser does not infer facts from arbitrary headings.
-        # Preserve original text and require corrections; never invent skills.
-        assert profile['skills'] == []
+    assert {s['text'] for s in profile['skills']} == set(case['skills'].split(', '))
     bad = client.post('/api/import/cv',files={'file':('fictional-bad.pdf',b'%PDF-1.4\n/JavaScript (x)\n%%EOF','application/pdf')})
     assert bad.status_code in (400,422), bad.status_code
     after = client.get('/api/profile').json()

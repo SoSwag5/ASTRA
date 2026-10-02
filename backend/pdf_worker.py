@@ -34,9 +34,12 @@ def main():
     from pypdf import PdfReader
     reader=PdfReader(sys.argv[1],strict=True)
     if reader.is_encrypted or len(reader.pages)>100: raise ValueError('Unsupported document')
+    from .pdf_policy import require_inert_pdf
+    require_inert_pdf(reader)
     sections=[]; size=0
     for page in reader.pages:
-        value=page.extract_text() or ''; size+=len(value)
+        # PDF painting order can differ from its visible reading order.
+        value=page.extract_text(extraction_mode='layout',layout_mode_space_vertically=False) or ''; size+=len(value)
         if size>200_000: raise ValueError('Text limit exceeded')
         sections.append(value)
     sys.stdout.buffer.write(json.dumps({'text':'\n'.join(sections)},ensure_ascii=True).encode('utf-8'))

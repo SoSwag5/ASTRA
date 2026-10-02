@@ -234,3 +234,16 @@ summary { color: var(--ink-2); }
 .sidebar-collapsed .more-toggle > span { display: none; }
 .sidebar-collapsed .more-toggle { justify-content: center; gap: 2px; }
 .sidebar-collapsed .more-toggle .chevron { margin-inline-start: 0; }
+.wizard { width: min(680px, 95vw); }
+.wizard label, .setup-tracks { text-transform: none; }
+.setup-facts { max-height: 38vh; overflow-y: auto; padding: var(--space-4); background: var(--surface-sunken); border-radius: var(--radius-md); }
+.setup-facts h3 { font-size: var(--text-md); margin-top: var(--space-4); }
+.setup-facts p { margin-block: var(--space-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.setup-actions { margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
+.setup-next { padding-inline-start: var(--space-6); line-height: 1.8; }
+.setup-tracks .check { margin: 0; align-items: flex-start; text-transform: none; }
+.setup-tracks .trackoption { padding: var(--space-4); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
+.setup-tracks details { margin-block: var(--space-2) 0; }
+.setup-tracks summary { font-size: var(--text-sm); }
+.nav-scan-label { display: flex; flex-direction: column; gap: 2px; }
+.nav-scan-label small { font-size: var(--text-xs); color: var(--ink-3); font-weight: 400; }

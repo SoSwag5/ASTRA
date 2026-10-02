@@ -1,3 +1,5 @@
+> Historical v1.0 overview. For the current beta, use the [release record](release/V1_1_0_BETA_1_RELEASE_RECORD.md) and [current threat model](security/THREAT_MODEL.md). No ASVS or SLSA product level is claimed.
+
 # Security Posture
 
 Current verification: [release security assurance report](release/RELEASE_SECURITY_ASSURANCE_REPORT.md).

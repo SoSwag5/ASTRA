@@ -6,8 +6,12 @@ access are needed to install it. Git, Node and a paid AI account are not require
 
 ## 1. Download and unpack
 
-Visit [the beta release](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.1).
-Under **Assets**, select **astra-1.1.0-beta.1.zip**. Do not select **Source code**.
+**This branch describes the unpublished beta 2 candidate.** Until beta 2 is
+published, use the [published beta 1 release](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.1).
+Its ZIP does not contain the beta 2 setup and review corrections described here.
+
+Visit [the beta release](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.2).
+Under **Assets**, select **astra-1.1.0-beta.2.zip**. Do not select **Source code**.
 Right-click the downloaded ZIP → **Extract All** → open the extracted **astra**
 folder. Choose a local folder outside OneDrive or other cloud-synced folders.
 
@@ -45,16 +49,13 @@ each time you want to return. Keep ASTRA local; do not expose its port online.
 
 ## 5. Try the first workflow
 
-1. Open **http://localhost:8787/demo** to explore fictional records first.
-2. In your workspace, choose a career focus and locations.
-3. Upload a **text PDF** CV. Review its name, skills and other facts; correct
-   omissions, then confirm. Scanned/image PDFs and arbitrary headings may not
-   extract properly. In particular, a generic **SKILLS** heading currently does
-   not populate structured skills; review and enter the missing facts yourself.
-4. In Discovery, choose configured sources, press **Start Scan**, review its
-   preview and confirm. You can stop it; nothing scans on startup or on a timer.
-5. Review job evidence and eligibility. Prepare documents, check every claim,
-   open the employer's site and **apply yourself**. Record status and follow-ups.
+1. Open **http://localhost:8787/** for your own workspace. The **/demo** page is an optional sample with made-up jobs. If you are there, choose **Use my own CV** or remove `/demo` from the address. Opening **Open ASTRA.bat** again also opens your workspace.
+2. Complete the five setup steps: upload a text PDF CV, check and correct its extracted facts, confirm them, skip the optional Excel tracker if you do not have one, then save your target jobs. For finance, business or other nontechnical fields, enter custom job titles and leave the technical tracks unchecked.
+3. Keep **rule-based matching**, the recommended default. An AI account, API key or subscription is not needed. Advanced AI settings remain optional and advisory.
+4. Click **Start scanning** on the left. If the board list is empty, add a supported company board using the form on that page. Press **Start scanning now**, review the preview, then **Confirm and start scan**. You can stop it; nothing scans on startup or on a timer.
+5. Review job evidence and eligibility. Prepare documents, check every claim, open the employer's site and **apply yourself**. Record status and follow-ups. **Search elsewhere** opens manual job-site searches when a site cannot be scanned.
+
+CV import supports common headings, including Skills, Summary, Work Experience and Projects. Always review the actual extracted facts. Scanned/image PDFs and complicated layouts remain limitations; use **Correct my profile** for omissions. No application is submitted for you.
 
 Rules mode works without AI. Optional AI commentary is advisory and requires
 separate configuration and approval. Optional Gmail setup requires your own
@@ -91,4 +92,4 @@ mailbox contents, database files and personal paths from logs/screenshots.
   may remain elsewhere. No scheduled task is created or modified by these launchers.
 
 Advanced users can inspect the release's SHA-256 checksum, manifest, SBOM and
-assurance evidence. [Release notes](release/V1_1_0_BETA_1_NOTES.md).
+assurance evidence. [Release notes](release/V1_1_0_BETA_2_NOTES.md).

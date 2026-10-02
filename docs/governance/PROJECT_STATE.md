@@ -1,10 +1,34 @@
 # ASTRA project state
 
+## Active beta 2 correction — 2 October 2026 (Asia/Dubai)
+
+Owner: Codex, explicitly assigned implementation here by Ayham. Branch:
+`fix/beta-2-remediation`, isolated worktree of the same name. Base:
+`87c2f9260d74a5578021ee767ecdc30d67f66fd8`. Scope: the supplied beta review
+summary, simpler rule-based setup, custom-only career focus, safe PDF import,
+browser-origin correction, novice launch instructions and fictional cross-major
+workflow tests. Change class: compatible early-beta security/functional patch,
+`1.1.0-beta.2`. Other worktrees, Owner data, protected evaluations and published
+beta 1/v1.0 artifacts remain preserved. No AI superiority claim is made. The
+public fictional evaluation provenance needs its changed services-file hash
+refreshed and report regenerated; its labels/policies and private evaluation
+material are preserved.
+
+See [candidate evidence](../release/V1_1_0_BETA_2_EVIDENCE.md) and
+[finding/threat/framework delta](../security/BETA_2_REVIEW_REMEDIATION.md).
+Code tests are self-verification, not independent approval. Complete source-bound
+checks, packaged review and exact-source/digest Owner approval remain necessary.
+Beta 2 is not published. Brother-PC/live provider/Gmail validation and final
+issue #48 scope remain open. The published beta download below is still beta 1.
+
+Next action: complete browser/full-suite/package checks, freeze the source,
+create the reviewable PR/evidence pack, and obtain the remaining release decision.
+
 ## Published beta — 2 October 2026
 
 **v1.1.0-beta.1 is public**, under the Owner's explicit push/release instruction.
 [Download and evidence](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.1)
-and the [immutable release record](../release/V1_1_0_BETA_1_RELEASE_RECORD.md)
+and the [release identity record](../release/V1_1_0_BETA_1_RELEASE_RECORD.md)
 supersede the preparation-state paragraphs below. The tag points to
 `29d70d5ca004d75f0e421aea6174a30b0cd39ce3`; its verified ZIP SHA-256 is
 `baa0bc339f5f575b250ef9147dc9e37cfaa8c352a0ef7184a14b3e23f3ce559f`.

@@ -103,7 +103,7 @@ function CareerTracksCard({api, cfg, reload}: {api: Api; cfg: Row; reload: () =>
     return {career_tracks: result.career_tracks, custom_target_roles: S.listToLines(result.custom_target_roles)};
   });
   return <section className="panel settings-card"><h3>Career tracks</h3>
-    <p>The fields you want ASTRA to search. They decide which roles count as a match, which portal searches are suggested and which skills are checked against your CV. Saving also regenerates your target role titles.</p>
+    <p>Choose the jobs you want to search for. These six built-in tracks cover technical careers. For business, finance, international relations or other fields, leave them unchecked and enter custom job titles below. CV signals are suggestions, not qualifications.</p>
     {!loaded ? <p className="muted-line" role="status">Loading career tracks…</p> : <div className="track-grid">{tracks.map(track => {
       const signals = suggestions.find(s => s.id === track.id);
       const on = selected.includes(track.id);
@@ -112,7 +112,8 @@ function CareerTracksCard({api, cfg, reload}: {api: Api; cfg: Row; reload: () =>
         <span><strong>{track.label}</strong>{(signals?.signal_count ?? 0) > 0 && <em className="status-badge">{signals?.signal_count} CV signals</em>}<small>{track.description}</small></span>
       </label>;
     })}</div>}
-    <label>Additional target role titles, one per line<textarea value={card.draft.custom_target_roles} onChange={e => card.set('custom_target_roles', e.target.value)} placeholder="e.g. Graduate Trainee — Technology"/></label>
+    <label>Custom target job titles, one per line<textarea value={card.draft.custom_target_roles} onChange={e => card.set('custom_target_roles', e.target.value)} placeholder={'Financial Analyst\nBusiness Analyst\nPolicy Research Assistant'}/></label>
+    <button className="secondary" disabled={!selected.length} onClick={() => card.set('career_tracks', [])}>Clear technical choices</button>
     <SaveBar state={card} onSave={save} saveLabel="Save career focus"/>
   </section>;
 }

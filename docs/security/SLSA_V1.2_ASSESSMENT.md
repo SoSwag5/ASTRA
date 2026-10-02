@@ -1,11 +1,18 @@
 # SLSA v1.2 release provenance assessment
 
+> Historical candidate assessment, not a current product-level claim. This
+> document's source and digest below belong to an earlier candidate. ASTRA's
+> current beta claims verified signed provenance for its named artifact, with
+> no SLSA Build level or certification claimed. See the
+> [beta release record](../release/V1_1_0_BETA_1_RELEASE_RECORD.md).
+
 Authority: <https://slsa.dev/spec/v1.2/build-requirements> and
 <https://slsa.dev/spec/v1.2/provenance>. Assessment is against the approved v1.2
 **Build track**. The Source track is out of scope for this document.
 
-**Conclusion: SLSA v1.2 Build L2 requirements are assessed as satisfied for this
-candidate. Build L3 is NOT met and is not claimed.**
+**Historical conclusion:** the earlier review assessed L2 requirements for the
+candidate below. This is retained as dated reasoning, not a level claim for the
+current beta. L3 was not met.
 
 ## Candidate under assessment
 
@@ -83,10 +90,12 @@ workstation outside the build, not by re-reading the build job's own output.
 The negative control matters: it shows the verification is bound to the bytes and
 would not pass for a modified artifact.
 
-## Wording permitted by this assessment
+## Historical wording and current limitation
 
-Permitted: "SLSA v1.2 Build L2 requirements assessed as satisfied, verified against
-hosted build provenance for source `b698bfde` / artifact `8113a6ff`."
+The earlier candidate used L2 assessment wording for source `b698bfde` / artifact
+`8113a6ff`. Do not reuse it in current release notes, CV bullets or launch posts.
+Current wording: signed build provenance verified for the exact named source and
+artifact, with scope and limitations stated.
 
 Not permitted: any Build L3 claim, any certification claim, and any level claim for
 an artifact other than the digest recorded above. A changed source commit requires a

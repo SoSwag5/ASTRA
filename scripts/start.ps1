@@ -9,6 +9,11 @@ if (Test-Path $pidPath) {
     $previous = Get-Content -Raw $pidPath | ConvertFrom-Json
     $existing = Get-Process -Id $previous.pid -ErrorAction SilentlyContinue
     if ($existing -and [Math]::Abs(($existing.StartTime.ToUniversalTime() - ([datetime]$previous.started).ToUniversalTime()).TotalSeconds) -lt 1) {
+        $health = Invoke-RestMethod 'http://127.0.0.1:8787/api/health'
+        if ($health.version -ne (Get-Content -Raw (Join-Path $projectRoot 'VERSION')).Trim() -or $health.stale) {
+            throw 'A different or older ASTRA is running. Stop it with its own stop.bat, then open this version again.'
+        }
+        if (-not $NoBrowser) { Start-Process 'http://localhost:8787/' }
         Write-Output 'ASTRA is already running at http://localhost:8787'
         exit 0
     }
@@ -17,6 +22,9 @@ $listener = Get-NetTCPConnection -LocalPort 8787 -State Listen -ErrorAction Sile
 if ($listener) { throw 'Port 8787 is already occupied. Stop the existing app using its own launcher; no process was terminated.' }
 $pythonPath = Join-Path $projectRoot '.venv\Scripts\python.exe'
 & (Join-Path $PSScriptRoot 'protect_local_data.ps1')
+# The normal launcher opens the workspace, without developer trust exceptions.
+$env:ASTRA_DEMO_ONLY = '0'
+$env:ASTRA_DEV_ORIGIN = ''
 $server = Start-Process -FilePath $pythonPath -ArgumentList '-m','uvicorn','backend.main:app','--host','127.0.0.1','--port','8787','--no-access-log' -WorkingDirectory $projectRoot -RedirectStandardOutput (Join-Path $runtimeDir 'server.out.log') -RedirectStandardError (Join-Path $runtimeDir 'server.err.log') -WindowStyle Hidden -PassThru
 @{pid=$server.Id; started=$server.StartTime.ToUniversalTime().ToString('o')} | ConvertTo-Json | Set-Content $pidPath
 for ($attempt=0; $attempt -lt 30; $attempt++) {
