@@ -1,0 +1,53 @@
+{
+  "task": "46.2-D fictional local Ollama smoke test",
+  "date": "2026-09-23",
+  "code_commit": "d91ab032aaeff7108bf72af56795c8ecbb4ff3e4",
+  "code_working_tree_at_run": "clean",
+  "fixture_sha256": "98819de0f1a5d7f3ced15e6298bf83db09df431bb54bc9d8172772c285475d85",
+  "preflight": {
+    "numeric_loopback_listener_only": true,
+    "local_model_tags_and_digests_matched": true,
+    "free_ram_above_local_floor": true,
+    "cloud_disabled_configuration_observed": true,
+    "cloud_disabled_environment_set_at_server_launch": true,
+    "runtime_cloud_egress_independently_measured": false,
+    "blockers": []
+  },
+  "evaluator": {
+    "tag": "qwen3:4b-instruct-2507-q4_K_M",
+    "digest": "0edcdef34593eac1aa2be9c7d06c432dcf81945adca5eca2f27662c18f168ba0",
+    "fictional_postings": 12,
+    "requests_dispatched": 11,
+    "accepted": 4,
+    "evidence_rejected": 7,
+    "input_refused_before_dispatch": 1,
+    "baseline_unchanged_on_every_failure": true,
+    "cases": [
+      {"id": "physical", "reason": "ACCEPTED"},
+      {"id": "cyber_unusual_title", "reason": "EVIDENCE_REJECTED"},
+      {"id": "cyber_security_officer_title", "reason": "ACCEPTED"},
+      {"id": "required_and_preferred", "reason": "EVIDENCE_REJECTED"},
+      {"id": "required_above_stretch", "reason": "ACCEPTED"},
+      {"id": "arabic", "reason": "EVIDENCE_REJECTED"},
+      {"id": "designated_nationals", "reason": "EVIDENCE_REJECTED"},
+      {"id": "nationals_preference", "reason": "EVIDENCE_REJECTED"},
+      {"id": "network_no_nationals_wording", "reason": "EVIDENCE_REJECTED"},
+      {"id": "injection", "reason": "EVIDENCE_REJECTED"},
+      {"id": "injection_delimiter", "reason": "INPUT_REFUSED"},
+      {"id": "data_analyst", "reason": "ACCEPTED"}
+    ]
+  },
+  "embedding": {
+    "tag": "qwen3-embedding:0.6b",
+    "digest": "ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d",
+    "requests_dispatched": 1,
+    "accepted": true
+  },
+  "total_requests_dispatched_to_local_model_endpoints": 12,
+  "harness_exit_code": 1,
+  "harness_outcome": "COMPLETED WITH REJECTIONS OR FAILURES",
+  "model_selected_for_production": false,
+  "live_scan_ran": false,
+  "private_c_labels_or_holdout_opened": false,
+  "raw_posting_or_model_answer_recorded": false
+}

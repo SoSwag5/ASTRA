@@ -131,6 +131,17 @@ merge (#46.2-B v7 source-map closeout) and the #46.2-C v3 blind FAIL, and the
 **Rule:** This is a handoff snapshot, not a substitute for live verification.
 Refresh it at session end when repository or release state changes.
 
+## #46.2-D offline Ollama connector
+
+- Status: reconciled with `master` on a branch for [draft PR #72](https://github.com/SoSwag5/ASTRA/pull/72);
+  not merged until independent review and the Owner decide. Shadow only: nothing in
+  startup, discovery, scan control, ranking, the API or scheduled work imports it
+  (enforced by a test). No model is selected; no live scan ran.
+- Merging D means merging a shadow connector. It does not validate C (v3 failed its
+  blind criterion) or F, and it is not a production rollout.
+- See the [reviewed D report](../evaluation/DISCOVERY_46_2D_REVIEWED_OFFLINE_REPORT.md)
+  for what was rerun and what stays historical.
+
 ## Released product
 
 - Current release: [`v1.0.0`](https://github.com/SoSwag5/ASTRA/releases/tag/v1.0.0),
