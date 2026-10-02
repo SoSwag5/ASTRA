@@ -44,6 +44,13 @@ available, and no independent approval of this remediation is claimed.
   the other 17 inputs, labels, policies and recipe. This is evidence maintenance,
   not a new blind evaluation. Private #46.2-C inputs and labels are untouched.
 
+The regenerated JSON report verifies against the refreshed manifest. Its
+substantive metrics, decisions, calibration comparisons and gate outcomes are
+identical to the prior public report; only commit/tree/manifest/payload provenance
+changes. Refresh the paired Markdown rendering as well. The first focused rerun
+returned 231 passes and one failure because that paired document still carried
+the old provenance header; the guard was preserved and the document corrected.
+
 Corrected complete-suite and exact-package results are recorded in the source-
 bound PR/evidence pack after execution. Configured hosted workflows are not
 evidence they passed. Installation on a brother's PC, live provider coverage,
