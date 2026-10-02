@@ -1,9 +1,9 @@
 import React,{useEffect,useState} from 'react';
 type Row=Record<string,any>;
-export function Recall({api,openJob}:{api:(path:string,method?:string,data?:any)=>Promise<any>,openJob:(j:Row)=>void}){
+export function Recall({api,openJob,refreshKey}:{api:(path:string,method?:string,data?:any)=>Promise<any>,openJob:(j:Row)=>void,refreshKey?:string}){
  const [data,setData]=useState<Row|null>(null),[tab,setTab]=useState('recommendations'),[error,setError]=useState(''),[reason,setReason]=useState(''),[quality,setQuality]=useState(''),[done,setDone]=useState(''),[pending,setPending]=useState<number|null>(null);
  const load=()=>api('/recall').then(setData).catch(e=>setError(e.message));
- useEffect(()=>{load();const timer=setInterval(load,10000);return()=>clearInterval(timer)},[]);
+ useEffect(()=>{load();const timer=setInterval(load,10000);return()=>clearInterval(timer)},[refreshKey]);
  if(!data)return <section className="panel spaced">{error||'Loading discovery evidence…'}</section>;
  const counts=data.latest?.report?.funnel?.counts;
  const rows=data[tab]||[];

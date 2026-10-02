@@ -2,7 +2,7 @@
 
 # ASTRA — Threat Model
 
-*Last reviewed: 2026-09-12. Scope: the local-first ASTRA job-search workspace
+*Last updated: 2026-10-02. Scope: the local-first ASTRA job-search workspace
 (FastAPI + SQLite backend, React/TypeScript frontend, optional AI provider).*
 
 This document is written for technical reviewers. It states what ASTRA protects,
@@ -10,6 +10,13 @@ who might attack it, where the trust boundaries are, and which assumptions are
 explicitly out of scope. Findings and verification evidence live in
 [SECURITY_POSTURE.md](SECURITY_POSTURE.md); residual risks live in
 [../security/RISK_REGISTER.md](../security/RISK_REGISTER.md).
+
+Current v1.1 additions, including primary-account read-only Gmail OAuth,
+mailbox ingestion and application reconciliation, are documented in the
+[Gmail/discovery threat-model delta](security/THREAT_MODEL_CHANGE_V1_1_DISCOVERY_GMAIL.md)
+and [current risk register](security/RISK_REGISTER.md). The older assurance
+report linked above describes a dated v1.0 candidate, not today's release.
+Discovery is manual-only: preview and confirmation are required for each scan.
 
 ## 1. Assets
 
@@ -51,7 +58,7 @@ flowchart LR
         XLSX[Excel tracker + backups]
         CRED[[Windows Credential Manager<br/>DPAPI]]
         PARSE[PDF parser<br/>subprocess + Job Object 512MB]
-        TASK[Windows Scheduled Task<br/>discovery only]
+        SCAN[Manual scan preview<br/>and confirmation]
     end
     subgraph net["Network (untrusted)"]
         JOBS[(Public job APIs<br/>Greenhouse/Lever/Ashby/SmartRecruiters)]
@@ -67,7 +74,8 @@ flowchart LR
     API -.->|"NETWORK: fixed hosts, SSRF-validated, read-only"| JOBS
     API -.->|"NETWORK: opt-in, per-request approval, job+skills only"| AI
     UI -.->|"NETWORK: user clicks, opens in real browser"| PORTALS
-    TASK --> API
+    UI --> SCAN
+    SCAN --> API
 ```
 
 Solid arrows are LOCAL; dashed arrows CROSS THE NETWORK. The privacy boundary a

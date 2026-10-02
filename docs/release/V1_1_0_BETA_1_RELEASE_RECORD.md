@@ -4,7 +4,7 @@ Published **2 October 2026, 05:06 Asia/Dubai** as an **early beta**, under the
 Owner's explicit request to push and release. This record was added after
 publication; it does not alter the frozen tag or replace an asset.
 
-## Immutable identity
+## Recorded source and artifact identity
 
 - [Public release](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.1)
 - Source/tag: `29d70d5ca004d75f0e421aea6174a30b0cd39ce3`
@@ -18,6 +18,12 @@ The public asset was downloaded again after publication. Its checksum,
 GitHub asset digest and tag source agree with the reviewed candidate.
 v1.0.0 remains immutable and unchanged. New work on master may differ from
 this tag; evaluate the beta by its tag and digest.
+
+The repository's preservation policy does not mean GitHub enforces release
+immutability. On 2 October 2026, GitHub reported `immutable: false`: assets/tags
+are not locked by that platform feature. Checksums and verified attestations
+identify the reviewed bytes; they do not prevent an authorised maintainer from
+replacing assets. A later correction must use a new release identity.
 
 ## Executed evidence
 
@@ -65,7 +71,12 @@ Codex owns the Owner-authorized integration, remediation and technical
 self-review. The attached maintainer review says so explicitly. Neither the
 gate nor this record represents an independent audit, a human evidence sign-off,
 ASVS certification, compliance or a SLSA Build level. The requested independent
-Claude cloud review is **NOT RUN**.
+Claude cloud review was subsequently reported completed by the Owner on
+2 October 2026. Its pasted summary confirms integrity for the frozen beta and
+reports no blocker under the trusted-local-user early-beta boundary. The full
+report was not supplied to this correction session. Its limited read-only
+review is not approval, certification, Windows/live validation or residual-risk
+acceptance. Follow-up findings require their own source-bound evidence.
 
 The privacy scan supplements manual review; it cannot prove absence of all PII.
 Upstream public licence attribution is preserved. A local package-review helper

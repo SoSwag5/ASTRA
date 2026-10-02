@@ -587,7 +587,12 @@ async def guard(req:Request,call_next):
             return JSONResponse({'detail':'This workspace accepts connections only from this device'},403)
     origin=req.headers.get('origin')
     port=os.getenv('HUNTER_PORT','8787')
-    if origin and origin not in (f'http://localhost:{port}',f'http://127.0.0.1:{port}','http://localhost:5173'):
+    allowed_origins={f'http://localhost:{port}',f'http://127.0.0.1:{port}'}
+    # A development server is a separate trust boundary, never a shipped default.
+    dev_origin=os.getenv('ASTRA_DEV_ORIGIN','')
+    if dev_origin in ('http://localhost:5173','http://127.0.0.1:5173'):
+        allowed_origins.add(dev_origin)
+    if origin and origin not in allowed_origins:
         security_event('INVALID_ORIGIN_BLOCKED','Cross-origin request rejected',origin=origin,path=req.url.path)
         return JSONResponse({'detail':'Origin blocked'},403)
     if req.headers.get('sec-fetch-site')=='cross-site':
@@ -907,8 +912,8 @@ def set_career_focus(data:dict):
     if not ids and not custom: raise ValueError('Choose at least one career track or add a custom target role')
     with Session.begin() as db:
         cfg={**settings(db),'career_tracks':ids,'custom_target_roles':custom}
-        cfg['target_roles']=career_tracks.target_role_titles(cfg)
         cfg['search_focus_confirmed']=True
+        cfg['target_roles']=career_tracks.target_role_titles(cfg)
         cfg['career_profile_version']=career_tracks.VERSION
         db.get(Settings,1).value=cfg
         return cfg
@@ -957,6 +962,7 @@ def test_rehearsal():
     return rehearse()
 DOWNLOAD_NAME=re.compile(r'[A-Za-z0-9._-]+')
 DOWNLOAD_SUFFIXES=('.pdf','.docx','.xlsx','.png')
+original_pdf_check=threading.Lock()
 @app.get('/api/files/{path:path}')
 def file_download(path:str):
     # Each component is allowlisted before the join, so no traversal, absolute,
@@ -968,6 +974,14 @@ def file_download(path:str):
     root=DATA.resolve()
     target=root.joinpath(*parts).resolve()
     if not target.is_relative_to(root) or not target.is_file() or target.suffix not in DOWNLOAD_SUFFIXES: raise HTTPException(404)
+    if target==root/'master.pdf':
+        # An original accepted by an older beta may predate decoded-PDF checks.
+        if not original_pdf_check.acquire(blocking=False):
+            raise HTTPException(429,'The original CV is being checked. Retry shortly.')
+        try:
+            from .document_security import extract_pdf
+            extract_pdf(target)
+        finally: original_pdf_check.release()
     return FileResponse(target,filename=target.name)
 from .search_workspace import router as search_router
 app.include_router(search_router)

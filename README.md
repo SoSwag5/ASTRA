@@ -6,18 +6,19 @@ ASTRA brings job discovery, CV review, application preparation and follow-up
 tracking into one local workspace. Built by Ayham, a cybersecurity graduate,
 as an AI-assisted personal portfolio project with documented security controls.
 
-**Early beta · v1.1.0-beta.1.** Expect rough edges. Features and validation are
+**Early beta · v1.1.0-beta.2 candidate (not yet published).** Expect rough edges. Features and validation are
 still developing; this is not a production assurance or universal matching claim.
 **You review facts and submit applications yourself.**
 
 [**Download the Windows beta ZIP**](https://github.com/SoSwag5/ASTRA/releases/download/v1.1.0-beta.1/astra-1.1.0-beta.1.zip)
 · [Installation guide](docs/GETTING_STARTED.md)
-· [Beta release notes](docs/release/V1_1_0_BETA_1_NOTES.md)
+· [Upcoming beta changes](docs/release/V1_1_0_BETA_2_NOTES.md)
 · [Roadmap](docs/ROADMAP.md)
 · [Report a bug](https://github.com/SoSwag5/ASTRA/issues/new/choose)
 
-The download becomes available when the beta is published. Its release page is
-the authority for the shipped source, checksum and executed assurance evidence.
+The download above is the published **beta 1**. The beta 2 improvements on this
+branch are not yet in that ZIP. Each release page identifies its shipped source,
+checksum and executed assurance evidence.
 
 ## What you can do
 
@@ -32,8 +33,9 @@ the authority for the shipped source, checksum and executed assurance evidence.
 - **Work comfortably:** cohesive light/dark pages, responsive layouts, loading
   feedback, page transitions and motion that respects reduced-motion preferences.
 
-After launch, explore the [fictional demo](http://localhost:8787/demo) without
-uploading a real CV. These screenshots show the fictional demo, not live records.
+After launch, open [your workspace](http://localhost:8787/) to use your own CV.
+The [fictional demo](http://localhost:8787/demo) is optional. Choose **Use my own
+CV** to leave it. These screenshots show made-up data, not live records.
 
 ![Fictional ASTRA demo — desktop](docs/screenshots/demo-desktop.png)
 
@@ -51,8 +53,8 @@ ZIP application, not a standalone signed Windows installer.
 4. Double-click **Install ASTRA.bat**. Keep the window open until it says **Ready**.
 5. Double-click **Open ASTRA.bat**. Your browser opens your local workspace.
 
-Keep the folder outside OneDrive or other cloud-synced folders. Begin with the
-fictional demo; then choose your career focus and review your imported CV.
+Keep the folder outside OneDrive or other cloud-synced folders. Follow setup,
+review your imported CV and choose your career focus. The demo is optional.
 [Full instructions, troubleshooting and safe updates](docs/GETTING_STARTED.md).
 
 ## Your data and your decisions
@@ -66,12 +68,12 @@ Gmail is optional and advanced: its read-only OAuth permission covers the
 **whole connected mailbox**, although ASTRA narrows its queries. This beta
 supports one primary account; secondary-account controls are disabled. Live
 mailbox accuracy and multi-account behaviour have not been validated. Read
-[the Gmail boundary](docs/THREAT_MODEL.md) before connecting.
+[the Gmail boundary](docs/security/THREAT_MODEL_CHANGE_V1_1_DISCOVERY_GMAIL.md) before connecting.
 
 Use a trusted Windows account and disk encryption. ASTRA does not encrypt its
 SQLite database or isolate you from other processes running as your OS user.
 PDF resource limits are containment, not malware detection. CV extraction has
-limited heading support and needs human correction. Cross-major import tests
+support for common section headings and still needs human correction. Cross-major import tests
 do not establish ranking quality across careers. Linux and Docker installation
 are unverified. See [known risks](security/RISK_REGISTER.md).
 
@@ -85,7 +87,7 @@ engineering evidence. **No certification, compliance or SLSA Build level is clai
 
 [Beta evidence](docs/release/V1_1_0_BETA_1_EVIDENCE.md)
 · [Architecture](docs/SECURITY_ARCHITECTURE.md)
-· [Threat model](docs/THREAT_MODEL.md)
+· [Threat model](docs/security/THREAT_MODEL.md)
 · [Security policy](SECURITY.md)
 · [Secure SDLC](docs/security/SECURE_SDLC.md)
 

@@ -23,6 +23,7 @@ def experience_years(description):
 FACT_MODELS={'EXPERIENCE':Employment,'PERSONAL PROJECTS':Project,'EDUCATION':Education,'CERTIFICATIONS AND COURSES':Certification}
 def import_cv(db,path):
     from .document_security import extract_pdf
+    from .cv_sections import parse_sections, skill_facts
     text=extract_pdf(path)
     if len(text)<100: raise ValueError('No readable CV text. Upload a text-based PDF.')
     profile=db.scalar(select(CandidateProfile))
@@ -38,17 +39,11 @@ def import_cv(db,path):
     profile.declarations={**(profile.declarations or {}),'extraction_state':'EXTRACTED — NEEDS CONFIRMATION','cv_language':'UNKNOWN'}
     for model in [Skill,*FACT_MODELS.values()]:
         for row in db.scalars(select(model).where(model.candidate_id==profile.id)): db.delete(row)
-    headings=['PROFILE','TECHNICAL SKILLS',*FACT_MODELS]
-    sections={}; active=None
-    for line in lines:
-        if line in headings: active=line; sections[active]=[]
-        elif active: sections[active].append(line)
+    sections=parse_sections(lines)
     profile.summary=' '.join(sections.get('PROFILE',[]))
     provenance='CV SHA256 '+hashlib.sha256(Path(path).read_bytes()).hexdigest()
-    for line in sections.get('TECHNICAL SKILLS',[]):
-        category,_,values=line.partition(':')
-        for s in re.split(r'[,;]',values):
-            if s.strip(): db.add(Skill(candidate_id=profile.id,text=s.strip(),context=category,provenance=provenance))
+    for text,context in skill_facts(sections.get('TECHNICAL SKILLS',[])):
+        db.add(Skill(candidate_id=profile.id,text=text,context=context,provenance=provenance))
     # Keep source wording intact. A complete section is an evidence block, not a generated claim.
     for heading,model in FACT_MODELS.items():
         content='\n'.join(sections.get(heading,[]))
