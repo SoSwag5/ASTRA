@@ -17,30 +17,30 @@ _Generated from `backend.evaluation`'s canonical machine-readable output -- not 
 
 | Reference label | Count |
 |---|---|
-| GENUINE_REJECTION | 21 |
-| LOW_BUT_USEFUL | 15 |
 | MUST_SHOW | 25 |
 | REASONABLE_STRETCH | 16 |
+| LOW_BUT_USEFUL | 15 |
+| GENUINE_REJECTION | 21 |
 | UNCLEAR | 3 |
 
 ## Primary metrics
 
 | Metric | Value |
 |---|---|
-| broad_irrelevant_leakage | **0.1429** (3/21) |
-| high_priority_irrelevant_leakage | **0.0000** (0/21) |
 | must_show_false_rejection_rate | **0.0000** (0/25) |
-| new_useful_regression_rate | **0.0000** (0/33) |
 | useful_false_rejection_rate | **0.0000** (0/56) |
+| new_useful_regression_rate | **0.0000** (0/33) |
+| high_priority_irrelevant_leakage | **0.0000** (0/21) |
+| broad_irrelevant_leakage | **0.1429** (3/21) |
 
 ## Hard-reason precision
 
 | Reason | Precision | Predicted |
 |---|---|---|
-| CONFIRMED_ELIGIBILITY_CONFLICT | **1.0000** (1/1) | 1 |
 | DOMAIN_INCOMPATIBLE | **1.0000** (8/8) | 8 |
-| EXTREME_LEADERSHIP_MISMATCH | **1.0000** (3/3) | 3 |
 | GEO_INCOMPATIBLE | **1.0000** (5/5) | 5 |
+| EXTREME_LEADERSHIP_MISMATCH | **1.0000** (3/3) | 3 |
+| CONFIRMED_ELIGIBILITY_CONFLICT | **1.0000** (1/1) | 1 |
 | USER_BLOCKED | **1.0000** (1/1) | 1 |
 
 ## Ranking quality
@@ -52,7 +52,7 @@ _Generated from `backend.evaluation`'s canonical machine-readable output -- not 
 
 ## Legacy vs new engine
 
-- Category counts: `{'CHANGED_REJECTION_REASON': 14, 'LEGACY_REJECTED_NEW_GOOD': 1, 'LEGACY_REJECTED_NEW_LOW': 2, 'LEGACY_REJECTED_NEW_STRETCH': 9, 'LEGACY_REJECTED_NEW_STRONG': 16, 'NEW_REJECTED': 5, 'RANKING_CHANGED': 33}`
+- Category counts: `{'RANKING_CHANGED': 33, 'LEGACY_REJECTED_NEW_STRONG': 16, 'LEGACY_REJECTED_NEW_GOOD': 1, 'CHANGED_REJECTION_REASON': 14, 'NEW_REJECTED': 5, 'LEGACY_REJECTED_NEW_STRETCH': 9, 'LEGACY_REJECTED_NEW_LOW': 2}`
 - New regressions (reference-useful, highest review priority): `[]`
 - Recovered useful cases: 23
 

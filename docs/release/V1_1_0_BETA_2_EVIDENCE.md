@@ -50,6 +50,10 @@ identical to the prior public report; only commit/tree/manifest/payload provenan
 changes. Refresh the paired Markdown rendering as well. The first focused rerun
 returned 231 passes and one failure because that paired document still carried
 the old provenance header; the guard was preserved and the document corrected.
+A second focused run retained 231 passes and caught ordering differences caused
+by rendering sorted JSON directly. Rendering from the canonical recipe restored
+the expected document ordering. Both previously failing report/CLI checks then
+passed. No test or integrity guard was relaxed.
 
 Corrected complete-suite and exact-package results are recorded in the source-
 bound PR/evidence pack after execution. Configured hosted workflows are not
