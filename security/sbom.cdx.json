@@ -7,8 +7,8 @@
     "component": {
       "type": "application",
       "name": "ASTRA",
-      "version": "1.0.0-rc.1",
-      "bom-ref": "astra@1.0.0-rc.1"
+      "version": "1.1.0-beta.1",
+      "bom-ref": "astra@1.1.0-beta.1"
     },
     "tools": {
       "components": [
@@ -6679,7 +6679,7 @@
       ]
     },
     {
-      "bom-ref": "pkg:pypi/pypdf@6.18.0",
+      "bom-ref": "pkg:pypi/pypdf@6.19.0",
       "description": "A pure-python PDF library capable of splitting, merging, cropping, and transforming PDF files",
       "licenses": [
         {
@@ -6690,9 +6690,9 @@
         }
       ],
       "name": "pypdf",
-      "purl": "pkg:pypi/pypdf@6.18.0",
+      "purl": "pkg:pypi/pypdf@6.19.0",
       "type": "library",
-      "version": "6.18.0",
+      "version": "6.19.0",
       "properties": [
         {
           "name": "astra:dependency-context",
@@ -7011,7 +7011,7 @@
   ],
   "dependencies": [
     {
-      "ref": "astra@1.0.0-rc.1",
+      "ref": "astra@1.1.0-beta.1",
       "dependsOn": [
         "pkg:npm/%40tailwindcss/vite@4.3.3",
         "pkg:npm/%40types/react-dom@19.3.0",
@@ -7032,7 +7032,7 @@
         "pkg:pypi/openpyxl@3.1.5",
         "pkg:pypi/playwright@1.62.0",
         "pkg:pypi/pydantic@2.13.5",
-        "pkg:pypi/pypdf@6.18.0",
+        "pkg:pypi/pypdf@6.19.0",
         "pkg:pypi/pytest@9.0.3",
         "pkg:pypi/python-docx@1.2.0",
         "pkg:pypi/python-dotenv@1.2.3",
@@ -8374,7 +8374,7 @@
       ]
     },
     {
-      "ref": "pkg:pypi/pypdf@6.18.0",
+      "ref": "pkg:pypi/pypdf@6.19.0",
       "dependsOn": [
         "pkg:pypi/pillow@12.3.0",
         "pkg:pypi/typing-extensions@4.16.0"

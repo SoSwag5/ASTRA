@@ -10,8 +10,15 @@ is not a hosted or multi-tenant service.
 
 | Version | Supported |
 |---|---|
-| `1.0.0-rc.1` / current development branch | ✅ |
-| older tags | ❌ |
+| Current development / `1.1.0-beta.1` candidate | Best-effort security reports and remediation; beta testing scope |
+| `v1.0.0` | Immutable historical release; its pypdf 6.18.0 has reported advisories |
+| Earlier tags | Not maintained |
+
+The beta candidate updates pypdf to 6.19.0 and assurance-tooling urllib3 to
+2.8.0. See the [pypdf intake and remediation](docs/security/V1_1_PYPDF_SCA_FINDINGS.md)
+and [tooling findings](docs/security/BETA_ASSURANCE_TOOLING_FINDINGS.md).
+Publication still requires the exact candidate's gates. The beta is not a
+production support promise; no old tag or release asset is overwritten.
 
 ## Reporting a vulnerability
 

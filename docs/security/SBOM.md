@@ -6,14 +6,16 @@ Create an isolated assurance virtual environment and install requirements-assura
 
 ```text
 <assurance-python> scripts/generate_sbom.py --python <product-python>
-<assurance-python> scripts/validate_sbom.py release/astra-1.0.0-rc.1.cdx.json
-<product-python> scripts/build_release.py --sbom release/astra-1.0.0-rc.1.cdx.json
+<assurance-python> scripts/validate_sbom.py release/astra-1.1.0-beta.1.cdx.json
+<product-python> scripts/build_release.py --sbom release/astra-1.1.0-beta.1.cdx.json
 ```
 
 The generator refuses missing or version-mismatched Windows product packages. The npm graph resolves package-lock nesting and peers, deduplicates exact purls, retains integrity hashes/licenses and classifies runtime/build/optional contexts. Bundled dependencies omitted by npm's lock are inventoried from package manifests inside integrity-verified registry archives; archives are read without filesystem extraction or execution. There are 246 components in this generation (47 Python, 199 npm), six more than the prior flat 240 inventory. The release validation JSON is authoritative if this changes.
 
 Scope: all packages installed by setup, including pytest and its dependencies, plus the full npm lock and bundled packages (including optional build platforms). Python runtime/test are intentionally one installation lock; npm dev entries are classified as build. This is an over-inclusive package inventory, not a proof that every package is present in the minified browser bundle. Node/Python interpreters, OS components and separately downloaded optional Chromium are excluded; they require their own inventory for a broader distribution scope.
 
-Python wheel hashes remain in the installation lock. Installed metadata does not prove which wheel archive was selected, so these hashes are not misrepresented as component hashes. License data is preserved where known; missing data is not invented. The output records ASTRA 1.0.0-rc.1 as root, exact component versions, purls and graph. No vulnerability-free or malware-free assertion follows from schema validity.
+Python wheel hashes remain in the installation lock. Installed metadata does not prove which wheel archive was selected, so these hashes are not misrepresented as component hashes. License data is preserved where known; missing data is not invented. The output records the root VERSION value (currently ASTRA 1.1.0-beta.1) as root, exact component versions, purls and graph. No vulnerability-free or malware-free assertion follows from schema validity.
 
-Outputs: release/astra-1.0.0-rc.1.cdx.json and .cdx.validation.json, with SHA-256/count/tool versions. The source snapshot security/sbom.cdx.json is refreshed for review; the build embeds the freshly validated release SBOM and records its digest in the manifest. Build/attestation uses the validated sidecar, not a stale committed count.
+Outputs: release/astra-1.1.0-beta.1.cdx.json and .cdx.validation.json, with SHA-256/count/tool versions. The source snapshot security/sbom.cdx.json is refreshed for review; the build embeds the freshly validated release SBOM and records its digest in the manifest. Build/attestation uses the validated sidecar, not a stale committed count.
+
+The separate release-assurance tools are not installed by setup and are not product components in this SBOM. Their complete hash lock is requirements-assurance.lock.txt; CI audits that lock separately as well as the product lock. SBOM schema validity does not replace either SCA result.
