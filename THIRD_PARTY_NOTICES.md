@@ -11145,14 +11145,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
 
-## pypdf 6.18.0
+## pypdf 6.19.0
 
-Source: https://pypi.org/project/pypdf/6.18.0/
+Source: https://pypi.org/project/pypdf/6.19.0/
 
 Licence metadata: BSD-3-Clause
 
 
-### pypdf-6.18.0.dist-info/licenses/LICENSE
+### pypdf-6.19.0.dist-info/licenses/LICENSE
 
 ```text
 Copyright (c) 2006-2008, Mathieu Fenniak

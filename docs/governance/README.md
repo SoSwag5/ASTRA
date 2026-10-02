@@ -33,6 +33,7 @@ gate and its verified evidence remain authoritative for technical readiness.
 
 - [Release checklist](../release/RELEASE_CHECKLIST.md)
 - [v1.0.0 immutable release record](../release/V1_0_0_RELEASE_RECORD.md)
+- [v1.1.0 pre-candidate evidence pack](../release/V1_1_0_RELEASE_EVIDENCE_PACK.md) (issue #48; BLOCKED, no candidate yet)
 - [Evidence pack template](../release/RELEASE_EVIDENCE_PACK_TEMPLATE.md)
 - [Release notes template](../release/RELEASE_NOTES_TEMPLATE.md)
 - [Security patch template](../release/SECURITY_PATCH_TEMPLATE.md)

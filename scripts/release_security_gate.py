@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from scripts.release_version import VERSION
 REQUIRED = ('verification', 'build', 'clean-install', 'provenance', 'verify-attestation')
 
 def assess_asvs(asvs):
@@ -89,10 +91,10 @@ def artifact_checks(artifact, manifest, sbom):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--artifact', type=Path, default=ROOT/'release/astra-1.0.0-rc.1.zip')
+    parser.add_argument('--artifact', type=Path, default=ROOT/'release'/('astra-'+VERSION+'.zip'))
     parser.add_argument('--manifest', type=Path)
     parser.add_argument('--review', type=Path)
-    parser.add_argument('--sbom', type=Path, default=ROOT/'release/astra-1.0.0-rc.1.cdx.json')
+    parser.add_argument('--sbom', type=Path, default=ROOT/'release'/('astra-'+VERSION+'.cdx.json'))
     parser.add_argument('--output', type=Path, default=ROOT/'release/release-security-gate.json')
     args = parser.parse_args()
     source = os.getenv('GITHUB_SHA', '')

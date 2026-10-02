@@ -5,7 +5,7 @@ Statically extracted decorator paths; router prefixes must be composed from APIR
 Router prefixes: `campaign.py` → `/api/campaign`, `privacy.py` → `/api/privacy`,
 `recall_api.py` → `/api/recall`, `search_workspace.py` → `/api/search`,
 `source_catalog.py` → `/api/search`, `scan_control.py` → `/api/scan`, `gmail_api.py` → `/api/gmail`,
-`application_state_api.py` → `/api/applications`.
+`application_state_api.py` → `/api/applications`, `progress.py` → `/api/progress`.
 
 `gmail_api.py` (issue #44) is the Gmail OAuth credential layer. `{slug}` is
 validated against a fixed two-value slot map (`primary`/`secondary`); it is
@@ -117,3 +117,37 @@ directly. See `docs/architecture/APPLICATION_STATE.md`.
 | application_state_api.py | POST | /api/applications/state/reconcile | reconcile |
 | application_state_api.py | POST | /api/applications/state/needs-review/{link_id}/confirm | confirm |
 | application_state_api.py | POST | /api/applications/state/needs-review/{link_id}/reject | reject |
+
+## Issue #47 Progress reporting routes
+
+Read-only reporting projection; all inherit the existing private API guard and
+no-store response policy. `progress.py` → `/api/progress`. `period` must be one
+of four fixed values, the review page size is 1–20 and its offset 0–100,000.
+No route writes a state, a link or evidence: the Needs Review page reuses #46's
+`find_candidates()`/`Candidate.confirmable` read-only, and confirm/reject stay
+on the #46 routes above. Gmail fields are limited to detected company, detected
+role, received time, platform, confidence, reason and matched field names —
+never subject, sender, message/account identifiers, evidence URL or a snippet.
+`/api/progress` and `/api/progress/applications` run #46's existing
+`ensure_all_states()` read-repair before reading. See
+`docs/architecture/PROGRESS_DASHBOARD.md`.
+
+| Module | Method | Route | Handler |
+|---|---|---|---|
+| progress.py | GET | /api/progress | progress |
+| progress.py | GET | /api/progress/needs-review | needs_review |
+| progress.py | GET | /api/progress/applications | applications |
+
+## #47 follow-up B: Gmail check-and-match status
+
+Read-only; inherits the private API guard and no-store policy. Returns the
+fail-closed connection status token, the last completed check, exact
+unmatched/review counts and fixed limits; no address, token, identifier or
+evidence content. The controls it serves call the existing
+`POST /api/gmail/accounts/primary/sync` and
+`POST /api/applications/state/reconcile` routes. See
+`docs/architecture/GMAIL_IN_APP_OPERATIONS.md`.
+
+| Module | Method | Route | Handler |
+|---|---|---|---|
+| progress.py | GET | /api/progress/gmail | gmail |

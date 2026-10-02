@@ -1,8 +1,72 @@
 # ASTRA project state
 
-**Snapshot date:** 2026-09-29 (Asia/Dubai), refreshed for the PR #75 merge
-(#46.2-B v7 source-map closeout) and the #46.2-C v3 blind FAIL. The #46
-closeout below remains historical evidence.
+**Active release preparation: v1.1.0-beta.1, Owner-authorized on 2026-10-02.**
+Codex owns the isolated release branch. The Owner requested push/public beta
+publication, easier installation, a cloud review prompt and career-facing drafts.
+This authorization does not silently accept pending residual risks or turn
+unexecuted gates into PASS. The #47 and #48 states below are dated history;
+their source changes are now integrated locally in this preparation branch.
+Original worktrees, private evaluation material and v1.0.0 are preserved.
+
+The beta-specific [evidence record](../release/V1_1_0_BETA_1_EVIDENCE.md) and
+[release notes](../release/V1_1_0_BETA_1_NOTES.md) are the current preparation
+context. New pypdf remediation, version plumbing and cross-major import checks
+are Codex implementation, with self-verification distinguished from independent
+review. Hosted checks and source/artifact review must execute before publication.
+The existing final v1.1 evidence pack below is historical and remains incomplete;
+the beta does not close two-account/live validation or Owner residual-risk decisions.
+
+## Historical #48 and #47 snapshots
+
+
+**Snapshot date:** 2026-10-02 (Asia/Dubai), refreshed for Owner-authorized
+Codex corrections to issue #48 after Claude Code reached its usage limit.
+The branch is local and unpushed; the release remains BLOCKED.
+The 2026-09-29 refresh (PR #75, #46.2-C v3 blind FAIL) and the #46 closeout
+below remain historical evidence.
+
+## Research-led motion follow-up (2026-10-01, Asia/Dubai)
+
+Codex continues the Owner-authorized sole implementation of issue #47 on
+`feature/47-visual-motion`, from `01c92453d4179523805c7b09954a29a013a6dffe`.
+The [20-point research audit](../architecture/UI_UX_RESEARCH_AUDIT.md) informed
+new content, sidebar, tab and progress motion, interruption safety and loading
+refinements. This remains a compatible frontend-only v1.1 visual change, with
+no new dependency, backend behavior, security boundary, ADR or release decision.
+
+The frontend suites/build, 164 browser-matrix checks, 32 motion/reflow checks
+and 11 action/lifecycle checks passed on isolated fictional data. See the
+[validation record](../architecture/VISUAL_MOTION_VALIDATION.md) for coverage
+and limits. This candidate still requires its bounded independent review and
+final served-asset verification, recorded in the task handoff after commit.
+
+GitHub rechecked on 2026-10-01: issue #47 is open; PR #78 remains open/draft at
+`4a13fc83bee7bd594b61f2ad1b830594a523f742`. That older hosted state does not
+validate this local candidate. No push, merge, publication or release is
+authorized; other worktrees and private evaluation material remain untouched.
+
+## Local visual candidate update (2026-09-30, Asia/Dubai)
+
+The Owner explicitly assigned Codex sole implementation ownership of
+`feature/47-visual-motion` in the existing `astra-47d-visual-motion` worktree,
+continuing the uncommitted visual work above base
+`fe8e8a85728f06b302aaacd713fe6e9e01cf7d6a`. This frontend-only #47 follow-up
+includes the earlier local A/B/C follow-ups. Other worktrees remain protected.
+It is a compatible visual/interaction revision within the planned v1.1 minor
+release; no release version or security boundary changed.
+
+Live GitHub verification still found draft PR #78 OPEN at
+`4a13fc83bee7bd594b61f2ad1b830594a523f742`; its checks cover that older head.
+This visual branch is local only. No push, merge, tag, release or publication
+is authorized. The historical #47 evidence below is not evidence for this
+candidate. See [the visual system](../architecture/VISUAL_MOTION_SYSTEM.md)
+and [the validation record](../architecture/VISUAL_MOTION_VALIDATION.md).
+Independent review of the exact visual commit remains pending at this record.
+
+**Snapshot date:** 2026-09-30 (Asia/Dubai), refreshed for the #47 draft pull
+request (awaiting independent review). The 2026-09-29 refresh for the PR #75
+merge (#46.2-B v7 source-map closeout) and the #46.2-C v3 blind FAIL, and the
+#46 closeout below, remain historical evidence.
 **Rule:** This is a handoff snapshot, not a substitute for live verification.
 Refresh it at session end when repository or release state changes.
 
@@ -259,6 +323,8 @@ or merged.
 | [#45](https://github.com/SoSwag5/ASTRA/issues/45) | **Closed.** Bounded read-only Gmail sync and confirmation evidence merged via [PR #67](https://github.com/SoSwag5/ASTRA/pull/67) (squash commit `11a69b0921d55072aa4f552a0319320ab73d6741`); post-merge CI and Scorecard green. | PRIMARY bounded read-only sync and deterministic initial-confirmation evidence only; `gmail_confirmations` is additive and leaves the pinned `models.py` untouched. **No live mailbox validation and no independent review**; R-16 and R-17 remain OPEN. See [Gmail sync](../architecture/GMAIL_SYNC.md). |
 | [#46](https://github.com/SoSwag5/ASTRA/issues/46) | **Closed.** Merged via [PR #68](https://github.com/SoSwag5/ASTRA/pull/68); independently approved head `006e9111a196e940d8d11163548ef642c2007e5c` (tree `ff4c42808a36d031721085c587db51073e591a10`), squash commit `7ecd0b78277f67db0a44db176db467bcfb1f5a17` carrying that same tree. Post-merge Python 3.13/3.14 tests, publication gate, SCA, Security Verification, CodeQL python/javascript-typescript/actions and Scorecard are green ([run 35492914924](https://github.com/SoSwag5/ASTRA/actions/runs/35492914924)); `dependency-review` runs only on `pull_request` and passed on the approved PR head. | Additive `backend/application_state.py` (canonical states, the single permitted-transition table, the append-only `application_state_transitions` history and the `application_states` projection), `backend/application_reconciliation.py` (deterministic multi-field Gmail matching, `gmail_application_links`) and `backend/application_state_api.py` (bounded reads plus the user's confirm/reject). `application_states.current_state` is authoritative; `Job.status`, `Application.status` and `Application.tracking['stage']` remain compatibility projections. Campaign tracking, the job status action, the browser-confirmation path and Gmail reconciliation all funnel through one state service; existing and tracker-imported applications are bootstrapped truthfully and lazily on first contact. **No evaluation-provenance-pinned file was modified** (`backend/models.py`, `backend/policy.py`, `backend/services.py` hashes still match `docs/evaluation/fit_evaluation_provenance_v1.json`). Review remediation on the same branch fixed four independently reproduced defects: a contradictory job-specific requisition URL now blocks automatic linking instead of merely withholding agreement; the first manual status change on a previously untracked job is recorded as a `USER_ACTION` with manual authority rather than `LEGACY_MIGRATION`; HIGH/MEDIUM evidence that cannot be linked stays a resolvable Needs Review item and unresolved unattached items are revisited; and `ensure_all_states()` read-repair makes summaries and histories complete and order-independent, with a nonexistent application still distinguishable from an uninitialized one. A second remediation round fixed a bounded-processing defect in `reconcile_pending()`: the requested limit now bounds the whole run rather than each queue independently. A third round replaced the reconciliation scheduler with durable state -- a `revisit_sequence` rotation stamp on each link and a persisted `next_queue` pointer, both additive -- so every eligible unresolved item is attempted within `ceil(U / r)` runs and queue alternation survives restarts. A fourth independent review, of the exact commit `006e911`, returned **APPROVE**. Verification was offline and deterministic: **no live mailbox validation**, no live Gmail or private user data, and **real-world reconciliation accuracy remains unmeasured**. **R-18 remains OPEN**, and **no residual-risk acceptance or release approval is implied**. See [Application state](../architecture/APPLICATION_STATE.md); hosted results belong to the exact PR head and to the merge commit. |
 | [#43](https://github.com/SoSwag5/ASTRA/issues/43) | **Closed.** Discovery funnel telemetry merged to `master` via [PR #65](https://github.com/SoSwag5/ASTRA/pull/65) (squash commit `ad39e54925fe17286ae03e5866d4ea1cc1259094`); post-merge CI and Scorecard green. | New `backend/discovery_telemetry.py` owns one versioned contract (`discovery-telemetry-v1`) persisted in the existing `AutomationRun.report` JSON — **no schema change or migration**. Monotonic funnel `FETCHED → STRUCTURALLY_VALID → CANONICAL_UNIQUE → LOCATION_COMPATIBLE → ELIGIBILITY_NOT_INCOMPATIBLE → RELEVANT → NEW`, derived from explicit stage membership and checked by an invariant validator, never clamped. `DISPLAYED`/`SAVED`/`APPLIED` are reported separately as engagement outcomes; `DISPLAYED` is explicitly `UNAVAILABLE` because ASTRA records no display event. Provider failure, truthful zero, partial completion and skipped sources stay distinguishable. Retention is exactly 90 days. Read-only local API at `/api/search/telemetry*`. #41 decision behaviour, #40 identity/dedupe, provider transport and #42 evidence are unchanged; `backend/recall.py` was deliberately left untouched because it is a provenance-pinned #42 input. See [`docs/architecture/DISCOVERY_TELEMETRY.md`](../architecture/DISCOVERY_TELEMETRY.md). |
+| [#47](https://github.com/SoSwag5/ASTRA/issues/47) | **Open.** Draft [PR #78](https://github.com/SoSwag5/ASTRA/pull/78) at `4a13fc8`, awaiting independent review; follow-ups A/B/C local and unpushed. | Required by OD-013 for v1.1.0. Not assessed by #48. |
+| [#48](https://github.com/SoSwag5/ASTRA/issues/48) | **Open.** Local assurance corrections and current verification on `governance/48-v1.1-assurance` (tests and documentation only), not pushed. | 36 requirements traced to tests, plus eight gap tests for controls the ADRs required but nothing tested. ASVS OAuth rows corrected, SSDF and threat-delta as-built reconciliation, pre-candidate [evidence pack](../release/V1_1_0_RELEASE_EVIDENCE_PACK.md). Technical verdict BLOCKED; fresh Python SCA found six pypdf advisories, ASVS 15.2.1 is PARTIAL, and OD-019/OD-020 are pending. |
 
 ## Git and collaboration snapshot
 
@@ -271,11 +337,15 @@ or merged.
   `11a69b0921d55072aa4f552a0319320ab73d6741`
   (tree `e0b8648f8dab8172c59de3c8df84d631263eb1d8`), the #45 squash merge.
 - `master` head when this snapshot was refreshed:
-  `902c80b30db6d4a73f95a0c56b567a0683a2ad09`, the PR #75 squash merge of
-  2026-09-28. Its single parent is `89d2f907caa49487d585f4268339cd4092c1a267`
-  (the PR #74 merge). Its tree, `1e34cd7689b6053e67ff37ba5b167c7862a35b55`,
-  equals the merged PR head's, `58bc50f2c8b2e9da4854f9eaa8831e60f5bde827`. The #46
-  entries in this section are historical.
+  `22642e88f516f827c1dc4250bc72eb259306fafd`, the PR #77 squash merge of
+  2026-09-29 (#46.2-C v3 closeout documentation). Its single parent is
+  `902c80b30db6d4a73f95a0c56b567a0683a2ad09` (the PR #75 merge). Its tree,
+  `1f699af8aa1a33409b78a74159110057b9b3d67e`, equals the merged PR head's,
+  `bcff33f2fef27c70392d5e21844b40de10e9eb88`. GitHub records no review
+  decision on PR #77. Post-merge CI
+  ([run 36590869577](https://github.com/SoSwag5/ASTRA/actions/runs/36590869577))
+  and Scorecard ([run 36590869180](https://github.com/SoSwag5/ASTRA/actions/runs/36590869180))
+  passed. The #46 entries in this section are historical.
 - At the #46 closeout no implementation branch was active. `feature/46-application-reconciliation-state-model`
   is merged; #45 was merged without independent review, while #46's final head
   `006e9111a196e940d8d11163548ef642c2007e5c` was independently reviewed and
@@ -504,8 +574,48 @@ Three kinds of #46.2-B/C evidence stay separate. None stands in for another.
 **#46.2-F** remains **NOT VALIDATED** pending a genuinely independent fictional
 challenge. G and H are not started.
 
+**#46.2-C v3 closeout is merged** as PR #77 (`22642e8`, 2026-09-29); see
+the git snapshot above. The C outcome is unchanged: NOT VALIDATED.
+
+**#47 (progress dashboard) is not merged.** It is draft
+[PR #78](https://github.com/SoSwag5/ASTRA/pull/78) at head
+`4a13fc83bee7bd594b61f2ad1b830594a523f742`, awaiting independent review. Its
+follow-ups A, B and C are local, stacked and unpushed. The latest local
+visual/motion revision is `772fe7e87586720d9db6bed06cb1a12d3af14649`, on
+`feature/47-visual-motion`, with scoped frontend/browser review. It is also
+unmerged; PR #78's older checks do not validate that revision.
+
+**#48 has local corrections and current verification, local and unpushed; release remains BLOCKED.** It is
+on `governance/48-v1.1-assurance` in the worktree
+`astra-48-release-assurance`, based on `22642e8`. It changes tests and
+documentation only; no product code changed. See the session handoff
+below and the
+[v1.1.0 pre-candidate evidence pack](../release/V1_1_0_RELEASE_EVIDENCE_PACK.md).
+The technical verdict is **BLOCKED**: there is no frozen candidate, the
+second-account scope is unresolved (OD-020), and the R-16/17/18 decisions
+are pending (OD-019). The fresh Python audit also finds six unresolved pypdf
+advisories, making ASVS 15.2.1 PARTIAL. Starting #48 before #47 merged departs from the
+Owner's 2026-09-30 sequencing. This pass was requested in the 2026-10-01
+session, and anything that depends on #47 is marked BLOCKED, not assessed.
+
 **Next actions:**
 
+- Codex owns the #48 local corrections, explicitly requested
+  by the Owner on 2026-10-02 after Claude stopped at its weekly limit.
+  The separate-clone review of `fbbafe4` found a guard overclaim and unfinished
+  release drafts. Corrections and source-bound results are recorded in the
+  latest session handoff. Do not describe Codex's own corrections as
+  independently approved.
+- Independent re-review of Codex's corrected `governance/48-v1.1-assurance`
+  exact commit before any push, pull request or merge. Codex's own changes
+  cannot be independently approved by their implementer.
+- Assign and complete a separate pypdf dependency-remediation change for
+  [SF-2026-48-01 through -06](../security/V1_1_PYPDF_SCA_FINDINGS.md). The fresh
+  strict Python scan fails; ASVS 15.2.1 is PARTIAL. Do not carry forward older
+  clean-SCA claims or waive this failure.
+
+- Independent Codex review of the #47 draft pull request at its exact head
+  SHA (see the #47 sections below). Merge waits for that review and the Owner.
 - Independent review of the #46.2-C v3 closeout documentation at its exact
   final SHA, before any push, pull request or merge. Nothing from it has been
   pushed.
@@ -524,74 +634,278 @@ challenge. G and H are not started.
     "unavailable" (PureHealth) and whether an employer-published third-party
     jobs-search link counts as a `MANUAL_LINK` route;
   - approve, amend or reject the E v3 amendments;
-  - name the independent measurement author and second labeller.
-- Keep #47, #48 and v1.2 work separate.
+  - name the independent measurement author and second labeller;
+  - OD-019: decide R-16, R-17 and R-18 for v1.1.0 (evidence pack section 8
+    recommends independent review of the #44 OAuth layer and the #45 parser,
+    plus a bounded live validation of the primary mailbox, first);
+  - OD-020: resolve the two-account scope of v1.1.0 (OD-013 against
+    OD-012);
+  - approve or amend the #48 threat-model as-built reconciliation and the
+    ASVS/SSDF delta after independent review.
+- Keep #47, #48 and v1.2 work separate. After #47 merges, re-run #48 against
+  the integrated state (route-guard test, threat-delta check of any new
+  Gmail-triggering entry point) before freezing a candidate.
 - Do not tag, publish a release, or modify v1.0.0.
 - Preserve the parked `hardening/l2-r13-r14` branch and all concurrent
   worktrees.
 
+## Session handoff: #48 v1.1 release assurance (first pass)
+
+## #47 Progress/dashboard redesign — draft PR, awaiting independent review
+
+Implementation owner: Claude Code, on `feature/47-progress-dashboard` (fresh
+worktree `astra-47-progress`) from `master`
+`22642e88f516f827c1dc4250bc72eb259306fafd`. Codex performs independent
+assurance; nothing is approved, merged or released by this work.
+
+- Plan and metric/source contract:
+  [Progress dashboard](../architecture/PROGRESS_DASHBOARD.md), written before
+  any #47 code (commit `aa38a10`).
+- Read-only projection `backend/progress.py` (`/api/progress`,
+  `/api/progress/needs-review`, `/api/progress/applications`); no schema, state,
+  matching or transition change; no evaluation-provenance-pinned file touched.
+- Progress, Today and Applications redesigned on verified events; the
+  unverified "quality applications" meter and the unreachable legacy
+  `Dashboard` block are removed from the UI.
+- Verification was offline with fictional records only. No live mailbox,
+  job or application data was used; real-world accuracy remains unmeasured.
+  R-16, R-17 and R-18 remain OPEN. No residual-risk acceptance or release
+  approval is implied.
+
+## Session handoff: #47 Progress/dashboard redesign
+
+- **Session date/time and timezone:** 2026-09-30, Asia/Dubai (afternoon).
+- **Implementation owner:** Claude Code. Codex reviews independently; the Owner
+  controls merge and publication.
+- **Branch and worktree:** `feature/47-progress-dashboard`, fresh worktree
+  `astra-47-progress`.
+- **Starting SHA / ending SHA:** `22642e88f516f827c1dc4250bc72eb259306fafd`
+  (equal to `origin/master` when checked) / the commit containing this record,
+  reported in the pull request.
+- **Task and release classification:** `feature/` change within the v1.1
+  milestone (Phase C); minor-release depth when v1.1 is assured under #48. No
+  version, tag or release change.
+- **Work completed:** see the section above and the pull request.
+- **Files changed:** `backend/progress.py`, `backend/main.py` (router mount),
+  `tests/test_progress.py`, `frontend/src/{Progress.tsx,progressModel.ts,
+  progress.css,tokens.css,Campaign.tsx,campaign.css,main.tsx,readiness.css}`,
+  `frontend/check-progress.cjs`, `frontend/package.json` (test script only),
+  `docs/architecture/PROGRESS_DASHBOARD.md`,
+  `docs/security/ENDPOINT_INVENTORY.md`, `CHANGELOG.md`, this file.
+- **Tests executed and exact results** (Python 3.13.2, main checkout's `.venv`;
+  fictional isolated storage only):
+  - `tests/test_progress.py`: 24 passed.
+  - `tests/test_progress.py`, `test_application_state.py`,
+    `test_discovery_telemetry.py`, `test_campaign.py`, `test_api.py`: 348 passed.
+  - Full suite on the tree of `a6639d2`: **2099 passed, 1 skipped, 1
+    deselected, 0 failed** (7 min 22 s). The skip is the existing
+    `test_job_deduplication.py` MN15 case ("covered by
+    test_three_record_transitive_bridge_never_collapses"). The deselected test
+    is the repository-wide gate test, reported under security checks. The later
+    commits change only `frontend/src/Progress.tsx` and this file.
+  - Frontend on `5d4bee1`: `tsc -b` clean; `npm run build` succeeded;
+    `npm test` — all 7 check scripts passed, including 40 new Progress checks.
+  - Manual browser QA against an isolated fictional workspace: Progress, Today
+    and Applications at 1280/768/390/320 px in both themes and at 640 px (200%
+    zoom equivalent) — no page-level horizontal overflow; keyboard-only
+    confirm/reject, focus restoration, live-region text, an "already resolved
+    elsewhere" item, a server error and reduced motion; an empty workspace.
+    Screenshots contain fictional data only and are kept outside Git.
+- **Security checks executed and exact results** (at `5d4bee1`):
+  - Repository-wide `scripts/publication_gate.py`: **BLOCKED**, 1,574 objects,
+    2 findings — both `private_machine_path` in historical versions of
+    `docs/planning/AI_NATIVE_DISCOVERY_46_2_BENCHMARK.md` carried only by
+    preserved local branches (commits `a5c25aa`/`7b4dd07`, neither an ancestor
+    of this branch). Unchanged, and not weakened or suppressed.
+  - Exactly what a push of this branch publishes (`rev-list --objects` beyond
+    `origin`, scanned with the gate's own `scan()`, plus commit metadata):
+    20 blobs, 0 findings.
+  - The gate in a single-branch clone of this branch: **PASS**, 1,099 objects,
+    0 findings. In that clone, `tests/security/test_publication_scope.py` and
+    `tests/security/test_assurance_gate.py`: 56 passed.
+  - Changed files grepped for machine paths and personal email addresses: none.
+- **Checks not run and why:** hosted CI, CodeQL and dependency review (they run
+  on the pull request's head); Python 3.14 locally (hosted CI covers it);
+  SCA/`npm audit` (no dependency or lockfile change); live Gmail or any real
+  data (out of scope by design); a browser-level automated UI test (the
+  repository has no such framework).
+- **Security findings opened/changed/closed:** none.
+- **ADRs, threat deltas, risk records, and framework deltas:** none required —
+  no trust-boundary, persistence, schema or privacy-boundary change; the new
+  local GET routes are recorded in the endpoint inventory and expose a subset of
+  fields the #46 review route already returns. Rationale in §8 of the contract.
+- **Owner decisions still required:** none to proceed with review. Optional
+  follow-ups for the Owner: whether to add an in-app control for Gmail sync and
+  reconciliation (out of #47's scope), and whether to remove the now-unused
+  Recharts dependency in a separate dependency change.
+- **Commit(s) and pull request:** `aa38a10` (plan and contract), `8909f20`
+  (projection and tests), `e19f0dd` (frontend), `a6639d2` (bounds and docs),
+  `5d4bee1` (queue refresh), then this record. A draft pull request targets
+  `master`; its number and exact head are recorded on the pull request.
+- **Known conflicts, blockers, or branch drift:** the repository-wide
+  publication gate stays BLOCKED by known historical findings on preserved
+  local branches (unchanged, not weakened); the branch-scope results are
+  recorded above. The main checkout's untracked `n.json` was preserved.
+- **Exact next action:** independent Codex review of the pull request at its
+  exact head SHA. Merge and any release wait for that review and the Owner.
+
 ## Session handoff: #46.2-C v3 closeout documentation
 
-- **Session date/time and timezone:** 2026-09-29, Asia/Dubai; time of day not
-  recorded.
-- **Implementation owner:** Claude Code. Codex reviews independently; the Owner
-  controls publication.
-- **Branch and worktree:** `docs/46.2-c-v3-blind-fail-closeout`, in the fresh
-  worktree `astra-46-2-c-v3-closeout`. Local only; nothing was pushed.
-- **Starting SHA / ending SHA:** `902c80b30db6d4a73f95a0c56b567a0683a2ad09`
-  (equal to `origin/master` when checked; no drift) / the commit that contains
-  this record, whose SHA is reported in the review handoff.
-- **Task and release classification:** documentation-only closeout of the
-  #46.2-C v3 blind FAIL. No code, release or version impact.
+This is the historical Claude first pass. Its AI-guard claim was challenged
+as R48-1 and corrected by the Owner-authorized Codex continuation below;
+the old counts and verification claims remain tied to the old source.
+
+The previous handoff (#46.2-C v3 closeout documentation) is complete: it
+merged as PR #77 (`22642e8`). Its text remains in the history of this file
+at that commit.
+
+- **Session date/time and timezone:** 2026-10-01, Asia/Dubai.
+- **Implementation owner:** Claude Code. Codex reviews independently; the
+  Owner decides and publishes.
+- **Branch and worktree:** `governance/48-v1.1-assurance`, in the worktree
+  `astra-48-release-assurance`. Local only; nothing was pushed.
+- **Starting SHA / ending SHA:** `22642e88f516f827c1dc4250bc72eb259306fafd`
+  (equal to `origin/master` when checked) / the last commit on the branch,
+  reported in the review handoff.
+- **Task and release classification:** issue #48, Phase D release assurance
+  for the v1.1.0 minor release. Tests and documentation only; no product
+  code, dependency, schema or release artifact changed.
 - **Work completed:**
-  - Added the aggregate-only
-    [v3 blind outcome](../evaluation/DISCOVERY_46_2C_V3_BLIND_OUTCOME.md).
-  - Updated the [C status](../evaluation/DISCOVERY_46_2C_PUBLIC_STATUS.md),
-    keeping the v2 assisted-evidence paragraph unchanged.
-  - Refreshed this file for the PR #75 merge and the C FAIL.
-- **Files changed:** those three files only.
-- **Tests and checks executed:** on a single-branch clone of the committed
-  branch, whose HEAD and tree matched the worktree's.
-  - Relative-link and anchor check of the three files: 19 links, 0 broken.
-    External URLs were not fetched. The pull requests, workflow runs, commits
-    and permalinks that this change adds were checked against the host with
-    read-only `gh` queries, which also showed that the lock, comparison and
-    local head commits are not on the host.
-  - Publication gate (`scripts/publication_gate.py`): **PASS**, 0 findings.
-  - `tests/security/test_publication_scope.py` and
-    `tests/security/test_assurance_gate.py`: 56 passed, 0 failed, 0 skipped.
-  - A scan of the added lines for item identifiers, machine paths, personal
-    emails and per-posting field names found none, and the full diff was read.
-    The repository has no automated check for per-posting Owner data, so this
-    is a manual review.
+  - A traceability inventory (`tests/security/v1_1_assurance_inventory.py`)
+    maps 36 requirements from ADR-0007/0008/0009 and the threat-model delta
+    to 229 named test functions. All ten abuse cases are covered. A
+    `v1_1_assurance` marker (in `tests/conftest.py`) runs them as one suite.
+  - `tests/security/test_v1_1_assurance.py` adds eight gap tests for
+    controls the ADRs required but nothing tested directly:
+    - an oversized provider response failing only its own source;
+    - no raw-HTML sink in the frontend;
+    - AI requests that offer no tools;
+    - hostile model replies refused;
+    - model advice leaving application state unchanged;
+    - the mailbox path unable to load an AI module;
+    - failed authentication capping at exactly MEDIUM;
+    - every private route keeping the demo, access-key and cross-site
+      guards.
+
+    It also adds seven checks that keep the inventory and the ASVS records
+    consistent. Every gap test passes against unchanged product code. The
+    failures seen while writing them were mistakes in test setup, not
+    product defects.
+  - ASVS mapping: OAuth client rows 10.1.1, 10.1.2, 10.2.1 and 10.2.3 are
+    now applicable and PASS. Until now every OAuth row said there was no
+    OAuth client. 65 rows were re-reviewed in total; Level 1 is unchanged
+    at 40 PASS / 30 N/A, and the gate's ASVS check reports no blockers.
+  - SSDF: ten tasks gained v1.1 evidence, with no status change. Stale
+    pre-release rows are recorded as a follow-up.
+  - Threat-model delta: as-built reconciliation per abuse case, surfaces
+    added since planning, and gaps found.
+  - ADR-0007/0008/0009 and the ADR index: dated evidence updates.
+  - R-16 and R-18: stale "not merged" facts corrected. All three risks stay
+    OPEN.
+  - OD-019 (R-16/17/18 decision) and OD-020 (two-account scope) are
+    registered as Pending.
+  - The pre-candidate [v1.1.0 evidence pack](../release/V1_1_0_RELEASE_EVIDENCE_PACK.md)
+    is drafted, with the technical verdict BLOCKED.
+  - One stale changelog statement corrected: #46 was independently
+    reviewed.
+- **Tests and checks executed** (local, Windows, Python 3.13.2, on the
+  working tree that became the branch's commits):
+  - Baseline on `22642e8` before any change: the 16 v1.1 security-relevant
+    test files, 979 passed, 0 failed.
+  - Consolidated suite `python -m pytest -m v1_1_assurance`: 517 passed,
+    0 failed, 0 errors, 0 skipped.
+  - `tests/security/test_v1_1_assurance.py` plus
+    `tests/security/test_assurance_gate.py`: 59 passed.
+  - Full suite, with `frontend/dist` built offline: 2102 passed,
+    1 skipped, 0 failed, 1 deselected. The skip is the existing intentional
+    `test_must_not_collapse[MN15_three_record_transitive_bridge]`; the
+    deselection is the repository-wide publication-gate test below.
+  - Relative links and anchors in the changed Markdown: 68 links, 0 broken.
+  - A scan of the added lines for machine paths and email addresses found
+    none.
+  - Publication gate (`scripts/publication_gate.py`) on a single-branch
+    clone of the final commit: result reported in the review handoff,
+    because it must run after this record is committed.
 - **Checks not run and why:**
-  - Full test suite and hosted CI: no code changed, and nothing was pushed.
-  - The repository-wide publication gate: it scans every local ref, including
-    the preserved private branch, and this change does not depend on it.
-  - Recomputation of the aggregate counts: the private inputs and results were
-    not opened, by design.
-- **Security findings opened/changed/closed:** none recorded. Codex review
-  found, before any push, that the local C result file carried individual Owner
-  answers and per-posting predictions. It was contained by not publishing it.
-- **ADRs, threat deltas, risk records, and framework deltas:** none.
-- **Owner decisions still required:** whether to commission the C v4 plan and
-  fresh set; and the items under *Next actions*. None remains about PR #76.
-- **Commit(s) and pull request:** two local commits: the closeout and a
-  documentation follow-up that records PR #76 as closed. No pull request was
-  created by this session. PR #76 was not touched by this session; it was
-  closed without merging afterwards (2026-09-29).
+  - Hosted CI: nothing was pushed.
+  - Frontend `npm test`: no frontend file changed. The production build was
+    run, only so that `tests/security/test_browser_termination.py` has
+    `frontend/dist`.
+  - The repository-wide publication gate (`test_real_repository_still_passes`,
+    deselected): it scans every local ref and is BLOCKED by known historical
+    findings on unpublished local branches.
+  - Candidate build, SBOM, provenance, clean install and release gate: no
+    v1.1.0 candidate exists.
+- **Security findings opened/changed/closed:** none. The gaps were missing
+  tests and stale documentation, not code defects.
+- **ADRs, threat deltas, risk records, and framework deltas:**
+  - ADR-0007/0008/0009 evidence sections and the ADR index;
+  - the threat-delta as-built reconciliation;
+  - R-16/R-17/R-18 facts (states unchanged: OPEN);
+  - the ASVS and SSDF deltas, recorded in the evidence pack, section 9.
+- **Owner decisions still required:**
+  - OD-019 and OD-020;
+  - approval of the threat-delta reconciliation and the ASVS/SSDF delta
+    after independent review;
+  - the items under *Next actions* above.
+- **Commit(s) and pull request:** two local commits. The first holds the
+  tests and the ASVS mapping they check; the second holds the remaining
+  documentation. No pull request was created; publication waits for review
+  and the Owner.
 - **Known conflicts, blockers, or branch drift:**
-  - PR #76's branch edits the same C status page and this file with the
-    pre-result "awaiting Owner labels" text. It is closed and not merged, so
-    that text is historical and does not reach `master`.
-  - The E v3 decision review still says the C holdout stays sealed. That was
-    true when it was written (2026-09-27) and it is a dated record, so it is
-    unedited.
-  - The C status page keeps its earlier v2 paragraph unchanged, including one
-    development item identifier and its choices, which were already published.
-    Redacting them now would not unpublish them.
-  - The pushed head of `research/46.2-c-blind-eval` (`66c3326`) is three
-    commits behind the local branch, which was not pushed.
-- **Exact next action:** independent Codex review of this branch at its exact
-  SHA. Publication and a pull request wait for that review and the Owner's
-  decision.
+  - #48 started before #47 merged, against the Owner's 2026-09-30
+    sequencing; this pass was requested on 2026-10-01. The #47 stack also
+    edits `CHANGELOG.md` and this file, so expect simple conflicts on
+    rebase.
+  - The pending Dependabot PRs (#1-#9, #69) are untouched.
+  - Concurrent worktrees were not modified.
+- **Exact next action:** independent Codex review of
+  `governance/48-v1.1-assurance` at its exact commit. Publication, a pull
+  request and any merge wait for that review and for the Owner.
+
+## Session handoff: #48 Owner-authorized Codex continuation (2026-10-02)
+
+- **Owner and authority:** Codex is the sole implementation owner for these
+  local corrections after the Owner's "you proceed". Claude stopped at its
+  usage limit. No second process owns this branch.
+- **Branch / base:** `governance/48-v1.1-assurance`, in the existing
+  `astra-48-release-assurance` worktree, starting at
+  `fbbafe433ecbcf4b21f5c494dea285390cd30ad0`. Claude's commits are preserved.
+- **Scope:** assurance test corrections, truthful threat/inventory claims,
+  release-document drafts and evidence recording. Production code, dependencies,
+  schemas, preview, live data, private labels and other worktrees are protected.
+- **Current evidence:** 74 corrected assurance/gate tests pass; the original
+  lazy-import bypass is rejected. At committed test source `90e48ea`, 532
+  consolidated security cases pass, all six frontend test scripts and the
+  production build pass, and npm audit finds zero advisories. Python SCA fails
+  with six pypdf advisories; SF-2026-48-01 through -06 are TRIAGED and ASVS
+  15.2.1 is PARTIAL. The full suite passes 2,118 cases, with one existing
+  intentional skip and no failures/errors/deselection; the publication
+  regression runs. Current mapping/gate checks also pass 74 cases. All 345
+  official ASVS IDs/levels/text are preserved. Results and evidence digests
+  are recorded in the
+  [local validation record](../release/V1_1_0_LOCAL_ASSURANCE_VALIDATION.md).
+- **Findings / framework delta:** SF-2026-48-01 through -06 opened and TRIAGED;
+  none closed. ASVS 15.2.1 changes PASS to PARTIAL with fresh scan evidence,
+  and JSON/CSV/summary agree (L1: 39 PASS, 30 N/A, 1 PARTIAL). SSDF/ADRs
+  remain unchanged by this continuation; risk states stay OPEN.
+- **Checks not run:** hosted CI and candidate-specific CodeQL/Dependency Review,
+  complete candidate/package build, SBOM/attestations, exact-ZIP install/upgrade/
+  rollback and hosted release gate, because no approved complete candidate
+  exists. Live Gmail/OAuth/AI/scans and data migration were not performed.
+- **Commits / files:** `90e48ea76620ff1d876fb2907bb194b4c219916d` corrects the
+  two assurance test files, threat claims, changelog/release drafts and handoff;
+  the later evidence-only commit records current results, ASVS assessment and
+  six finding records. Exact ending SHA and post-commit publication results
+  are in the Owner-local handoff. No new PR was created.
+- **Owner decisions:** R-16/17/18, two-account scope, threat/framework approval,
+  release approval and publication remain reserved. No acceptance is inferred
+  from authorization to correct tests and documents.
+- **Review:** the prior separate-clone review found R48-1 and R48-2. Verification
+  of Codex's own correction is self-verification; independent re-review of the
+  corrected exact commit remains pending.
+- **Outcome / next action:** local corrections and current verification are
+  recorded in the validation handoff. Release remains **BLOCKED**. Assign
+  dependency remediation and independent re-review, resolve #47 integration,
+  two-account scope and Owner risk decisions, then freeze and verify the complete
+  candidate and package. No push, merge, tag or publish occurred.

@@ -1,0 +1,141 @@
+/*
+ * Motion vocabulary (#47 visual revision). One set of movements, used
+ * everywhere: things arrive by rising or sliding in with the "enter" curve and
+ * leave faster with the "exit" curve. Durations come from tokens.css and are 0
+ * under reduced motion. Only opacity and transform animate, except the More
+ * tools disclosure, which animates its row height so the list below moves
+ * with it. See docs/architecture/VISUAL_MOTION_SYSTEM.md.
+ */
+html { --vt-y: 1; --vt-x: 1; view-transition-name: none; }
+html[data-vt-direction=back] { --vt-y: -1; --vt-x: -1; }
+html[dir=rtl] { --vt-x: -1; }
+html[dir=rtl][data-vt-direction=back] { --vt-x: 1; }
+
+@keyframes vt-leave-y { to { opacity: 0; transform: translateY(calc(var(--vt-y) * -8px)); } }
+@keyframes vt-enter-y { from { opacity: 0; transform: translateY(calc(var(--vt-y) * 18px)); } }
+@keyframes vt-leave-x { to { opacity: 0; transform: translateX(calc(var(--vt-x) * -20px)); } }
+@keyframes vt-enter-x { from { opacity: 0; transform: translateX(calc(var(--vt-x) * 28px)); } }
+@keyframes vt-drawer-leave { to { opacity: 0; transform: translateX(48px); } }
+@keyframes vt-dialog-leave { to { opacity: 0; transform: translateY(10px) scale(0.98); } }
+@keyframes vt-fade-out { to { opacity: 0; } }
+@keyframes vt-fade-in { from { opacity: 0; } }
+
+::view-transition-group(*) { animation-duration: var(--motion-page); animation-timing-function: var(--ease-standard); }
+/* Snapshots must never eat a second click, wheel event or keyboard action. */
+::view-transition { pointer-events: none; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--motion-base); }
+
+/* The active navigation marker glides to the new item on every page and
+   Settings section change. */
+aside .nav-indicator { view-transition-name: nav-indicator; }
+.settings-nav .nav-indicator { view-transition-name: settings-indicator; }
+::view-transition-group(nav-indicator), ::view-transition-group(settings-indicator) {
+  animation-duration: var(--motion-page); animation-timing-function: var(--ease-enter);
+}
+
+/* Named snapshot participants are excluded from browser hit testing, even
+   when the snapshot overlay has pointer-events:none. Keep interactive chrome
+   and content unnamed, including the implicit root: live content supplies
+   movement. Only headings, indicators and departing overlays are captured. */
+html[data-vt=layout] .app > aside { transition: width var(--motion-page) var(--ease-enter); }
+html[data-vt=layout] .app > main { transition: margin-inline-start var(--motion-page) var(--ease-enter), width var(--motion-page) var(--ease-enter); }
+html[data-vt=page] .pagetitle h1 { view-transition-name: page-title; }
+html[data-vt=page] .campaign-heading h2 { view-transition-name: campaign-title; }
+::view-transition-old(page-title), ::view-transition-old(campaign-title) { animation: vt-leave-y var(--motion-fast) var(--ease-exit) both; }
+::view-transition-new(page-title), ::view-transition-new(campaign-title) { animation: vt-enter-y var(--motion-page) var(--ease-enter) both; }
+.content.page-enter { animation: vt-enter-y var(--motion-page) var(--ease-enter) backwards; }
+
+/* Settings section: the panel slides across in the direction of travel. */
+.settings-body.page-enter { animation: vt-enter-x var(--motion-page) var(--ease-enter) backwards; }
+
+/* Closing: a drawer slides back out, a dialog sinks and fades, the scrim
+   fades with the root. */
+html[data-vt=dismiss] .overlay > .detail { view-transition-name: drawer; }
+html[data-vt=dismiss] .overlay > .dialog { view-transition-name: dialog; }
+html[data-vt=dismiss] .confirm-dialog { view-transition-name: confirm; }
+::view-transition-old(drawer) { animation: vt-drawer-leave var(--motion-base) var(--ease-exit) both; }
+::view-transition-old(dialog), ::view-transition-old(confirm) { animation: vt-dialog-leave var(--motion-base) var(--ease-exit) both; }
+
+/* Theme changes colour on live surfaces, retaining working controls. */
+:is(body, .app > aside, .app > main > header, .panel, .rail-card, .settings-card) {
+  transition: background-color var(--motion-slow) var(--ease-standard), color var(--motion-slow) var(--ease-standard), border-color var(--motion-slow) var(--ease-standard);
+}
+
+/* Without View Transitions the new page and section still ease in. */
+html.no-vt .page-enter { animation: rise-in var(--motion-page) var(--ease-enter) both; }
+
+/* Tabs and view switches: the chosen view rises in. */
+.view-enter { animation: rise-in var(--motion-base) var(--ease-enter) both; }
+
+/* A short reading sequence, including content arriving after the page request.
+   Only newly mounted surfaces enter; polling and typing do not replay it.
+   Delay is capped at 96ms; content is never gated on scrolling or JavaScript. */
+@keyframes surface-enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.content > :is(.panel, .tablewrap, .metrics, .queue, .discoveryhero),
+.campaign-heading, .today-grid > .panel, .campaign > .view-enter > .panel,
+.pipeline > .tablewrap, .settings-body > .settings-card,
+.progress-body > :not(.glance), .glance > .rail-card:not(.skeleton-card) {
+  animation: surface-enter var(--motion-surface) var(--ease-enter) backwards;
+}
+.today-grid > .panel:nth-child(2), .glance > .rail-card:nth-child(2),
+.settings-body > .settings-card:nth-child(3), .progress-body > :nth-child(2) { animation-delay: 32ms; }
+.glance > .rail-card:nth-child(3), .settings-body > .settings-card:nth-child(4),
+.progress-body > :nth-child(3) { animation-delay: 64ms; }
+.settings-body > .settings-card:nth-child(n+5), .progress-body > :nth-child(n+4) { animation-delay: 96ms; }
+/* Focus is immediate, even if the user tabs ahead of an entrance. */
+.content :is(.panel, .settings-card, .rail-card, .tablewrap):focus-within { animation: none; }
+
+/* --- More tools disclosure ------------------------------------------------ */
+.more-tools .chevron { margin-inline-start: auto; flex: none; transition: transform var(--motion-base) var(--ease-standard); }
+.more-tools.is-open .chevron { transform: rotate(180deg); }
+.disclosure {
+  display: grid; grid-template-rows: 0fr; visibility: hidden;
+  transition: grid-template-rows var(--motion-base) var(--ease-exit), visibility 0s linear var(--motion-base);
+}
+.more-tools.is-open > .disclosure {
+  grid-template-rows: 1fr; visibility: visible;
+  transition: grid-template-rows var(--motion-slow) var(--ease-enter), visibility 0s;
+}
+.disclosure-inner { min-height: 0; overflow: hidden; }
+.app .more-tools nav button {
+  opacity: 0; transform: translateY(-6px);
+  transition: opacity var(--motion-fast) var(--ease-standard), transform var(--motion-base) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
+}
+.app .more-tools.is-open nav button { opacity: 1; transform: none; transition-delay: calc(var(--i, 0) * 22ms), calc(var(--i, 0) * 22ms), 0s, 0s, 0s; }
+.app .more-tools.is-open nav button:active { transform: translateY(1px); transition-delay: 0s; }
+
+/* --- Loading ---------------------------------------------------------------- */
+@keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+@keyframes toast-leave { to { opacity: 0; transform: translateY(8px); } }
+.skeleton-line {
+  position: relative; overflow: hidden; display: block; height: 0.8rem; border-radius: 6px;
+  background: var(--surface-sunken);
+}
+.skeleton-line::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, var(--surface-raised), transparent); transform: translateX(-100%); animation: shimmer 1.4s var(--ease-standard) 3; }
+.campaign-skeleton { display: grid; gap: var(--space-6); }
+.campaign-skeleton .skeleton-heading { min-height: 7rem; display: grid; align-content: center; gap: var(--space-4); }
+.campaign-skeleton .panel { min-height: 16rem; display: grid; align-content: start; gap: var(--space-5); }
+.campaign-skeleton .skeleton-tabs { height: 2.5rem; width: 40%; }
+.toast.is-leaving { animation: toast-leave var(--motion-base) var(--ease-exit) forwards; }
+
+/* --- Reduced motion: everything still, every state still visible ----------- */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+  .skeleton-line, .scanpill .scandot { animation: none; }
+  .app .more-tools.is-open nav button { transition-delay: 0s; }
+}
+html[data-motion=reduced] .skeleton-line, html[data-motion=reduced] .scanpill .scandot { animation: none; }
+html[data-motion=reduced] .app .more-tools.is-open nav button { transition-delay: 0s; }
+
+/* Stop all motion, including legacy loops and press/hover displacement. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  button:active, button:hover, a:active, button:hover svg, .segmented label:active { transform: none !important; }
+}
+html[data-motion=reduced] *, html[data-motion=reduced] *::before, html[data-motion=reduced] *::after {
+  animation: none !important; transition: none !important; scroll-behavior: auto !important;
+}
+html[data-motion=reduced] button:active, html[data-motion=reduced] button:hover, html[data-motion=reduced] a:active,
+html[data-motion=reduced] button:hover svg, html[data-motion=reduced] .segmented label:active { transform: none !important; }

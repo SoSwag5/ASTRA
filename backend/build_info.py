@@ -4,10 +4,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '1.0.0-rc.1'
+VERSION = (ROOT / 'VERSION').read_text(encoding='utf-8').strip()
 
 def source_id():
     digest=hashlib.sha256()
+    digest.update((ROOT / 'VERSION').read_bytes())
     for path in sorted((ROOT/'backend').glob('*.py')):
         digest.update(path.name.encode());digest.update(path.read_bytes())
     return digest.hexdigest()[:16]

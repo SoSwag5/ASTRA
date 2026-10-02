@@ -1,5 +1,6 @@
 import {safeLink} from './safeLink';
 import React,{useEffect,useRef,useState} from 'react';
+import {useConfirm} from './ui';
 /**
  * Minimal Gmail connection controls (issue #44): show connected/disconnected,
  * start the primary account's authorization, show the actual authorized
@@ -71,6 +72,7 @@ const describe=(code?:string)=>(code&&MESSAGES[code])||'';
 
 export function GmailConnection({api}:{api:Api}){
  const [info,setInfo]=useState<Row|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
+ const confirm=useConfirm();
  // Pending-attempt values are component state only -- never persisted to any
  // browser storage, so a reload or a closed tab discards them.
  const [pendingUrl,setPendingUrl]=useState('');
@@ -103,22 +105,27 @@ export function GmailConnection({api}:{api:Api}){
  });
  const cancel=()=>run(async()=>{setPendingUrl('');await api('/gmail/accounts/primary/authorize/cancel','POST',{})});
  const disconnect=()=>run(async()=>{setPendingUrl('');await api('/gmail/accounts/primary/disconnect','POST',{})});
+ // Disconnecting revokes Google access and deletes the local token, so it is
+ // confirmed with its consequences spelled out; evidence already saved stays.
+ const askDisconnect=()=>confirm({title:'Disconnect Gmail?',tone:'danger',confirmLabel:'Disconnect Gmail',cancelLabel:'Keep connected',
+  body:<><p>ASTRA will delete its local token and this account’s sync position, and ask Google to revoke read-only access.</p><ul><li>Applications, their history and confirmations already saved are kept.</li><li>To check Gmail again you will need to reconnect and approve access.</li></ul></>,
+  onConfirm:disconnect});
 
- if(!info)return <section className="panel spaced"><h2>Gmail connection</h2>{error?<p role="alert" className="errorbar">{error}</p>:<p role="status">Loading Gmail connection status…</p>}</section>;
+ if(!info)return <section className="panel settings-card"><h3>Gmail connection</h3>{error?<p role="alert" className="errorbar">{error}</p>:<p role="status">Loading Gmail connection status…</p>}</section>;
  const configured=info.configuration?.state==='CONFIGURED';
  const storeReady=info.credential_store?.state==='OS_SECURE_STORE';
  // The client secret is never entered, displayed or held in the browser --
  // only whether the backend has one is ever known here.
  const secretReady=info.client_secret?.state==='CONFIGURED';
  const connected=primary?.status==='CONNECTED';
- return <section className="panel spaced">
-  <h2>Gmail connection</h2>
+ return <section className="panel settings-card">
+  <h3>Gmail connection</h3>
   <p>ASTRA asks Google for <strong>read-only</strong> Gmail access ({info.requested_scopes?.join(' ')}) so it can later detect application confirmations. It never sends, deletes, archives or changes email. Your connection token is kept in your operating system’s credential store, never in the ASTRA database, an export, a backup or a log.</p>
   {error&&<p role="alert" className="errorbar">{error}</p>}
-  {!configured&&<p className="notice">{describe(info.configuration?.detail_code)||'A Gmail OAuth client is not configured yet.'} Set <code dir="ltr">{info.configuration?.environment_variable}</code> to the client ID of a Desktop App OAuth client in your own Google Cloud project, then restart ASTRA. See the Gmail OAuth setup guide in the documentation.</p>}
-  {configured&&!storeReady&&<p className="notice">{describe(info.credential_store?.detail_code)}</p>}
-  {configured&&storeReady&&!secretReady&&<p className="notice">{describe(info.client_secret?.detail_code)||'Your OAuth client secret is not configured yet.'} Run <code dir="ltr">{info.client_secret?.setup_command}</code> in a terminal on this computer; it asks for the secret at a hidden prompt and stores it in your operating system’s credential store. It is never typed into this page and never stored by your browser.</p>}
-  <h3>Primary account</h3>
+  {!configured&&<p className="notice" id="gmail-unavailable">{describe(info.configuration?.detail_code)||'A Gmail OAuth client is not configured yet.'} Set <code dir="ltr">{info.configuration?.environment_variable}</code> to the client ID of a Desktop App OAuth client in your own Google Cloud project, then restart ASTRA. See the Gmail OAuth setup guide in the documentation.</p>}
+  {configured&&!storeReady&&<p className="notice" id="gmail-unavailable">{describe(info.credential_store?.detail_code)}</p>}
+  {configured&&storeReady&&!secretReady&&<p className="notice" id="gmail-unavailable">{describe(info.client_secret?.detail_code)||'Your OAuth client secret is not configured yet.'} Run <code dir="ltr">{info.client_secret?.setup_command}</code> in a terminal on this computer; it asks for the secret at a hidden prompt and stores it in your operating system’s credential store. It is never typed into this page and never stored by your browser.</p>}
+  <h4>Primary account</h4>
   <p role="status">
    {connected?<>Connected as <strong dir="ltr">{primary.authorized_email}</strong> — the address Google confirmed was authorized. Read-only access granted {primary.connected_at?'on '+primary.connected_at.slice(0,10):''}.</>
     :primary?.status==='DISCONNECTED_INCONSISTENT'?<>Not connected. A stored connection was found without its credential, so ASTRA treats this account as disconnected. Connect again.</>
@@ -127,13 +134,13 @@ export function GmailConnection({api}:{api:Api}){
   {attempt&&<p role="status" className="notice">{describe(attempt.result_code)||'Connection attempt in progress.'}{attempt.status==='PENDING'&&attempt.expires_in_seconds>0&&<> This attempt expires in about {Math.ceil(attempt.expires_in_seconds/60)} minute(s).</>}</p>}
   {pendingUrl&&attempt?.status==='PENDING'&&<p><a href={pendingUrl} target="_blank" rel="noopener noreferrer">Continue to Google ↗</a> — if the consent page did not open automatically.</p>}
   <div className="actions spaced">
-   {!connected&&<button className="secondary" disabled={busy||!configured||!storeReady||!secretReady||attempt?.status==='PENDING'} onClick={connect}>Connect Gmail (read-only)</button>}
+   {!connected&&<button className="secondary" disabled={busy||!configured||!storeReady||!secretReady||attempt?.status==='PENDING'} aria-describedby={!configured||!storeReady||!secretReady?'gmail-unavailable':undefined} aria-busy={busy} onClick={connect}>Connect Gmail (read-only)</button>}
    {attempt?.status==='PENDING'&&<button className="secondary" disabled={busy} onClick={cancel}>Cancel connection attempt</button>}
-   {connected&&<button className="secondary" disabled={busy} onClick={disconnect}>Disconnect Gmail</button>}
+   {connected&&<button className="secondary" disabled={busy} aria-busy={busy} onClick={askDisconnect}>Disconnect Gmail</button>}
   </div>
   {connected&&<p>Disconnecting deletes ASTRA’s local token and this account’s Gmail sync state, and asks Google to revoke the access. Your applications, their history and anything already saved are kept.</p>}
   {primary?.last_remote_revocation&&<p className="notice">Last disconnect: local access removed; Google revocation reported <strong>{primary.last_remote_revocation.replaceAll('_',' ').toLowerCase()}</strong>.</p>}
-  <h3>Second account</h3>
+  <h4>Second account</h4>
   <p role="status">Not enabled yet. ASTRA is built for two Gmail accounts, and the second one is switched on only after the primary account is validated end to end.{secondary?.gate_code&&<> ({secondary.gate_code.replaceAll('_',' ').toLowerCase()})</>}</p>
  </section>
 }

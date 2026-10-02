@@ -336,7 +336,7 @@
   },
   "engine": "compare",
   "evaluation_view": "BASELINE",
-  "git_commit": "f55f645ae5a7a75220c77e8e1f9732424b456a28",
+  "git_commit": "89d5e03daacfe494b954c5e2b37d09aece107eee",
   "hard_reason_precision": {
     "CONFIRMED_ELIGIBILITY_CONFLICT": {
       "denominator": 1,
@@ -2416,11 +2416,11 @@
   },
   "provenance": {
     "contract_version": "fit-eval-provenance-1",
-    "evaluated_commit": "f55f645ae5a7a75220c77e8e1f9732424b456a28",
-    "evaluated_tree_hash": "bed12ffc1916c0d4e25fb27cceb5a56743e443cb",
+    "evaluated_commit": "89d5e03daacfe494b954c5e2b37d09aece107eee",
+    "evaluated_tree_hash": "7f866a980850daa2b9cf685b6d2bc76b41174e49",
     "manifest_path": "docs/evaluation/fit_evaluation_provenance_v1.json",
-    "manifest_sha256": "006aa38ce2626006d19b2ad29f421853d4d50e61f1197e37a0682a60001f906d",
-    "report_payload_sha256": "1068d32f742c3586bdc54f8aff0aa201de54520535dba9f176a4b39b0f5bba58",
+    "manifest_sha256": "cbae5a3352e3ea2d6cb7a79ce2dd97cda47457335c8a235e0765e20bbec78c16",
+    "report_payload_sha256": "55550f155e314842f25002bc9669840584b082c6b84901cde1a5c1f56ad39954",
     "report_snapshot_note": "evaluated_commit and evaluated_tree_hash are informational Git diagnostics only; the versioned input manifest and report_payload_sha256 are the authoritative, durable provenance contract."
   },
   "quality_gate": {

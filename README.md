@@ -1,113 +1,104 @@
-# ASTRA
+# ASTRA · Job search, with a clearer next step
 
-A local job-search workspace: discover public listings, review evidence, prepare
-application documents, and track follow-ups. **You submit applications yourself.**
-Built by Ayham as a portfolio project; this is not a claim of professional production experience.
+**Discover relevant roles. Review the evidence. Keep your applications moving.**
 
-Stored locally by default. Discovery contacts configured public job APIs. Optional
-OpenAI commentary sends the selected job description and listed skills only after
-per-request approval; those texts can contain information you entered. Rules mode
-needs no AI service. Ollama stays on loopback. Manual employer links leave ASTRA.
+ASTRA brings job discovery, CV review, application preparation and follow-up
+tracking into one local workspace. Built by Ayham, a cybersecurity graduate,
+as an AI-assisted personal portfolio project with documented security controls.
 
-## Try the product
+**Early beta · v1.1.0-beta.1.** Expect rough edges. Features and validation are
+still developing; this is not a production assurance or universal matching claim.
+**You review facts and submit applications yourself.**
 
-Run locally, then open [fictional demo](http://localhost:8787/demo). The demo has no
-real applications. Never expose the private backend online. To serve only the demo,
-set `ASTRA_DEMO_ONLY=1` before starting: every `/api` route is then disabled.
+[**Download the Windows beta ZIP**](https://github.com/SoSwag5/ASTRA/releases/download/v1.1.0-beta.1/astra-1.1.0-beta.1.zip)
+· [Installation guide](docs/GETTING_STARTED.md)
+· [Beta release notes](docs/release/V1_1_0_BETA_1_NOTES.md)
+· [Roadmap](docs/ROADMAP.md)
+· [Report a bug](https://github.com/SoSwag5/ASTRA/issues/new/choose)
+
+The download becomes available when the beta is published. Its release page is
+the authority for the shipped source, checksum and executed assurance evidence.
+
+## What you can do
+
+- **Discover:** search configured public Greenhouse, Lever and Ashby boards;
+  preview a scan, start it manually and stop it. Nothing scans automatically.
+- **Understand:** review explainable fit and eligibility separately. A fit score
+  is a prioritization signal, not a hiring probability.
+- **Prepare:** import a text PDF CV, correct extracted facts and confirm them;
+  prepare documents and review every claim before use.
+- **Track:** record applications and follow-ups. Optional primary-account Gmail
+  sync suggests confirmations; uncertain matches require review.
+- **Work comfortably:** cohesive light/dark pages, responsive layouts, loading
+  feedback, page transitions and motion that respects reduced-motion preferences.
+
+After launch, explore the [fictional demo](http://localhost:8787/demo) without
+uploading a real CV. These screenshots show the fictional demo, not live records.
 
 ![Fictional ASTRA demo — desktop](docs/screenshots/demo-desktop.png)
 
-![Fictional ASTRA demo — mobile](docs/screenshots/demo-mobile.png)
+## Install in five steps
 
-## Windows installation
+Windows x64. Internet is needed during installation; Python 3.13 is required.
+The ZIP includes the built interface. **Release users need no Git, Node, paid
+AI subscription or administrator access for ASTRA.** This beta is a Python-based
+ZIP application, not a standalone signed Windows installer.
 
-Reference configuration: Windows x64, **Python 3.13.2**, **Node 24 LTS for source builds**.
-Python 3.14 is a CI verification target; continuous verification is pending. No administrator rights are required.
-Install Python from [python.org](https://www.python.org/downloads/windows/) and Node
-from [nodejs.org](https://nodejs.org/en/download). Keep the project outside cloud-synced folders.
+1. Download **astra-1.1.0-beta.1.zip** from the beta release's Assets section.
+   GitHub's automatically generated **Source code** downloads are for developers.
+2. Right-click the ZIP, choose **Extract All**, and open the extracted `astra` folder.
+3. Open **START HERE.html**. If needed, follow its official Python installation link.
+4. Double-click **Install ASTRA.bat**. Keep the window open until it says **Ready**.
+5. Double-click **Open ASTRA.bat**. Your browser opens your local workspace.
 
-1. Clone the repository (or extract the release ZIP into a new local directory).
-2. Double-click `setup.bat`.
-3. Double-click `run.bat`, then open the displayed localhost address.
+Keep the folder outside OneDrive or other cloud-synced folders. Begin with the
+fictional demo; then choose your career focus and review your imported CV.
+[Full instructions, troubleshooting and safe updates](docs/GETTING_STARTED.md).
 
-A release ZIP includes the built frontend: **Node is not needed for release users**.
-Python and Internet access for hash-verified package installation are still required.
-Setup creates an empty workspace and never imports nearby CVs or trackers. Existing
-records survive rerunning setup. Use `stop.bat` to stop this installation's server.
-An existing Python 3.12 environment needs recreation with a supported baseline;
-back up data first. Do not move a virtual environment from another installation.
+## Your data and your decisions
 
-Optional offline browser rehearsal/tests require:
-`.venv\Scripts\python.exe -m playwright install chromium`.
-Normal discovery, tracking and document preparation do not need Chromium.
+CVs, jobs and application records are stored locally by default. Discovery
+contacts configured public job services. Rules mode needs no AI service.
+Optional OpenAI commentary sends selected job text and listed skills only after
+per-request approval; Ollama uses loopback. Employer links open external sites.
 
-## Everyday workflow
+Gmail is optional and advanced: its read-only OAuth permission covers the
+**whole connected mailbox**, although ASTRA narrows its queries. This beta
+supports one primary account; secondary-account controls are disabled. Live
+mailbox accuracy and multi-account behaviour have not been validated. Read
+[the Gmail boundary](docs/THREAT_MODEL.md) before connecting.
 
-Choose your career focus and locations. Upload a text PDF CV, review extracted facts,
-then confirm them. Scan configured public boards or paste a job description.
-Review the match explanation, prepare documents, and check every claim. Open the
-employer page in your own browser, apply manually, then record status and follow-ups.
-SQLite is authoritative; the Excel tracker is a local mirror. Close Excel if sync is pending.
-Discovery is manual only: nothing scans when Windows or ASTRA starts, on a timer, or after a
-restart. Press **Start Scan** in Discovery, review the scope and expected workload, then confirm.
-A running scan shows its progress and can be stopped before its next source.
+Use a trusted Windows account and disk encryption. ASTRA does not encrypt its
+SQLite database or isolate you from other processes running as your OS user.
+PDF resource limits are containment, not malware detection. CV extraction has
+limited heading support and needs human correction. Cross-major import tests
+do not establish ranking quality across careers. Linux and Docker installation
+are unverified. See [known risks](security/RISK_REGISTER.md).
 
-## Security evidence
+## Security work you can inspect
 
-- Loopback, Host, Origin and cross-site request controls with adversarial regressions.
-- Bounded PDF child process: 512 MiB Windows Job Object and 20-second timeout.
-  This is resource isolation, not a full OS sandbox or malware detector.
-- SSRF validation on requests and redirects; formula-safe spreadsheet export.
-- Native credential storage, bounded local security events, and a visible self-check.
-- Optional access-key exchange with expiring browser sessions and private-screen cleanup.
-- Persistent OpenAI request limits, bounded input/output and no automatic retries.
-- Hash-checked Python wheels, npm lock, CycloneDX inventory and pinned CI actions.
+The project includes threat modelling, local request controls, bounded PDF
+parsing, SSRF checks, credential-store integration, adversarial regressions,
+hash-locked dependencies, a CycloneDX 1.7 SBOM and fail-closed release workflows.
+Mappings to OWASP ASVS 5.0.0, NIST SSDF 1.1 and OWASP SAMM describe scoped
+engineering evidence. **No certification, compliance or SLSA Build level is claimed.**
 
-ASTRA's Secure SDLC is mapped to NIST SSDF 1.1, with an application-specific
-OWASP ASVS 5.0.0 assessment and a conservative OWASP SAMM v2 review.
-Release SBOMs use validated CycloneDX 1.7; the SLSA v1.2-aligned hosted provenance
-workflow is prepared but has not executed. **Public release is blocked** until
-requirement gaps and remote assurance checks are closed.
+[Beta evidence](docs/release/V1_1_0_BETA_1_EVIDENCE.md)
+· [Architecture](docs/SECURITY_ARCHITECTURE.md)
+· [Threat model](docs/THREAT_MODEL.md)
+· [Security policy](SECURITY.md)
+· [Secure SDLC](docs/security/SECURE_SDLC.md)
 
-[Secure SDLC](docs/security/SECURE_SDLC.md) | [ASVS](docs/security/OWASP_ASVS_5.0.0_MAPPING.md) |
-[SSDF](docs/security/NIST_SSDF_1.1_MAPPING.md) | [SAMM](docs/security/OWASP_SAMM_V2_ASSESSMENT.md) |
-[Release assurance](docs/release/RELEASE_SECURITY_ASSURANCE_REPORT.md)
+## Develop and contribute
 
-[Architecture](docs/SECURITY_ARCHITECTURE.md) · [Threat model](docs/THREAT_MODEL.md) ·
-[Security evidence](docs/SECURITY_POSTURE.md) · [Risks](security/RISK_REGISTER.md) ·
-[Security policy](SECURITY.md) · [Portfolio demo](docs/PORTFOLIO_DEMO.md)
+Source builds require Python 3.13 and Node 24 LTS; Python 3.14 is also a CI target.
+See [reproducible builds](docs/REPRODUCIBLE_BUILD.md),
+[contribution guidance](CONTRIBUTING.md), [governance](docs/governance/README.md)
+and [the changelog](CHANGELOG.md). Report bugs using fictional examples; never
+attach CVs, mailbox contents, credentials or private databases to public issues.
 
-## Verify and build
-
-```text
-.venv\Scripts\python.exe -m backend.doctor
-.venv\Scripts\python.exe -m pytest -q
-cd frontend
-npm ci
-npm test
-npm run build
-npm audit --audit-level=low
-cd ..
-.venv\Scripts\python.exe scripts/publication_gate.py
-.venv\Scripts\python.exe scripts/build_release.py --sbom release/astra-1.0.0-rc.1.cdx.json
-```
-
-[Reproducible builds](docs/REPRODUCIBLE_BUILD.md) documents dependency audits and
-release checks. Release ZIPs include a manifest and SHA-256 checksum, exclude private
-data and Git history, and are never published automatically.
-
-## Limits
-
-Single trusted user, localhost only. Files and SQLite are not encrypted by ASTRA;
-use OS account protection and disk encryption. Default keyless mode accepts local
-callers without establishing OS-user identity; this remains a strict L1 release
-blocker. [Local access](docs/security/LOCAL_ACCESS.md) explains optional protection
-and browser-session changes. No live configuration was migrated in this pass.
-DNS validation has a residual reconnect race. Deletion is app-scoped and cannot erase
-exports, OS backups or SSD remnants. AI commentary can be wrong; it has no tools and
-cannot approve facts or submit applications. PDF extraction is text-only and supports
-limited headings; review omissions. Docker/Linux installation is unverified.
+[12 September to beta comparison](docs/project/DEVELOPMENT_2026_09_12_TO_BETA.md)
+· [Independent cloud review prompt](docs/project/CLAUDE_CLOUD_BETA_REVIEW.md)
+· [Another-PC acceptance checklist](docs/release/ANOTHER_PC_BETA_CHECKLIST.md)
 
 MIT licensed. Preserve [third-party notices](THIRD_PARTY_NOTICES.md).
-
-Generate the SBOM in the separate hash-installed assurance environment first; see [SBOM process](docs/security/SBOM.md).

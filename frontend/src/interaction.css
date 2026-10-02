@@ -1,0 +1,164 @@
+/*
+ * Interaction states for every control (#47 follow-up A).
+ * Loaded after style.css, readiness.css, campaign.css and tokens.css so one
+ * set of rules wins everywhere. Motion comes only from tokens, which are 0
+ * under reduced motion. Only colour, shadow, opacity and transform animate,
+ * so nothing reflows. See docs/architecture/INTERACTION_SYSTEM.md.
+ */
+
+/* --- Motion for everything interactive ---------------------------------- */
+button, a, summary, select, input, textarea, [role=tab], [role=switch] {
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    background-image var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-instant) var(--ease-standard);
+}
+
+/* --- One focus ring ----------------------------------------------------- */
+button:focus-visible, a:focus-visible, summary:focus-visible, select:focus-visible,
+input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+[tabindex="-1"]:focus:not(:focus-visible) { outline: none; }
+
+/* --- Buttons: hover tint, press acknowledgement ------------------------- */
+.primary:hover:not(:disabled), .secondary:hover:not(:disabled), .danger-button:hover:not(:disabled) {
+  background-image: linear-gradient(var(--state-hover), var(--state-hover));
+}
+.secondary:hover:not(:disabled) { border-color: var(--control-border); }
+.primary:active:not(:disabled), .secondary:active:not(:disabled), .danger-button:active:not(:disabled),
+.icon:active:not(:disabled), nav button:active {
+  transform: translateY(1px);
+  background-image: linear-gradient(var(--state-press), var(--state-press));
+}
+.icon { border-radius: var(--radius-sm); min-width: var(--target-min); min-height: var(--target-min); justify-content: center; }
+.icon:hover:not(:disabled) { background-color: var(--state-hover); }
+.textbtn { cursor: pointer; text-underline-offset: 3px; }
+.textbtn:hover:not(:disabled) { text-decoration: underline; }
+.textbtn:active:not(:disabled) { opacity: 0.75; }
+button:disabled, button[aria-disabled=true] { cursor: not-allowed; }
+[aria-busy=true] { cursor: progress; }
+
+.danger-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  min-height: var(--control-height); padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--danger-border); border-radius: 7px;
+  background-color: var(--danger-bg); color: var(--danger-fg);
+  font-size: var(--text-md); font-weight: var(--weight-medium); white-space: nowrap;
+}
+.danger-button:hover:not(:disabled) { background-color: var(--danger-bg-hover); }
+
+/* --- Navigation and tabs ------------------------------------------------ */
+nav button:hover:not(.active) { background-color: var(--state-hover); color: var(--ink-1); }
+.campaign-tabs button:hover { color: var(--ink-1); }
+.campaign-tabs button[aria-pressed=true], .campaign-tabs button[aria-selected=true] { font-weight: var(--weight-semibold); }
+
+/* --- Clickable rows: the whole row responds, the arrow leads ------------ */
+button.campaign-job { cursor: pointer; }
+button.campaign-job:hover strong, button.campaign-job:focus-visible strong { color: var(--accent); }
+button.campaign-job .fit-band svg, button.campaign-job > svg { transition: transform var(--motion-fast) var(--ease-standard); }
+button.campaign-job:hover .fit-band svg { transform: translateX(2px); }
+button.campaign-job:active { opacity: 0.8; }
+tr:has(button, a, input):hover { background: var(--state-hover); }
+
+/* --- Disclosure and links ----------------------------------------------- */
+summary { padding-block: var(--space-1); min-height: var(--target-min); }
+summary:hover { color: var(--ink-1); }
+.privacy-panel a, .settings a:not(.primary):not(.secondary) { display: inline-block; padding-block: var(--space-1); }
+a:not(.primary):not(.secondary):not(.skip-link):hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* --- Form fields: 3:1 boundaries, hover, invalid ------------------------ */
+input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea { border-color: var(--control-border); }
+input:not([type=checkbox]):not([type=radio]):hover:not(:disabled):not(:focus), select:hover:not(:disabled):not(:focus),
+textarea:hover:not(:disabled):not(:focus) { border-color: var(--ink-3); }
+input[aria-invalid=true], select[aria-invalid=true], textarea[aria-invalid=true] { border-color: var(--status-bad-fg); }
+input:disabled, select:disabled, textarea:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* --- Switch -------------------------------------------------------------- */
+.switch {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  min-height: var(--target-min); padding: 0; border: 0; background: none; color: var(--ink-1); font-size: var(--text-md);
+}
+.switch-track {
+  position: relative; width: 2.5rem; height: 1.4rem; flex: none; border-radius: var(--radius-pill);
+  background: var(--surface-sunken); border: 1px solid var(--control-border);
+  transition: background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard);
+}
+.switch-track::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 1rem; height: 1rem; border-radius: 50%;
+  background: var(--ink-3); transition: transform var(--motion-base) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard);
+}
+.switch[aria-checked=true] .switch-track { background: var(--accent-soft); border-color: var(--accent); }
+.switch[aria-checked=true] .switch-track::after { transform: translateX(1.05rem); background: var(--accent); }
+.switch:disabled { opacity: 0.55; }
+
+/* --- Loading ------------------------------------------------------------- */
+.spin { animation: spin 900ms linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+html[data-motion=reduced] .spin { animation: none; }
+
+/* --- Entering surfaces: dialogs, drawer, toast, page -------------------- */
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes drawer-in { from { opacity: 0.4; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+.overlay { animation: fade-in var(--motion-base) var(--ease-standard); }
+.overlay > .detail { animation: drawer-in var(--motion-slow) var(--ease-enter); }
+.overlay > .dialog { animation: rise-in var(--motion-slow) var(--ease-enter); }
+.toast { animation: rise-in var(--motion-base) var(--ease-enter); }
+/* Page and section entry: motion.css. */
+html[data-motion=reduced] *, html[data-motion=reduced] *::before, html[data-motion=reduced] *::after {
+  animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important;
+}
+
+/* --- Confirmation dialog -------------------------------------------------- */
+.confirm-overlay {
+  position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: var(--space-4);
+  background: var(--scrim); animation: fade-in var(--motion-base) var(--ease-standard);
+}
+.confirm-dialog {
+  width: min(30rem, 100%); padding: var(--space-6); border: 1px solid var(--border-strong); border-radius: var(--radius-lg);
+  background: var(--surface-1); color: var(--ink-1); box-shadow: var(--shadow-3);
+  animation: rise-in var(--motion-slow) var(--ease-enter);
+}
+.confirm-dialog.danger { border-top: 3px solid var(--danger-border); }
+.confirm-head { display: flex; gap: var(--space-3); align-items: center; }
+.confirm-head svg { color: var(--status-bad-fg); flex: none; }
+.confirm-head h2 { font-size: var(--text-lg); }
+.confirm-body { margin: var(--space-3) 0 var(--space-6); color: var(--ink-2); font-size: var(--text-md); line-height: var(--leading-normal); }
+.confirm-body p { color: inherit; }
+.confirm-body ul { margin: var(--space-2) 0 0; padding-inline-start: var(--space-5); list-style: disc; }
+.confirm-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-3); }
+
+/* --- Save bar and action status ------------------------------------------ */
+.save-bar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3);
+  margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--border-subtle);
+}
+.save-bar.is-active {
+  position: sticky; bottom: var(--space-3); z-index: 5;
+  padding: var(--space-3) var(--space-4); border: 1px solid var(--border-strong); border-radius: var(--radius-md);
+  background: var(--surface-2); box-shadow: var(--shadow-2);
+  animation: rise-in var(--motion-base) var(--ease-enter);
+}
+.save-bar[data-tone=pending].is-active { border-inline-start: 3px solid var(--status-warn-fg); }
+.save-bar[data-tone=bad].is-active { border-inline-start: 3px solid var(--status-bad-fg); }
+.save-status { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--ink-2); font-size: var(--text-md); }
+.save-bar[data-tone=good] .save-status svg { color: var(--status-good-fg); }
+.save-bar[data-tone=bad] .save-status { color: var(--status-bad-fg); }
+.save-actions { display: flex; gap: var(--space-2); margin-inline-start: auto; }
+.action-status { display: flex; align-items: center; gap: var(--space-2); min-height: 1.5rem; margin: var(--space-2) 0 0; font-size: var(--text-md); color: var(--ink-2); }
+.action-status.good svg { color: var(--status-good-fg); }
+.action-status.bad { color: var(--status-bad-fg); }
+.action-status:empty { display: none; }
+
+@media (max-width: 560px) {
+  .save-actions { width: 100%; }
+  .save-actions > button { flex: 1; }
+  .confirm-actions > button { flex: 1 1 100%; }
+}

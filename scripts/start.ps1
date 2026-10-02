@@ -22,7 +22,7 @@ $server = Start-Process -FilePath $pythonPath -ArgumentList '-m','uvicorn','back
 for ($attempt=0; $attempt -lt 30; $attempt++) {
     try {
         $health = Invoke-RestMethod 'http://127.0.0.1:8787/api/health'
-        if ($health.version -ne '1.0.0-rc.1' -or $health.stale) { throw 'An older app process is still running on port 8787.' }
+        if ($health.version -ne (Get-Content -Raw (Join-Path $projectRoot 'VERSION')).Trim() -or $health.stale) { throw 'An older app process is still running on port 8787.' }
         $owned = Get-CimInstance Win32_Process -Filter "ProcessId = $($health.pid)"
         if ($health.pid -ne $server.Id -and $owned.ParentProcessId -ne $server.Id) { throw 'Port is served by another process.' }
         $serviceProcess = Get-Process -Id $health.pid -ErrorAction Stop

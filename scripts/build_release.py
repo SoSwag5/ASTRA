@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from scripts.publication_gate import git, PRIVATE, scan
+from scripts.release_version import VERSION
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
@@ -45,13 +46,13 @@ def main():
         # Locations and categories only; payloads are never printed.
         print(json.dumps({'status':'BLOCKED','findings':findings},indent=2),file=sys.stderr)
         raise RuntimeError('Artifact content failed publication gate: '+', '.join(sorted({f['location']+' ('+f['category']+')' for f in findings})))
-    manifest={'version':'1.0.0-rc.1','source_commit':git('rev-parse','HEAD').decode().strip(),
+    manifest={'version':VERSION,'source_commit':git('rev-parse','HEAD').decode().strip(),
               'python_reference':'3.13.2','python_verification_target':['3.13','3.14'],'node_build':'24 LTS','node_runtime_required':False,
               'sbom_sha256':validation['sha256'],'sbom_specification':'1.7',
               'sha256':{name:hashlib.sha256(data).hexdigest() for name,data in sorted(files.items())}}
     files['release-manifest.json']=(json.dumps(manifest,indent=2)+'\n').encode()
     out=ROOT/'release';out.mkdir(exist_ok=True)
-    target=out/'astra-1.0.0-rc.1.zip'
+    target=out/('astra-'+VERSION+'.zip')
     with zipfile.ZipFile(target,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as archive:
         for name,data in sorted(files.items()):
             item=zipfile.ZipInfo('astra/'+name,date_time=(2026,9,12,0,0,0))

@@ -1,12 +1,12 @@
 {
   "name": "astra",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0-beta.1",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
     "build": "tsc -b && vite build",
-    "test": "node check-locale.cjs && node check-order.cjs && node check-links.cjs && node check-gmail-oauth.cjs && node check-scan-stop.cjs && node check-discovery-poll.cjs"
+    "test": "node check-locale.cjs && node check-order.cjs && node check-links.cjs && node check-gmail-oauth.cjs && node check-scan-stop.cjs && node check-discovery-poll.cjs && node check-progress.cjs && node check-settings.cjs && node check-gmail-ops.cjs && node check-visual-motion.cjs && node check-contrast.cjs"
   },
   "dependencies": {
     "react": "^19.0.0",

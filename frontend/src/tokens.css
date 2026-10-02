@@ -1,0 +1,296 @@
+/*
+ * ASTRA design tokens (#47 visual and motion revision).
+ *
+ * The one place colour is defined. Light ("porcelain") is the default for a
+ * new browser; dark ("midnight") is its counterpart, tuned separately rather
+ * than inverted. Components use the semantic tokens below; the short legacy
+ * names (--bg, --panel, --line, --text, --muted, --accent, --input) are kept
+ * as aliases so older rules follow the same palette.
+ *
+ * Every text/background pair and every boundary/focus colour listed in
+ * frontend/check-contrast.cjs is verified there (text >= 4.5:1, large text,
+ * control boundaries, focus and data marks >= 3:1) as part of `npm test`.
+ * See docs/architecture/VISUAL_MOTION_SYSTEM.md.
+ */
+:root {
+  color-scheme: light;
+  --font-sans: Inter, "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", Inter, system-ui, -apple-system, Arial, sans-serif;
+
+  /* Type scale (rem, so 200% zoom and text resizing scale everything). */
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-md: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.25rem;
+  --leading-tight: 1.25;
+  --leading-normal: 1.55;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --tracking-eyebrow: 0.11em;
+
+  /* Spacing: a 4px base. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /* --- Porcelain (light) palette ----------------------------------------- */
+  --surface-page: #f6f3ee;
+  --surface-sidebar: #efebe4;
+  --surface-1: #fffefc;
+  --surface-2: #faf8f4;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f1ede6;
+  --surface-input: #ffffff;
+  --surface-inverse: #1b2233;
+  --border-subtle: #e6e0d6;
+  --border-strong: #d2cabd;
+  --control-border: #847d70;
+
+  --ink-1: #1b2233;
+  --ink-2: #414859;
+  --ink-3: #5c6272;
+  --ink-inverse: #f6f3ee;
+
+  /* Primary action: rich indigo. Warm accent: used sparingly for emphasis. */
+  --action: #3a46c2;
+  --action-hover: #2f3aa8;
+  --action-press: #283291;
+  --on-action: #ffffff;
+  --action-text: #3440b5;
+  --action-soft: #eceefc;
+  --action-soft-border: #c9cef5;
+  --warm: #a44a16;
+  --warm-soft: #fbeee3;
+
+  /* Data visualization: one series hue plus recessive chrome. */
+  --viz-series: #4552cc;
+  --viz-series-2: #717cc2;
+  --viz-series-3: #a9693d;
+  --viz-muted: #76756e;
+  --viz-track: #ebe6dd;
+  --viz-grid: #ddd6ca;
+
+  /* Status: always paired with an icon and a text label. */
+  --status-good-fg: #1e6743;
+  --status-good-bg: #e7f2ea;
+  --status-good-border: #b9d9c4;
+  --status-warn-fg: #7a4f00;
+  --status-warn-bg: #fbf1dc;
+  --status-warn-border: #e8cf98;
+  --status-bad-fg: #a0253b;
+  --status-bad-bg: #fbe9ec;
+  --status-bad-border: #edbcc5;
+  --status-info-fg: #2d4899;
+  --status-info-bg: #eaeefb;
+  --status-info-border: #c4cdef;
+  --status-neutral-fg: #414859;
+  --status-neutral-bg: #f0ece5;
+  --status-neutral-border: #dcd5c9;
+
+  --focus-ring: #3a46c2;
+  --focus-width: 3px;
+  --focus-offset: 2px;
+
+  --state-hover: rgba(27, 34, 51, 0.045);
+  --state-press: rgba(27, 34, 51, 0.09);
+  --state-selected: var(--action-soft);
+  --danger-fg: #ffffff;
+  --danger-bg: #b0263d;
+  --danger-bg-hover: #952034;
+  --danger-border: #952034;
+
+  --shadow-1: 0 1px 2px rgba(35, 30, 20, 0.05), 0 1px 1px rgba(35, 30, 20, 0.03);
+  --shadow-2: 0 2px 6px rgba(35, 30, 20, 0.06), 0 10px 24px -8px rgba(35, 30, 20, 0.12);
+  --shadow-3: 0 24px 64px -12px rgba(20, 22, 40, 0.28), 0 4px 12px rgba(20, 22, 40, 0.08);
+  --scrim: rgba(27, 30, 42, 0.38);
+
+  /* Targets (WCAG 2.2 2.5.8 minimum is 24px; controls use 40px). */
+  --target-min: 24px;
+  --control-height: 2.5rem;
+
+  /* Motion: brief, and only to explain a change (NN/g 100-500 ms band;
+     Material 3 curves). All durations become 0 under reduced motion. */
+  --motion-instant: 80ms;
+  --motion-fast: 140ms;
+  --motion-base: 200ms;
+  --motion-slow: 280ms;
+  --motion-page: 260ms;
+  --motion-surface: 320ms;
+  --motion-fill: 420ms;
+  --motion-distance: 10px;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-exit: cubic-bezier(0.3, 0, 1, 1);
+
+  /* Legacy aliases used by the original stylesheet. */
+  --bg: var(--surface-page);
+  --panel: var(--surface-1);
+  --line: var(--border-subtle);
+  --border: var(--border-subtle);
+  --text: var(--ink-1);
+  --muted: var(--ink-3);
+  --accent: var(--action-text);
+  --accent-soft: var(--action-soft);
+  --accent-ink: var(--on-action);
+  --input: var(--surface-input);
+}
+
+/* --- Midnight (dark) palette --------------------------------------------- */
+[data-theme=dark] {
+  color-scheme: dark;
+  --surface-page: #0d1220;
+  --surface-sidebar: #0a0e1a;
+  --surface-1: #141a2a;
+  --surface-2: #192033;
+  --surface-raised: #1d2539;
+  --surface-sunken: #0f1523;
+  --surface-input: #0f1524;
+  --surface-inverse: #e9ecf5;
+  --border-subtle: #242c42;
+  --border-strong: #34405c;
+  --control-border: #6c7896;
+
+  --ink-1: #e9ecf5;
+  --ink-2: #bec5d7;
+  --ink-3: #9ba4ba;
+  --ink-inverse: #121829;
+
+  --action: #8f9cff;
+  --action-hover: #a5afff;
+  --action-press: #7b89f5;
+  --on-action: #0c1133;
+  --action-text: #a9b3ff;
+  --action-soft: #1e2650;
+  --action-soft-border: #3b4686;
+  --warm: #f1b47c;
+  --warm-soft: #2d2218;
+
+  --viz-series: #8f9cff;
+  --viz-series-2: #6876d5;
+  --viz-series-3: #d69a69;
+  --viz-muted: #8792ad;
+  --viz-track: #222a40;
+  --viz-grid: #2c3550;
+
+  --status-good-fg: #8fd6ae;
+  --status-good-bg: #13291f;
+  --status-good-border: #285440;
+  --status-warn-fg: #f0cc86;
+  --status-warn-bg: #2d2414;
+  --status-warn-border: #5a4726;
+  --status-bad-fg: #f5a9b7;
+  --status-bad-bg: #331a24;
+  --status-bad-border: #683246;
+  --status-info-fg: #b0c0ff;
+  --status-info-bg: #19213f;
+  --status-info-border: #33427a;
+  --status-neutral-fg: #c3c9d8;
+  --status-neutral-bg: #1a2133;
+  --status-neutral-border: #313b55;
+
+  --focus-ring: #a9b3ff;
+
+  --state-hover: rgba(233, 236, 245, 0.055);
+  --state-press: rgba(233, 236, 245, 0.11);
+  --danger-fg: #ffe3e8;
+  --danger-bg: #8d2c40;
+  --danger-bg-hover: #a2354b;
+  --danger-border: #b24b61;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.3), 0 12px 28px -10px rgba(0, 0, 0, 0.5);
+  --shadow-3: 0 28px 70px -12px rgba(0, 0, 0, 0.7), 0 4px 14px rgba(0, 0, 0, 0.35);
+  --scrim: rgba(4, 7, 16, 0.62);
+}
+
+/* The OS setting and ASTRA's own "Reduce motion" choice are equivalent. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-instant: 0ms;
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-slow: 0ms;
+    --motion-page: 0ms;
+    --motion-fill: 0ms;
+    --motion-distance: 0px;
+  }
+}
+html[data-motion=reduced] {
+  --motion-instant: 0ms;
+  --motion-fast: 0ms;
+  --motion-base: 0ms;
+  --motion-slow: 0ms;
+  --motion-page: 0ms;
+  --motion-fill: 0ms;
+  --motion-distance: 0px;
+}
+
+/* Shared primitives used by Progress, Today and Applications. */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--target-min);
+  padding: 2px var(--space-2);
+  border: 1px solid var(--status-neutral-border);
+  border-radius: var(--radius-pill);
+  background: var(--status-neutral-bg);
+  color: var(--status-neutral-fg);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.status-badge svg { flex: none; }
+.status-badge.good { background: var(--status-good-bg); color: var(--status-good-fg); border-color: var(--status-good-border); }
+.status-badge.warn { background: var(--status-warn-bg); color: var(--status-warn-fg); border-color: var(--status-warn-border); }
+.status-badge.bad { background: var(--status-bad-bg); color: var(--status-bad-fg); border-color: var(--status-bad-border); }
+.status-badge.info { background: var(--status-info-bg); color: var(--status-info-fg); border-color: var(--status-info-border); }
+
+.callout {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--status-neutral-border);
+  border-radius: var(--radius-md);
+  background: var(--status-neutral-bg);
+  color: var(--status-neutral-fg);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+}
+.callout svg { flex: none; margin-top: 2px; }
+.callout p { color: inherit; line-height: inherit; }
+.callout.good { background: var(--status-good-bg); color: var(--status-good-fg); border-color: var(--status-good-border); }
+.callout.warn { background: var(--status-warn-bg); color: var(--status-warn-fg); border-color: var(--status-warn-border); }
+.callout.bad { background: var(--status-bad-bg); color: var(--status-bad-fg); border-color: var(--status-bad-border); }
+.callout.info { background: var(--status-info-bg); color: var(--status-info-fg); border-color: var(--status-info-border); }

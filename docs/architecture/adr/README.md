@@ -43,7 +43,7 @@ Create or update an ADR for changes to:
 | [ADR-0004](0004-build-once-verify-same-artifact.md) | Build once and verify the same artifact | Accepted; Owner approved 2026-09-13 |
 | [ADR-0005](0005-cyclonedx-1-7-sbom.md) | CycloneDX 1.7 release SBOM | Accepted; Owner approved 2026-09-13 |
 | [ADR-0006](0006-hosted-provenance.md) | Hosted provenance and independent verification | Accepted; Owner approved 2026-09-13 |
-| [ADR-0007](0007-gmail-oauth-credential-storage.md) | Gmail OAuth and credential storage | Accepted (architecture only); Owner approved 2026-09-13; implementation evidence Pending |
-| [ADR-0008](0008-gmail-read-only-mailbox-trust-boundary.md) | Gmail read-only mailbox trust boundary | Accepted (architecture only); Owner approved 2026-09-13; implementation evidence Pending |
-| [ADR-0009](0009-external-job-provider-trust-boundary.md) | External job-provider trust boundary | Accepted (architecture only); Owner approved 2026-09-13; implementation evidence Pending |
+| [ADR-0007](0007-gmail-oauth-credential-storage.md) | Gmail OAuth and credential storage | Accepted (architecture only); Owner approved 2026-09-13; implemented (#44, PR #66), self-verified with live OAuth validation, independent review waived; evidence traced by #48 |
+| [ADR-0008](0008-gmail-read-only-mailbox-trust-boundary.md) | Gmail read-only mailbox trust boundary | Accepted (architecture only); Owner approved 2026-09-13; implemented for the primary account (#45, PR #67), self-verified, no live mailbox validation; evidence traced by #48 |
+| [ADR-0009](0009-external-job-provider-trust-boundary.md) | External job-provider trust boundary | Accepted (architecture only); Owner approved 2026-09-13; implemented (#38/#39, PRs #53/#55, independently reviewed); the four required tests completed by #48 |
 | [ADR-0010](0010-job-observation-and-conservative-deduplication.md) | JobObservation persistence and conservative cross-provider deduplication | Accepted; implementation merged via PR #57 (squash commit `b1f754997afe84798f0ab19ee552a89a03de2098`), 2026-09-15 |

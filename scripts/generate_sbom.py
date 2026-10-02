@@ -20,7 +20,7 @@ from packageurl import PackageURL
 from validate_sbom import validate
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '1.0.0-rc.1'
+from release_version import VERSION
 
 def normalize(name):
     return re.sub(r'[-_.]+', '-', name).lower()
