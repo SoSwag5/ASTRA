@@ -1,5 +1,11 @@
 # Beta 2 candidate evidence and publication boundary
 
+**Published 2 October 2026.** The exact Owner-approved beta 2 ZIP was published
+and verified through an anonymous re-download and source-bound attestations.
+See the [final release record](V1_1_0_BETA_2_RELEASE_RECORD.md) for source,
+digest, hosted outcomes, publication approval and remaining validation.
+The preparation evidence below is historical and remains preserved.
+
 **Preparation snapshot — 2 October 2026.** This record was authored before
 publication; the matching release page is authoritative for the final source,
 artifact identity, executed checks and publication state. Codex implements and self-verifies the review

@@ -21,8 +21,9 @@ repeat old counts as current coverage. Final v1.1 and issue #48 remain open.
 - **F — AI assessment:** no controlled comparison establishing improvement.
 - **G — Prove improvement:** fresh measured quality evidence is still required.
 - **H — Controlled rollout:** another-PC novice acceptance remains NOT RUN.
-- **#47 / #48:** the visual beta shipped; novice setup corrections are a beta 2
-  candidate. Final assurance requires the remaining live/account/risk decisions.
+- **#47 / #48:** the visual beta and beta 2 novice setup corrections have shipped.
+  The exact packaged beta's technical release gate passed and the Owner approved
+  publication. Final assurance requires the remaining live/account/risk decisions.
 
 ## Proposed beta 3 — everyday reliability
 
