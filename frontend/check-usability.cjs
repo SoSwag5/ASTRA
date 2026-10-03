@@ -18,6 +18,17 @@ const assert = require('node:assert/strict');
   const M=await server.ssrLoadModule('/src/motion.ts');
   const gate=M.latestGate();const first=gate.begin();const last=gate.begin();assert.equal(gate.isCurrent(first),false);assert.equal(gate.isCurrent(last),true);
   assert.equal(M.motionMode('system',true),'reduced-by-system');assert.equal(M.motionMode('reduced',false),'reduced-by-astra');assert.equal(M.motionMode('system',false),'full');assert.equal(M.motionMode('full',true),'full');
+  // Shell scan label: generic busy or an overview-style running flag is not a scan; a real active scan is.
+  const I=await server.ssrLoadModule('/src/scanIndicator.ts');
+  assert.equal(I.scanIsActive({running:true,active:null}),false);assert.equal(I.scanIsActive({running:true,active:null,extra:{id:1}}),false);
+  assert.equal(I.scanIsActive(null),false);assert.equal(I.scanIsActive({active:{id:1}}),true);assert.equal(I.scanIsActive({active_scan:{id:1}}),false);
+  const shell=require('node:fs').readFileSync('src/main.tsx','utf8');
+  assert.match(shell,/api\('\/scan\/status'\)\.then\(s=>\{setScan\(\{running:scanIsActive\(s\)\}\)/);assert.doesNotMatch(shell,/setScan\(s\)/);
+  // Source cards: info uses full width and actions sit below (scoped CSS source check, not a browser measurement).
+  const css=require('node:fs').readFileSync('src/setup.css','utf8'),dir=require('node:fs').readFileSync('src/SourceDirectory.tsx','utf8');
+  assert.match(css,/\.source-directory \.portal-row\.source-card \{ display:flex; flex-direction:column/);assert.match(css,/\.portal-list \{ display:grid; grid-template-columns:repeat\(2/);
+  assert.match(css,/\.directory-controls label \{ display:flex; flex-direction:column/);assert.match(dir,/className="portal-row source-card"/);
+  assert.doesNotMatch(require('node:fs').readFileSync('src/campaign.css','utf8'),/source-card/);
   const D=await server.ssrLoadModule('/src/disclosure.ts');
   global.document={activeElement:null};
   let shown=false,height=0;const animations=[];

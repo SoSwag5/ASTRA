@@ -20,6 +20,7 @@ import {Demo} from './Demo';
 import {SettingsPage} from './Settings';
 import {ConfirmProvider,Disclosure,useConfirm} from './ui';
 import * as SM from './settingsModel';
+import {scanIsActive} from './scanIndicator';
 import {SetupWizard,setupStep} from './SetupWizard';
 const activeLocale=localStorage.getItem('uiLocale')||'en-GB';
 document.documentElement.dir=/^(ar|he|fa|ur)(-|$)/i.test(activeLocale)?'rtl':'ltr';
@@ -47,7 +48,7 @@ function App(){
  const notify=(text:string,tone:Toast['tone']='info')=>{toastTimers.current.forEach(clearTimeout);setToast({id:Date.now(),text,tone});toastTimers.current=[window.setTimeout(dismissToast,tone==='bad'?9000:6500)]};
  async function reload(){const [j,c,p]=await Promise.all([api('/jobs'),api('/settings'),api('/profile')]);setJobs(j);setCfg(c);setProfile(p);setJobsLoaded(true);return c;}
  useEffect(()=>{reload().then(c=>{if(c.wizard_step<10&&localStorage.getItem('welcomeDismissed')!=='1'){setStep(setupStep(c.wizard_step));setWizard(true)}}).catch(e=>setLoadError(e.message));api('/career-tracks').then(setTracks).catch(()=>{});},[]);
- useEffect(()=>{const poll=()=>api('/search/overview').then(s=>{setScan(s);setConnected(true)}).catch(()=>setConnected(false));poll();const id=setInterval(poll,20000);return()=>clearInterval(id)},[]);
+ useEffect(()=>{const poll=()=>api('/scan/status').then(s=>{setScan({running:scanIsActive(s)});setConnected(true)}).catch(()=>setConnected(false));poll();const id=setInterval(poll,20000);return()=>clearInterval(id)},[]);
  // Records belong to the page that asked for them: another page's rows are
  // never shown while this page's request is in flight.
  useEffect(()=>{const key=collection[page];if(!key)return;let live=true;setRowsError('');api('/records/'+key).then(r=>{if(live){setRows(r);setRowsFor(key)}}).catch(e=>{if(live)setRowsError(e.message)});return()=>{live=false}},[page,busy,rowsRetry]);
