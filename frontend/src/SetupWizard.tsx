@@ -96,7 +96,7 @@ export function SetupWizard({step, profile, cfg, tracks = [], api, reload, editP
   // A write in flight cannot be dismissed. A saved-but-unrefreshed state can: leaving never repeats a write.
   const working = !!busy || (step === 4 && focusBusy);
   const pending = !!unconfirmed[step] || (step === 4 && focusPending);
-  const hint = pending ? 'Refresh to confirm your saved changes before continuing.' : continueHint(step, profile, cfg, focusDirty);
+  const hint = pending ? 'Finish saving or refreshing your changes before continuing.' : continueHint(step, profile, cfg, focusDirty);
   const facts: [string, string][] = [['employments', 'Experience'], ['projects', 'Projects'], ['education', 'Education'], ['certifications', 'Certifications and courses']];
   const uploadLabel = (kind: Busy, idle: React.ReactNode, working: string) => busy === kind ? <><LoaderCircle size={16} className="spin" aria-hidden/>{working}</> : <><Upload size={16} aria-hidden/>{idle}</>;
   return <div className="overlay"><section className="dialog wizard" role="dialog" aria-modal="true" aria-labelledby="setup-heading" aria-busy={working}>
