@@ -107,3 +107,62 @@ def test_demo_startup_does_not_seed_a_workspace(tmp_path):
 with TestClient(m.app):
     assert not inspect(engine).has_table(Settings.__tablename__)
 ''', bundled_sources=True)
+
+
+def _installer(tmp_path):
+    """Run the real installer step (scripts/initialize.py) in its own process, as setup.bat does."""
+    import os, subprocess, sys
+    from pathlib import Path
+    data = tmp_path / 'data'
+    env = {**os.environ, 'HUNTER_DATA_DIR': str(data), 'DATABASE_URL': f'sqlite:///{data / "isolated.db"}', 'APP_TOKEN': ''}
+    root = Path(__file__).resolve().parents[1]
+    result = subprocess.run([sys.executable, str(root / 'scripts' / 'initialize.py')], capture_output=True, text=True, env=env, timeout=90, cwd=root)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_real_installer_then_startup_enables_exactly_the_starter_feeds_and_preserves_choices(tmp_path):
+    from tests.test_campaign_reliability import isolated
+    _installer(tmp_path)
+    isolated(tmp_path, STARTUP + r'''
+with TestClient(m.app) as client:
+    with Session() as db:
+        rows = list(db.scalars(select(JobSource)))
+        assert len(rows) == 77, len(rows)
+        assert sorted(r.name for r in rows if r.enabled) == sorted(r.name for r in rows if r.adapter != 'manual')
+        assert sum(r.enabled for r in rows) == 3
+        assert db.query(Job).count() == db.query(Application).count() == db.query(AutomationRun).count() == 0
+    assert m.scheduler.get_job('discover') is None
+    assert client.get('/api/scan/status').json()['active'] is None
+# The user pauses a starter feed and edits a manual destination.
+with Session.begin() as db:
+    feed = db.scalars(select(JobSource).where(JobSource.adapter == 'greenhouse')).first(); feed.enabled = False
+    manual = db.scalars(select(JobSource).where(JobSource.adapter == 'manual')).first()
+    manual.url = 'https://careers.example.org/mine'; manual.details = {**manual.details, 'watching': False}
+    snapshot = sorted((r.id, r.name, r.url, r.enabled) for r in db.scalars(select(JobSource)))
+    import json; (DATA / 'snapshot.json').write_text(json.dumps(snapshot))
+''', bundled_sources=True)
+    _installer(tmp_path)  # repeated setup
+    isolated(tmp_path, STARTUP + r'''
+import json
+with TestClient(m.app):
+    with Session() as db:
+        now = sorted((r.id, r.name, r.url, r.enabled) for r in db.scalars(select(JobSource)))
+        assert [list(r) for r in now] == json.loads((DATA / 'snapshot.json').read_text())
+        assert sum(r.enabled for r in db.scalars(select(JobSource))) == 2
+''', bundled_sources=True)
+
+
+def test_installer_on_existing_zero_source_workspace_adds_only_paused_feeds(tmp_path):
+    from tests.test_campaign_reliability import isolated
+    isolated(tmp_path, STARTUP + r'''
+initialize()
+with Session.begin() as db:
+    cfg = db.get(Settings, 1); cfg.value = {**cfg.value, 'custom_target_roles': ['Financial Analyst']}
+''', bundled_sources=True)
+    _installer(tmp_path)
+    isolated(tmp_path, STARTUP + r'''
+with Session() as db:
+    rows = list(db.scalars(select(JobSource)))
+    assert len(rows) == 77 and not any(r.enabled for r in rows)
+    assert db.get(Settings, 1).value['custom_target_roles'] == ['Financial Analyst']
+''', bundled_sources=True)

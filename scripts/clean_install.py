@@ -107,6 +107,9 @@ def run(archive):
             start()
             assert request(port, '/demo')[0] == 200
             assert json.loads(request(port, '/api/jobs')[1]) == []
+            # The installer, not the server, created this database: the starter feeds must still be on.
+            feeds = json.loads(request(port, '/api/search/overview')[1])['sources']
+            assert sorted(f['name'] for f in feeds if f['enabled']) == sorted(f['name'] for f in feeds) and len(feeds) == 3, 'Fresh install must enable exactly the three bundled starter feeds'
             assert request(port, '/api/jobs', {'company':'Example Acceptance Company','title':'Synthetic Role','description':'Fictional installation test'})[0] == 200
             stop(); start()
             jobs = json.loads(request(port, '/api/jobs')[1])
@@ -118,7 +121,7 @@ def run(archive):
         finally:
             stop()
     return {'status':'PASS','artifact_sha256':hashlib.sha256(Path(archive).read_bytes()).hexdigest(),
-            'checks':['manifest','setup.bat','empty database','demo','synthetic mutation','restart persistence','demo API denial','shutdown','temporary cleanup'],
+            'checks':['manifest','setup.bat','empty database','bundled starter feeds enabled','demo','synthetic mutation','restart persistence','demo API denial','shutdown','temporary cleanup'],
             'environment':'GitHub-hosted Windows' if os.getenv('GITHUB_ACTIONS')=='true' and os.getenv('RUNNER_ENVIRONMENT')=='github-hosted' else 'same-host disposable rehearsal; not a clean VM'}
 
 if __name__ == '__main__':
