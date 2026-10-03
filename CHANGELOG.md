@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.1.0-beta.3 — 2026-10-03
+
+Published early Windows beta. Persistent setup/search-focus feedback and refresh
+recovery; explicit Full/Reduce/Match system motion; readable responsive source
+cards and accurate active-scan status. Included 77 destinations (74 manual links,
+3 public feeds) with historical reachability labels. Fresh installation enables
+three starters; existing-workspace settings/records are preserved. Optional
+Gmail and AI stay optional; default matching uses rules. Actual initializer
+ordering and its exact-package clean-install assertion were corrected before
+publication. No automatic scanning or submission is introduced.
+
+Exact source/artifact, executed checks and 19 verified public assets:
+[release record](docs/release/V1_1_0_BETA_3_RELEASE_RECORD.md). Final #48, another-PC,
+broad matching and live optional-account assurance remain open.
+
 ## 1.1.0-beta.1 — 2026-10-02
 
 Early beta preparation integrating the reviewed #47 visual/motion work and
@@ -15,23 +30,6 @@ categories and Semantic Versioning. Dates and version headings are added only
 when a release is approved; this file does not establish that a release exists.
 
 ## [Unreleased]
-
-### Beta 3 candidate (not released)
-
-- Setup and career-focus saves show persistent outcome text, busy and unsaved
-  hints; a write that succeeded but could not refresh offers Refresh instead of
-  a second write and blocks advancing on stale data. Focus choices are locked
-  while a save runs.
-- Animated disclosures and pages, Progress period transitions, consistent
-  hover/focus/press states and an Appearance motion choice (Match system,
-  Reduce motion, Full motion). Full motion overrides an operating-system
-  reduced-motion setting only after an explicit choice.
-- A **Sources & websites** directory: 77 unique destinations (74 manual links,
-  3 supported public feeds) with check dates, search, groups and user-added
-  links. Fresh workspaces enable three starter feeds; existing workspaces get
-  them paused. Startup seeding makes no network request and creates no jobs.
-- Optional Gmail setup copy no longer presents developer setup as a dead end.
-- Release workflow paths now refer to beta 3.
 
 ### Added
 

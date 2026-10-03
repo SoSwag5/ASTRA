@@ -6,23 +6,23 @@ ASTRA brings job discovery, CV review, application preparation and follow-up
 tracking into one local workspace. Built by Ayham, a cybersecurity graduate,
 as an AI-assisted personal portfolio project with documented security controls.
 
-**Early beta · v1.1.0-beta.2.** Expect rough edges. Features and validation are
+**Early beta · v1.1.0-beta.3.** Expect rough edges. Features and validation are
 still developing; this is not a production assurance or universal matching claim.
 **You review facts and submit applications yourself.**
 
-[**Download the Windows beta 2 ZIP**](https://github.com/SoSwag5/ASTRA/releases/download/v1.1.0-beta.2/astra-1.1.0-beta.2.zip)
+[**Download the Windows beta 3 ZIP**](https://github.com/SoSwag5/ASTRA/releases/download/v1.1.0-beta.3/astra-1.1.0-beta.3.zip)
 · [Installation guide](docs/GETTING_STARTED.md)
-· [Beta 2 changes](docs/release/V1_1_0_BETA_2_NOTES.md)
-· [Beta 3 plan and candidate status](docs/planning/BETA_3_RELEASE_PLAN.md)
+· [Beta 3 changes](docs/release/V1_1_0_BETA_3_NOTES.md)
+· [Test on your PC](docs/release/BETA_3_USER_TEST_CHECKLIST.md)
+· [Next updates](docs/planning/BETA_3_RELEASE_PLAN.md)
 · [Roadmap](docs/ROADMAP.md)
 · [Report a bug](https://github.com/SoSwag5/ASTRA/issues/new/choose)
 
-**Beta 3 is an unpublished candidate** (clearer setup feedback, visible motion, a Sources & websites directory with three starter feeds and optional Gmail wording). Its guide is in [Installation guide](docs/GETTING_STARTED.md); the published download above remains beta 2 until the Owner approves a frozen beta 3 package.
-
-Choose the version available on its release page. The beta 2 download becomes
-available when that release is published. [Beta 1 remains available](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.1),
-but its ZIP does not include the beta 2 corrections. Each release page identifies
-its shipped source, checksum and executed assurance evidence.
+**Beta 3 is published:** clearer setup feedback, visible motion and a searchable
+directory of 77 destinations, including three public starter feeds. Government
+and hospital links remain available for manual searches. The
+[release page](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.3)
+contains screenshots, installation steps, checksums and verified release evidence.
 
 ## What you can do
 
@@ -41,7 +41,7 @@ After launch, open [your workspace](http://localhost:8787/) to use your own CV.
 The [fictional demo](http://localhost:8787/demo) is optional. Choose **Use my own
 CV** to leave it. These screenshots show made-up data, not live records.
 
-![Fictional ASTRA demo — desktop](docs/screenshots/demo-desktop.png)
+![ASTRA beta 3 source directory — fictional workspace](https://github.com/SoSwag5/ASTRA/releases/download/v1.1.0-beta.3/astra-sources.jpg)
 
 ## Install in five steps
 
@@ -50,7 +50,7 @@ The ZIP includes the built interface. **Release users need no Git, Node, paid
 AI subscription or administrator access for ASTRA.** This beta is a Python-based
 ZIP application, not a standalone signed Windows installer.
 
-1. Download **astra-1.1.0-beta.2.zip** from the matching release's Assets section.
+1. Download **astra-1.1.0-beta.3.zip** from the matching release's Assets section.
    GitHub's automatically generated **Source code** downloads are for developers.
 2. Right-click the ZIP, choose **Extract All**, and open the extracted `astra` folder.
 3. Open **START HERE.html**. If needed, follow its official Python installation link.
@@ -89,7 +89,7 @@ hash-locked dependencies, a CycloneDX 1.7 SBOM and fail-closed release workflows
 Mappings to OWASP ASVS 5.0.0, NIST SSDF 1.1 and OWASP SAMM describe scoped
 engineering evidence. **No certification, compliance or SLSA Build level is claimed.**
 
-[Beta evidence](docs/release/V1_1_0_BETA_1_EVIDENCE.md)
+[Beta 3 release record](docs/release/V1_1_0_BETA_3_RELEASE_RECORD.md)
 · [Architecture](docs/SECURITY_ARCHITECTURE.md)
 · [Threat model](docs/security/THREAT_MODEL.md)
 · [Security policy](SECURITY.md)

@@ -1,6 +1,17 @@
 # v1.1.0-beta.3 candidate — evidence record
 
-**Status: candidate, unpublished. Not approved, not released. The package built from `e465625` failed exact-package browser testing (installer-order defect below) and must not be published; a repaired source awaits a new exact package and re-verification.**
+**Publication update — 3 October 2026:** beta3 is published and all 19 public
+asset hashes, tag/source, customer notes, provenance and SBOM were verified.
+The [immutable release record](V1_1_0_BETA_3_RELEASE_RECORD.md) is the current
+result for source bf658efd83573ca44e5ae1c98254570e1e7900e7 / ZIP SHA-256
+07d5bcbff219ed34dcc602612856064a1a469ad886e4b74ea8138a2203f87732.
+Earlier candidate and failed-package notes below remain dated history and do
+not supersede that exact result. No final #48/live/another-PC closure is inferred.
+
+
+## Historical candidate evidence
+
+**Historical status: candidate, unpublished. Not approved, not released. The package built from `e465625` failed exact-package browser testing (installer-order defect below) and must not be published; a repaired source awaits a new exact package and re-verification.**
 Reviewed source anchors: `c494112` (reviews, browser pass) and `ddb087c` (final
 two-string copy change; backend content identical to `c494112`). Base
 `1896f1ee105e0c5558461c71a75a7077b2f6abad`, branch `feature/beta-3-usability`.

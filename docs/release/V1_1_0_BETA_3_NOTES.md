@@ -1,6 +1,6 @@
 # ASTRA v1.1.0-beta.3 — clearer feedback, visible motion, included sources
 
-**Candidate notes — not yet published.** Early beta for Windows x64. You check
+**Published 3 October 2026.** Early beta for Windows x64. You check
 the facts and apply on the employer's website yourself.
 
 ## What is new
@@ -30,5 +30,5 @@ quality is not validated across majors. No public one-click Gmail sign-in, no
 LinkedIn scraping, no scheduled scans. Rule-based matching is the default; AI
 and Gmail are optional.
 
-See the [guide](../GETTING_STARTED.md), [plan](../planning/BETA_3_RELEASE_PLAN.md) and
-[candidate evidence](V1_1_0_BETA_3_EVIDENCE.md).
+See the [guide](../GETTING_STARTED.md), [simple test checklist](BETA_3_USER_TEST_CHECKLIST.md),
+[plan](../planning/BETA_3_RELEASE_PLAN.md) and [immutable release record](V1_1_0_BETA_3_RELEASE_RECORD.md).
