@@ -6,13 +6,13 @@ access are needed to install it. Git, Node and a paid AI account are not require
 
 ## 1. Download and unpack
 
-**These instructions are for beta 2.** Choose the version shown on your download's
-release page. If beta 2 is not available yet, [beta 1 remains available](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.1);
-use [its matching guide](https://github.com/SoSwag5/ASTRA/blob/v1.1.0-beta.1/docs/GETTING_STARTED.md).
-That ZIP does not contain the beta 2 setup and review corrections described here.
+**These instructions are for beta 3.** Choose the version shown on your download's
+release page. Until beta 3 is published, [beta 2 remains available](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.2);
+use [its matching guide](https://github.com/SoSwag5/ASTRA/blob/v1.1.0-beta.2/docs/GETTING_STARTED.md).
+That ZIP does not contain the beta 3 setup, motion and source-directory changes described here.
 
-Visit [the beta release](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.2).
-Under **Assets**, select **astra-1.1.0-beta.2.zip**. Do not select **Source code**.
+Visit [the beta 3 release](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.3) once it is published.
+Under **Assets**, select **astra-1.1.0-beta.3.zip**. Do not select **Source code**.
 Right-click the downloaded ZIP → **Extract All** → open the extracted **astra**
 folder. Choose a local folder outside OneDrive or other cloud-synced folders.
 
@@ -53,8 +53,10 @@ each time you want to return. Keep ASTRA local; do not expose its port online.
 1. Open **http://localhost:8787/** for your own workspace. The **/demo** page is an optional sample with made-up jobs. If you are there, choose **Use my own CV** or remove `/demo` from the address. Opening **Open ASTRA.bat** again also opens your workspace.
 2. Complete the five setup steps: upload a text PDF CV, check and correct its extracted facts, confirm them, skip the optional Excel tracker if you do not have one, then save your target jobs. For finance, business or other nontechnical fields, enter custom job titles and leave the technical tracks unchecked.
 3. Keep **rule-based matching**, the recommended default. An AI account, API key or subscription is not needed. Advanced AI settings remain optional and advisory.
-4. Click **Start scanning** on the left. If the board list is empty, add a supported company board using the form on that page. Press **Start scanning now**, review the preview, then **Confirm and start scan**. You can stop it; nothing scans on startup or on a timer.
+4. Click **Start scanning** on the left. A new workspace includes three public starter feeds (Cloudflare and Netcracker on Greenhouse, Lean Technologies on Ashby). You can add more supported company boards with the form on that page. Press **Start scanning now**, review the preview, then **Confirm and start scan**. You can stop it; nothing scans on startup or on a timer. Public boards list jobs worldwide; ASTRA applies your UAE and job-title settings afterwards, so a scan may return few matches.
 5. Review job evidence and eligibility. Prepare documents, check every claim, open the employer's site and **apply yourself**. Record status and follow-ups. **Search elsewhere** opens manual job-site searches when a site cannot be scanned.
+6. Open **Sources & websites** on the left to browse the included directory: 77 official destinations (government, hospitals, companies, job portals and recruiters). 74 are links you open and search yourself; only 3 are feeds ASTRA can scan. 52 of the routes were reachable when checked, and the rest need a browser check, so treat every link as a starting point. Each entry shows its check date; a reachable page does not mean it has open or suitable jobs. You can search and filter the list, and add your own website (marked as not verified).
+7. Under **Settings → Appearance**, **Match system** is the default. If your Windows setting turns animations off, ASTRA shows none. Choose **Full motion** to turn them on regardless, or **Reduce motion** to turn them off.
 
 CV import supports common headings, including Skills, Summary, Work Experience and Projects. Always review the actual extracted facts. Scanned/image PDFs and complicated layouts remain limitations; use **Correct my profile** for omissions. No application is submitted for you.
 
@@ -73,7 +75,9 @@ in this beta, and live confirmation accuracy remains unvalidated.
 | Port 8787 is already in use, or a different/older ASTRA is running | http://localhost:8787 shows whichever ASTRA copy is running. Double-click **stop.bat** in that copy's own folder, then open the downloaded version with its Open ASTRA.bat. Do not terminate an unfamiliar process. |
 | Browser did not open | Try http://localhost:8787 after the launcher reports it is running. If it failed, keep the error for a fictional bug report. |
 | CV facts are missing | Use a text PDF, correct extracted facts manually and confirm only accurate information. |
-| No suitable jobs | Check configured boards, career focus and filters. Coverage and ranking are still beta limitations. |
+| No suitable jobs | Check configured boards, career focus and filters. Coverage and ranking are still beta limitations. Use **Sources & websites** for manual searches. |
+| A setup step says it saved but could not refresh | Your change is kept. Press **Refresh** in that step; do not repeat the upload. |
+| No animations | Open Settings → Appearance and choose **Full motion**. |
 
 For a public bug report, include the beta version, Windows version, steps and
 an example made up for the report. Remove names, contact information, tokens,
@@ -93,4 +97,4 @@ mailbox contents, database files and personal paths from logs/screenshots.
   may remain elsewhere. No scheduled task is created or modified by these launchers.
 
 Advanced users can inspect the release's SHA-256 checksum, manifest, SBOM and
-assurance evidence. [Release notes](release/V1_1_0_BETA_2_NOTES.md).
+assurance evidence. [Release notes](release/V1_1_0_BETA_3_NOTES.md).

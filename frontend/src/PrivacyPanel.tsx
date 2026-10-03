@@ -3,7 +3,7 @@ import {privateFetch,privateBlob} from './access';
 import React,{useEffect,useState} from 'react';
 import {Download,ShieldCheck,Trash2} from 'lucide-react';
 import {GmailConnection} from './GmailConnection';
-import {ActionStatus,SaveBar,useAction,useDraft} from './ui';
+import {ActionStatus,Disclosure,SaveBar,useAction,useDraft} from './ui';
 type Row=Record<string,any>;
 type Api=(path:string,method?:string,data?:any)=>Promise<any>;
 
@@ -25,7 +25,7 @@ export function SecurityCheck({api}:{api:Api}){
  return <section className="panel settings-card"><div className="card-head"><ShieldCheck size={20} aria-hidden/><div><h3>Privacy & security check</h3><p>Checks the local server, credential storage, runtime, data permissions and backups. It reads this computer only.</p></div></div>
   <button className="secondary" disabled={action.busy} aria-busy={action.busy} onClick={run}>{action.busy?'Checking…':'Run security check'}</button><ActionStatus status={action.status}/>
   {checks&&<><p className="check-overall">Overall: <strong>{checks.overall}</strong></p><ul className="check-list">{checks.checks.map((c:Row)=><li key={c.check}><strong>{c.check.replaceAll('_',' ')}: {c.status}</strong> — {c.detail}{c.remediation&&<> · {c.remediation}</>}</li>)}</ul></>}
-  {!!events.length&&<details><summary>Recent security events ({Math.min(events.length,10)})</summary><ul className="check-list">{events.slice(-10).reverse().map((e:Row,i:number)=><li key={i}>{e.ts} · {e.event.replaceAll('_',' ').toLowerCase()}</li>)}</ul></details>}
+  {!!events.length&&<Disclosure summary={<>Recent security events ({Math.min(events.length,10)})</>}><ul className="check-list">{events.slice(-10).reverse().map((e:Row,i:number)=><li key={i}>{e.ts} · {e.event.replaceAll('_',' ').toLowerCase()}</li>)}</ul></Disclosure>}
  </section>
 }
 
@@ -71,7 +71,7 @@ export function CareerFacts({api,refresh}:{api:Api,refresh:()=>Promise<any>}){
  if(error||!loaded)return <section className="panel settings-card"><h3>Career facts</h3><Loading error={error} retry={load} what="Career facts"/></section>;
  if(!candidate)return <section className="panel settings-card"><h3>Career facts</h3><p className="muted-line">No master CV has been imported, so there are no extracted facts yet.</p></section>;
  return <section className="panel settings-card"><h3>Career facts and where they came from</h3><p><strong>{candidate.confirmed?'Confirmed by you.':'Extracted — needs your confirmation.'}</strong> Review each source block. A correction is recorded as provided by you and needs confirming again before documents are generated.</p>
-  {['skills','employments','education','certifications','projects'].map(kind=>(candidate[kind]||[]).length>0&&<details key={kind}><summary>{kind[0].toUpperCase()+kind.slice(1)} ({candidate[kind].length})</summary>{(candidate[kind]||[]).map((fact:Row)=><form className="fact" key={fact.id} onSubmit={e=>{e.preventDefault();action.run(async()=>{await api('/profile/facts/'+kind+'/'+fact.id,'PUT',{text:fact.text});await load();await refresh()},'Fact corrected. Confirm your career facts again before generating documents.','Saving the correction…')}}><label>Source fact #{fact.id}<textarea dir="auto" value={fact.text} maxLength={20000} onChange={e=>setCandidate({...candidate,[kind]:candidate[kind].map((f:Row)=>f.id===fact.id?{...f,text:e.target.value}:f)})}/></label><small>{fact.provenance}</small><button className="secondary compact" disabled={action.busy}>Save correction</button></form>)}</details>)}
+  {['skills','employments','education','certifications','projects'].map(kind=>(candidate[kind]||[]).length>0&&<Disclosure key={kind} summary={<>{kind[0].toUpperCase()+kind.slice(1)} ({candidate[kind].length})</>}>{(candidate[kind]||[]).map((fact:Row)=><form className="fact" key={fact.id} onSubmit={e=>{e.preventDefault();action.run(async()=>{await api('/profile/facts/'+kind+'/'+fact.id,'PUT',{text:fact.text});await load();await refresh()},'Fact corrected. Confirm your career facts again before generating documents.','Saving the correction…')}}><label>Source fact #{fact.id}<textarea dir="auto" value={fact.text} maxLength={20000} onChange={e=>setCandidate({...candidate,[kind]:candidate[kind].map((f:Row)=>f.id===fact.id?{...f,text:e.target.value}:f)})}/></label><small>{fact.provenance}</small><button className="secondary compact" disabled={action.busy}>Save correction</button></form>)}</Disclosure>)}
   <div className="actions spaced"><button className="primary" disabled={action.busy||candidate.confirmed} onClick={()=>action.run(async()=>{await api('/profile','PUT',{confirmed:true});await load();await refresh()},'Career facts confirmed by you.','Confirming…')}>{candidate.confirmed?'Facts confirmed':'I reviewed and confirm these facts'}</button></div>
   <ActionStatus status={action.status}/>
  </section>

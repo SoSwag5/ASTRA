@@ -2,6 +2,8 @@ import os,subprocess,sys
 
 def test_discovery_and_tracking(tmp_path):
     script=r'''
+from backend import starter_catalog
+starter_catalog.catalog = lambda: []
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 import backend.main as main
@@ -54,7 +56,7 @@ with TestClient(main.app) as c:
     assert c.put('/api/settings',json={'discovery_enabled':False}).status_code==200
     assert c.get('/api/search/overview').json()['next_scan'] is None
 '''
-    env={**os.environ,'DATABASE_URL':f'sqlite:///{tmp_path / "workspace.db"}','APP_TOKEN':''}
+    env={**os.environ,'DATABASE_URL':f'sqlite:///{tmp_path / "workspace.db"}','HUNTER_DATA_DIR':str(tmp_path/'data'),'APP_TOKEN':''}
     result=subprocess.run([sys.executable,'-c',script],env=env,text=True,capture_output=True)
     assert result.returncode==0,result.stdout+result.stderr
 

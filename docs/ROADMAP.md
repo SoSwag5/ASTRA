@@ -1,5 +1,7 @@
 # ASTRA product and assurance roadmap
 
+> Near-term beta sequence (beta 3 usability and sources, beta 4 runtime and recovery, beta 5 measured matching, then final v1.1 evidence): [BETA_3_RELEASE_PLAN.md](planning/BETA_3_RELEASE_PLAN.md).
+
 The roadmap communicates direction rather than a release promise. Scope and
 timing remain Owner decisions. Open 8-15 meaningful issues when a milestone
 starts; do not pre-create a large speculative backlog.

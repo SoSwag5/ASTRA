@@ -7,11 +7,11 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {Briefcase, CircleUser, Download, ExternalLink, Lock, Monitor, Moon, Palette, Plus, Radar, RefreshCw, ShieldCheck, Sun, Target, Upload, Wrench} from 'lucide-react';
 import * as S from './settingsModel';
-import {ActionStatus, DirtyRegistry, SaveBar, useAction, useConfirm, useDraft} from './ui';
+import {ActionStatus, DirtyRegistry, Disclosure, SaveBar, useAction, useConfirm, useDraft, useSystemReducedMotion} from './ui';
 import {AiAssistance, ApplicationAnswers, CareerFacts, DeleteLocalData, GmailPermissions, LocalDataCard, PlatformCapabilities, SecurityCheck} from './PrivacyPanel';
 import {Reliability} from './Campaign';
 import {GmailOperations} from './GmailOperations';
-import {directionBetween, transition} from './motion';
+import {directionBetween, transition, motionMode} from './motion';
 import './settings.css';
 
 type Row = S.Row;
@@ -160,9 +160,9 @@ function RankingCard({api, cfg, reload}: {api: Api; cfg: Row; reload: () => Prom
   return <section className="panel settings-card"><h3>Ranking thresholds</h3>
     <p>The priority index orders jobs for review. It is a heuristic, not a probability of success.</p>
     <div className="formgrid">{RANK_FIELDS.map(([key, label, hint]) => <label key={key}>{label}<input type="number" value={card.draft[key]} onChange={e => card.set(key, e.target.value === '' ? '' : Number(e.target.value))}/><small>{hint}</small></label>)}</div>
-    <details><summary>Scoring weights</summary><p>How much each part of a job contributes to its priority index. At least one must be above zero.</p>
+    <Disclosure summary="Scoring weights"><p>How much each part of a job contributes to its priority index. At least one must be above zero.</p>
       <div className="formgrid">{Object.entries(card.draft.weights || {}).map(([key, value]) => <label key={key}>{key[0].toUpperCase() + key.slice(1).replaceAll('_', ' ')}<input type="number" min={0} value={value as any} onChange={e => card.set('weights', {...card.draft.weights, [key]: e.target.value === '' ? '' : Number(e.target.value)})}/></label>)}</div>
-    </details>
+    </Disclosure>
     <SaveBar state={card} onSave={save}/>
   </section>;
 }
@@ -248,7 +248,7 @@ function CandidateCard({profile, api, refresh}: {profile: Row; api: Api; refresh
   return <section className="panel settings-card"><h3>Candidate profile</h3><p>Used on generated documents. Changing a field clears your confirmation unless you confirm again here.</p>
     <div className="formgrid">{['name', 'email', 'phone', 'location'].map(key => <label key={key}>{key[0].toUpperCase() + key.slice(1)}<input dir="auto" value={card.draft[key] || ''} onChange={e => card.set(key, e.target.value)}/></label>)}</div>
     <label>Professional summary<textarea dir="auto" value={card.draft.summary || ''} onChange={e => card.set('summary', e.target.value)}/></label>
-    {Object.keys(declarations).length > 0 && <details><summary>Declarations</summary><div className="formgrid">{Object.keys(declarations).map(key => <label key={key}>{key.replaceAll('_', ' ')}<input value={String(card.draft.declarations?.[key] ?? '')} onChange={e => card.set('declarations', {...card.draft.declarations, [key]: e.target.value})}/></label>)}</div></details>}
+    {Object.keys(declarations).length > 0 && <Disclosure summary="Declarations"><div className="formgrid">{Object.keys(declarations).map(key => <label key={key}>{key.replaceAll('_', ' ')}<input value={String(card.draft.declarations?.[key] ?? '')} onChange={e => card.set('declarations', {...card.draft.declarations, [key]: e.target.value})}/></label>)}</div></Disclosure>}
     <label className="check"><input type="checkbox" checked={!!card.draft.confirmed} onChange={e => card.set('confirmed', e.target.checked)}/>I reviewed and confirm this profile</label>
     {needsReconfirm && <p className="callout warn" role="status">Saved. Because a field changed, the profile now needs your confirmation before documents are generated.</p>}
     <SaveBar state={card} onSave={save} saveLabel="Save profile"/>
@@ -345,10 +345,13 @@ function DomainPermissions({api, editRecord}: {api: Api; editRecord: (kind: stri
 // Appearance
 // ---------------------------------------------------------------------------
 function AppearanceSection({appearance}: Props) {
+  const systemReduced = useSystemReducedMotion();
+  const mode = motionMode(appearance.motion, systemReduced);
   const themes: [S.ThemePreference, string, string, React.ComponentType<{size?: number; 'aria-hidden'?: boolean}>][] = [
     ['light', 'Porcelain', 'Warm light surfaces. The default.', Sun], ['dark', 'Midnight', 'Deep blue surfaces for low light.', Moon], ['system', 'Match system', 'Follows your operating system.', Monitor]];
   const motions: [S.MotionPreference, string, string][] = [
     ['system', 'Match system', 'Brief transitions, unless your operating system asks for reduced motion.'],
+    ['full', 'Full motion', 'Choose this to use animations in ASTRA, even if Windows reduces them. You can return to Match system or Reduce motion anytime.'],
     ['reduced', 'Reduce motion', 'No transitions or animated feedback in ASTRA. Every state still shows in colour, icon and text.']];
   return <>
     <section className="panel settings-card"><h3>Theme</h3>
@@ -363,6 +366,7 @@ function AppearanceSection({appearance}: Props) {
         <label key={value} className={'radio-card' + (appearance.motion === value ? ' selected' : '')}>
           <input type="radio" name="motion" value={value} checked={appearance.motion === value} onChange={() => appearance.setMotion(value)}/>
           <span><strong>{label}</strong><small>{help}</small></span></label>)}</fieldset>
+      <div className="motion-preview"><p role="status">{mode === "full" ? "Motion is on. Open the preview below to see it." : mode === "reduced-by-system" ? "Your operating system asks for reduced motion, so ASTRA stays still." : "Reduced motion is on in ASTRA. All feedback remains visible."}</p><Disclosure summary="Preview opening and closing"><p>This panel slides open and closed when motion is on. Page switches and reporting-period changes use the same brief, interruptible movement.</p></Disclosure></div>
     </section>
   </>;
 }

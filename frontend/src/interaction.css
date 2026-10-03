@@ -100,7 +100,7 @@ input:disabled, select:disabled, textarea:disabled { opacity: 0.55; cursor: not-
 /* --- Loading ------------------------------------------------------------- */
 .spin { animation: spin 900ms linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+@media (prefers-reduced-motion: reduce) {html:not([data-motion=full]) .spin { animation: none; } }
 html[data-motion=reduced] .spin { animation: none; }
 
 /* --- Entering surfaces: dialogs, drawer, toast, page -------------------- */

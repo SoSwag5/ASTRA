@@ -121,18 +121,13 @@ html.no-vt .page-enter { animation: rise-in var(--motion-page) var(--ease-enter)
 .toast.is-leaving { animation: toast-leave var(--motion-base) var(--ease-exit) forwards; }
 
 /* --- Reduced motion: everything still, every state still visible ----------- */
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
-  .skeleton-line, .scanpill .scandot { animation: none; }
-  .app .more-tools.is-open nav button { transition-delay: 0s; }
+@media (prefers-reduced-motion: reduce) {html:not([data-motion=full])::view-transition-group(*), html:not([data-motion=full])::view-transition-old(*), html:not([data-motion=full])::view-transition-new(*) { animation: none !important; }html:not([data-motion=full]) .skeleton-line, html:not([data-motion=full]) .scanpill .scandot { animation: none; }html:not([data-motion=full]) .app .more-tools.is-open nav button { transition-delay: 0s; }
 }
 html[data-motion=reduced] .skeleton-line, html[data-motion=reduced] .scanpill .scandot { animation: none; }
 html[data-motion=reduced] .app .more-tools.is-open nav button { transition-delay: 0s; }
 
 /* Stop all motion, including legacy loops and press/hover displacement. */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
-  button:active, button:hover, a:active, button:hover svg, .segmented label:active { transform: none !important; }
+@media (prefers-reduced-motion: reduce) {html:not([data-motion=full]) *, html:not([data-motion=full]) *::before, html:not([data-motion=full]) *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }html:not([data-motion=full]) button:active, html:not([data-motion=full]) button:hover, html:not([data-motion=full]) a:active, html:not([data-motion=full]) button:hover svg, html:not([data-motion=full]) .segmented label:active { transform: none !important; }
 }
 html[data-motion=reduced] *, html[data-motion=reduced] *::before, html[data-motion=reduced] *::after {
   animation: none !important; transition: none !important; scroll-behavior: auto !important;

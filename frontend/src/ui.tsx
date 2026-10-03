@@ -3,9 +3,12 @@
  * dialog, a save bar with truthful states, a per-card draft hook and a
  * registry of unsaved cards. Styling lives in interaction.css.
  */
-import React, {createContext, useCallback, useContext, useEffect, useId, useRef, useState} from 'react';
-import {AlertTriangle, Check, CircleAlert, LoaderCircle} from 'lucide-react';
+import React, {createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState} from 'react';
+import {AlertTriangle, Check, CheckCircle2, CircleAlert, Info, LoaderCircle} from 'lucide-react';
 import * as S from './settingsModel';
+import {createDisclosure, type DisclosureController} from './disclosure';
+import {motionReduced, transition} from './motion';
+import type {Outcome} from './setupModel';
 
 type Row = S.Row;
 
@@ -79,7 +82,8 @@ export function ConfirmDialog({request, onClose}: {request: ConfirmRequest | nul
 const ConfirmContext = createContext<(request: ConfirmRequest) => void>(() => {});
 export function ConfirmProvider({children}: {children: React.ReactNode}) {
   const [request, setRequest] = useState<ConfirmRequest | null>(null);
-  const close = useCallback(() => setRequest(null), []);
+  // Closing sinks the dialog out (motion.css) without delaying the change.
+  const close = useCallback(() => transition('confirm', () => setRequest(null)), []);
   return <ConfirmContext.Provider value={setRequest}>{children}<ConfirmDialog request={request} onClose={close}/></ConfirmContext.Provider>;
 }
 export const useConfirm = () => useContext(ConfirmContext);
@@ -180,6 +184,132 @@ export function ActionStatus({status}: {status: {tone: 'good' | 'bad' | 'info'; 
   return <p className={'action-status ' + status.tone} role={status.tone === 'bad' ? 'alert' : 'status'}
     aria-live={status.tone === 'bad' ? 'assertive' : 'polite'}>
     <Icon size={16} className={status.tone === 'info' ? 'spin' : ''} aria-hidden/><span>{status.text}</span></p>;
+}
+
+// ---------------------------------------------------------------------------
+// Outcomes that stay visible
+// ---------------------------------------------------------------------------
+export type {Outcome};
+
+/** A callout with icon and words; colour is never the only signal. */
+export function Notice({outcome, action}: {outcome: Outcome; action?: React.ReactNode}) {
+  const Icon = outcome.tone === 'good' ? CheckCircle2 : outcome.tone === 'bad' ? CircleAlert : outcome.tone === 'warn' ? AlertTriangle : Info;
+  return <div className={'callout notice-callout ' + outcome.tone}>
+    <Icon size={18} aria-hidden/>
+    <div><p className="callout-title">{outcome.title}</p>{outcome.text && <p>{outcome.text}</p>}
+      {action && <div className="callout-actions">{action}</div>}</div>
+  </div>;
+}
+
+/**
+ * Where a step reports its result. The polite, atomic region always exists,
+ * so a later success is announced in full; an actionable failure is an alert.
+ */
+export function OutcomeRegion({outcome, action}: {outcome: Outcome | null; action?: React.ReactNode}) {
+  const failed = outcome?.tone === 'bad';
+  return <>
+    <div className="outcome-region" role="status" aria-live="polite" aria-atomic="true">
+      {outcome && !failed && <Notice outcome={outcome} action={action}/>}
+    </div>
+    {failed && <div className="outcome-region" role="alert"><Notice outcome={outcome} action={action}/></div>}
+  </>;
+}
+
+// ---------------------------------------------------------------------------
+// Disclosures
+// ---------------------------------------------------------------------------
+/**
+ * A native <details> that animates opening and closing (disclosure.ts). The
+ * summary stays the keyboard control; a change the browser makes itself,
+ * such as find-in-page opening it, is adopted.
+ */
+export function Disclosure({summary, children, className = '', bodyClassName = '', defaultOpen = false}: {
+  summary: React.ReactNode; children: React.ReactNode; className?: string; bodyClassName?: string; defaultOpen?: boolean;
+}) {
+  const details = useRef<HTMLDetailsElement>(null), body = useRef<HTMLDivElement>(null);
+  const control = useRef<DisclosureController | null>(null);
+  const [open, setOpen] = useState(defaultOpen);
+  useEffect(() => {
+    const element = details.current!;
+    control.current = createDisclosure({shown: () => element.open, show: value => { element.open = value; }, body: body.current!},
+      {reduced: motionReduced, onIntent: setOpen});
+    return () => control.current?.destroy();
+  }, []);
+  // `open` is passed once; afterwards the controller owns the attribute.
+  return <details ref={details} className={'disclosure-details' + (className ? ' ' + className : '') + (open ? ' is-open' : '')}
+    open={defaultOpen || undefined} onToggle={() => control.current?.sync()}>
+    <summary onClick={event => { event.preventDefault(); control.current?.toggle(); }}>{summary}</summary>
+    <div ref={body} className={'details-body' + (bodyClassName ? ' ' + bodyClassName : '')}>{children}</div>
+  </details>;
+}
+
+/** The same motion for a region shown and hidden by its own button. */
+export function useCollapsible(initiallyOpen: boolean) {
+  const region = useRef<HTMLDivElement>(null);
+  const control = useRef<DisclosureController | null>(null);
+  const [open, setOpen] = useState(initiallyOpen);
+  useEffect(() => {
+    const element = region.current!;
+    control.current = createDisclosure({shown: () => !element.hidden, show: value => { element.hidden = !value; }, body: element},
+      {reduced: motionReduced, onIntent: setOpen});
+    return () => control.current?.destroy();
+  }, []);
+  /** Spread on the region once; `hidden` is never re-applied by React. */
+  const initialHidden = useRef(!initiallyOpen).current || undefined;
+  return {open, toggle: () => control.current?.toggle(), ref: region, initialHidden};
+}
+
+// ---------------------------------------------------------------------------
+// Selection that glides
+// ---------------------------------------------------------------------------
+/**
+ * A raised thumb that glides to the selected option of a segmented control.
+ * Render `<span className="selection-thumb" aria-hidden/>` as the host's first
+ * child. The selected option keeps its own weight and colour, and keeps its
+ * own background until the thumb is measured, so selection never depends on
+ * this script. Rapid changes retarget the CSS transition from where it is.
+ */
+export function useSelectionThumb<T extends HTMLElement>(selector: string, selectedKey: unknown) {
+  const host = useRef<T>(null);
+  const place = useRef<(animate: boolean) => void>(() => {});
+  place.current = (animate: boolean) => {
+    const element = host.current;
+    const thumb = element?.querySelector<HTMLElement>(':scope > .selection-thumb');
+    const item = element?.querySelector<HTMLElement>(selector);
+    if (!element || !thumb) return;
+    if (!item || !item.offsetWidth) { element.classList.remove('has-thumb'); return; }
+    if (!animate) element.classList.remove('thumb-ready');
+    thumb.style.width = item.offsetWidth + 'px';
+    thumb.style.height = item.offsetHeight + 'px';
+    thumb.style.transform = `translate(${item.offsetLeft}px, ${item.offsetTop}px)`;
+    element.classList.add('has-thumb');
+    if (!animate) requestAnimationFrame(() => element.classList.add('thumb-ready'));
+  };
+  const placed = useRef(false);
+  useLayoutEffect(() => { place.current(placed.current); placed.current = true; }, [selectedKey]);
+  useEffect(() => {
+    const element = host.current;
+    if (!element || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => place.current(false));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  return host;
+}
+
+/** The operating system's reduced-motion setting, kept current. */
+export function useSystemReducedMotion() {
+  const query = '(prefers-reduced-motion: reduce)';
+  const [reduced, setReduced] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.(query).matches);
+  useEffect(() => {
+    const media = window.matchMedia?.(query);
+    if (!media) return;
+    const change = () => setReduced(media.matches);
+    change();
+    media.addEventListener?.('change', change);
+    return () => media.removeEventListener?.('change', change);
+  }, []);
+  return reduced;
 }
 
 /** Run one action with busy and outcome state. */

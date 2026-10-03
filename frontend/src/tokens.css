@@ -219,8 +219,7 @@
 }
 
 /* The OS setting and ASTRA's own "Reduce motion" choice are equivalent. */
-@media (prefers-reduced-motion: reduce) {
-  :root {
+@media (prefers-reduced-motion: reduce) {:root:not([data-motion=full]) {
     --motion-instant: 0ms;
     --motion-fast: 0ms;
     --motion-base: 0ms;

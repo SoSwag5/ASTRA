@@ -1,6 +1,6 @@
 import {safeLink} from './safeLink';
 import React,{useEffect,useRef,useState} from 'react';
-import {useConfirm} from './ui';
+import {useConfirm, Disclosure} from './ui';
 /**
  * Minimal Gmail connection controls (issue #44): show connected/disconnected,
  * start the primary account's authorization, show the actual authorized
@@ -120,9 +120,10 @@ export function GmailConnection({api}:{api:Api}){
  const connected=primary?.status==='CONNECTED';
  return <section className="panel settings-card">
   <h3>Gmail connection</h3>
-  <p>ASTRA asks Google for <strong>read-only</strong> Gmail access ({info.requested_scopes?.join(' ')}) so it can later detect application confirmations. It never sends, deletes, archives or changes email. Your connection token is kept in your operating system’s credential store, never in the ASTRA database, an export, a backup or a log.</p>
+  <p>Optionally connect Gmail to find application confirmations. ASTRA asks for <strong>read-only</strong> access. It never sends, deletes, archives or changes email. Your connection token stays in your operating system’s credential store.</p>
+  {!configured&&<div className="callout info"><div><p className="callout-title">Gmail needs advanced setup in this beta.</p><p>You can find jobs, prepare documents and track applications without Gmail. One-click connection for everyone is planned after Google OAuth verification.</p></div></div>}
   {error&&<p role="alert" className="errorbar">{error}</p>}
-  {!configured&&<p className="notice" id="gmail-unavailable">{describe(info.configuration?.detail_code)||'A Gmail OAuth client is not configured yet.'} Set <code dir="ltr">{info.configuration?.environment_variable}</code> to the client ID of a Desktop App OAuth client in your own Google Cloud project, then restart ASTRA. See the Gmail OAuth setup guide in the documentation.</p>}
+  {!configured&&<Disclosure summary="Advanced Gmail setup"><p className="notice" id="gmail-unavailable">{describe(info.configuration?.detail_code)||'A Gmail OAuth client is not configured yet.'} Set <code dir="ltr">{info.configuration?.environment_variable}</code> to the client ID of a Desktop App OAuth client in your own Google Cloud project, then restart ASTRA. See the Gmail OAuth setup guide in the documentation. Requested scope: {info.requested_scopes?.join(' ')}</p></Disclosure>}
   {configured&&!storeReady&&<p className="notice" id="gmail-unavailable">{describe(info.credential_store?.detail_code)}</p>}
   {configured&&storeReady&&!secretReady&&<p className="notice" id="gmail-unavailable">{describe(info.client_secret?.detail_code)||'Your OAuth client secret is not configured yet.'} Run <code dir="ltr">{info.client_secret?.setup_command}</code> in a terminal on this computer; it asks for the secret at a hidden prompt and stores it in your operating system’s credential store. It is never typed into this page and never stored by your browser.</p>}
   <h4>Primary account</h4>

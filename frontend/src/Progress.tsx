@@ -2,6 +2,8 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {AlertTriangle, ArrowRight, CalendarCheck, CheckCircle2, CircleDashed, Clock3, ExternalLink, Info, Layers, MailCheck, Radar, RefreshCw, Search, Send, XCircle} from 'lucide-react';
 import * as M from './progressModel';
 import {GmailOperations} from './GmailOperations';
+import {settle} from './motion';
+import {useSelectionThumb, Disclosure} from './ui';
 import './tokens.css';
 import './progress.css';
 
@@ -45,7 +47,10 @@ export function Progress({api, openJob, goTo}: Props) {
   const [scanStatus, setScanStatus] = useState<Row | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const request = useRef(0);
-  const refresh = () => { setRefreshToken(t => t + 1); load(period); };
+  const body = useRef<HTMLDivElement>(null);
+  const userRefresh = useRef(false);
+  const changePeriod = (next: string) => {if(next !== period) {userRefresh.current = true; setPeriod(next);}};
+  const refresh = () => { userRefresh.current = true; setRefreshToken(t => t + 1); load(period); };
 
   const load = useCallback(async (which: string) => {
     const ticket = ++request.current;
@@ -57,6 +62,10 @@ export function Progress({api, openJob, goTo}: Props) {
       if (ticket !== request.current) return;
       setData(report);
       setError('');
+      if (userRefresh.current) {
+        userRefresh.current = false;
+        requestAnimationFrame(() => {if(ticket === request.current && body.current) settle(body.current.children);});
+      }
     } catch (e: any) {
       if (ticket === request.current) setError(e.message);
     }
@@ -89,7 +98,7 @@ export function Progress({api, openJob, goTo}: Props) {
 
   if (!data) {
     return <div className="progress">
-      <PeriodPicker period={period} onChange={setPeriod} data={null} loading={loading} onRefresh={() => load(period)}/>
+      <PeriodPicker period={period} onChange={changePeriod} data={null} loading={loading} onRefresh={refresh}/>
       {error
         ? <div className="errorbar" role="alert"><span>Progress could not load. {error}</span><button className="secondary" onClick={() => load(period)}>Retry</button></div>
         : <ProgressSkeleton/>}
@@ -97,9 +106,9 @@ export function Progress({api, openJob, goTo}: Props) {
   }
 
   return <div className="progress">
-    <PeriodPicker period={period} onChange={setPeriod} data={data} loading={loading} onRefresh={refresh}/>
+    <PeriodPicker period={period} onChange={changePeriod} data={data} loading={loading} onRefresh={refresh}/>
     {error && <div className="errorbar" role="alert"><span>Could not refresh. Showing the figures loaded at {M.formatDateTime(data.generated_at)}. {error}</span><button className="secondary" onClick={() => load(period)}>Retry</button></div>}
-    <div className={'progress-body' + (loading ? ' is-refreshing' : '')} aria-busy={loading}>
+    <div ref={body} className={'progress-body' + (loading ? ' is-refreshing' : '')} aria-busy={loading}>
       <Glance data={data} savedCampaign={savedCampaign} scanStatus={scanStatus} latest={latestFailed ? null : latest} goTo={goTo}/>
       <NextAction data={data} goTo={goTo}/>
       <GmailOperations api={api} compact onChanged={refresh} onConnect={() => goTo('Settings/permissions')}
@@ -114,8 +123,9 @@ export function Progress({api, openJob, goTo}: Props) {
 }
 
 function PeriodPicker({period, onChange, data, loading, onRefresh}: {period: string; onChange: (p: string) => void; data: Row | null; loading: boolean; onRefresh: () => void}) {
+  const thumb = useSelectionThumb<HTMLFieldSetElement>('label.selected', period);
   return <div className="progress-toolbar">
-    <fieldset className="segmented">
+    <fieldset ref={thumb} className="segmented"><span className="selection-thumb" aria-hidden/>
       <legend className="visually-hidden">Reporting period</legend>
       {M.PERIODS.map(p => <label key={p.key} className={period === p.key ? 'selected' : ''}>
         <input type="radio" name="progress-period" value={p.key} checked={period === p.key} onChange={() => onChange(p.key)}/>
@@ -404,10 +414,9 @@ function Figure({id, icon, title, value, note, children}: {id: string; icon: Rea
     <div className="figure-top">{icon}<h3 id={id}>{title}</h3></div>
     <p className={'figure-value' + (/\d/.test(value) ? '' : ' is-words')}>{value}</p>
     <p className="figure-note">{note}</p>
-    <details className="evidence">
-      <summary>How this is counted</summary>
+    <Disclosure className="evidence" summary={<>How this is counted</>}>
       <div className="evidence-body">{children}</div>
-    </details>
+    </Disclosure>
   </section>;
 }
 
@@ -565,11 +574,10 @@ export function Outcomes({data}: {data: Row}) {
         <span className="column-label">{M.formatDay(w.week_start).replace(/^\w+ /, '')}</span>
       </div>)}
     </div>
-    <details className="evidence">
-      <summary>Weekly submissions as a table</summary>
+    <Disclosure className="evidence" summary={<>Weekly submissions as a table</>}>
       <table className="plain-table"><thead><tr><th scope="col">Week beginning (Monday)</th><th scope="col">Submitted</th></tr></thead>
         <tbody>{weekly.map(w => <tr key={w.week_start}><td>{M.formatDay(w.week_start)}</td><td className="num">{w.submitted}</td></tr>)}</tbody></table>
-    </details>
+    </Disclosure>
     <div className="breakdowns">
       <Breakdown title="By job source" rows={o.by_source}/>
       <Breakdown title="By CV version you recorded" rows={o.by_cv_version}/>
