@@ -91,6 +91,22 @@ tests fail against the previous installer script. `scripts/clean_install.py` now
 asserts the three enabled starter feeds straight after the real installer, so the
 hosted exact-package check covers this permanently. Implementer results for the repair: `tests/test_starter_catalog.py` 8 passed (2 new tests fail against the old installer script); full backend suite on isolated fictional data 2221 passed, 1 skipped, 0 failed. `clean_install.py` itself was not executed here (needs the exact ZIP); its new assertion's response shape was checked against a real installer-then-startup run (three feeds, all enabled). Frontend untouched. No browser or hosted result is claimed for the repaired source.
 
+## Frontend corrections after `b173125` (exact-package browser findings)
+
+Two frontend-only defects were found in the exact package and corrected: (1) Sources
+& websites cards squeezed names and details into a narrow column and the search and
+filter labels clipped their controls; the directory now scopes its own card layout
+(information at full card width, actions on a row below, two cards per row on wide
+screens and one on narrow ones, labels stacked above their controls), leaving
+`.portal-row` elsewhere unchanged. (2) The shell showed "Scanning…" during generic
+maintenance because it followed the overview's generic work-lock flag; it now follows
+only the real scan controller's active scan (`/api/scan/status`). Backend, catalogue
+and protected models are unchanged. `npm test` (13 scripts, including model checks of
+the indicator rule and source-pattern checks of the wiring and CSS) and `npm run build`
+pass; these are not browser measurements. The backend suite was not repeated for
+frontend-only bytes. The exact-package browser checks, including screenshots, are to
+be repeated by the independent reviewer on the new package.
+
 ## NOT RUN
 
 Packaged ZIP build, clean install, SBOM and provenance, hosted CI (CodeQL, dependency

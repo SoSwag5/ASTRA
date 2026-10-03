@@ -54,9 +54,14 @@
 .has-thumb label,.has-thumb button { position:relative; z-index:1; }
 .thumb-ready > .selection-thumb { transition:transform 240ms cubic-bezier(.22,.8,.24,1),width 240ms,height 240ms; }
 .motion-preview { padding:18px; border:1px solid var(--line); border-radius:12px; margin-top:18px; }
-.source-directory .directory-controls { display:flex; gap:12px; flex-wrap:wrap; margin:18px 0; }
-.source-directory .directory-controls input { flex:1; min-width:180px; }
-.source-directory .portal-row { padding:18px 0; gap:18px; }
+.source-directory .directory-controls { display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end; margin:18px 0; }
+.source-directory .directory-controls label { display:flex; flex-direction:column; align-items:stretch; gap:6px; flex:1 1 260px; min-width:0; }
+.source-directory .directory-controls input,.source-directory .directory-controls select { width:100%; min-width:0; box-sizing:border-box; }
+.source-directory .portal-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 28px; }
+.source-directory .portal-row.source-card { display:flex; flex-direction:column; align-items:stretch; gap:12px; min-width:0; padding:18px 0; }
+.source-directory .source-info { min-width:0; overflow-wrap:anywhere; }
+.source-directory .source-actions { display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-start; }
+@media(max-width:900px) { .source-directory .portal-list { grid-template-columns:minmax(0,1fr); } }
 .source-directory small { display:block; line-height:1.7; }
 .source-mode { color:var(--accent); font-weight:600; }
 .content.page-enter,.settings-body.page-enter { animation:workspace-content-in 300ms cubic-bezier(.22,.8,.24,1) both; }
