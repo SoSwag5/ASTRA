@@ -26,6 +26,14 @@ Source catalogue truth: 77 unique destinations, 74 manual links and 3 public fee
 browser check or were inconclusive. Not 77 verified working, not 50 automated feeds,
 not matching validation.
 
+## Review repair after 13814791
+
+Setup now opens only after the latest saved state reloads (`openSetup`), so a
+dismissed pending refresh cannot reappear as stale confirmed facts. Frontend only:
+`npm test` and `npm run build` re-run and pass; the backend suite above was not
+repeated because no backend or test file changed. Source-pattern checks, not a
+browser run.
+
 ## NOT RUN
 
 Browser/UI acceptance, packaged ZIP build, clean install, SBOM/provenance, hosted CI

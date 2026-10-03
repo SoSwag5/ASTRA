@@ -37,3 +37,18 @@ kept). Results and commit are in the
 Not done: browser/UI acceptance, packaged ZIP, hosted CI, independent review,
 another-PC novice test, publication. Next action: Codex verifies the exact commit
 and prepares hosting; the Owner decides publication.
+
+## Review repair: stale setup reopening (after 13814791)
+
+An independent reviewer found that Escape (and a failed fire-and-forget retry on
+Close) could leave the cached profile in place, so reopening setup from Settings
+showed a stale confirmed profile after a successful write whose reload failed.
+Repair: `openSetup()` in `frontend/src/main.tsx` awaits the atomic `reload()`
+before opening setup at step 1, refuses to open on failure with a visible error
+toast (the Settings button remains the retry), and ignores duplicate requests
+while loading. Settings' Open setup wizard uses it; startup already awaited
+`reload()`; these are the only two `setWizard(true)` sites (checked in
+`check-usability.cjs`). Escape on the wizard now also makes a best-effort reload.
+In-flight (`aria-busy`) Close/Escape stays blocked; pending dismissal stays allowed.
+`npm test` and `npm run build` pass; the new checks read source and are not a
+browser run. Backend unchanged.

@@ -35,6 +35,12 @@ const assert = require('node:assert/strict');
   assert.match(wizard,/const hint = pending \?/);assert.match(wizard,/disabled=\{!!busy \|\| !!hint\}/);
   assert.match(wizard,/className="close icon" disabled=\{working\}/);
   assert.match(main,/panel\.getAttribute\('aria-busy'\)==='true'\)return/);
+  // Setup opens only after the latest saved state loads; a failed load refuses to open (source checks, not a browser run).
+  assert.match(main,/async function openSetup\(\)\{\s*if\(opening\.current\)return;/);
+  assert.match(main,/try\{await reload\(\);setStep\(1\);setWizard\(true\)\}\s*catch\(e:any\)\{notify\(/);
+  assert.match(main,/openWizard=\{openSetup\}/);assert.doesNotMatch(main,/openWizard=\{\(\)=>/);
+  assert.equal((main.match(/setWizard\(true\)/g)||[]).length,2);
+  assert.match(main,/if\(wizard\)\{reload\(\)\.catch/);
   assert.match(main,/updateCfg\(\{wizard_step:next\}\)/);
   assert.match(focus,/<textarea disabled=\{busy\}/);assert.match(focus,/onClick=\{undo\}/);assert.match(focus,/disabled=\{busy\} onClick=\{undo\}|disabled=\{busy\}><RotateCcw|onClick=\{undo\}><RotateCcw/);
   console.log('Setup write/refresh failures, dirty choices, latest-request gate, motion preferences and rapid disclosure interruption passed (model checks; browser checks separate).');

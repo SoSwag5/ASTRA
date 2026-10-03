@@ -19,7 +19,7 @@ type Api = (path: string, method?: string, data?: any) => Promise<any>;
 export type Appearance = {theme: S.ThemePreference; setTheme: (t: S.ThemePreference) => void; motion: S.MotionPreference; setMotion: (m: S.MotionPreference) => void};
 type Props = {
   api: Api; cfg: Row; reload: () => Promise<any>; section: string; onSection: (id: string) => void;
-  openWizard: () => void; download: (path: string) => void; editRecord: (kind: string, row: Row) => void;
+  openWizard: () => void | Promise<void>; download: (path: string) => void; editRecord: (kind: string, row: Row) => void;
   appearance: Appearance; onDirtyChange: (labels: Row) => void; goTo: (page: string) => void;
 };
 
