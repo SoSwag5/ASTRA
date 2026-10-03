@@ -1,7 +1,6 @@
 # ASTRA beta 3 release plan — 2–3 October 2026
 
-**Status (3 October 2026):** beta 3 is a candidate in implementation and technical
-self-check; it is not published, tagged, independently verified or approved. See the
+**Status (3 October 2026):** beta 3 is an unpublished candidate. Source and UI reviews and a source-checkout browser pass at `c494112`, plus the implementer's checks at `ddb087c`, are recorded in the evidence; packaged-release, hosted-gate, another-PC, live-Gmail, real-scan and AI checks are NOT RUN. It is not tagged, packaged, approved or published. Hosted verification is pending on [draft PR #86](https://github.com/SoSwag5/ASTRA/pull/86). See the
 [candidate evidence](../release/V1_1_0_BETA_3_EVIDENCE.md). Older dated snapshots, such as
 the [next-update checklist](BETA_FOLLOWUP_CHECKLIST.md), are preserved as history.
 
@@ -9,7 +8,7 @@ the [next-update checklist](BETA_FOLLOWUP_CHECKLIST.md), are preserved as histor
 
 The public product is **v1.1.0-beta.2**, an early local-first beta. It imports a selectable-text PDF CV, lets you correct extracted facts and choose custom or technical target roles, collects supported public job boards after preview/confirmation, scores with rules, prepares documents for review and tracks applications. You apply on the employer's website. Opening ASTRA does not scan or submit anything. AI, Excel import and Gmail are optional.
 
-The backend has substantial automated assurance, but this does not prove that a first-time user finds the app easy or that the top-ranked jobs are good. The biggest immediate gap is the path from an empty installation to a useful search. Source lists currently depend on old migration scripts; action feedback is understated; some content changes are instant. Public Gmail setup, another-PC acceptance and broad matching quality remain unvalidated. Docker startup has a known VERSION-file omission; do not advertise Docker as verified until fixed and run.
+The backend has substantial automated assurance, but this does not prove that a first-time user finds the app easy or that the top-ranked jobs are good. The biggest immediate gap is the path from an empty installation to a useful search. In beta 2, source lists depended on old migration scripts, action feedback was understated and some content changes were instant; the beta 3 candidate addresses these (see the sections below) but remains unpackaged. Public Gmail setup, another-PC acceptance and broad matching quality remain unvalidated. Docker startup has a known VERSION-file omission; do not advertise Docker as verified until fixed and run.
 
 ## Current release: beta 3 — make the existing workflow usable
 
@@ -17,39 +16,39 @@ One implementation owner works in an isolated branch; a separate reviewer checks
 
 ### A. Clear setup and actions — IMPLEMENTED, NOT YET VERIFIED
 
-- [ ] CV selection has a busy state, visible server-confirmed success, filename/context and next step.
-- [ ] Confirming facts shows a persistent check + “Facts confirmed” message; errors remain visible and explain retry. No false confirmation on failed writes.
-- [ ] Career choices show hover, focus, press and selected states. Dirty changes explain why Continue is unavailable. Saving custom-only roles works without technical boxes.
-- [ ] Optional tracker import can be skipped. Rule-based is the default/recommended option. AI is advanced and optional.
-- [ ] Every important action family has pending, success, failure and recovery feedback. A toast supplements persistent evidence; colour or hover alone is insufficient.
-- [ ] Setup focus is contained, headings readable, scrollbars useful and buttons comfortably spaced at narrow width and 200% zoom.
+- [x] CV selection has a busy state, visible server-confirmed success, filename/context and next step. *(source browser check at c494112, fictional Finance CV; not packaged)*
+- [x] Confirming facts shows a persistent check + “Facts confirmed” message; errors remain visible and explain retry. No false confirmation on failed writes. *(source browser check at c494112)*
+- [ ] Career choices show hover, focus, press and selected states. Dirty changes explain why Continue is unavailable. Saving custom-only roles works without technical boxes. *(Not yet checked: custom-only roles saved and dirty/pending locks observed; hover/focus/press states were not individually checked)*
+- [x] Optional tracker import can be skipped. Rule-based is the default/recommended option. AI is advanced and optional. *(source browser check at c494112: skip path; tracker import itself not exercised)*
+- [ ] Every important action family has pending, success, failure and recovery feedback. A toast supplements persistent evidence; colour or hover alone is insufficient. *(Not yet checked: setup families observed; other action families and recovery paths not all exercised)*
+- [ ] Setup focus is contained, headings readable, scrollbars useful and buttons comfortably spaced at narrow width and 200% zoom. *(Not yet checked: narrow 390px width showed no horizontal overflow and keyboard dialog containment was checked; 200% zoom NOT RUN)*
 
 ### B. Motion that answers the click — IMPLEMENTED, NOT YET VERIFIED
 
-- [ ] Pages and Settings sections animate actual content; click targets remain live throughout.
-- [ ] Progress periods show selected state immediately and update figures for the latest request only, with a brief content transition.
-- [ ] Accordions animate opening and closing; arrows rotate; keyboard activation and focus remain correct. Rapid toggles settle in the requested state.
-- [ ] Drawers and dialogs enter/exit smoothly and return focus. No delayed action, double save or hidden overlay blocks the page.
-- [ ] Buttons, uploads, links, track cards and tabs have consistent hover/focus/press feedback.
-- [ ] Normal motion is visibly testable in Appearance; OS or app reduced motion removes nonessential movement while retaining all state information.
-- [ ] Typing, background polling and passive refresh do not replay decorative page entrances.
+- [ ] Pages and Settings sections animate actual content; click targets remain live throughout. *(Not yet checked: explicit Full motion showed page and button animation durations; click-through during transitions not separately shown)*
+- [x] Progress periods show selected state immediately and update figures for the latest request only, with a brief content transition. *(source browser check at c494112: rapid period changes kept the latest selection and date)*
+- [ ] Accordions animate opening and closing; arrows rotate; keyboard activation and focus remain correct. Rapid toggles settle in the requested state. *(Not yet checked: component-level disclosure checks only; physical rapid-toggle browser check pending)*
+- [ ] Drawers and dialogs enter/exit smoothly and return focus. No delayed action, double save or hidden overlay blocks the page. *(Not yet checked: dialog keyboard containment and Escape checked; enter/exit animation and focus return not individually confirmed)*
+- [ ] Buttons, uploads, links, track cards and tabs have consistent hover/focus/press feedback. *(Not yet checked: not individually checked in a browser)*
+- [x] Normal motion is visibly testable in Appearance; OS or app reduced motion removes nonessential movement while retaining all state information. *(source browser check at c494112: OS reduced motion true, Match system respected it, Full showed animation, Reduce removed transitions)*
+- [ ] Typing, background polling and passive refresh do not replay decorative page entrances. *(Not yet checked: not checked in a browser)*
 
 ### C. Useful sources included — IMPLEMENTED, NOT YET VERIFIED
 
-- [ ] At least 50 distinct official destinations have individually recorded checks. Report reachable pages separately from robots/challenge blocks and unverified entries; never claim 50 automated feeds. Current catalogue: 77 unique destinations — 74 manual links and 3 supported public feeds. 52 recorded route/feed checks succeeded (49 manual pages and 3 JSON feeds); 25 need a browser check or were inconclusive. This is not 77 verified working sources and not matching validation.
-- [ ] Include government and hospitals/healthcare alongside companies, major UAE job portals and recruiters. No numeric padding with duplicate brands or generic homepages.
-- [ ] Include a small, checked public-feed starter set (three on a fresh workspace: Cloudflare and Netcracker on Greenhouse, Lean Technologies on Ashby; existing workspaces receive them paused). Scanning requires user preview and confirmation; no startup network requests or scheduled scans.
-- [ ] Expose the complete directory with search/group filters, counts and plain “Scan in ASTRA” / “Open website” labels.
-- [ ] Major portals include role/location search links where supported. LinkedIn/Indeed account scraping is outside this release; manual links and job-description import remain available.
-- [ ] Adding a supported company board or a manual link gives clear feedback. User-added links are labelled unverified.
-- [ ] Additive startup seeding is repeatable, does not create jobs/applications, does not overwrite custom links, re-enable paused feeds or change existing source preferences.
-- [ ] Display source check dates and limitations. A reachable careers page is not proof of open, eligible or relevant vacancies.
+- [x] At least 50 distinct official destinations have individually recorded checks. Report reachable pages separately from robots/challenge blocks and unverified entries; never claim 50 automated feeds. Current catalogue: 77 unique destinations — 74 manual links and 3 supported public feeds. 52 recorded route/feed checks succeeded (49 manual pages and 3 JSON feeds); 25 need a browser check or were inconclusive. This is not 77 verified working sources and not matching validation. *(source browser check at c494112 shows the 77/52/25 truth; the checks themselves are dated research records, not live verification)*
+- [x] Include government and hospitals/healthcare alongside companies, major UAE job portals and recruiters. No numeric padding with duplicate brands or generic homepages. *(source browser check at c494112: government and hospital groups present)*
+- [x] Include a small, checked public-feed starter set (three on a fresh workspace: Cloudflare and Netcracker on Greenhouse, Lean Technologies on Ashby; existing workspaces receive them paused). Scanning requires user preview and confirmation; no startup network requests or scheduled scans. *(source review approved seeding at c494112; fresh and zero-source upgrade probes; not packaged)*
+- [x] Expose the complete directory with search/group filters, counts and plain “Scan in ASTRA” / “Open website” labels. *(source browser check at c494112: groups, search filter and empty state)*
+- [ ] Major portals include role/location search links where supported. LinkedIn/Indeed account scraping is outside this release; manual links and job-description import remain available. *(Not yet checked: role/location link behaviour not individually checked)*
+- [x] Adding a supported company board or a manual link gives clear feedback. User-added links are labelled unverified. *(source browser check at c494112: valid fictional manual link shows unverified; non-HTTPS refused with an error; adding a supported board not exercised)*
+- [x] Additive startup seeding is repeatable, does not create jobs/applications, does not overwrite custom links, re-enable paused feeds or change existing source preferences. *(separate source reviewer SCOPED APPROVE at c494112: 67 targeted backend tests and two adversarial actual-startup probes (zero-source upgrade, record preservation); zero network, no scan, no jobs or applications)*
+- [x] Display source check dates and limitations. A reachable careers page is not proof of open, eligible or relevant vacancies. *(source browser check at c494112; Mark checked is the user review only)*
 
 ### D. Optional Gmail without a dead end — IMPLEMENTED, NOT YET VERIFIED
 
-- [ ] If configured, Connect Gmail is prominent, read-only and explicit about consent.
-- [ ] If unavailable, plain wording explains that advanced setup is required in this beta and core search works without Gmail. Technical instructions sit in an advanced disclosure.
-- [ ] Pending/cancelled/expired/failed/connected/disconnected states stay truthful. No raw OAuth payload or credentials enter the UI.
+- [ ] If configured, Connect Gmail is prominent, read-only and explicit about consent. *(Not yet checked: no browser or live check)*
+- [ ] If unavailable, plain wording explains that advanced setup is required in this beta and core search works without Gmail. Technical instructions sit in an advanced disclosure. *(Not yet checked: not browser-checked)*
+- [ ] Pending/cancelled/expired/failed/connected/disconnected states stay truthful. No raw OAuth payload or credentials enter the UI. *(Not yet checked: mocked states only; no live check)*
 - [ ] Public one-click OAuth, Google verification and second-account validation are separate later work; do not imply they are complete.
 
 ### Narrow threat delta for beta 3
@@ -64,7 +63,7 @@ path is added. This is a reviewed description, not an independent finding.
 
 ### E. Assurance, files and release — NOT YET COMPLETE
 
-- [ ] Claude provides a read-only senior review using the pinned Anthropic frontend-design skill; Codex triages findings by release impact.
+- [ ] Independent review: separate read-only Codex reviewers inspected the source and UI (see evidence). Claude was the implementer and applied the pinned Anthropic frontend-design skill; Claude was not an independent reviewer. The review is scoped to c494112 and does not cover the package.
 - [ ] Fix scope-critical regressions before freezing. After two unsuccessful approaches to a cosmetic improvement, document and defer it. Security, data-loss, broken installation or core-workflow blockers cannot be waived by time spent.
 - [ ] Run automated and browser acceptance below against the exact candidate, then the exact ZIP.
 - [ ] Customer release page says what works today, what changed, how to install, and that this is early beta. Add fictional-data screenshots. Keep private grading, developer comparisons and cloud-review prompts out of customer-facing notes.
@@ -89,12 +88,12 @@ Use a fresh fictional workspace and the packaged ZIP. Record PASS / FAIL / NOT R
 
 ## Automatic checklist for every release
 
-- [ ] Targeted tests for changed behavior, including negative/error paths and races; isolate DATABASE_URL and HUNTER_DATA_DIR before imports.
-- [ ] Frontend tests and production build. Source-pattern checks are reported accurately; browser execution remains separate.
+- [x] Targeted tests for changed behavior, including negative/error paths and races; isolate DATABASE_URL and HUNTER_DATA_DIR before imports. *(67 targeted backend tests passed in the source review; implementer ran 13 targeted plus the full suite)*
+- [x] Frontend tests and production build. Source-pattern checks are reported accurately; browser execution remains separate. *(13 scripts and build PASS, repeated after the final copy change; source-pattern, not browser)*
 - [ ] Full backend suite on supported Python versions in hosted CI; investigate new failures/skips.
 - [ ] CodeQL/SAST, dependency/SCA audit, dependency review when triggered, and publication/privacy scan run on the exact reviewed commit.
-- [ ] Source seeding: fresh install, repeated startup, existing paused feed, modified built-in entry, custom source, demo isolation and no jobs/applications created.
-- [ ] Scan preview/token single-use, concurrent actions and Stop/source-disable boundary regressions remain passing when affected.
+- [x] Source seeding: fresh install, repeated startup, existing paused feed, modified built-in entry, custom source, demo isolation and no jobs/applications created. *(covered by tests/test_starter_catalog.py and the source reviewer probes; package not tested)*
+- [x] Scan preview/token single-use, concurrent actions and Stop/source-disable boundary regressions remain passing when affected. *(full backend suite passed 2219/1 skipped at c494112 backend content, which is identical at ddb087c; a scan preview was also cancelled in the browser without creating a run)*
 - [ ] Rule provider makes no model request; cloud cap 0 denies, approval required, credential storage fails closed and secrets excluded from records/logs.
 - [ ] Build exact package; verify version, file manifest, included frontend/source catalog, locked dependencies, SBOM, provenance and SHA-256.
 - [ ] Execute clean install, upgrade and launch smoke against package; ensure no private database, key, CV or machine path leaks into release files.

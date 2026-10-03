@@ -8,8 +8,11 @@ work after a quota stop); Codex verifies separately. Scope: persistent setup/foc
 feedback, visible motion with a Match system / Reduce / Full choice, a Sources &
 websites directory (77 destinations: 74 manual links, 3 public feeds; not "77
 verified"), additive no-network startup seeding (fresh workspaces enable three feeds;
-existing ones get them paused), clearer optional Gmail copy. Nothing is published,
-tagged, independently verified or approved; published beta 2 is unchanged. See the
+existing ones get them paused), clearer optional Gmail copy. Separate Codex
+source and UI reviewers and a source-checkout browser pass (at `c494112`) are
+recorded as scoped results; the package, hosted gate ([PR #86](https://github.com/SoSwag5/ASTRA/pull/86)),
+another-PC, live Gmail, real-scan and AI checks are not done. Nothing is published,
+tagged, packaged or approved; published beta 2 is unchanged. See the
 [plan](../planning/BETA_3_RELEASE_PLAN.md), [handoff](../planning/BETA_3_USABILITY_HANDOFF.md)
 and [candidate evidence](../release/V1_1_0_BETA_3_EVIDENCE.md).
 
