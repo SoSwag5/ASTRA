@@ -78,7 +78,7 @@ starter feeds **paused**. After setup, Start scanning reported that no source wa
 enabled, contradicting the promise of ready starter feeds. Source-only startup tests
 had missed the real installer ordering. That candidate is not to be published.
 
-Repair (new source anchor; package and browser re-verification pending): 
+Repair (new source anchor; package and browser re-verification pending):
 `scripts/initialize.py` now reads freshness before initializing, then seeds the catalogue
 with that flag, so only a truly new workspace enables the three feeds. Existing
 workspaces, including those with zero sources, still get them paused and no choice is
