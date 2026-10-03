@@ -1,6 +1,34 @@
 # ASTRA project state
 
-## Beta 3 candidate — 3 October 2026 (Asia/Dubai)
+## Published beta 3 — 3 October 2026 (Asia/Dubai)
+
+**v1.1.0-beta.3 is public**, following Owner authorization for the exact reviewed
+source bf658efd83573ca44e5ae1c98254570e1e7900e7 and ZIP SHA-256
+07d5bcbff219ed34dcc602612856064a1a469ad886e4b74ea8138a2203f87732.
+[Download/customer instructions](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.3)
+and [immutable release record](../release/V1_1_0_BETA_3_RELEASE_RECORD.md).
+PRs #86/#87/#88 merged; integrated master 70e20aefcac6fe78595980d753cbdf9693377095
+matches the frozen source tree. Exact-source/full tests, hosted Windows install,
+package inspection, fictional browser checks and final gate 37124774479 pass.
+All 19 public files were re-downloaded/hash-matched and the source-bound ZIP
+provenance and matching SBOM attestation verified. Implemented by Claude Code,
+separately verified by Codex; no external human-audit claim.
+
+Codex owns docs/beta-3-release-record from that integrated master for this
+documentation-only publication update. Frozen release/tag/assets, Claude's
+implementation branch, protected evaluations, other worktrees and Owner live
+data remain unchanged. Ending source/checks are recorded in the PR/session.
+
+**Current next step:** own-PC testing and fixes to demonstrated problems,
+following the [simple checklist](../release/BETA_3_USER_TEST_CHECKLIST.md).
+Owner schedules another-PC testing after final v1.1; it remains NOT RUN.
+Final #48 and R-16/R-17/R-18 stay open. Independent broad matching measurement,
+live Gmail/AI checks, Docker, actual 200 percent zoom and comprehensive legacy
+UI acceptance remain incomplete. The detailed plan is [here](../planning/BETA_3_RELEASE_PLAN.md).
+
+## Historical beta 3 preparation snapshot
+
+### Beta 3 candidate — earlier 3 October 2026 snapshot
 
 **v1.1.0-beta.3 is an unpublished candidate** on `feature/beta-3-usability`
 (base `1896f1e`). Claude Code owns implementation (continuing Codex's Owner-authorized

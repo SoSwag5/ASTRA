@@ -1,9 +1,13 @@
 # Before you announce ASTRA on LinkedIn
 
-Use [v1.1.0-beta.2 from GitHub](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.2).
+Use [v1.1.0-beta.3 from GitHub](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.3).
 Its exact-source/artifact checks and Owner release decision are complete.
 The public download matches the approved ZIP. Automated verification does not
 replace the new-user and another-PC checks below.
+
+For a shorter own-PC test, use [this checklist](BETA_3_USER_TEST_CHECKLIST.md).
+The Owner schedules another-PC testing after final v1.1; it remains NOT RUN
+until executed. Do not describe it as passed in a public post.
 
 ## Test it as a new user
 

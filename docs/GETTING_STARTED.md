@@ -6,12 +6,11 @@ access are needed to install it. Git, Node and a paid AI account are not require
 
 ## 1. Download and unpack
 
-**These instructions are for beta 3.** Choose the version shown on your download's
-release page. Until beta 3 is published, [beta 2 remains available](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.2);
-use [its matching guide](https://github.com/SoSwag5/ASTRA/blob/v1.1.0-beta.2/docs/GETTING_STARTED.md).
-That ZIP does not contain the beta 3 setup, motion and source-directory changes described here.
+**These instructions are for the published beta 3.** Choose the version shown
+on your download's release page. Earlier versions remain available with their
+own guides, but do not contain all beta 3 changes.
 
-Visit [the beta 3 release](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.3) once it is published.
+Visit [the beta 3 release](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.3).
 Under **Assets**, select **astra-1.1.0-beta.3.zip**. Do not select **Source code**.
 Right-click the downloaded ZIP → **Extract All** → open the extracted **astra**
 folder. Choose a local folder outside OneDrive or other cloud-synced folders.
