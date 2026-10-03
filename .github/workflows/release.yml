@@ -45,8 +45,8 @@ jobs:
         exit $LASTEXITCODE'
       working-directory: frontend
     - run: .audit-env/Scripts/python scripts/generate_sbom.py --python .venv/Scripts/python.exe
-    - run: .audit-env/Scripts/python scripts/validate_sbom.py release/astra-1.1.0-beta.2.cdx.json
-    - run: .venv/Scripts/python scripts/build_release.py --skip-build --sbom release/astra-1.1.0-beta.2.cdx.json
+    - run: .audit-env/Scripts/python scripts/validate_sbom.py release/astra-1.1.0-beta.3.cdx.json
+    - run: .venv/Scripts/python scripts/build_release.py --skip-build --sbom release/astra-1.1.0-beta.3.cdx.json
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       with:
         name: release-input
@@ -70,7 +70,7 @@ jobs:
       with:
         name: release-input
         path: release
-    - run: python scripts/clean_install.py release/astra-1.1.0-beta.2.zip --output release/clean-install.json
+    - run: python scripts/clean_install.py release/astra-1.1.0-beta.3.zip --output release/clean-install.json
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       with:
         name: clean-install-evidence
@@ -92,7 +92,7 @@ jobs:
     - id: provenance
       uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
       with:
-        subject-path: release/astra-1.1.0-beta.2.zip
+        subject-path: release/astra-1.1.0-beta.3.zip
         create-storage-record: false
     # sbom-path rejects CycloneDX 1.7 ("Unsupported SBOM format") up to and
     # including actions/attest v4.2.2, the current release. The predicate inputs
@@ -102,9 +102,9 @@ jobs:
     - id: sbom
       uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
       with:
-        subject-path: release/astra-1.1.0-beta.2.zip
+        subject-path: release/astra-1.1.0-beta.3.zip
         predicate-type: https://cyclonedx.org/bom
-        predicate-path: release/astra-1.1.0-beta.2.cdx.json
+        predicate-path: release/astra-1.1.0-beta.3.cdx.json
         create-storage-record: false
     - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       with:
@@ -130,13 +130,13 @@ jobs:
       with:
         name: release-input
         path: release
-    - run: 'gh attestation verify release/astra-1.1.0-beta.2.zip --repo "$REPO" --signer-workflow "$REPO/.github/workflows/release.yml"
+    - run: 'gh attestation verify release/astra-1.1.0-beta.3.zip --repo "$REPO" --signer-workflow "$REPO/.github/workflows/release.yml"
         --source-digest "$SOURCE" --format json > release/provenance-verification.json
 
-        gh attestation verify release/astra-1.1.0-beta.2.zip --repo "$REPO" --signer-workflow "$REPO/.github/workflows/release.yml"
+        gh attestation verify release/astra-1.1.0-beta.3.zip --repo "$REPO" --signer-workflow "$REPO/.github/workflows/release.yml"
         --source-digest "$SOURCE" --predicate-type https://cyclonedx.org/bom --format json > release/sbom-verification.json
 
-        python scripts/verify_sbom_attestation.py release/astra-1.1.0-beta.2.cdx.json release/sbom-verification.json'
+        python scripts/verify_sbom_attestation.py release/astra-1.1.0-beta.3.cdx.json release/sbom-verification.json'
       env:
         GH_TOKEN: ${{ github.token }}
         REPO: ${{ github.repository }}
@@ -166,7 +166,7 @@ jobs:
         path: release
       if: needs.build.result == 'success'
     - run: "python - <<'PY'\nimport os,json,zipfile\nfrom pathlib import Path\nPath('release').mkdir(exist_ok=True)\n\
-        Path('release/review.json').write_text(json.dumps(json.loads(os.environ['REVIEW'])))\np=Path('release/astra-1.1.0-beta.2.zip')\n\
+        Path('release/review.json').write_text(json.dumps(json.loads(os.environ['REVIEW'])))\np=Path('release/astra-1.1.0-beta.3.zip')\n\
         if p.exists():\n    with zipfile.ZipFile(p) as z: Path('release/manifest.json').write_bytes(z.read('astra/release-manifest.json'))\n\
         PY"
       env:

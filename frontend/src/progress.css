@@ -427,7 +427,6 @@
 .progress-skeleton { display: grid; gap: var(--space-6); }
 .skeleton-card { display: grid; gap: var(--space-3); padding: var(--space-5); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-1); animation: none; }
 .skeleton-card.wide { min-height: 10rem; }
-@media (prefers-reduced-motion: reduce) {
-  .rail.is-live .rail-seg:last-of-type, .live-chip i { animation: none; }
+@media (prefers-reduced-motion: reduce) {html:not([data-motion=full]) .rail.is-live .rail-seg:last-of-type, html:not([data-motion=full]) .live-chip i { animation: none; }
 }
 html[data-motion=reduced] .rail.is-live .rail-seg:last-of-type, html[data-motion=reduced] .live-chip i { animation: none; }

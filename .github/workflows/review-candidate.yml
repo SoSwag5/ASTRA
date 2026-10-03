@@ -43,9 +43,9 @@ jobs:
       shell: bash
       run: |
         set -euo pipefail
-        gh attestation verify release/astra-1.1.0-beta.2.zip --repo "$REPO" --signer-workflow "$REPO/.github/workflows/release.yml" --source-digest "$SOURCE" --format json > release/provenance-verification.json
-        gh attestation verify release/astra-1.1.0-beta.2.zip --repo "$REPO" --signer-workflow "$REPO/.github/workflows/release.yml" --source-digest "$SOURCE" --predicate-type https://cyclonedx.org/bom --format json > release/sbom-verification.json
-        python scripts/verify_sbom_attestation.py release/astra-1.1.0-beta.2.cdx.json release/sbom-verification.json
+        gh attestation verify release/astra-1.1.0-beta.3.zip --repo "$REPO" --signer-workflow "$REPO/.github/workflows/release.yml" --source-digest "$SOURCE" --format json > release/provenance-verification.json
+        gh attestation verify release/astra-1.1.0-beta.3.zip --repo "$REPO" --signer-workflow "$REPO/.github/workflows/release.yml" --source-digest "$SOURCE" --predicate-type https://cyclonedx.org/bom --format json > release/sbom-verification.json
+        python scripts/verify_sbom_attestation.py release/astra-1.1.0-beta.3.cdx.json release/sbom-verification.json
       env:
         GH_TOKEN: ${{ github.token }}
         REPO: ${{ github.repository }}
@@ -56,7 +56,7 @@ jobs:
         import json,os,zipfile
         from pathlib import Path
         Path('release/review.json').write_text(json.dumps(json.loads(os.environ['REVIEW'])))
-        with zipfile.ZipFile('release/astra-1.1.0-beta.2.zip') as z:
+        with zipfile.ZipFile('release/astra-1.1.0-beta.3.zip') as z:
             Path('release/manifest.json').write_bytes(z.read('astra/release-manifest.json'))
         PY
       env:

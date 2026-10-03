@@ -6,6 +6,7 @@
  */
 import React, {useEffect, useState} from 'react';
 import {ArrowRight, ChevronDown, LoaderCircle, MailSearch, Link2} from 'lucide-react';
+import {Disclosure, useCollapsible} from './ui';
 import * as G from './gmailOpsModel';
 import {StatusBadge} from './Progress';
 
@@ -49,7 +50,8 @@ export function GmailOperations({api, onReview, onChanged, onConnect, compact = 
   const [syncing, setSyncing] = useState(false), [matching, setMatching] = useState(false);
   const [sync, setSync] = useState<G.Outcome>({tone: 'neutral', title: '', lines: []});
   const [match, setMatch] = useState<G.Outcome>({tone: 'neutral', title: '', lines: []});
-  const [open, setOpen] = useState(!compact);
+  const collapse = useCollapsible(!compact);
+  const open = collapse.open;
   const load = () => api('/progress/gmail').then(value => { setStatus(value); setLoadError(''); }).catch(e => setLoadError(e.message));
   useEffect(() => { load(); }, []);
 
@@ -79,11 +81,11 @@ export function GmailOperations({api, onReview, onChanged, onConnect, compact = 
       <MailSearch size={20} aria-hidden/>
       <div><h3 id="gmail-ops-title">Check Gmail for application confirmations</h3>
         <p><StatusBadge tone={connection.tone}>{connection.label}</StatusBadge> {connection.detail}</p></div>
-      {compact && <button className="icon gmail-ops-toggle" aria-expanded={open} aria-controls="gmail-ops-body" onClick={() => setOpen(!open)}
+      {compact && <button className="icon gmail-ops-toggle" aria-expanded={open} aria-controls="gmail-ops-body" onClick={collapse.toggle}
         aria-label={open ? 'Hide Gmail check details' : 'Show Gmail check details'}><ChevronDown size={18} aria-hidden/></button>}
     </div>
     {loadError && <div role="alert" className="errorbar"><span>Gmail status could not load. {loadError}</span><button className="secondary" onClick={load}>Retry</button></div>}
-    <div id="gmail-ops-body" hidden={!open}>
+    <div ref={collapse.ref} id="gmail-ops-body" hidden={collapse.initialHidden}>
       <dl className="gmail-ops-counts">
         <div><dt>Saved, not yet matched</dt><dd>{waiting === null ? 'Not recorded' : waiting}</dd></div>
         <div><dt>Waiting for your decision</dt><dd>{review === null ? 'Not recorded' : review}</dd></div>
@@ -106,7 +108,7 @@ export function GmailOperations({api, onReview, onChanged, onConnect, compact = 
         </li>
       </ol>
       {review ? onReview && <button className="textbtn" onClick={onReview}>{review} {review === 1 ? 'message is' : 'messages are'} waiting for your decision<ArrowRight size={15} aria-hidden/></button> : null}
-      <details className="gmail-ops-limits"><summary>What this reads, and its limits</summary><ul>{G.limitsText(status?.limits).map(line => <li key={line}>{line}</li>)}</ul></details>
+      <Disclosure className="gmail-ops-limits" summary="What this reads, and its limits"><ul>{G.limitsText(status?.limits).map(line => <li key={line}>{line}</li>)}</ul></Disclosure>
     </div>
   </section>;
 }

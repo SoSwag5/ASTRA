@@ -87,7 +87,7 @@ p { color: var(--ink-3); }
   content: ''; position: absolute; inset-inline-start: 0; inset-block-end: -1px; width: 40%; height: 2px;
   background: linear-gradient(90deg, transparent, var(--action), transparent); animation: sweep 1.2s var(--ease-standard) infinite;
 }
-@media (prefers-reduced-motion: reduce) { .app:has(.activity.is-active) > main > header::after { display: none; } }
+@media (prefers-reduced-motion: reduce) {html:not([data-motion=full]) .app:has(.activity.is-active) > main > header::after { display: none; } }
 html[data-motion=reduced] .app:has(.activity.is-active) > main > header::after { display: none; }
 
 /* --- Page ------------------------------------------------------------------------ */

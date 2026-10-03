@@ -13,8 +13,11 @@ still developing; this is not a production assurance or universal matching claim
 [**Download the Windows beta 2 ZIP**](https://github.com/SoSwag5/ASTRA/releases/download/v1.1.0-beta.2/astra-1.1.0-beta.2.zip)
 · [Installation guide](docs/GETTING_STARTED.md)
 · [Beta 2 changes](docs/release/V1_1_0_BETA_2_NOTES.md)
+· [Beta 3 plan and candidate status](docs/planning/BETA_3_RELEASE_PLAN.md)
 · [Roadmap](docs/ROADMAP.md)
 · [Report a bug](https://github.com/SoSwag5/ASTRA/issues/new/choose)
+
+**Beta 3 is an unpublished candidate** (clearer setup feedback, visible motion, a Sources & websites directory with three starter feeds and optional Gmail wording). Its guide is in [Installation guide](docs/GETTING_STARTED.md); the published download above remains beta 2 until the Owner approves a frozen beta 3 package.
 
 Choose the version available on its release page. The beta 2 download becomes
 available when that release is published. [Beta 1 remains available](https://github.com/SoSwag5/ASTRA/releases/tag/v1.1.0-beta.1),

@@ -1,5 +1,21 @@
 # ASTRA project state
 
+## Beta 3 candidate — 3 October 2026 (Asia/Dubai)
+
+**v1.1.0-beta.3 is an unpublished candidate** on `feature/beta-3-usability`
+(base `1896f1e`). Claude Code owns implementation (continuing Codex's Owner-authorized
+work after a quota stop); Codex verifies separately. Scope: persistent setup/focus
+feedback, visible motion with a Match system / Reduce / Full choice, a Sources &
+websites directory (77 destinations: 74 manual links, 3 public feeds; not "77
+verified"), additive no-network startup seeding (fresh workspaces enable three feeds;
+existing ones get them paused), clearer optional Gmail copy. Separate Codex
+source and UI reviewers and a source-checkout browser pass (at `c494112`) are
+recorded as scoped results; the package, hosted gate ([PR #86](https://github.com/SoSwag5/ASTRA/pull/86)),
+another-PC, live Gmail, real-scan and AI checks are not done. Nothing is published,
+tagged, packaged or approved; published beta 2 is unchanged. See the
+[plan](../planning/BETA_3_RELEASE_PLAN.md), [handoff](../planning/BETA_3_USABILITY_HANDOFF.md)
+and [candidate evidence](../release/V1_1_0_BETA_3_EVIDENCE.md).
+
 ## Published beta 2 — 2 October 2026 (Asia/Dubai)
 
 **v1.1.0-beta.2 is public** after the Owner explicitly approved its exact frozen

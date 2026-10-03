@@ -1,5 +1,7 @@
 # ASTRA next-update checklist — 2 October 2026
 
+> The current, canonical plan is [BETA_3_RELEASE_PLAN.md](BETA_3_RELEASE_PLAN.md). This dated snapshot is kept for history.
+
 This is a planning snapshot, not a release promise. Each proposed patch needs
 an owner, bounded scope, source/artifact evidence and release approval. Dates
 and exact source anchors from earlier A–H snapshots are historical; do not

@@ -3,8 +3,12 @@ from pathlib import Path
 import pytest
 from backend.policy import duplicate
 
-def isolated(tmp_path,script):
+def isolated(tmp_path,script,*,bundled_sources=False):
     data=tmp_path/'data';env={**os.environ,'HUNTER_DATA_DIR':str(data),'DATABASE_URL':f'sqlite:///{data/"isolated.db"}','APP_TOKEN':''}
+    # Controlled provider fixtures must not inherit real bundled feed boards.
+    # Catalogue integration tests explicitly retain the production catalogue.
+    if not bundled_sources:
+        script = 'from backend import starter_catalog\nstarter_catalog.catalog = lambda: []\n' + script
     result=subprocess.run([sys.executable,'-c',script],capture_output=True,text=True,env=env,timeout=90)
     assert result.returncode==0,result.stdout+result.stderr
 

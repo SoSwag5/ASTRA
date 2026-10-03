@@ -525,6 +525,9 @@ async def lifespan(app):
     if os.getenv('ASTRA_DEMO_ONLY')=='1':
         yield
         return
+    from .starter_catalog import is_fresh_workspace, seed_starter_catalog
+    with Session() as db:
+        fresh_install = is_fresh_workspace(db)
     initialize()
     # Issue #44: additive Gmail account table. Owned by backend/gmail_accounts.py
     # rather than models.initialize(), because backend/models.py is a
@@ -541,6 +544,8 @@ async def lifespan(app):
     # contact, never by a bulk rewrite at startup.
     from .application_reconciliation import initialize_reconciliation_schema
     initialize_reconciliation_schema()
+    with Session.begin() as db:
+        seed_starter_catalog(db, fresh_install=fresh_install)
     if os.getenv('BIND_HOST','127.0.0.1') not in ('127.0.0.1','localhost') and not os.getenv('APP_TOKEN'): raise RuntimeError('APP_TOKEN required for public binding')
     # A process restart cannot finish an earlier in-memory scan.
     if task_lock.acquire(False):

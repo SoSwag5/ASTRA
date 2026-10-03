@@ -106,5 +106,6 @@ with TestClient(main.app) as client:
     env={**os.environ,'DATABASE_URL':'sqlite:///'+str(workspace/'fictional.db'),
          'HUNTER_DATA_DIR':str(workspace/'data'),'APP_TOKEN':'','ASTRA_DEMO_ONLY':'0',
          'PYTHON_KEYRING_BACKEND':'keyring.backends.fail.Keyring'}
+    script = 'from backend import starter_catalog\nstarter_catalog.catalog = lambda: []\n' + script
     result=subprocess.run([sys.executable,'-c',script],env=env,capture_output=True,text=True,timeout=90)
     return result

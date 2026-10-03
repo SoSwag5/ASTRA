@@ -3,8 +3,9 @@ import React,{useEffect,useState} from 'react';
 import {ArrowRight,ArrowUpRight,Check,CalendarDays,Hourglass,MailCheck,RefreshCw} from 'lucide-react';
 import * as P from './progressModel';
 import {StatusBadge} from './Progress';
-import {ActionStatus,useAction,useConfirm} from './ui';
+import {ActionStatus,Disclosure,useAction,useConfirm} from './ui';
 import './campaign.css';
+import {SourceDirectory} from './SourceDirectory';
 type Row=Record<string,any>;
 type Props={api:(path:string,method?:string,data?:any)=>Promise<any>,openJob:(job:Row)=>void};
 const stages=['DISCOVERED','SHORTLISTED','PREPARING','APPLIED','RECRUITER_CONTACT','SCREENING','ASSESSMENT','INTERVIEW','FINAL_INTERVIEW','OFFER','HIRED','REJECTED','WITHDRAWN','NO_RESPONSE','ARCHIVED'];
@@ -61,7 +62,7 @@ function Pipeline({api,openJob}:Props){
  return <div className="campaign pipeline"><div className="toolbar"><label>Show<select value={filter} onChange={e=>setFilter(e.target.value)}><option value="">All stages ({items.length})</option><option value="NO_REPLY">No reply for {data.no_reply_days} days ({cues})</option><optgroup label="Current stage">{P.STATES.map(s=><option key={s} value={s}>{P.stateLabel(s)} ({counts[s]||0})</option>)}</optgroup></select></label><span>{P.plural(data.total,'tracked application')} · {submitted} submitted{data.truncated?` · showing the ${items.length} most recently changed`:''}</span></div>
  <p className="campaign-note">Stages come from each application’s recorded history. Where an older field disagrees, it is shown as the legacy stage and is not used.</p>
  {cues>0&&filter!=='NO_REPLY'&&<div className="next-action no-reply-callout"><Hourglass size={20} aria-hidden/><p><strong>{P.plural(cues,'application')}</strong> {cues===1?'has':'have'} had no reply for {data.no_reply_days} days. Decide whether to keep {cues===1?'it':'them'} open.</p><button className="secondary compact" onClick={()=>setFilter('NO_REPLY')}>Show {cues===1?'it':'them'}</button></div>}
- {filter==='NO_REPLY'&&<details className="panel rule-note"><summary>How “No reply for {data.no_reply_days} days” is decided</summary><ul>{P.NO_REPLY_RULE.map(line=><li key={line}>{line}</li>)}</ul></details>}
+ {filter==='NO_REPLY'&&<Disclosure className="panel rule-note" summary={<>How “No reply for {data.no_reply_days} days” is decided</>}><ul>{P.NO_REPLY_RULE.map(line=><li key={line}>{line}</li>)}</ul></Disclosure>}
  <ActionStatus status={close.status}/>
  <section className="panel">{shown.length?shown.map((r:Row)=>{const note=P.noReplyText(r.no_reply);return <div className="pipeline-row" key={r.application_id}>
   <button className="campaign-job" onClick={()=>openJob({id:r.job_id})}><div><strong>{r.title}</strong><span>{r.company} · {r.submitted?(r.submitted_at?'Submitted '+P.formatDay(r.submitted_at):'Submitted, date not recorded'):'Not submitted'}</span><span>CV: {r.cv_version||'Not recorded'}{r.followup_due_on&&!closedByYou(r)?' · Follow up '+P.formatDay(r.followup_due_on):''}{r.legacy_stage&&!closedByYou(r)?' · Legacy stage: '+label(r.legacy_stage).toLowerCase():''}</span></div><span className="fit-band">{P.stateLabel(r.current_state)}<ArrowUpRight size={16} aria-hidden/></span></button>
@@ -69,17 +70,11 @@ function Pipeline({api,openJob}:Props){
  </div>}):<p className="campaign-empty">{filter==='NO_REPLY'?`No application has gone ${data.no_reply_days} days without a reply.`:items.length?'No application is at this stage.':'No applications are tracked yet. Track a job from its detail view.'}</p>}</section></div>
 }
 
-export function PortalPack({api,compact=false}:{api:Props['api'],compact?:boolean}){
- const [data,setData]=useState<Row|null>(null),[error,setError]=useState('');
- const load=()=>api('/campaign/portals').then(setData).catch(e=>setError(e.message));useEffect(()=>{load()},[]);
- if(!data)return <section className="panel spaced">{error||'Loading UAE search destinations…'}</section>;
- const sources=compact?data.daily:data.sources;
- return <section className="panel spaced"><div className="sectiontitle"><div><h2>{compact?'Today’s UAE search pack':'Search elsewhere'}</h2><p>Open a source in your browser. Import worthwhile jobs using Add job.</p></div><button className="icon" aria-label="Refresh search pack" onClick={load}><RefreshCw size={17}/></button></div><div className="portal-list">{sources.map((s:Row)=><div className="portal-row" key={s.id}><div><strong>{s.name}</strong><small>{s.details.group} · {s.cadence} · Next check {date(s.next_check)} · {s.query} · {s.details.last_checked?'Checked '+date(s.details.last_checked):'Not checked yet'}</small></div>{!compact&&<select aria-label={'Check cadence for '+s.name} value={s.cadence} onChange={async e=>{try{await api('/campaign/portals/'+s.id,'PUT',{cadence:e.target.value,watching:true});load()}catch(e:any){setError(e.message)}}}>{['DAILY','ROTATING','WEEKLY'].map(c=><option key={c}>{c}</option>)}</select>}<a className="secondary" href={safeLink(s.url)} target="_blank" rel="noreferrer">Open <ArrowUpRight size={14}/></a><button className="icon" aria-label={'Mark '+s.name+' checked'} title="Mark checked after your review" onClick={async()=>{try{await api('/campaign/portals/'+s.id+'/checked','POST',{});load()}catch(e:any){setError(e.message)}}}><Check size={18}/></button></div>)}</div>{error&&<p role="alert">{error}</p>}</section>
-}
+export function PortalPack({api,compact=false}:{api:Props['api'],compact?:boolean}){return <SourceDirectory api={api} compact={compact}/>;}
 
 function PreferredSource({api,job}:{api:Props['api'],job:Row}){
  const [url,setUrl]=useState(job.analysis?.preferred_application_url||''),[message,setMessage]=useState('');
- return <details className="spaced"><summary>Application source</summary><p>Discovered via {job.analysis?.discovered_via||job.source}. Save an official employer listing here if you have verified it.</p><label>Preferred application link<input type="url" value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://…"/></label><button className="secondary" onClick={async()=>{try{await api('/recall/jobs/'+job.id+'/source','PUT',{preferred_application_url:url});setMessage('Preferred link saved locally.')}catch(e:any){setMessage(e.message)}}}>Save preferred link</button>{job.analysis?.preferred_application_url&&<a className="secondary" href={safeLink(job.analysis.preferred_application_url)} target="_blank" rel="noreferrer">Open preferred listing</a>}<p role="status">{message}</p></details>
+ return <Disclosure className="spaced" summary="Application source"><p>Discovered via {job.analysis?.discovered_via||job.source}. Save an official employer listing here if you have verified it.</p><label>Preferred application link<input type="url" value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://…"/></label><button className="secondary" onClick={async()=>{try{await api('/recall/jobs/'+job.id+'/source','PUT',{preferred_application_url:url});setMessage('Preferred link saved locally.')}catch(e:any){setMessage(e.message)}}}>Save preferred link</button>{job.analysis?.preferred_application_url&&<a className="secondary" href={safeLink(job.analysis.preferred_application_url)} target="_blank" rel="noreferrer">Open preferred listing</a>}<p role="status">{message}</p></Disclosure>
 }
 
 export function TrackPanel({api,job,onSaved}:{api:Props['api'],job:Row,onSaved:()=>void}){

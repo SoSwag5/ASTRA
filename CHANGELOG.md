@@ -16,6 +16,23 @@ when a release is approved; this file does not establish that a release exists.
 
 ## [Unreleased]
 
+### Beta 3 candidate (not released)
+
+- Setup and career-focus saves show persistent outcome text, busy and unsaved
+  hints; a write that succeeded but could not refresh offers Refresh instead of
+  a second write and blocks advancing on stale data. Focus choices are locked
+  while a save runs.
+- Animated disclosures and pages, Progress period transitions, consistent
+  hover/focus/press states and an Appearance motion choice (Match system,
+  Reduce motion, Full motion). Full motion overrides an operating-system
+  reduced-motion setting only after an explicit choice.
+- A **Sources & websites** directory: 77 unique destinations (74 manual links,
+  3 supported public feeds) with check dates, search, groups and user-added
+  links. Fresh workspaces enable three starter feeds; existing workspaces get
+  them paused. Startup seeding makes no network request and creates no jobs.
+- Optional Gmail setup copy no longer presents developer setup as a dead end.
+- Release workflow paths now refer to beta 3.
+
 ### Added
 
 - Resume-driven discovery query planning with explicit search-focus confirmation,

@@ -5,7 +5,7 @@
 export type Row = Record<string, any>;
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 export type ThemePreference = 'dark' | 'light' | 'system';
-export type MotionPreference = 'system' | 'reduced';
+export type MotionPreference = 'system' | 'reduced' | 'full';
 
 export const SECTIONS: {id: string; label: string; summary: string}[] = [
   {id: 'focus', label: 'Career focus', summary: 'What ASTRA searches for and how it ranks what it finds.'},
