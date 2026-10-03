@@ -1,6 +1,6 @@
 # v1.1.0-beta.3 candidate — evidence record
 
-**Status: candidate, unpublished. Not packaged, not approved, not released.**
+**Status: candidate, unpublished. Not approved, not released. The package built from `e465625` failed exact-package browser testing (installer-order defect below) and must not be published; a repaired source awaits a new exact package and re-verification.**
 Reviewed source anchors: `c494112` (reviews, browser pass) and `ddb087c` (final
 two-string copy change; backend content identical to `c494112`). Base
 `1896f1ee105e0c5558461c71a75a7077b2f6abad`, branch `feature/beta-3-usability`.
@@ -68,6 +68,28 @@ repeated because no backend or test file changed. Source-pattern checks, not a
 browser run (the root browser pass above later exercised it).
 
 `ddb087c`: two copy strings only (neutral setup pending hint; scan intro mentions the included boards). `npm test` and `npm run build` passed; guards unchanged.
+
+## Installer-order defect caught by the exact package (after e465625)
+
+The exact package built from `e465625` was browser-tested and the failure was caught:
+`setup.bat` runs `scripts/initialize.py`, which creates the Settings row before the
+server first starts, so startup no longer saw a fresh workspace and added the three
+starter feeds **paused**. After setup, Start scanning reported that no source was
+enabled, contradicting the promise of ready starter feeds. Source-only startup tests
+had missed the real installer ordering. That candidate is not to be published.
+
+Repair (new source anchor; package and browser re-verification pending): 
+`scripts/initialize.py` now reads freshness before initializing, then seeds the catalogue
+with that flag, so only a truly new workspace enables the three feeds. Existing
+workspaces, including those with zero sources, still get them paused and no choice is
+overwritten. `backend/models.py` is unchanged. New integration tests run the actual
+`scripts/initialize.py` in a child process, then the real app lifespan: a fresh
+install has 77 sources, 3 enabled, no jobs, applications or scans and no network;
+after pausing a feed and editing a manual link, repeated setup and restart preserve
+every choice; an existing zero-source workspace gets 77 sources, all paused. The new
+tests fail against the previous installer script. `scripts/clean_install.py` now also
+asserts the three enabled starter feeds straight after the real installer, so the
+hosted exact-package check covers this permanently. Implementer results for the repair: `tests/test_starter_catalog.py` 8 passed (2 new tests fail against the old installer script); full backend suite on isolated fictional data 2221 passed, 1 skipped, 0 failed. `clean_install.py` itself was not executed here (needs the exact ZIP); its new assertion's response shape was checked against a real installer-then-startup run (three feeds, all enabled). Frontend untouched. No browser or hosted result is claimed for the repaired source.
 
 ## NOT RUN
 

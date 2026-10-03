@@ -52,3 +52,7 @@ while loading. Settings' Open setup wizard uses it; startup already awaited
 In-flight (`aria-busy`) Close/Escape stays blocked; pending dismissal stays allowed.
 `npm test` and `npm run build` pass; the new checks read source and are not a
 browser run. Backend unchanged.
+
+## Installer-order repair (after e465625)
+
+The exact package showed that `setup.bat` -> `scripts/initialize.py` created the Settings row before first startup, leaving starter feeds paused. `initialize.py` now captures freshness first and seeds with it; integration tests run the real script then lifespan; `clean_install.py` asserts three enabled feeds. See the candidate evidence. Package, browser and hosted re-verification are pending.

@@ -1,6 +1,6 @@
 # ASTRA beta 3 release plan — 2–3 October 2026
 
-**Status (3 October 2026):** beta 3 is an unpublished candidate. Source and UI reviews and a source-checkout browser pass at `c494112`, plus the implementer's checks at `ddb087c`, are recorded in the evidence; packaged-release, hosted-gate, another-PC, live-Gmail, real-scan and AI checks are NOT RUN. It is not tagged, packaged, approved or published. Hosted verification is pending on [draft PR #86](https://github.com/SoSwag5/ASTRA/pull/86). See the
+**Status (3 October 2026):** beta 3 is an unpublished candidate. Source and UI reviews and a source-checkout browser pass at `c494112`, plus the implementer's checks at `ddb087c`, are recorded in the evidence; packaged-release, hosted-gate, another-PC, live-Gmail, real-scan and AI checks are NOT RUN. It is not tagged, packaged, approved or published. Hosted verification is pending on [draft PR #86](https://github.com/SoSwag5/ASTRA/pull/86). The package from `e465625` was rejected: the real installer created the settings row before first startup, so the starter feeds stayed paused. The installer now seeds them correctly and the exact-package install check asserts them; the repaired source needs a new package and browser/hosted verification, and earlier browser results above do not cover it. See the
 [candidate evidence](../release/V1_1_0_BETA_3_EVIDENCE.md). Older dated snapshots, such as
 the [next-update checklist](BETA_FOLLOWUP_CHECKLIST.md), are preserved as history.
 
