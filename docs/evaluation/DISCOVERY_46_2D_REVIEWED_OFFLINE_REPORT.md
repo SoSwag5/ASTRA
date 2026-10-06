@@ -1,0 +1,190 @@
+# #46.2-D reviewed offline Ollama connector
+
+**Status:** ready for Owner review as an offline, shadow-only integration. The
+connector is not wired into ASTRA discovery, ranking, startup or scan control.
+No live scan ran, no model was selected for production, and no quality gate
+passed. This branch was reconciled with `master` after PR #71 (#46.2-A/B/C
+integration) merged; its diff against `master` contains only the D files.
+#46.2-C v3 **failed** its fixed blind criterion and is not validated, so
+nothing here depends on C quality. Merging D means merging a shadow
+connector, not validating C or F and not rolling out a model.
+
+**Date:** 2026-09-23 (Asia/Dubai); reconciled with `master` 2026-09-29. Sections
+below dated 2026-09-23 are historical observations and were not re-run unless
+the *Reconciliation* section says so. The independently remediated transport was
+committed at `08739b5dc50ee10ffb6e16bc05b15e68f7883d6f`. The fictional
+mocked run was generated from that clean code commit. The local-model run was
+repeated from clean commit `d91ab032aaeff7108bf72af56795c8ecbb4ff3e4`,
+which adds only the mocked report. A later follow-up at
+`59e9f4515fd80994c8220c041cffef966e8a0bfd` changed one live-report label
+from “RAN” to “DISPATCHED” and its regression assertion; it did not change
+transport, model requests, evidence verification or the observed run counts.
+The raw live report with machine readings stayed outside Git. Its selected,
+text-free facts are in
+[the live summary](discovery_46_2d_live_smoke_summary_v1.json).
+
+## Scope and independent review
+
+`backend/ollama_connector.py` supplies local HTTP transport beneath the
+existing #46.2-C role-understanding contract. It accepts only a numeric
+loopback endpoint, refuses redirects and proxies, verifies the installed model
+tag and SHA-256 manifest digest, checks a local 1.5 GiB free-RAM floor, and
+sends bounded, nonstreaming schema-formatted chat requests. Embeddings use
+`truncate: false`. The posting contains only title, location and description;
+no CV, profile, label, saved job or credential is passed. The module has no
+storage writer, and its reports contain reason codes and counts instead of
+posting or answer text. Tests enforce that production code does not import it.
+
+Independent review of Claude's original `7cf2491` code found and remediated:
+
+- Direct construction of an `Endpoint` could bypass the loopback rule.
+- The C request builder silently truncated oversized posting fields.
+- Verifier diagnostics could leak an unquoted model-supplied key into reports.
+- Unexpected transport faults could be retried after a partial send.
+- Chat and embedding responses were not checked against the requested model;
+  incomplete or non-assistant chat envelopes could be accepted.
+- The operation time limit excluded model identity lookup and retry backoff.
+- A live report could say a model ran when no request was dispatched.
+
+Regression tests now cover these cases. `model.request_dispatched` means a
+request reached the local model endpoint; it does not, by itself, prove that
+inference completed. Accepted responses and failure reasons are reported
+separately.
+
+## Reconciliation with master (2026-09-29)
+
+Two commits made after the 2026-09-23 review are kept: real-socket timing tests
+were synchronised to the request actually arriving (`b518ec7`), and an embedding
+integer too large for a float is refused instead of raising (`a27c970`).
+A further read-only audit of the connector found and fixed, with regression
+tests:
+
+- A model answer or HTTP body containing an integer past Python's digit limit
+  or pathological nesting raised out of the connector; it is now
+  `MALFORMED_RESPONSE`.
+- The model digest was checked only before the call, so a tag re-pointed
+  afterwards (or between a retry's attempts) was accepted as the pinned
+  artifact. The digest is now re-read after an answer is accepted; a change is
+  `MODEL_UNVERIFIED`.
+- A tag listed twice with different digests was decided by list order; it now
+  fails closed.
+- A model-supplied `assessor` label was passed through; the connector now sets
+  it.
+- The connector's text called evidence spans "verbatim". The C verifier matches
+  case-insensitively with whitespace collapsed; the text now says so. This is a
+  documented behaviour, not a change.
+- A second test now checks that nothing imports the harness.
+- Independent review found the chat prompt could overflow the 2,048-token context
+  window, which Ollama truncates silently while evidence still verifies against
+  the full text. A prompt whose pessimistic token estimate (3 ASCII characters
+  per token, one token per non-ASCII character; a heuristic, not a tokenizer)
+  exceeds the 1,536-token prompt budget is now refused before dispatch, and a
+  reply whose `prompt_eval_count` is absent, non-positive or above that budget
+  is `CONTEXT_EXCEEDED`. Long postings are therefore refused, not shortened. A
+  real Ollama that omits or lowers the count for a cached prompt would make
+  such a reply fail closed; that behaviour has not been observed here; whether a larger context is worth its cost is an Owner choice.
+  The unused `_scrub` helper was removed.
+- Independent assurance review then found that cancellation or deadline expiry
+  during HTTP client construction was not rechecked, so the request was still
+  sent (and counted as a model call) after the call had been cancelled or had
+  timed out. `_request()` now rechecks both after construction, closes the
+  unused client and returns `CANCELLED` or `TIMEOUT` with no request dispatched.
+  Deterministic tests hook client construction for `understand()` and `embed()`,
+  at both the identity lookup and the model request; they fail on the previous
+  code and pass now. A cancel arriving after the exchange has started is still
+  handled by the existing socket-close path.
+- A second, adjacent gap: a stop set after that recheck but before the worker
+  thread entered the exchange (at `Thread.start()`) still sent the request. The
+  worker now checks cancellation and the absolute deadline immediately before
+  the exchange and returns `CANCELLED` or `TIMEOUT` with nothing dispatched.
+  Deterministic tests intercept worker start for `understand()` and `embed()`;
+  they fail on `04c0293` and pass now. A stop arriving after the exchange has
+  begun is a different boundary and remains covered only by the socket-close
+  path.
+
+Rerun at the reconciled tree: focused D and C-shadow tests, the mocked harness
+(same counts as below; the committed mocked JSON was not regenerated), the full
+suite and the publication gate; the exact figures are in the pull request.
+The local-model smoke run below was **not** repeated and remains a historical
+observation of commit `d91ab03`; the post-audit connector changes have never
+been exercised against a real Ollama.
+
+## Offline results (2026-09-23, historical unless marked)
+
+| Check | Observed result |
+|---|---|
+| Fictional mocked harness, [full report](discovery_46_2d_offline_mocked_v2.json) | 28 cases; 11 accepted, 17 rejected or failed; 0 fixture mismatches; the fixture baseline stayed unchanged on all 17 failures. No real model call. |
+| Local-model preflight | One listener on `127.0.0.1:11434`; both installed tags matched pinned digests; free RAM exceeded the local floor; cloud-disabled file setting was observed and `OLLAMA_NO_CLOUD=1` was set when the service was started. The no-call preflight passed. |
+| Local evaluator, 12 fictional postings | 11 requests dispatched; 4 answers accepted, 7 rejected for unsupported evidence, and 1 delimiter-bearing input refused before dispatch. The fixture baseline stayed unchanged on all 8 nonaccepted cases. |
+| Local embedding | 1 request dispatched and accepted with the pinned embedding tag. |
+| Harness status | `COMPLETED WITH REJECTIONS OR FAILURES`, exit code 1. This is a truthful completed smoke test with answer rejections, not a passing quality evaluation. |
+| Focused tests | 268 passed in the review worktree on 2026-09-23 (superseded; see the pull request for the reconciled count). |
+| Full suite on the earlier publication branch | 2,041 passed, 1 skipped, 1 deselected (the known repository-wide publication gate test); frontend was built first. A process-local Git safe-directory setting handled the worktree's sandbox ownership. |
+| Publication gate in a temporary clone containing only the earlier branch | **PASS**, 0 findings. The clone was not used to replace or weaken the repository-wide gate. |
+
+The local-model run shows that this installed Ollama accepted the schema
+request and returned parsable responses. It does not establish that accepted
+answers have the right job function or improve ranking. The 12 fictional
+postings are distinct from the employer-separated #46.2-C blind holdout,
+which was not opened. No real posting, employer, ATS or SmartRecruiters source
+was called.
+
+## Limits and open choices
+
+- Genuine text spans can still support a wrong function label (mock case F05).
+  An injected sentence quoted as a duty can still pass the evidence verifier
+  (F16). Both limitations are pinned by tests.
+- The strict policy rejects an entire answer if even one evidence claim is
+  discarded. The Owner has not approved that as a production policy.
+- The 1.5 GiB free-RAM floor is a local protective setting, not an approved
+  #46.2 gate. Real resource use was observed on one laptop only.
+- Cloud-disabled configuration and a loopback listener were checked. Network
+  egress from the running process was not independently measured.
+- A throwaway local HTTP server proved that cancellation closes the socket;
+  Ollama's actual generation response to that closure was not measured.
+- The repository-wide publication gate remains BLOCKED by two historical
+  private-path findings on unrelated local research refs. This branch does
+  not contain those commits. The isolated-branch gate passed above; the
+  repository-wide BLOCKED result remains a separate release finding.
+
+## Reproduce locally
+
+These commands use the already installed local Ollama binary and models. They
+do not pull a model or start ASTRA. In one PowerShell window:
+
+```powershell
+$env:OLLAMA_HOST = '127.0.0.1:11434'
+$env:OLLAMA_NO_CLOUD = '1'
+& (Join-Path $env:USERPROFILE 'ollama\ollama.exe') serve
+```
+
+Leave that window open. In another PowerShell window, use the project's Python
+environment and this worktree:
+
+```powershell
+$env:OLLAMA_HOST = '127.0.0.1:11434'
+$ollama = Join-Path $env:USERPROFILE 'ollama\ollama.exe'
+$python = '<path to the project virtualenv python.exe>'
+Set-Location <path to your checkout of this branch>
+& $ollama list
+& $python scripts/offline_ollama_harness.py --mode mocked
+& $python scripts/offline_ollama_harness.py --mode live --preflight-only --tag qwen3:4b-instruct-2507-q4_K_M --digest 0edcdef34593eac1aa2be9c7d06c432dcf81945adca5eca2f27662c18f168ba0 --embed-tag qwen3-embedding:0.6b --embed-digest ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d
+& $python scripts/offline_ollama_harness.py --mode live --tag qwen3:4b-instruct-2507-q4_K_M --digest 0edcdef34593eac1aa2be9c7d06c432dcf81945adca5eca2f27662c18f168ba0 --embed-tag qwen3-embedding:0.6b --embed-digest ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d --out (Join-Path $env:TEMP 'astra-d-live.json')
+```
+
+The mocked command should exit 0. The no-call preflight should exit 0 only if
+all checks pass. The live command exits 1 if any fictional answer is rejected;
+read its count and reason breakdown rather than treating exit 1 as a transport
+failure. The output file is local and may contain machine readings, so keep it
+out of Git. Press Ctrl+C in the first window to stop Ollama. The commands do
+not run a scan, access the private evaluation set, or change a database.
+
+## Handoff
+
+This branch needs independent review and the Owner's decision before any merge. #46.2-E may start as a
+separate offline task using fictional or public jobs and the local embedding
+boundary. The evaluator's 4-of-11 acceptance on fictional cases is a reason
+to keep AI assessment behind a switch and continue quality research; it is
+not a production promotion decision. Owner choices remain the partly
+supported-answer policy, the protective RAM floor, and eventual model
+selection after a separate evaluation.
